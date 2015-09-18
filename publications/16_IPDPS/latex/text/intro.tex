@@ -1,0 +1,69 @@
+\section{Introduction}
+\label{introduction}
+
+The goal of this work is to bridge big data processing on HPC platforms 
+such as supercomputers. MapReduce model provides an easy way for
+application programmers to deal with distributed big data. Moreover,
+there exist many runtime libraries that support MapReduce on cloud
+environment such as hadoop etc. At the same time, HPC platforms such
+as supercomputers provides high performance computation (multicore per node),
+ communication (MPI), and storage capabilities (high performance shared
+ file system such as lustre).
+
+Some research effort targets to bridge big data processing
+on HPC platforms such as supercomputers. This is important due to
+the fact that many scientific applications (e.g. xx, yy) run on HPC platforms,
+they generate big data that need to be processed in an in-situ or in-transit manner
+(cite xx). MapReduce-MPI is a popular framework that enables big data
+on HPC platforms. However, MRMPI has poor performance at large
+scale. Figure xx shows for benchmark word count and clustering,
+when using 2048 computing cores, the weak scalability is bad due to
+the long shuffle time that involves all to all communications. The root
+of the poor performance is two design choices: (1) MRMPI uses a process-based
+model. Each MPI process runs map and reduce functions. To take advantage
+of multiple computing cores per node, one needs to run multiple MPI
+processes per node. This results in communication happens 
+from process to process, hence multiple communication channels established
+among two nodes which in fact only 1 is needed. (2) MRMPI uses blocking
+MPI\_Alltoallv to do the all to all communication in the shuffling stage. This
+precludes the possibility of overlapping communication and computation
+in the process. These two design choices increase the number of
+processes involved in the all to all communication, and block computation
+while communication is undergoing. 
+
+In our new design, we overcome these two disadvantages by using:
+(1) a hybrid MPI process and multithreaded based model. Each MPI
+process runs multithreaded version of map and reduce functions. One
+can take advantage of multiple computing cores per node by running
+one process on each node, and running multithreaded map and reduce
+functions per node. This reduce the number of process involved in the
+all to all communication, ensures that the communication happens 
+among nodes, which is the minimum communication size; (2) non-blocking
+MPI\_Ialltoallv communication which is available since MPI version xx.
+This allows overlapping of communication with map computation.
+
+The evaluation using benchmarks show that our new MapReduce
+model improves the performance at large scale.
+
+This paper makes three significant contributions:
+\begin{itemize}
+\item It presents a MapReduce runtime library using multithreaded 
+design and advanced MPI features.
+\item It improves the scalability of big data processing on supercomputers
+at large scale.
+\item It shows ...
+\end{itemize}
+
+The rest of this paper is organized as follows:
+Section~\ref{s:related_work} reviews the related work on trajectory
+analysis and distributed big data analytics; Section~\ref{s:method}
+presents our method in detail; Section~\ref{s:validation} shows the
+validation of the method using statistical and empirical techniques;
+Section~\ref{s:implementation} discusses the implementation aspects in
+Parallel MATLAB; Section~\ref{s:evaluation} presents the performance
+evaluations; and Section~\ref{s:conclusions} concludes the paper and
+gives directions for future work.
+
+
+
+

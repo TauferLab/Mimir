@@ -1,0 +1,41 @@
+
+\section{Conclusion and future work}
+\label{s:conclusions}
+
+In this paper, we presented a method to study intra- and
+inter-trajectory analysis in large protein-folding datasets on
+distributed memory systems. Our method is a one-pass, distributed
+process that is efficient and suitable for in-situ data analysis:
+it avoids the need for moving trajectory data, uses a limited amount of 
+memory, and is faster than traditional approaches.
+We implemented the method in a modular framework using
+Parallel MATLAB and evaluated its performance using the folding
+trajectory of the protein HP-35 NleNle (i.e., a variant of the villin
+headpiece subdomain) on 256 compute cores of Gordon supercomputer. 
+We compared our method's performance with a more traditionally used,
+centralized approach and observed significantly faster runtimes
+(i.e., two orders of magnitude faster, 41.5 seconds comparing to 3
+hours in the traditional method). We also observed a three and four
+orders of magnitude reduction respectively in the size of data
+movement and memory usage (i.e., 6.9 MB memory usage comparing to 16
+GB in the traditional method, 4.4 KB data moved comparing to 539
+MB). In addition, our method presents a linear weak scalability and
+maintains a parallel efficiency above 90\% when using up to 128
+cores. 
+
+Future work includes testing the accuracy and scalability of our method for 
+larger datasets of protein-folding trajectories containing more diverse
+protein conformations (i.e., alpha-helix and beta-sheet) than the
+villin subdomain and for larger distributed memory systems. We are also 
+committed to closely work with domain scientists to
+explore the benefit of our method to the study of the protein-folding
+process.
+
+\balance
+
+
+% use section* for acknowledgement
+\section*{Acknowledgment}
+This work is supported in part by NSF grants: DMS 0800272/0800266, and CCF-SHF 1318445/1318417. This work used the Extreme Science and Engineering Discovery Environment (XSEDE), which is supported by National Science Foundation grant number OCI-1053575. The authors want to thank Dr. Vijay Pande and T. J. Lane from Stanford  for providing us with the dataset for our tests. All the software will be made available before the conference. 
+
+
