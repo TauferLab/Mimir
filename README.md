@@ -1,7 +1,18 @@
 # README #
 
-This README would normally document whatever steps are necessary to get your application up and running.
+This repository contains the source code (src), benchmarks (benchmarks), documentations (doc), and relevant publications (publications) of the multithreaded MapReduce project.
 
+The goal of the project is to enable more efficient big data processing on traditional HPC platforms.
+
+## How do I Compile and Run ##
+### Supported Platform ###
+GNU/Linux
+
+### Required Software ###
+*C++ compiler must be installed, gcc/g++ or icc/i++
+*MPI library must be installed, MPICH, MVAPICH, etc
+*OpenMP support
+ 
 ### What is this repository for? ###
 
 * Quick summary
