@@ -9,10 +9,31 @@ The goal of the project is to enable more efficient big data processing on tradi
 GNU/Linux
 
 ### Required Software ###
-*C++ compiler must be installed, gcc/g++ or icc/i++
-*MPI library must be installed, MPICH, MVAPICH, etc
-*OpenMP support
+* A C++ compiler must be installed
+* MPI library must be installed, MPICH, MVAPICH, etc
+* OpenMP support
  
+### How to Compile ###
+```
+$ cd /path/to/src
+$ make
+```
+
+### How to Run ###
+To run the wordcount benchmark:
+```
+$ cd /path/to/benchmarks/bench_wc
+$ make
+$ mpiexec -n 2 -ppn 1 ./wordcount input_path log_path spill_path out_path
+```
+
+To run the octree_lg benchmark:
+```
+$ cd /path/to/benchmarks/bench_lg
+$ make
+$ mpiexec 
+```
+
 ### What is this repository for? ###
 
 * Quick summary
