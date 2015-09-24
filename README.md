@@ -31,5 +31,5 @@ To run the octree_lg benchmark:
 ```
 $ cd /path/to/benchmarks/bench_lg
 $ make
-$ mpiexec 
+$ mpiexec -n 2 -ppn 1 ./octree_lg input_path log_path spill_path out_path map_local_spill_path 500
 ```
