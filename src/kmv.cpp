@@ -21,7 +21,7 @@
 	#define MVM_SIZE (512*1024*1024)
 	#define MVC_SIZE (512*1024*1024)
 	#define REDUCE_KVB_SIZE (32*1024*1024)//reduce kv buffer size
-	#define N_THREADS 8
+	#define N_THREADS 12
 #else
 	#define DICTM_SIZE (32*1024*1024) //merge
 	#define MVM_SIZE (256*1024*1024)//per thread
@@ -55,7 +55,6 @@ KMV::KMV(MapReduce *caller){
 	caller->kmv = this;
 	mv_buffer_size = caller->kv_buffer_size;
 
-
 	/*dict_convert_offset = 0;
 	mv_convert_offset = 0; 
 	dict_merge_offset = 0; 
@@ -66,16 +65,13 @@ KMV::KMV(MapReduce *caller){
 
 	reduce_num=caller->reduce_num;
 
-
-	logf_reduce_p = mr->log_base + "/log_reduce_p" + std::to_string(me);
-	logf_reduce_p_of.open(logf_reduce_p,  std::ofstream::out|std::ofstream::app);
+	//logf_reduce_p = mr->log_base + "/log_reduce_p" + std::to_string(me);
+	//logf_reduce_p_of.open(logf_reduce_p,  std::ofstream::out|std::ofstream::app);
 
 	//print info to log files to debug
-	logf_reduce_p_of<<"DICTM_SIZE: "<<DICTM_SIZE<<std::endl << "MVM_SIZE: "
-		<<MVM_SIZE<<std::endl<<"MVC_SIZE: "<<MVC_SIZE<<std::endl
-		<<"REDUCE_KVB_SIZE: "<<REDUCE_KVB_SIZE<<std::endl;
-
-
+	//logf_reduce_p_of<<"DICTM_SIZE: "<<DICTM_SIZE<<std::endl << "MVM_SIZE: "
+	//	<<MVM_SIZE<<std::endl<<"MVC_SIZE: "<<MVC_SIZE<<std::endl
+	//	<<"REDUCE_KVB_SIZE: "<<REDUCE_KVB_SIZE<<std::endl;
 }
 
 KMV::~KMV(){
@@ -100,10 +96,10 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 	uint32_t (*myreduce) (MapReduce *, const char *, 
 			uint32_t , const char *, uint32_t , char *))
 {
-	if (DEBUG)
-	{
-		logf_reduce_p_of<<"Enter convert, max kv file size is: "<<max_kv_file_size<<std::endl;
-	}
+	//if (DEBUG)
+	//{
+	//	logf_reduce_p_of<<"Enter convert, max kv file size is: "<<max_kv_file_size<<std::endl;
+	//}
 
 	//allocate memory for each kv chunk
 	//TODO: what if the size of kv chunk is too large??
@@ -117,6 +113,10 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 	thread_time_s = omp_get_wtime();
 	//for every kv chunk
+	//
+
+        //if(me ==0 ) Log::output("begin convert");
+
 	#pragma omp parallel 
 	{
 
@@ -125,21 +125,21 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 	uint32_t num_kv_t=0;
 
-	std::string logf_reduce_t = mr->log_base + "/log_reduce_p" + std::to_string(me)+"t"+std::to_string(tid);
-	std::ofstream logf_reduce_t_of;
+	//std::string logf_reduce_t = mr->log_base + "/log_reduce_p" + std::to_string(me)+"t"+std::to_string(tid);
+	//std::ofstream logf_reduce_t_of;
 	//if (DEBUG)
 	//{
-		logf_reduce_t_of.open(logf_reduce_t,std::ofstream::out|std::ofstream::app);
-		logf_reduce_t_of<<"Enter convert. max kv file size is: "<<max_kv_file_size<<std::endl
-			<<"number of kv chunk files is: "<<mr->svec_spillf_kv_after_all2all.size()<<std::endl;
+	//	logf_reduce_t_of.open(logf_reduce_t,std::ofstream::out|std::ofstream::app);
+	//	logf_reduce_t_of<<"Enter convert. max kv file size is: "<<max_kv_file_size<<std::endl
+	//		<<"number of kv chunk files is: "<<mr->svec_spillf_kv_after_all2all.size()<<std::endl;
 	//}
 
-	double convert_time=0, merge_time=0, reduce_time=0;
-	double convert_s_time=0, convert_e_time=0, merge_s_time=0, merge_e_time=0, reduce_s_time=0, reduce_e_time=0;
-	double io_time=0, omp_sync_time=0;
-	double io_time_s=0, io_time_e=0, omp_sync_time_s=0, omp_sync_time_e=0;
-	convert_s_time = omp_get_wtime();
-	logf_reduce_t_of<<"Convert start time: "<<std::setprecision(15)<<convert_s_time<<std::endl;
+	//double convert_time=0, merge_time=0, reduce_time=0;
+	//double convert_s_time=0, convert_e_time=0, merge_s_time=0, merge_e_time=0, reduce_s_time=0, reduce_e_time=0;
+	//double io_time=0, omp_sync_time=0;
+	//double io_time_s=0, io_time_e=0, omp_sync_time_s=0, omp_sync_time_e=0;
+	//convert_s_time = omp_get_wtime();
+	//logf_reduce_t_of<<"Convert start time: "<<std::setprecision(15)<<convert_s_time<<std::endl;
 
 	char  *mv_convert, *dict_merge, *mv_merge;//private to thread
 	uint32_t  mv_convert_offset = 0, dict_merge_offset = 0, mv_merge_offset = 0;
@@ -189,13 +189,13 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 	{
 		//if (DEBUG)
 		//{
-			logf_reduce_t_of<<"1: processing file: "<<mr->svec_spillf_kv_after_all2all.at(i)
-				<<std::endl;
+			//logf_reduce_t_of<<"1: processing file: "<<mr->svec_spillf_kv_after_all2all.at(i)
+		        //		<<std::endl;
 		//}
 		//thread 0 reads the kv file into memory
 		if (tid == 0)
 		{
-			io_time_s = omp_get_wtime();
+			//io_time_s = omp_get_wtime();
 			std::ifstream kv_file (mr->svec_spillf_kv_after_all2all.at(i),std::ios::in|std::ios::binary|std::ios::ate);
 			if (kv_file.is_open()){
 				kv_file_size = kv_file.tellg();
@@ -203,29 +203,29 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 					continue;//skip empty files
 				kv_file.seekg(0, std::ios::beg);
 				kv_file.read(kv_buffer, kv_file_size);
-				if (DEBUG)
-				{
-					logf_reduce_t_of<<"The entire kv file: "<< 
-						mr->svec_spillf_kv_after_all2all.at(i)<<
-						" is in memory, size: "
-						<<kv_file_size<<std::endl;
-				}          
+				//if (DEBUG)
+				//{
+				//	logf_reduce_t_of<<"The entire kv file: "<< 
+				//		mr->svec_spillf_kv_after_all2all.at(i)<<
+				//		" is in memory, size: "
+				//		<<kv_file_size<<std::endl;
+				//}          
 				kv_file.close();
 
 			}else{
 				std::cout<<"Proc: "<<me <<" unable to kv open file."<<std::endl;
 			}
-			io_time_e = omp_get_wtime();
-			io_time += (io_time_e - io_time_s);
-			logf_reduce_t_of<<"IO s: "<<io_time_s<<std::endl
-				<<"IO e: "<<io_time_e<<std::endl;
+			//io_time_e = omp_get_wtime();
+			//io_time += (io_time_e - io_time_s);
+			//logf_reduce_t_of<<"IO s: "<<io_time_s<<std::endl
+			//	<<"IO e: "<<io_time_e<<std::endl;
 		}
-		omp_sync_time_s = omp_get_wtime();
+		//omp_sync_time_s = omp_get_wtime();
 		#pragma omp barrier
-		omp_sync_time_e = omp_get_wtime();
-		omp_sync_time += (omp_sync_time_e - omp_sync_time_s);
-		logf_reduce_t_of<<"Barrier s: "<<omp_sync_time_s<<std::endl
-			<<"Barrier e: "<<omp_sync_time_e<<std::endl;
+		//omp_sync_time_e = omp_get_wtime();
+		//omp_sync_time += (omp_sync_time_e - omp_sync_time_s);
+		//logf_reduce_t_of<<"Barrier s: "<<omp_sync_time_s<<std::endl
+		//	<<"Barrier e: "<<omp_sync_time_e<<std::endl;
 		//to ensure the kv chunk is in memory before threads process it
 		//kv chunk in memory: kv_buffer
 
@@ -245,7 +245,7 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 		//(1.2) for every kv pair in the kv chunk
 
-		logf_reduce_t_of<<"1.2, begin."<<std::endl;
+		//logf_reduce_t_of<<"1.2, begin."<<std::endl;
 
 		uint32_t num_key_dict_c = 0;
 		uint32_t hash_id;
@@ -254,10 +254,10 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 		kv_offset = 0;
 		tmp_len = 1;
 
-		if (DEBUG)
-		{
-			logf_reduce_t_of<<"I1: enter for every key in kv chunk."<<std::endl;
-		}
+		//if (DEBUG)
+		//{
+		//	logf_reduce_t_of<<"I1: enter for every key in kv chunk."<<std::endl;
+		//}
 
 		while ((kv_offset < kv_file_size) && (tmp_len !=0))
 		{
@@ -300,11 +300,11 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 			{
 				//ibucket = hash(key, keysize);
 				ibucket = hash_id & (estimate2-1);
-				if (DEBUG)
-				{
-					logf_reduce_t_of<<"I1: key: "<<key <<" keysize: "<<keysize
-						<<"htc ibucket: "<<ibucket<<std::endl;
-				}
+				//if (DEBUG)
+				//{
+				//	logf_reduce_t_of<<"I1: key: "<<key <<" keysize: "<<keysize
+				//		<<"htc ibucket: "<<ibucket<<std::endl;
+				//}
 
 				std::list<UniqueC>& ul = ht_convert[ibucket];
 				char *key_hit = 0;
@@ -319,11 +319,11 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 						//u.locs.push_back(std::pair<uint32_t, uint32_t> tmp_pair (val_s, val_e));
 						u->locs.push_back(std::make_pair(val_s, val_e));
 						u->mv_size += (tmp_len+1);
-						if (DEBUG)
-						{
-							logf_reduce_t_of<<"I1: htc buket hit, push back val_s and val_e "
-								<<val_s<<"-"<<val_e<<std::endl;
-						}
+						//if (DEBUG)
+						//{
+						//	logf_reduce_t_of<<"I1: htc buket hit, push back val_s and val_e "
+						//		<<val_s<<"-"<<val_e<<std::endl;
+						//}
 
 						break;
 
@@ -344,14 +344,14 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 					//dict_convert[dict_convert_offset] = key;
 					//dict_convert_offset++;
 					//num_key_dict_c++;
-					if (DEBUG)
-					{
-						logf_reduce_t_of <<"I1: htc bucket miss, push back val_s and val_e "
-							<<val_s<<"-"<<val_e<<std::endl;
-						logf_reduce_t_of<<"I1: number of keys in dictc: "<<num_key_dict_c<<std::endl
+					//if (DEBUG)
+					//{
+					//	logf_reduce_t_of <<"I1: htc bucket miss, push back val_s and val_e "
+					//		<<val_s<<"-"<<val_e<<std::endl;
+					//	logf_reduce_t_of<<"I1: number of keys in dictc: "<<num_key_dict_c<<std::endl
 							//<<"dict_convert_offset: "<<dict_convert_offset<<std::endl
-							<<"current key: "<<key<<std::endl ;
-					}
+					//		<<"current key: "<<key<<std::endl ;
+					//}
 
 					//ul.push_back(new_unique);
 
@@ -366,13 +366,13 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 		}//end while kv_offset < kv file size
 
-		logf_reduce_t_of<<"1.2, end."<<std::endl;
+		//logf_reduce_t_of<<"1.2, end."<<std::endl;
 
-		if (DEBUG)
-		{
-			logf_reduce_t_of<<"I1: exit for every key in kv chunk."<<std::endl;
-			logf_reduce_t_of<<"I2: enter for every key in dictc."<<std::endl;
-		}
+		//if (DEBUG)
+		//{
+		//	logf_reduce_t_of<<"I1: exit for every key in kv chunk."<<std::endl;
+		//	logf_reduce_t_of<<"I2: enter for every key in dictc."<<std::endl;
+		//}
 
 		//(1.3) loops over the hashtable_convert
 		size_t tmp_offset = 0;
@@ -392,20 +392,20 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 					//cp to mv_convert
 					mv_s = mv_convert_offset;
 					mv_e = mv_convert_offset;
-					if (DEBUG){
-						logf_reduce_t_of<<"13-C, key: "<<u->key<<" size: "<<u->mv_size
-							<<" mv_convert_offset: "<<mv_convert_offset<<std::endl;
-					}
+					//if (DEBUG){
+					//	logf_reduce_t_of<<"13-C, key: "<<u->key<<" size: "<<u->mv_size
+					//		<<" mv_convert_offset: "<<mv_convert_offset<<std::endl;
+					//}
 					
 
 					if ((mv_convert_offset + u->mv_size)<MVC_SIZE){
 						//the mv fit in the mv_c, cp directly to memory
-						if (DEBUG)
-						{
-							logf_reduce_t_of<<"131, key: "
-								<<u->key<<" mv_convert offset: "
-								<<mv_convert_offset<<std::endl;
-						}
+						//if (DEBUG)
+						//{
+						//	logf_reduce_t_of<<"131, key: "
+						//		<<u->key<<" mv_convert offset: "
+						//		<<mv_convert_offset<<std::endl;
+						//}
 						for (auto l = u->locs.begin(); l != u->locs.end(); ++l)
 						{
 							valuesize = (l->second - l->first );//not include the null
@@ -418,19 +418,19 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 					}else{
 						//mv does not fit in the mv_c, spill the current mv_c to disk, then cp
-						if (DEBUG)
-						{
-							logf_reduce_t_of<<"132, key: "
-								<<u->key<<" mv_convert offset: "
-								<<mv_convert_offset<<std::endl;
-						}
+						//if (DEBUG)
+						//{
+						//	logf_reduce_t_of<<"132, key: "
+						//		<<u->key<<" mv_convert offset: "
+						//		<<mv_convert_offset<<std::endl;
+						//}
 
-						io_time_s = omp_get_wtime();
+						//io_time_s = omp_get_wtime();
 						this->spill(mv_convert, spill_mv_c_file.c_str(), mv_convert_offset);
-						io_time_e = omp_get_wtime();
-						io_time += (io_time_e - io_time_s);
-						logf_reduce_t_of<<"Spill s: "<<io_time_s<<std::endl
-							<<"Spill e: "<<io_time_e<<std::endl;
+						//io_time_e = omp_get_wtime();
+						//io_time += (io_time_e - io_time_s);
+						//logf_reduce_t_of<<"Spill s: "<<io_time_s<<std::endl
+						//	<<"Spill e: "<<io_time_e<<std::endl;
 
 						svec_spillf_mv_c.push_back(spill_mv_c_file);
 						num_spill_mv_c++;
@@ -459,22 +459,22 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 
 					//query and update hashtable merge, dict merge
-					if (DEBUG)
-					{
-						logf_reduce_t_of<<"13-M, mv_convert_offset: "<<mv_convert_offset
-							<<"mv_merge_offset: "<<mv_merge_offset
-						<<std::endl;
-					}
+					//if (DEBUG)
+					//{
+					//	logf_reduce_t_of<<"13-M, mv_convert_offset: "<<mv_convert_offset
+					//		<<"mv_merge_offset: "<<mv_merge_offset
+					//	<<std::endl;
+					//}
 					keysize = strlen(u->key);
 					ibucket = (hashlittle(u->key, keysize,0)) & (estimate-1);
 
 					std::list<UniqueM>& uml = ht_merge[ibucket];
-					if (DEBUG)
-					{
-						logf_reduce_t_of<<"I2: key: "<<u->key<<" keysize: "<<keysize
-							<<"htm ibucket: "<<ibucket<<std::endl
-							<<"uml size: "<<uml.size()<<std::endl;
-					}
+					//if (DEBUG)
+					//{
+					//	logf_reduce_t_of<<"I2: key: "<<u->key<<" keysize: "<<keysize
+					//		<<"htm ibucket: "<<ibucket<<std::endl
+					//		<<"uml size: "<<uml.size()<<std::endl;
+					//}
 					
 					char *key_hit = 0;
 					for (auto um = uml.begin(); um != uml.end(); ++um){
@@ -483,12 +483,12 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 							key_hit = um->key;
 							um->locs.push_back(std::make_tuple(num_spill_mv_c, mv_s, mv_e));
 							um->mv_size += (u->mv_size);
-							if (DEBUG)
-							{
-								logf_reduce_t_of<<"133, key: "<<u->key
-									<<" loc: "
-									<<mv_s<<"-"<<mv_e<<std::endl;
-							}
+							//if (DEBUG)
+							//{
+							//	logf_reduce_t_of<<"133, key: "<<u->key
+							//		<<" loc: "
+							//		<<mv_s<<"-"<<mv_e<<std::endl;
+							//}
 							break;
 						}
 					}
@@ -505,13 +505,13 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 						dict_merge_offset += (keysize+1);
 						num_key_dict_m++;
-						if (DEBUG)
-						{
-							logf_reduce_t_of<<"134 key: "<<u->key
-								<<" loc: "
-								<<mv_s<<"-"<<mv_e<<" dict_m: "
-								<<dict_merge_offset<<" #unique key: "<<num_key_dict_m<<std::endl;
-						}
+						//if (DEBUG)
+						//{
+						//	logf_reduce_t_of<<"134 key: "<<u->key
+						//		<<" loc: "
+						//		<<mv_s<<"-"<<mv_e<<" dict_m: "
+						//		<<dict_merge_offset<<" #unique key: "<<num_key_dict_m<<std::endl;
+						//}
 					}
 
 				}//if u->key != NULL
@@ -519,57 +519,61 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 		}//end for atuo ul in hashtable convert
 
 
-		if (DEBUG)
-		{
-			logf_reduce_t_of<<"I2: after update the dictionary merge and ht merge, "
-				<<"offset of dictionary merge is: "<<dict_merge_offset
-				<<"number of keys in dictionary merge is: "<<num_key_dict_m<<std::endl;
-		}
+		//if (DEBUG)
+		//{
+		//	logf_reduce_t_of<<"I2: after update the dictionary merge and ht merge, "
+		//		<<"offset of dictionary merge is: "<<dict_merge_offset
+		//		<<"number of keys in dictionary merge is: "<<num_key_dict_m<<std::endl;
+		//}
 
 
 		//delete [] dict_convert;
 		//delete [] mv_convert;
-		omp_sync_time_s = omp_get_wtime();
+		//omp_sync_time_s = omp_get_wtime();
 		#pragma omp barrier //do not write kv_buffer, dict_convert before every thread is done with current kv chunk
-		omp_sync_time_e = omp_get_wtime();
-		omp_sync_time += (omp_sync_time_e - omp_sync_time_s);
-		logf_reduce_t_of<<"Barrier2 s: "<<omp_sync_time_s<<std::endl
-			<<"Barrier2 e: "<<omp_sync_time_e<<std::endl;
+		                //omp_sync_time_e = omp_get_wtime()
+		//;
+		//omp_sync_time += (omp_sync_time_e - omp_sync_time_s);
+		//logf_reduce_t_of<<"Barrier2 s: "<<omp_sync_time_s<<std::endl
+		//	<<"Barrier2 e: "<<omp_sync_time_e<<std::endl;
 
-		if (tid == 0){
-			logf_reduce_t_of<<"Remove the svec_spillf_kv_after_all2all file at position: "<<io_time_s	
-				<<std::endl;
-			mr->svec_spillf_kv_after_all2all.erase(mr->svec_spillf_kv_after_all2all.begin() + i);
-		}
+		//if (tid == 0){
+		//	logf_reduce_t_of<<"Remove the svec_spillf_kv_after_all2all file at position: "<<io_time_s	
+		//		<<std::endl;
+		//	mr->svec_spillf_kv_after_all2all.erase(mr->svec_spillf_kv_after_all2all.begin() + i);
+		//}
 
 	
 	}//end for every kv chunk
 
-	convert_e_time = omp_get_wtime();
-	convert_time=convert_e_time -  convert_s_time;
-	logf_reduce_t_of<<"Convert end time: "<<convert_e_time<<std::endl;
+	//convert_e_time = omp_get_wtime();
+	//convert_time=convert_e_time -  convert_s_time;
+	//logf_reduce_t_of<<"Convert end time: "<<convert_e_time<<std::endl;
 
 
 
-	merge_s_time = omp_get_wtime();
+	//merge_s_time = omp_get_wtime();
 
-	logf_reduce_t_of<<"Merge start time: "<<merge_s_time<<std::endl;
+	//logf_reduce_t_of<<"Merge start time: "<<merge_s_time<<std::endl;
 
 
 	//(2) for every key in dict_merge
-	if (DEBUG)
-	{
-		logf_reduce_t_of<<"O1: exit for every kv chunk."<<std::endl;
-		logf_reduce_t_of<<"O2: enter for every key in dictm."<<std::endl;
-		logf_reduce_t_of<<"dict_merge::::"<<std::endl;
-		int tmp2=0;
-		for (int ii = 0;ii <num_key_dict_m;ii++){
-			int tmp = strlen(&dict_merge[tmp2]);
-			logf_reduce_t_of<<"["<<ii<<"] = "<<&dict_merge[tmp2]<<std::endl;
-			tmp2+=tmp+1;
-		}
+	//if (DEBUG)
+	//{
+	//	logf_reduce_t_of<<"O1: exit for every kv chunk."<<std::endl;
+	//	logf_reduce_t_of<<"O2: enter for every key in dictm."<<std::endl;
+	//	logf_reduce_t_of<<"dict_merge::::"<<std::endl;
+	//	int tmp2=0;
+	//	for (int ii = 0;ii <num_key_dict_m;ii++){
+	//		int tmp = strlen(&dict_merge[tmp2]);
+	//		logf_reduce_t_of<<"["<<ii<<"] = "<<&dict_merge[tmp2]<<std::endl;
+	//		tmp2+=tmp+1;
+	//	}
 
-	}
+	//}
+
+        //if(me == 0 && tid == 0) Log::output("begin merge");	
+
 	int ii = 0;
 	dict_merge_offset = 0;
 	uint64_t mvsize =0;
@@ -592,11 +596,11 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 		std::list<UniqueM>& ul = ht_merge[ibucket];
 		char *key_hit = 0;
 
-		if (DEBUG)
-		{
-			logf_reduce_t_of<<"O2: processing key: "<<key<<" keysize: "<<tmp_offset
-				<<"htm ibucket: "<<ibucket<<std::endl;
-		}
+		//if (DEBUG)
+		//{
+		//	logf_reduce_t_of<<"O2: processing key: "<<key<<" keysize: "<<tmp_offset
+		//		<<"htm ibucket: "<<ibucket<<std::endl;
+		//}
 
 		for (auto u = ul.begin(); u != ul.end(); ++u){//uniqueM in ht merge
 			if (strncmp(u->key,key, tmp_offset) == 0){
@@ -615,34 +619,34 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 						mvsize = (mv_c_end - mv_c_start);//not including terminating null
 						if (mv_c_id == num_spill_mv_c){
 							//cp from mv_c in memory
-							if (DEBUG)
-							{
-								logf_reduce_t_of<<"21, key: "<<key <<" mv_c loc: "<<mv_c_start
-									<<"-"<<mv_c_end<<" mv_m: "<<mv_merge_offset<< std::endl;
-							}
+							//if (DEBUG)
+							//{
+							//	logf_reduce_t_of<<"21, key: "<<key <<" mv_c loc: "<<mv_c_start
+							//		<<"-"<<mv_c_end<<" mv_m: "<<mv_merge_offset<< std::endl;
+							//}
 							memcpy(&mv_merge[mv_merge_offset], &mv_convert[mv_c_start], mvsize+1 );
 							mv_merge_offset += (mvsize+1);
 
 
 						}else{
 							//cp from spill file of mv_c to mv_m memory
-							if (DEBUG)
-							{
-								logf_reduce_t_of<<"21 key(file): "<<key<<" mv_c loc:"
-									<<mv_c_start
-									<<"-"<<mv_c_end<<" mv_m: "<<mv_merge_offset<< std::endl;
-							}
+							//if (DEBUG)
+							//{
+							//	logf_reduce_t_of<<"21 key(file): "<<key<<" mv_c loc:"
+							//		<<mv_c_start
+							//		<<"-"<<mv_c_end<<" mv_m: "<<mv_merge_offset<< std::endl;
+							//}
 
-							io_time_s = omp_get_wtime();
+							//io_time_s = omp_get_wtime();
 
 							std::ifstream is(svec_spillf_mv_c[mv_c_id]);
 							is.seekg(mv_c_start);//relative to the begining of the file
 							is.read(&mv_merge[mv_merge_offset], mvsize);//+1 or not??
 							is.close();
-							io_time_e = omp_get_wtime();
-							io_time += (io_time_e - io_time_s);
-							logf_reduce_t_of<<"Read s: "<<io_time_s<<std::endl
-								<<"Read e: "<<io_time_e<<std::endl;
+							//io_time_e = omp_get_wtime();
+							//io_time += (io_time_e - io_time_s);
+							//logf_reduce_t_of<<"Read s: "<<io_time_s<<std::endl
+							//	<<"Read e: "<<io_time_e<<std::endl;
 							mv_merge_offset += (mvsize+1);
 
 						}
@@ -654,12 +658,12 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 					//u->locs.push_back(std::make_pair(mv_s, mv_e));
 					//u->mv_size += (mvsize); //not update mv_size, does not chage
 					u->locs.push_back(std::make_tuple(num_spill_mv_m, (uint32_t)mv_s, (uint32_t)mv_e));
-					if (DEBUG)
-					{
-						logf_reduce_t_of<<"O2: htm buket hit. copy mv from mvc to mvm, mvm locations are "
-							<<mv_s<<"-"<<mv_e<<std::endl
-						<<"mv size for key: "<<key<<" is: "<<(mv_e - mv_s+1)<<std::endl;
-					}
+					//if (DEBUG)
+					//{
+					//	logf_reduce_t_of<<"O2: htm buket hit. copy mv from mvc to mvm, mvm locations are "
+					//		<<mv_s<<"-"<<mv_e<<std::endl
+					//	<<"mv size for key: "<<key<<" is: "<<(mv_e - mv_s+1)<<std::endl;
+					//}
 					
 
 				}else{//not fit in the mv_m memory
@@ -668,12 +672,12 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 						//the new mv itself >>> mvm_size
 					}else{
 						//the new mv itself < mvm_size
-						io_time_s = omp_get_wtime();
+						//io_time_s = omp_get_wtime();
 						this->spill(mv_merge, spill_mv_m_file.c_str(), mv_merge_offset);
-						io_time_e = omp_get_wtime();
-						io_time += (io_time_e - io_time_s);
-						logf_reduce_t_of<<"Spill s: "<<io_time_s<<std::endl
-							<<"Spill e: "<<io_time_e<<std::endl;
+						//io_time_e = omp_get_wtime();
+						//io_time += (io_time_e - io_time_s);
+						//logf_reduce_t_of<<"Spill s: "<<io_time_s<<std::endl
+						//	<<"Spill e: "<<io_time_e<<std::endl;
 
 						svec_spillf_mv_m.push_back(spill_mv_m_file);
 						num_spill_mv_m++;
@@ -696,33 +700,33 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 							mvsize = (mv_c_end - mv_c_start);
 							if (mv_c_id == num_spill_mv_c){
 								//cp from mv_c in memory
-								if (DEBUG)
-								{
-									logf_reduce_t_of<<"22, key:"<<key
-										<<" mv_c loc: "<<mv_c_start
-										<<"-"<<mv_c_end<<" mv_m: "<<mv_merge_offset<< std::endl;
-								}
+								//if (DEBUG)
+								//{
+								//	logf_reduce_t_of<<"22, key:"<<key
+								//		<<" mv_c loc: "<<mv_c_start
+								//		<<"-"<<mv_c_end<<" mv_m: "<<mv_merge_offset<< std::endl;
+								//}
 								memcpy(&mv_merge[mv_merge_offset], &mv_convert[mv_c_start], mvsize+1 );
 								mv_merge_offset += (mvsize+1);
 
 							}else{
 								//cp from spill file of mv_c to mv_m memory
-								if (DEBUG)
-								{
-									logf_reduce_t_of<<"22, key (file):"<<key
-										<<" mv_c loc: "<<mv_c_start
-										<<"-"<<mv_c_end<<" mv_m: "<<mv_merge_offset<< std::endl;
-								}
+								//if (DEBUG)
+								//{
+								//	logf_reduce_t_of<<"22, key (file):"<<key
+								//		<<" mv_c loc: "<<mv_c_start
+								//		<<"-"<<mv_c_end<<" mv_m: "<<mv_merge_offset<< std::endl;
+								//}
 
-								io_time_s = omp_get_wtime();
+								//io_time_s = omp_get_wtime();
 								std::ifstream is(svec_spillf_mv_c[mv_c_id]);
 								is.seekg(mv_c_start);//relative to the begining of the file
 								is.read(&mv_merge[mv_merge_offset], mvsize);//+1 or not??
 								is.close();
-								io_time_e = omp_get_wtime();
-								io_time += (io_time_e - io_time_s);
-								logf_reduce_t_of<<"Read s: "<<io_time_s<<std::endl
-									<<"Read e: "<<io_time_e<<std::endl;
+								//io_time_e = omp_get_wtime();
+								//io_time += (io_time_e - io_time_s);
+								//logf_reduce_t_of<<"Read s: "<<io_time_s<<std::endl
+								//	<<"Read e: "<<io_time_e<<std::endl;
 								mv_merge_offset += (mvsize+1);
 
 							}
@@ -734,12 +738,12 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 						//u->locs.push_back(std::make_pair(mv_s, mv_e));
 						//u->mv_size += (mvsize);
 						u->locs.push_back(std::make_tuple(num_spill_mv_m,(uint32_t) mv_s,(uint32_t) mv_e));
-						if (DEBUG)
-						{
-							logf_reduce_t_of<<"O2: htm buket hit. copy mv from mvc to mvm, mvm locations are "
-								<<mv_s<<"-"<<mv_e<<std::endl
-							<<"mv size for key: "<<key<<" is: "<<(mv_e - mv_s+1)<<std::endl;
-						}
+						//if (DEBUG)
+						//{
+						//	logf_reduce_t_of<<"O2: htm buket hit. copy mv from mvc to mvm, mvm locations are "
+						//		<<mv_s<<"-"<<mv_e<<std::endl
+						//	<<"mv size for key: "<<key<<" is: "<<(mv_e - mv_s+1)<<std::endl;
+						//}
 					}//end of new mv itself >>> mvm_size
 				}//end if mv_merge_offset+mv_size < MVM_SIZE
 
@@ -747,13 +751,13 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 			}//end if strcmp == 0
 		}
 
-		if ((!key_hit)&&(DEBUG))
-		{
-			logf_reduce_t_of<<"O2: Error when query htm, key "
-				<<key<<" not hit."
-				<<"key offset in the dictionary merge is: "<< dict_merge_offset<<std::endl;
+		//if ((!key_hit)&&(DEBUG))
+		//{
+		//	logf_reduce_t_of<<"O2: Error when query htm, key "
+		//		<<key<<" not hit."
+		//		<<"key offset in the dictionary merge is: "<< dict_merge_offset<<std::endl;
 
-		}
+		//}
 
 
 		dict_merge_offset += (tmp_offset+1);
@@ -763,47 +767,49 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 	//delete [] dict_merge;
 	//delete [] mv_merge;
 	//(3) spill dict_merge, mv_merge, mv_convert, for debug
-	io_time_s = omp_get_wtime();
+	//io_time_s = omp_get_wtime();
 
-	std::string tmp_file;
-	tmp_file = mr->spill_base+"spill_dict_merge." + std::to_string(me) +
-		"."+std::to_string(tid)+"."+std::to_string(reduce_num);
-	this->spill(dict_merge, tmp_file.c_str(), dict_merge_offset);
+	//std::string tmp_file;
+	//tmp_file = mr->spill_base+"spill_dict_merge." + std::to_string(me) +
+	//	"."+std::to_string(tid)+"."+std::to_string(reduce_num);
+	//this->spill(dict_merge, tmp_file.c_str(), dict_merge_offset);
 
-	this->spill(mv_merge, spill_mv_m_file.c_str(), mv_merge_offset);
-	svec_spillf_mv_m.push_back(spill_mv_m_file);
+	//this->spill(mv_merge, spill_mv_m_file.c_str(), mv_merge_offset);
+	//svec_spillf_mv_m.push_back(spill_mv_m_file);
 
-	this->spill(mv_convert, spill_mv_c_file.c_str(), mv_convert_offset);
-	svec_spillf_mv_c.push_back(spill_mv_c_file);	
-	io_time_e = omp_get_wtime();
-	io_time += (io_time_e - io_time_s);
-	logf_reduce_t_of<<"Spill s: "<<io_time_s<<std::endl
-		<<"Spill e: "<<io_time_e<<std::endl;
+	//this->spill(mv_convert, spill_mv_c_file.c_str(), mv_convert_offset);
+	//svec_spillf_mv_c.push_back(spill_mv_c_file);	
+	//io_time_e = omp_get_wtime();
+	//io_time += (io_time_e - io_time_s);
+	//logf_reduce_t_of<<"Spill s: "<<io_time_s<<std::endl
+	//	<<"Spill e: "<<io_time_e<<std::endl;
 
-	if (DEBUG)
-	{
-		logf_reduce_t_of<<"Exit convert."<<std::endl;
-		logf_reduce_t_of.close();
-	}
+	//if (DEBUG)
+	//{
+	//	logf_reduce_t_of<<"Exit convert."<<std::endl;
+	//	logf_reduce_t_of.close();
+	//}
 
-	merge_e_time = omp_get_wtime();
-	logf_reduce_t_of<<"Merge end time: "<<merge_e_time<<std::endl;
-	merge_time=merge_e_time - merge_s_time;
+	//merge_e_time = omp_get_wtime();
+	//logf_reduce_t_of<<"Merge end time: "<<merge_e_time<<std::endl;
+	//merge_time=merge_e_time - merge_s_time;
 
 	//BOYU: now all the kv buffer/chunks are processed
 	//into key mv ready for reduce
 	//this is the reduce part:::::::::::::::::REDUCE:::::::::::::::::::::
 
 
-	if (DEBUG)
-	{
-		logf_reduce_t_of.open(logf_reduce_t,std::ofstream::out|std::ofstream::app);
-		logf_reduce_t_of<<"Enter reduce. dict merge size: "<<dict_merge_offset
-			<<"mv merge size: "<<mv_merge_offset<<"ht merge size: "<<ht_merge.size()<<std::endl;
-	}
+	//if (DEBUG)
+	//{
+	//	logf_reduce_t_of.open(logf_reduce_t,std::ofstream::out|std::ofstream::app);
+	//	logf_reduce_t_of<<"Enter reduce. dict merge size: "<<dict_merge_offset
+	//		<<"mv merge size: "<<mv_merge_offset<<"ht merge size: "<<ht_merge.size()<<std::endl;
+	//}
 
-	reduce_s_time = omp_get_wtime();
-	logf_reduce_t_of<<"Redue start time: "<<reduce_s_time<<std::endl;
+	//reduce_s_time = omp_get_wtime();
+	//logf_reduce_t_of<<"Redue start time: "<<reduce_s_time<<std::endl;
+        
+        //if(me == 0 && tid == 0) Log::output("begin reduce");
 
 	//for every key in the dict merge, get the mv from the mv merge, apply reduce
 	ii = 0;
@@ -828,11 +834,11 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 		std::list<UniqueM>& ul = ht_merge[ibucket];
 		char *key_hit = 0;
 
-		if (DEBUG)
-		{
-			logf_reduce_t_of<<"R: processing key: "<<key<<" keysize: "<<tmp_offset
-				<<"htm ibucket: "<<ibucket<<std::endl;
-		}
+		//if (DEBUG)
+		//{
+		//	logf_reduce_t_of<<"R: processing key: "<<key<<" keysize: "<<tmp_offset
+		//		<<"htm ibucket: "<<ibucket<<std::endl;
+		//}
 
 		for (auto u = ul.begin(); u != ul.end(); ++u){
 			if (strncmp(u->key,key, tmp_offset) == 0){
@@ -860,17 +866,17 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 					if (reduce_kv_size != 0)
 						num_kv_t++;
 
-					if (DEBUG)
-					{
+					//if (DEBUG)
+					//{
 
-						logf_reduce_t_of<<"R: mv in mem. after apply myreduce."<<std::endl
-							<<"input key: "<<key <<" size: "<<tmp_offset 
-							<<" input value offset: "<<mv_s<<"-"<<mv_e
-							<<" input value size: "<<mvsize
-							<<" output kv to buffer start: "<<reduce_kv_buffer_offset
-							<<" output value is: "<< &reduce_kv_buffer[reduce_kv_buffer_offset+tmp_offset+1]
-							<<" output kv size: "<<reduce_kv_size<<std::endl;
-					}
+					//	logf_reduce_t_of<<"R: mv in mem. after apply myreduce."<<std::endl
+					//		<<"input key: "<<key <<" size: "<<tmp_offset 
+					//		<<" input value offset: "<<mv_s<<"-"<<mv_e
+					//		<<" input value size: "<<mvsize
+					//		<<" output kv to buffer start: "<<reduce_kv_buffer_offset
+					//		<<" output value is: "<< &reduce_kv_buffer[reduce_kv_buffer_offset+tmp_offset+1]
+					//		<<" output kv size: "<<reduce_kv_size<<std::endl;
+					//}
 					reduce_kv_buffer_offset += (reduce_kv_size);
 				}else{
 					//bring the mvs from file to buffer, then apply reduce
@@ -888,17 +894,17 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 					delete [] tmp_mv;
 
-					if (DEBUG)
-					{
+					//if (DEBUG)
+					//{
 
-						logf_reduce_t_of<<"R: mv read from file. after apply myreduce."<<std::endl
-							<<"input key: "<<key <<" size: "<<tmp_offset 
-							<<" input value offset: "<<mv_s<<"-"<<mv_e
-							<<" input value size: "<<mvsize
-							<<" output kv to buffer start: "<<reduce_kv_buffer_offset
-							<<" output value is: "<< &reduce_kv_buffer[reduce_kv_buffer_offset+tmp_offset+1]
-							<<" output kv size: "<<reduce_kv_size<<std::endl;
-					}
+					//	logf_reduce_t_of<<"R: mv read from file. after apply myreduce."<<std::endl
+					//		<<"input key: "<<key <<" size: "<<tmp_offset 
+					//		<<" input value offset: "<<mv_s<<"-"<<mv_e
+					//		<<" input value size: "<<mvsize
+					//		<<" output kv to buffer start: "<<reduce_kv_buffer_offset
+					//		<<" output value is: "<< &reduce_kv_buffer[reduce_kv_buffer_offset+tmp_offset+1]
+					//		<<" output kv size: "<<reduce_kv_size<<std::endl;
+					//}
 					reduce_kv_buffer_offset += (reduce_kv_size);
 				}
 
@@ -907,13 +913,13 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 			}
 		}
 
-		if ((!key_hit)&&(DEBUG))
-		{
-			logf_reduce_t_of<<"R: Error when query htm, key "
-				<<key<<" not hit."
-				<<"key offset in the dictionary merge is: "<< dict_merge_offset<<std::endl;
+		//if ((!key_hit)&&(DEBUG))
+		//{
+		//	logf_reduce_t_of<<"R: Error when query htm, key "
+		//		<<key<<" not hit."
+		//		<<"key offset in the dictionary merge is: "<< dict_merge_offset<<std::endl;
 
-		}
+		//}
 
 
 		dict_merge_offset += (tmp_offset+1);
@@ -924,72 +930,74 @@ uint64_t KMV::reduce(uint64_t max_kv_file_size,
 
 
 	//spill reduce kv buffer 
-	std::string reduce_file;
-	reduce_file = mr->spill_base+"spill_reduce_kv_buffer."+std::to_string(me) +
-		"."+std::to_string(tid)+"."+std::to_string(reduce_num);
-	this->spill(reduce_kv_buffer, reduce_file.c_str(), reduce_kv_buffer_offset);
+	//std::string reduce_file;
+	//reduce_file = mr->spill_base+"spill_reduce_kv_buffer."+std::to_string(me) + "."+std::to_string(tid)+"."+std::to_string(reduce_num);
+	//this->spill(reduce_kv_buffer, reduce_file.c_str(), reduce_kv_buffer_offset);
 	//add to mr->svec_reduce_out_kv_files so map can read
 
-	svec_reduce_out_kv_files_mutex.lock();
-	mr->svec_reduce_out_kv_files.push_back(reduce_file);
-	svec_reduce_out_kv_files_mutex.unlock();
+	//svec_reduce_out_kv_files_mutex.lock();
+	//mr->svec_reduce_out_kv_files.push_back(reduce_file);
+	//svec_reduce_out_kv_files_mutex.unlock();
 
 
 	delete [] reduce_kv_buffer;
 
 
-	omp_sync_time_s = omp_get_wtime();
+	//omp_sync_time_s = omp_get_wtime();
 	#pragma omp barrier
-	omp_sync_time_e = omp_get_wtime();
-	omp_sync_time += (omp_sync_time_e - omp_sync_time_s);
-	logf_reduce_t_of<<"Barrier s: "<<omp_sync_time_s<<std::endl
-		<<"Barrier e: "<<omp_sync_time_e<<std::endl;
+	//omp_sync_time_e = omp_get_wtime();
+	//omp_sync_time += (omp_sync_time_e - omp_sync_time_s);
+	//logf_reduce_t_of<<"Barrier s: "<<omp_sync_time_s<<std::endl
+		//<<"Barrier e: "<<omp_sync_time_e<<std::endl;
 
-	reduce_e_time = omp_get_wtime();
-	logf_reduce_t_of<<"Redue end time: "<<reduce_e_time<<std::endl;	
-	reduce_time = reduce_e_time - reduce_s_time;
+	//reduce_e_time = omp_get_wtime();
+	//logf_reduce_t_of<<"Redue end time: "<<reduce_e_time<<std::endl;	
+	//reduce_time = reduce_e_time - reduce_s_time;
 
-	logf_reduce_t_of<<"IO time: "<<io_time<<std::endl
-		<<"OMP sync time: "<<omp_sync_time<<std::endl;
-	logf_reduce_t_of<<"Convert time: "<<convert_time<<" seconds."<<std::endl;
-	logf_reduce_t_of<<"Merge time: "<<merge_time<< " seconds." <<std::endl;
-	logf_reduce_t_of<<"Redue time: "<<reduce_time<<" seconds."<<std::endl;
+	//logf_reduce_t_of<<"IO time: "<<io_time<<std::endl
+	//	<<"OMP sync time: "<<omp_sync_time<<std::endl;
+	//logf_reduce_t_of<<"Convert time: "<<convert_time<<" seconds."<<std::endl;
+	//logf_reduce_t_of<<"Merge time: "<<merge_time<< " seconds." <<std::endl;
+	//logf_reduce_t_of<<"Redue time: "<<reduce_time<<" seconds."<<std::endl;
 
 	#pragma omp atomic
 	num_kv_p += num_kv_t;
 
 	//if (DEBUG)
 	//{
-		logf_reduce_t_of<<"Exit reduce."<<std::endl;
-		logf_reduce_t_of.close();
+	//	logf_reduce_t_of<<"Exit reduce."<<std::endl;
+	//	logf_reduce_t_of.close();
 	//}
 
 
 	}//end pragma omp parallel
 	int num_kv_all = 0;
 	MPI_Allreduce(&num_kv_p, &num_kv_all, 1, MPI_INT, MPI_SUM, comm);
-	if (DEBUG)
-	{
-		logf_reduce_p_of<<"Total number of kv pairs output by reduce is: "<<num_kv_all<<std::endl;
-	}
+	//if (DEBUG)
+	//{
+	//	logf_reduce_p_of<<"Total number of kv pairs output by reduce is: "<<num_kv_all<<std::endl;
+	//}
 
-	thread_time_e = omp_get_wtime();
-	thread_time = thread_time_e - thread_time_s;
-	logf_reduce_p_of<<"Thread start: "<<thread_time_s<<std::endl
-		<<" Thread end: "<<thread_time_e<<std::endl
-		<<" Thread time: "<<thread_time<<std::endl;
+	//thread_time_e = omp_get_wtime();
+	//thread_time = thread_time_e - thread_time_s;
+	//logf_reduce_p_of<<"Thread start: "<<thread_time_s<<std::endl
+	//	<<" Thread end: "<<thread_time_e<<std::endl
+	//	<<" Thread time: "<<thread_time<<std::endl;
 
 	delete [] kv_buffer;
 
-	if (DEBUG)
-	{
-		logf_reduce_p_of<<"Exiting reduce, the set of kv files after reduce are:"<<std::endl;
-		for (auto it = mr->svec_reduce_out_kv_files.begin(); it != mr->svec_reduce_out_kv_files.end(); ++it)
-		{
-			logf_reduce_p_of << *it <<std::endl;
-		}
+	//if (DEBUG)
+	//{
+	//	logf_reduce_p_of<<"Exiting reduce, the set of kv files after reduce are:"<<std::endl;
+	//	for (auto it = mr->svec_reduce_out_kv_files.begin(); it != mr->svec_reduce_out_kv_files.end(); ++it)
+	//	{
+	//		logf_reduce_p_of << *it <<std::endl;
+	//	}
 
-	}
+	//}
+
+	//if(me == 0) Log::output("end reduce");	
+
 
 	return num_kv_all;
 }

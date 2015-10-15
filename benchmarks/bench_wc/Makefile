@@ -3,8 +3,8 @@ CPP = mpic++
 CLINK = mpicc
 CPPLINK = mpic++
 DEBUG = -g
-CFLAGS = -fopenmp -std=c++11 -Wall $(DEBUG) -O1 -I../src
-LFLAGS = -fopenmp -L../src
+CFLAGS = -fopenmp -std=c++11 -Wall $(DEBUG) -O1 -I../../src
+LFLAGS = -fopenmp -L../../src
 USERLIBS = -lmrmpi
 OBJS = wordcount.o
 
@@ -17,3 +17,7 @@ wordcount.o: wordcount.cpp
 
 clean:
 	rm *.o wordcount
+	rm -f log/*
+	rm -f spill/*
+	rm -f output/*
+	rm -f spillspill_*

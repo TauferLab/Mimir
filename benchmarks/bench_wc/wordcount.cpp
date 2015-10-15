@@ -15,7 +15,7 @@
 
 using namespace MAPREDUCE_NS;
 
-void mymap( MapReduce *, char *, char *, int *, char *, int *);
+void mymap( MapReduce *, char *, char *, int *, char *, int *, int);
 uint32_t myreduce(MapReduce *, const char *, uint32_t, const char *, uint32_t, char * );
 
 
@@ -37,7 +37,8 @@ int main(int argc, char *argv[])
 	char *out_base = argv[4];
 
 	char *in_file = new char[256];
-	sprintf(in_file, "%s/%d", in_path, me);
+	//sprintf(in_file, "%s/%d", in_path, me);
+        sprintf(in_file, "%s", in_path);
 
 	printf("P%d: in main, in path %s.\n", me, in_file);
 
@@ -51,26 +52,29 @@ int main(int argc, char *argv[])
 			[3] 0--pass back each line to the mymap funciton; 1--pass back each word
 			[4] mymap function 
 	 **/
-	printf("P%d, before map.\n",me);
+	//printf("P%d, before map.\n",me);
 
 	/*
 	0:
 	in_file
 	1:
 	2: map_type=1, map with communication at the end*/
-	uint64_t nwords = mr->map(0, in_file, 1,2, mymap);
+	double start_t = MPI_Wtime();
+	uint64_t nwords = mr->map(0, in_file, 1,2, log_base, spill_base, out_base, mymap);
 
 	/*
 		2nd map, map type =2, read input from another map
 	*/
 	//nwords = mr->map(0, in_file, 1,2, mymap);
 
-	printf("P%d, after map.\n",me);
+	//printf("P%d, after map.\n",me);
 
-	printf("P%d, before shuffle.\n", me);
+	//printf("P%d, before shuffle.\n", me);
+	double mid_t = MPI_Wtime();
 
 	uint64_t nkmv = mr->reduce(1, myreduce);
-	printf("P%d, after shuffle.\n", me);
+	double stop_t = MPI_Wtime();
+	//printf("P%d, after shuffle.\n", me);
 
 
 	//uint64_t nresl = mr->reduce(0, myreduce);
@@ -80,9 +84,10 @@ int main(int argc, char *argv[])
 	delete mr;
 	MPI_Finalize();
 
+	if(me ==0 ) printf("map time=%g s, reduce time=%g s, total time=%g s\n", mid_t-start_t, stop_t-mid_t, stop_t-start_t);
 }
 
-void mymap( MapReduce *mr, char *word, char *key, int *keysize, char *value, int *vsize)
+void mymap( MapReduce *mr, char *word, char *key, int *keysize, char *value, int *vsize, int tid)
 {
 	*keysize = strlen(word);
 	memcpy(key,word,(*keysize)+1);
@@ -133,18 +138,3 @@ uint32_t myreduce(MapReduce *mr, const char *key, uint32_t keysize, const char *
 
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
