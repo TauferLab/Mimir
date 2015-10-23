@@ -12,11 +12,32 @@
 
 #include "hash.h"
 
-#include "log.h"
+//#include "log.h"
+#include "dataobject.h"
+#include "keyvalue.h"
+#include "keymultivalue.h"
 
 namespace MAPREDUCE_NS {
 
 class MapReduce {
+public:
+    MapReduce(MPI_Comm);
+    uint64_t map(int, char **, int, int, int, 
+      void (*mymap) (MapReduce *, char *, int), 
+      int myhash(char *, int), void *);
+
+    uint64_t reduce(void (myreduce)(MapReduce *, char *, int, char *, int, 
+       int *, void*), void* );
+
+    uint64_t convert();
+
+    uint64_t add(char *key, int keybytes, char *value, int valuebytes);
+
+private:
+    DataObject *data;
+
+
+/*******************************************************************/
 
 friend class KMV;
 
@@ -32,7 +53,7 @@ public:
 
     class KMV *kmv;
 
-    Log log;
+    //Log log;
 
 // Public function
 public:
@@ -69,7 +90,7 @@ public:
 
 
     // Map and Reduce function
-    uint64_t map(int, char *, int, int, char *, char *, char *,
+    uint64_t map(char *, int, int,
         void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int));
 
     uint64_t map_local(int, char *, int, int, char *, char *, char *,

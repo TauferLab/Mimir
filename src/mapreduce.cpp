@@ -21,6 +21,30 @@
 
 using namespace MAPREDUCE_NS;
 
+MapReduce::MapReduce(MPI_Comm caller){
+  data = NULL;
+}
+
+uint64_t MapReduce::map(int nstr, char **strings, int selfflag, int recurse, 
+    int readmode, void (*mymap) (MapReduce *, char *, int), 
+    int myhash(char *, int), void *data){
+  return 0;   
+}
+
+uint64_t MapReduce::convert(){
+  return 0;
+}
+
+uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, char *, int, 
+    int *, void*), void* data){
+  return 0;
+}
+
+uint64_t MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
+  return 0;
+}
+
+/********************************************************************/
 
 #define MBYTES 2
 #define MRMPI_BIGINT MPI_UNSIGNED_LONG_LONG
@@ -237,7 +261,7 @@ output kv chunks (after communication) for reduce*/
  * out_patha:   not used
  * mymap:       user defined map function 
  */
-uint64_t MapReduce::map(int input_loca, char *in_patha, int read_modea, int map_type, char *log_patha, char *spill_patha, char *out_patha,
+uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
         void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int))
 {
     //log.output("Map: enter map function.", logf_map_p_of);

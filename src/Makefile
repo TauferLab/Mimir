@@ -7,7 +7,7 @@ CFLAGS = -fopenmp -std=c++11  $(DEBUG) -O2  -DDEBUG=0 -DFUSION
 LFLAGS = 
 ARCHIEVE = ar
 AFLAGS =  -rcv
-OBJS = mapreduce.o  hash.o kmv.o log.o
+OBJS = mapreduce.o  hash.o kmv.o dataobject.o keyvalue.o keymultivalue.o log.o
 
 all: libmrmpi
 
@@ -22,6 +22,15 @@ hash.o: hash.cpp hash.h
 
 kmv.o: kmv.cpp kmv.h
 	$(CPP) $(CFLAGS) -c kmv.cpp
+
+dataobject.o: dataobject.cpp dataobject.h
+	$(CPP) $(CFLAGS) -c dataobject.cpp
+
+keyvalue.o: keyvalue.cpp keyvalue.h
+	$(CPP) $(CFLAGS) -c keyvalue.cpp
+
+keymultivalue.o: keymultivalue.cpp keymultivalue.h
+	$(CPP) $(CFLAGS) -c keymultivalue.cpp
 
 log.o: log.cpp log.h
 	$(CPP) $(CFLAGS) -c log.cpp
