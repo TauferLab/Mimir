@@ -11,7 +11,7 @@ KeyValue::KeyValue(
   int maxmemsize,
   int outofcore,
   std::string filename):
-  DataObject(0, blocksize, 
+  DataObject(1, blocksize, 
     maxblock, maxmemsize, outofcore, filename){
   kvtype = _kvtype;
 }
@@ -19,7 +19,7 @@ KeyValue::KeyValue(
 KeyValue::~KeyValue(){
 }
 
-int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char **value, int &valuebytes){
+int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff=NULL, int *vff=NULL){
   if(offset >= blocks[blockid].datasize) return -1;
   
   int bufferid = blocks[blockid].bufferid;
@@ -31,6 +31,8 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
     buf += keybytes;
     *value = buf;
     valuebytes = strlen(*value)+1;
+    if(kff != NULL) *kff = offset;
+    if(vff != NULL) *vff = (offset+keybytes);
     offset += keybytes+valuebytes;
   }else if(kvtype == 1){
     keybytes = *(int*)buf;
@@ -40,6 +42,8 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
     valuebytes = *(int*)buf;
     buf += sizeof(int);
     *value = buf;
+    if(kff != NULL) *kff = offset+sizeof(int);
+    if(vff != NULL) *vff = offset+sizeof(int)+keybytes+sizeof(int);
     offset += 2*sizeof(int)+keybytes+valuebytes;
   }
 

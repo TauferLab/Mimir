@@ -18,7 +18,8 @@ public:
     std::string a6=std::string(""));
   ~KeyValue();
 
-  int getNextKV(int, int, char **, int &, char **, int &);
+  int getNextKV(int, int, char **, int &, char **, int &, 
+    int *kff=NULL, int *vff=NULL);
 };
 
 }

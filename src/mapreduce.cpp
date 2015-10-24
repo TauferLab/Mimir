@@ -18,6 +18,9 @@
 #include <ctime>
 #include <iomanip>
 
+//#include <map>
+//#include <tuple>
+#include <math.h>
 
 using namespace MAPREDUCE_NS;
 
@@ -25,9 +28,43 @@ using namespace MAPREDUCE_NS;
 //  data = NULL;
 //}
 
+struct Pos{
+
+  Pos(int _blockid, 
+    int _nval,
+    uint32_t _start, 
+    uint32_t _length){
+    blockid = _blockid;
+    nval = _nval;
+    start = _start;
+    length = _length;
+  }
+
+  int      blockid;
+  int      nval;
+  uint32_t start;
+  uint32_t size;
+};
+
+struct Unique
+{
+  char *key;
+  int keybytes;
+
+  // local information
+  int nlval;
+  int lsize;
+  std::list<Pos> lpos;
+
+  // global information
+  int ngval;
+  int gsize;
+  std::list<Pos> gpos;
+};
+
 uint64_t MapReduce::map(int nstr, char **strings, int selfflag, int recurse, 
     int readmode, void (*mymap) (MapReduce *, char *, int), 
-    int myhash(char *, int), void *data){
+    int myhash(char *, int), void *ptr){
   return 0;   
 }
 
@@ -53,21 +90,96 @@ uint64_t MapReduce::convert(){
 {
   int tid = omp_get_thread_num();
   int num = omp_get_num_threads();
+
+  std::vector<std::list<Unique>> ht;
+
+  DataObject *tmpdata = new DataObject(0); 
+
   char *key, *value;
   int keybytes, valuebytes, ret;
+  int keyoff, valoff;
 
+  int nbucket = pow(2,20);
+  ht.reserve(nbucket);
+  for(int i = 0; i < nbucket; i++) ht.emplace_back();
+
+  // scan all kvs to gain the thread kvs
   for(int i = 0; i < data->nblock; i++){
     KeyValue *kv = (KeyValue*)data;
     int offset = 0;
     kv->acquireblock(i);
-    offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+    offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes, &keyoff, &valoff);
     while(offset != -1){
-      printf("%s,%d,%s,%d\n",key, keybytes, value, valuebytes); 
-      offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+      //printf("%s,%d,%s,%d\n",key, keybytes, value, valuebytes); 
+      uint32_t hid = hashlittle(key, keybytes, 0);
+      if(hid % num == tid){
+        int ibucket = hid % nbucket;
+        std::list<Unique>& ul = ht[ibucket];
+        for(auto u = ul.begin(); u != ul.end(); u++){
+          if(memcmp(u->key, key, keybytes) == 0){
+            u->lpos.push_back(Pos(0,1,valoff,valuebytes));
+            u->nlval++;
+            u->nlsize += valuebytes;
+            break;
+          }
+        }
+        if(u == ul.end()){
+          u->key = new char[keybytes];
+          memcpy(u->key, key, keybytes);
+          u->keybytes = keybytes;
+          u->lpos.push_back(Pos(0,valoff,valuebytes));
+          u->nlval=1;
+          u->lsize=valuebytes;
+          u->ngval=0;
+          u->gsize=0;
+        }
+      }
+      
+      offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes, &keyoff, &valoff);
     }
+
+    // merge locally
+    int blockid = tmpdata->addblock();
+    tmpdata->acquireblock(blockid);
+    for(auto ul = ht.begin(); ul != ht.end(); ++ul){
+      for(auto u = ul.begin(); u != ul.end(); ++u){
+        // merge all values together
+        int bytes = sizeof(int)*(u->nlval) + (u->lsize);
+        if(tmpdata->getblockspace(blockid) < bytes){
+          tmpdata->releaseblock(blockid);
+          blockid = tmpdata->addblock();
+          tmpdata->acquireblock(blockid);
+        }
+        // add sizes
+        for(auto l = u->lpos.begin(); l != u->lpos.end(); ++l){
+          tmpdata->addbytes(blockid, &(l->size), sizeof(int));
+        }
+        // add values
+        for(auto l = u->lpos.begin(); l != u->lpos.end(); ++l){
+          char *p = NULL;
+          tmpdata->getbytes(blockid, l->start, &p);
+          tmpdata->addbytes(blockid, p, l->size); 
+        }
+        u->gpos.push_back(Pos(blockid,u->nlval,0,bytes))
+      }
+    }
+    tmpdata->releaseblock(blockid);
+
     kv->releaseblock(i);
 //#pragma omp barrier
   }
+
+  // merge kvs into kmv
+  for(auto ul = ht.begin(); ul != ht.end(); ++ul){
+    for(auto u = ul.begin(); u != ul.end(); ++u){
+      for(auto l = u->lpos.begin(); l != u->lpos.end(); ++l){
+        
+      }
+    }
+  }
+
+  delete tmpdata;
+
 }  
 
   delete data;
@@ -77,7 +189,27 @@ uint64_t MapReduce::convert(){
 }
 
 uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, char *, int, 
-    int *, void*), void* data){
+    int *, void*), void* ptr){
+
+#pragma omp parallel
+{
+  char *key, *values;
+  int keybytes, nvalue, *valuebytes;
+
+  KeyMultiValue *kmv = (KeyMultiValue*)data;
+
+#pragma omp for
+  for(int i = 0; i < data->nblock; i++){
+     int offset = 0;
+     kmv->acquireblock(i);
+     offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+     while(offset != -1){
+       // apply myreudce here
+       offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+     }
+     kmv->releaseblock(i);
+  }
+}
   return 0;
 }
 

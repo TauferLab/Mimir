@@ -31,6 +31,9 @@ public:
   int addblock();
   // add an block with data
   int addblock(char *, int);
+
+  // get block left space
+  int getblockspace(int);
   
   // get bytes from a block
   int getbytes(int, int, char **);
@@ -41,7 +44,7 @@ private:
   int findbuffer();
 
 protected:
-  int datatype;    // 0 for kv, 1 for kmv
+  int datatype;    // 0 for bytes, 1 for kv, 2 for kmv
 
   // information of block
   struct Block{

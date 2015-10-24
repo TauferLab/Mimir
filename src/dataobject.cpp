@@ -125,6 +125,13 @@ void DataObject::releaseblock(int blockid){
 }
 
 /*
+ * get block empty space
+ */
+inline int DataObject::getblockspace(int blockid){
+  return (blocksize - blocks[blockid].datasize)
+}
+
+/*
  * add an empty block and return the block id
  */
 int DataObject::addblock(){
