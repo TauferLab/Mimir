@@ -21,9 +21,9 @@
 
 using namespace MAPREDUCE_NS;
 
-MapReduce::MapReduce(MPI_Comm caller){
-  data = NULL;
-}
+//MapReduce::MapReduce(MPI_Comm caller){
+//  data = NULL;
+//}
 
 uint64_t MapReduce::map(int nstr, char **strings, int selfflag, int recurse, 
     int readmode, void (*mymap) (MapReduce *, char *, int), 
@@ -31,7 +31,48 @@ uint64_t MapReduce::map(int nstr, char **strings, int selfflag, int recurse,
   return 0;   
 }
 
+/* convert KV to KMV */
 uint64_t MapReduce::convert(){
+  DataObject *kmv = new KeyMultiValue(0);
+
+#if 0
+  for(int i = 0; i < data->nblock; i++){
+    KeyValue *kv = (KeyValue*)data;
+    char *key, *value;
+    int keybytes, valuebytes, ret; 
+    while(1){
+      ret = kv->getNextKV(i, &key, keybytes, &value, valuebytes);
+      if(ret == -1)
+        break;
+      printf("%s,%d,%s,%d\n",key, keybytes, value, valuebytes);
+    };
+  }
+#endif
+
+//#pragma omp parallel
+{
+  int tid = omp_get_thread_num();
+  int num = omp_get_num_threads();
+  char *key, *value;
+  int keybytes, valuebytes, ret;
+
+  for(int i = 0; i < data->nblock; i++){
+    KeyValue *kv = (KeyValue*)data;
+    int offset = 0;
+    kv->acquireblock(i);
+    offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+    while(offset != -1){
+      printf("%s,%d,%s,%d\n",key, keybytes, value, valuebytes); 
+      offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+    }
+    kv->releaseblock(i);
+//#pragma omp barrier
+  }
+}  
+
+  delete data;
+  data = kmv;
+
   return 0;
 }
 
@@ -58,7 +99,7 @@ uint64_t MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 #endif
 
 //xxxxa as in argument
-MapReduce::MapReduce(MPI_Comm caller, char *log_basea, char *spill_basea, char *out_basea)
+MapReduce::MapReduce(MPI_Comm caller)
 {
     comm = caller;
     MPI_Comm_rank(comm,&me);
@@ -68,14 +109,17 @@ MapReduce::MapReduce(MPI_Comm caller, char *log_basea, char *spill_basea, char *
     in_buffer_size = MBYTES * 1024 * 1024;
     kv_buffer_size = MBYTES * 1024 * 1024;
 
-    log_base = std::string(log_basea);
+    //log_base = std::string(log_basea);
     //logf_map_p = log_base + "/log_map_p" + std::to_string(me);
     //logf_map_p_of.open(logf_map_p,  std::ofstream::out|std::ofstream::app);
     //logf_reduce_p = log_base + "/log_reduce_p" + std::to_string(me);
     //logf_reduce_p_of.open(logf_reduce_p,  std::ofstream::out|std::ofstream::app);
 
-    spill_base = std::string(spill_basea);
-    out_base = std::string(out_basea);
+    //spill_base = std::string(spill_basea);
+    //out_base = std::string(out_basea);
+    log_base = std::string("./");
+    spill_base = std::string("./");
+    out_base = std::string("./");
 
     num_kvbuffer_be = 0;
     num_kvbuffer_ae = 0;
@@ -226,72 +270,25 @@ void MapReduce::add_files_from_map()
      }
 }
 
-
-
-/*
-while (1)
-    read from file to a shared array
-    while not finish all shared array
-        prarallel
-            work
-        barrier
-        alltoallv
-    Allreduce
-    if no more
-        break
-*/
-/*The first type of map, read from input files, 
-output kv chunks (after communication) for reduce*/
-//a as in argument
-
-/*map_type: 1: map without communication, need to be followed by compress
-                    who does communication
-                2: map with communication
-*/
-//log map file for process is open in the contructor
-
-
-/* 
- * input_loca:  not used
- * in_patha:    input file path
- * read_modea:  1 - by word, 2 - by line 
- * map_type:    only 2 is used
- * log_patha:   not used
- * spill_patha: not used
- * out_patha:   not used
- * mymap:       user defined map function 
- */
 uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
         void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int))
-{
-    //log.output("Map: enter map function.", logf_map_p_of);
-   
+{   
     map_num++; 
-    double map_s_timer = omp_get_wtime();
-    //logf_map_p_of<<"Map start time: "<<std::setprecision(15)<<map_s_timer<<std::endl;
 
-    findfiles(in_patha); //put all input files into the vector
-
-    //svec_map_in_files
-    //if (DEBUG)
-    //{
-    //    logf_map_p_of <<"Input files are: "<<std::endl;
-    //    for (auto it = svec_map_in_files.begin(); it != svec_map_in_files.end(); ++it)
-    //    {
-    //        logf_map_p_of << *it <<std::endl;
-    //    }
-    // }
-
-    //read input file to a data buffer, later threads will do work sharing on this buffer
-
+    data = new KeyValue(0);
+ 
+    findfiles(in_patha); 
+    
     input_buffer = new char [in_buffer_size];
+    
     int ele_ptr_size = in_buffer_size/2;
     ele_ptr = new char*[ele_ptr_size];
-    //ele_ptr = std::vector<char *>;
+    
     uint64_t num_ele = 0;
     uint64_t data_end = 0;
     int my_f_flag = 1;//1 means I am not done with reading all my input files
     int all_f_flag = 1; //1 means there are some proc is still working on its files
+    
     //0 means all procs are done with their files
     long int inputfile_offset = 0;
 
@@ -301,6 +298,7 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
     offset1 = new OPA_int_t[nprocs];
     offset2 = new OPA_int_t[nprocs];
     offset = offset1;
+    
     //for the file metadata, id is the num used in file name
     uint64_t keysize_all = 0;
     uint64_t nkey_all = 0;
@@ -329,31 +327,7 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
 
     while (1)
     {
-        //if (DEBUG)
-        //{
-        //    logf_map_p_of<<"In while 1, before read to input buffer."<<std::endl;
-        //}
-        //double io_s_timer =  omp_get_wtime();
-        //logf_map_p_of<<"Read start time: "<<io_s_timer<<std::endl;
         read_to_input_buffer(read_modea, &my_f_flag, &inputfile_offset, &num_ele, &data_end);
-
-        //double io_e_timer = omp_get_wtime();
-        //double io_time = io_e_timer - io_s_timer;
-        //logf_map_p_of<<"Read end time: "<<io_e_timer<<std::endl;
-        //logf_map_p_of<<"Read time: "<<io_time<<" seconds"<<std::endl;
-        //after this, the input_buffer is populated with words, pass back each word
-        //to mymap function
-        //if (DEBUG)
-        //{
-        //    logf_map_p_of<<"In while 1, after read to input buffer, next kv buffer to use is ";
-        //    if (offset == offset1)
-        //    {
-        //        logf_map_p_of<<"kv buffer 1."<<std::endl;
-        //    }else{
-        //        logf_map_p_of<<"kv buffer 2."<<std::endl;
-        //    }
-        //}
-
 
         int *thread_nele = new int[N_THREADS]; //number of element processed by each thread
         int *thread_done = new int[N_THREADS]; // done or not for each thread
@@ -374,20 +348,7 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
             if (left > 0)//process elements in input_buffer, omp parallel session
             {
                 left = num_ele;
-                //if (DEBUG)
-                //{
-                //    logf_map_p_of << "Before enter the omp paralle session. map number of exchange "
-                //        <<map_num_exchange<<std::endl;
-                //    logf_map_p_of <<"The offset in buffer is: ";
-                //    for (int i=0; i<nprocs; i++){
-                //        logf_map_p_of << OPA_load_int(&offset[i]) <<" ";
-                //    }
-                //    logf_map_p_of << std::endl;
-                //}
-
-                //double map_thread_s_timer = omp_get_wtime();
-                //logf_map_p_of<<"Map thread start time: "<<map_thread_s_timer<<std::endl;
-
+                
                 #pragma omp parallel
                 {
                     int tid = omp_get_thread_num();
@@ -398,11 +359,6 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
                     char *local_kv_buffer = new char[nprocs*LOCAL_BUFFER_SIZE];//store kv locally, before copy to global kv buffer
                     int *local_offset = new int[nprocs];//local offset to the local kv buffer
                     int *global_offset = new int[nprocs];//offset after opa_fetch_and_add
-                    //size of all keys that this tid process, the ones that
-                    //actually added to the global double buffer
-                    //int my_keysize_all = 0;
-                    //uint64_t my_nkey_all = 0;
-                    //uint64_t my_kvsize_all = 0;
 
                     for (int i = 0; i<nprocs; i++)
                     {
@@ -410,19 +366,6 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
                         global_offset[i] = 0;
                     }
 
-                    //std::string logf_map_t = log_base + "/log_map_p" + std::to_string(me)
-                    //    + "t"+std::to_string(tid);
-                    //std::ofstream logf_map_t_of;
-
-                    //if (DEBUG)
-                    //{
-                        
-                        //logf_map_t_of.open(logf_map_t,  std::ofstream::out|std::ofstream::app);
-                        //logf_map_t_of <<"Enter parallel session in map." <<std::endl;
-                        //logf_map_t_of<<"My share is "<<my_nele<<" My done is "
-                        //    <<my_done<<" switch flag is "<<switch_flag<<std::endl;
-
-                    //}
 
                     double opa_time=0, omp_atomic_time=0, omp_sync_time=0;
                     double opa_time_s, opa_time_e, omp_atomic_time_s, omp_atomic_time_e, omp_sync_time_s, omp_sync_time_e;
@@ -437,47 +380,19 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
                     int kv_size = 0;
                     int offset_kv = 0;
 
-                    //tmp key sizes, if not cp to global successfully,
-                    //not update my key sizes
-                    //int tmp_keysize_all = 0;
-                    //uint64_t tmp_nkey_all = 0;
-                    //uint64_t tmp_kvsize_all =0;
 
                     int proc_mask = nprocs - 1;
 
                     while ((my_done <my_nele) && (!switch_flag))
                     {
-                        //if (DEBUG)
-                        //{
-                        //    logf_map_t_of<<"In while mydone < my nele, and not switch flag."
-                        //        <<" local offset is ";
-                        //    for (int i = 0; i<nprocs; i++)
-                        //    {
-                        //        logf_map_t_of<<local_offset[i]<<" ";
-                        //    }
-                        //    logf_map_t_of<<std::endl<<"global_offset is ";
-                        //    for (int i = 0; i<nprocs; i++)
-                        //    {
-                        //        logf_map_t_of<<global_offset[i] <<" ";
-                        //    }
-                        //    logf_map_t_of<<std::endl;
-                        //}
                         word = ele_ptr[my_done+(tid*thread_nele[0])];
                         mymap(this, word, tmp_key, &keysize, tmp_value, &valuesize,tid);//call user mymap function with the word
                         //after mymap, tmp_key and tmp_value contain c str that end with '\0'
-                        //keysize = strlen(tmp_key)+1;
-                        //valuesize = strlen(tmp_value)+1;
-                        //proc_id = hashlittle(tmp_key, keysize,nprocs) % nprocs;
                         keysize++;
                         valuesize++;
                         proc_id = hashlittle(tmp_key, keysize,nprocs) & proc_mask;
 
                         kv_size = keysize + valuesize;
-
-                        //tmp_keysize_all += keysize;
-                        //tmp_nkey_all++;
-                        //tmp_kvsize_all += kv_size;
-
 
                         offset_kv = local_offset[proc_id];//the offset in the local buffer for this kv
                         //need to copy local buffer to global buffer in 2 cases
@@ -1218,6 +1133,7 @@ void MapReduce::wait_previous_ialltoallv_switch_buffer(uint32_t map_num_exchange
 
             char p_kv_before_convert[256];
             sprintf(p_kv_before_convert,"%s/%s.%d.%d.%d",spill_base.c_str(),"spill_kv_after_all2all_kvb2", me, spill_num_kv_after_all2all, map_num);
+            data->addblock(recvbuf2, recvbuf_size2);
             this->spill(recvbuf2,p_kv_before_convert,recvbuf_size2);
             spill_num_kv_after_all2all++;
             svec_spillf_kv_after_all2all.push_back(std::string(p_kv_before_convert));
@@ -1290,6 +1206,7 @@ void MapReduce::wait_previous_ialltoallv_switch_buffer(uint32_t map_num_exchange
             char p_kv_before_convert[256];
             sprintf(p_kv_before_convert,"%s/%s.%d.%d.%d",spill_base.c_str(),"spill_kv_after_all2all_kvb1",
                 me, spill_num_kv_after_all2all, map_num);
+            data->addblock(recvbuf1, recvbuf_size1);
             this->spill(recvbuf1,p_kv_before_convert,recvbuf_size1);
             spill_num_kv_after_all2all++;
             svec_spillf_kv_after_all2all.push_back(std::string(p_kv_before_convert));
@@ -1364,6 +1281,7 @@ void MapReduce::wait_last_ialltoallv(uint32_t map_num_exchange)
 
         char p_kv_after_all2all[256];
         sprintf(p_kv_after_all2all,"%s/%s.%d.%d.%d",spill_base.c_str(),"spill_kv_after_all2all_kvb2", me, spill_num_kv_after_all2all, map_num);
+        data->addblock(recvbuf2, recvbuf_size2);
         this->spill(recvbuf2,p_kv_after_all2all,recvbuf_size2);
         spill_num_kv_after_all2all++;
         svec_spillf_kv_after_all2all.push_back(std::string(p_kv_after_all2all));
@@ -1398,6 +1316,7 @@ void MapReduce::wait_last_ialltoallv(uint32_t map_num_exchange)
 
         char p_kv_after_all2all[256];
         sprintf(p_kv_after_all2all,"%s/%s.%d.%d.%d",spill_base.c_str(),"spill_kv_after_all2all_kvb1", me, spill_num_kv_after_all2all, map_num);
+        data->addblock(recvbuf1, recvbuf_size1);
         this->spill(recvbuf1,p_kv_after_all2all,recvbuf_size1);
         spill_num_kv_after_all2all++;
         svec_spillf_kv_after_all2all.push_back(std::string(p_kv_after_all2all));

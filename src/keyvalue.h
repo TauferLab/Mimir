@@ -10,11 +10,15 @@ namespace MAPREDUCE_NS {
 
 
 class KeyValue : public DataObject{
+private:
+  int kvtype; // 0 for string, 1 for binary
+
 public:
-  KeyValue();
+  KeyValue(int a1=0, int a2=1, int a3=1, int a4=1, int a5=0, 
+    std::string a6=std::string(""));
   ~KeyValue();
 
-  int add(int, char *, int, char *, int);
+  int getNextKV(int, int, char **, int &, char **, int &);
 };
 
 }

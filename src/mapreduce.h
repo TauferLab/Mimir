@@ -57,7 +57,7 @@ public:
 
 // Public function
 public:
-    MapReduce(MPI_Comm, char *, char *, char *);
+    //MapReduce(MPI_Comm, char *, char *, char *);
     ~MapReduce();
 
         /*

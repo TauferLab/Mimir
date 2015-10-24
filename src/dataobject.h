@@ -3,35 +3,71 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include <string>
 
 namespace MAPREDUCE_NS {
 
 class DataObject{
 public:
-  int nitem;
-  int nblock;
-  int maxblock;
-  int blocksize;
+  int nitem;       // item count
+  int nblock;      // block count
+  int blocksize;   // block size
+  int maxblock;    // max block
+  int maxmemsize;  // max memory size
 
   // interfaces  
 
-  DataObject(int, int);
+  DataObject(int, int a1=1, int a2=1, int a3=1, int a4=0, 
+    std::string a5=std::string(""));
   ~DataObject();
 
-  int add_block(void);
+  // acquire and release a block
+  int  acquireblock(int);
+  void releaseblock(int);
 
-  char *acquire_block(int);
-  void release_block(int);
-
+  // add an empty block
+  int addblock();
+  // add an block with data
+  int addblock(char *, int);
+  
+  // get bytes from a block
+  int getbytes(int, int, char **);
+  // add bytes to a block
+  int addbytes(int, char *, int);
+ 
 private:
+  int findbuffer();
+
+protected:
+  int datatype;    // 0 for kv, 1 for kmv
+
+  // information of block
   struct Block{
-    int item_tail;
-    int remain_bytes;
-    int flag;
+    int       datasize;
+    int       bufferid;
+    int       infile;
+    int64_t   fileoff;
+  };
+ 
+  // information of buffer
+  struct Buffer{
+    char *buf;
+    int blockid;
+    int  ref;
   };
 
-  Block   *headers;
-  char    **blocks;
+  Block  *blocks;
+  Buffer *buffers;
+  int     nbuf;  // current buffer number
+  int     maxbuf;
+
+  std::string filename;
+  int outofcore;
+
+  //Block   *headers;
+  //char    **blocks;
 };
  
 }
