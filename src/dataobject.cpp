@@ -2,6 +2,8 @@
 #include <sys/stat.h>
 #include "dataobject.h"
 
+#include "log.h"
+
 using namespace MAPREDUCE_NS;
 
 DataObject::DataObject(
@@ -127,8 +129,15 @@ void DataObject::releaseblock(int blockid){
 /*
  * get block empty space
  */
-inline int DataObject::getblockspace(int blockid){
-  return (blocksize - blocks[blockid].datasize)
+int DataObject::getblockspace(int blockid){
+  return (blocksize - blocks[blockid].datasize);
+}
+
+/*
+ * get offset of block tail
+ */
+int DataObject::getblocktail(int blockid){
+  return blocks[blockid].datasize;
 }
 
 /*
@@ -171,7 +180,7 @@ int DataObject::addblock(){
   }
 
   //printf("blockid=%d, nblock=%d, maxblock=%d\n", blockid, nblock, maxblock);
-  printf("Error: exceed the max block count!\n");
+  LOG_ERROR("DataObject::addblock: exceed max block count");
   return -1;
 
 }
@@ -195,7 +204,7 @@ int DataObject::addblock(char *data, int datasize){
 /*
  * get pointer of bytes
  */
-inline int DataObject::getbytes(int blockid, int offset, char **ptr){
+int DataObject::getbytes(int blockid, int offset, char **ptr){
   int bufferid = blocks[blockid].bufferid;
   *ptr = buffers[bufferid].buf + offset;
   return 0;
@@ -204,7 +213,7 @@ inline int DataObject::getbytes(int blockid, int offset, char **ptr){
 /*
  * add bytes into a block
  */
-inline int DataObject::addbytes(int blockid, char *buf, int len){
+int DataObject::addbytes(int blockid, char *buf, int len){
   int bufferid = blocks[blockid].bufferid;
   char *blockbuf = buffers[bufferid].buf;
   memcpy(blockbuf+blocks[blockid].datasize, buf, len);

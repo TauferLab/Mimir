@@ -22,6 +22,9 @@
 //#include <tuple>
 #include <math.h>
 
+#include "dataobject.h"
+#include "log.h"
+
 using namespace MAPREDUCE_NS;
 
 //MapReduce::MapReduce(MPI_Comm caller){
@@ -33,11 +36,11 @@ struct Pos{
   Pos(int _blockid, 
     int _nval,
     uint32_t _start, 
-    uint32_t _length){
+    uint32_t _size){
     blockid = _blockid;
     nval = _nval;
     start = _start;
-    length = _length;
+    size = _size;
   }
 
   int      blockid;
@@ -72,20 +75,7 @@ uint64_t MapReduce::map(int nstr, char **strings, int selfflag, int recurse,
 uint64_t MapReduce::convert(){
   DataObject *kmv = new KeyMultiValue(0);
 
-#if 0
-  for(int i = 0; i < data->nblock; i++){
-    KeyValue *kv = (KeyValue*)data;
-    char *key, *value;
-    int keybytes, valuebytes, ret; 
-    while(1){
-      ret = kv->getNextKV(i, &key, keybytes, &value, valuebytes);
-      if(ret == -1)
-        break;
-      printf("%s,%d,%s,%d\n",key, keybytes, value, valuebytes);
-    };
-  }
-#endif
-
+// handled by multi-threads
 //#pragma omp parallel
 {
   int tid = omp_get_thread_num();
@@ -107,27 +97,37 @@ uint64_t MapReduce::convert(){
   for(int i = 0; i < data->nblock; i++){
     KeyValue *kv = (KeyValue*)data;
     int offset = 0;
+
     kv->acquireblock(i);
+
     offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes, &keyoff, &valoff);
+
     while(offset != -1){
-      //printf("%s,%d,%s,%d\n",key, keybytes, value, valuebytes); 
+
+      printf("%s,%d,%s,%d\n",key, keybytes, value, valuebytes); 
+
       uint32_t hid = hashlittle(key, keybytes, 0);
       if(hid % num == tid){
+
         int ibucket = hid % nbucket;
         std::list<Unique>& ul = ht[ibucket];
-        for(auto u = ul.begin(); u != ul.end(); u++){
+        std::list<Unique>::iterator u;
+     
+        // search to see if the key has been in the list
+        for(u = ul.begin(); u != ul.end(); u++){
           if(memcmp(u->key, key, keybytes) == 0){
             u->lpos.push_back(Pos(0,1,valoff,valuebytes));
             u->nlval++;
-            u->nlsize += valuebytes;
+            u->lsize += valuebytes;
             break;
           }
         }
-        if(u == ul.end()){
+        // add the key to the list
+        if(u==ul.end()){
           u->key = new char[keybytes];
           memcpy(u->key, key, keybytes);
           u->keybytes = keybytes;
-          u->lpos.push_back(Pos(0,valoff,valuebytes));
+          u->lpos.push_back(Pos(0,1,valoff,valuebytes));
           u->nlval=1;
           u->lsize=valuebytes;
           u->ngval=0;
@@ -141,26 +141,34 @@ uint64_t MapReduce::convert(){
     // merge locally
     int blockid = tmpdata->addblock();
     tmpdata->acquireblock(blockid);
-    for(auto ul = ht.begin(); ul != ht.end(); ++ul){
-      for(auto u = ul.begin(); u != ul.end(); ++u){
-        // merge all values together
-        int bytes = sizeof(int)*(u->nlval) + (u->lsize);
-        if(tmpdata->getblockspace(blockid) < bytes){
+    
+    std::vector<std::list<Unique>>::iterator ul;
+    for(ul = ht.begin(); ul != ht.end(); ++ul){
+      std::list<Unique>::iterator u;
+      for(u = ul->begin(); u != ul->end(); ++u){
+       // merge all values together
+       int bytes = sizeof(int)*(u->nlval) + (u->lsize);
+       // if the block is full, add another block 
+       if(tmpdata->getblockspace(blockid) < bytes){
           tmpdata->releaseblock(blockid);
           blockid = tmpdata->addblock();
           tmpdata->acquireblock(blockid);
         }
         // add sizes
-        for(auto l = u->lpos.begin(); l != u->lpos.end(); ++l){
-          tmpdata->addbytes(blockid, &(l->size), sizeof(int));
+        std::list<Pos>::iterator l;
+        int off = tmpdata->getblocktail(blockid);
+        for(l = u->lpos.begin(); l != u->lpos.end(); ++l){
+          tmpdata->addbytes(blockid, (char*)&(l->size), (int)sizeof(int));
         }
         // add values
-        for(auto l = u->lpos.begin(); l != u->lpos.end(); ++l){
+        for(l = u->lpos.begin(); l != u->lpos.end(); ++l){
           char *p = NULL;
           tmpdata->getbytes(blockid, l->start, &p);
           tmpdata->addbytes(blockid, p, l->size); 
         }
-        u->gpos.push_back(Pos(blockid,u->nlval,0,bytes))
+        u->ngval += u->nlval;
+        u->gsize += u->lsize;
+        u->gpos.push_back(Pos(blockid,u->nlval,off,bytes));
       }
     }
     tmpdata->releaseblock(blockid);
@@ -170,16 +178,39 @@ uint64_t MapReduce::convert(){
   }
 
   // merge kvs into kmv
-  for(auto ul = ht.begin(); ul != ht.end(); ++ul){
-    for(auto u = ul.begin(); u != ul.end(); ++u){
-      for(auto l = u->lpos.begin(); l != u->lpos.end(); ++l){
-        
+  int blockid = -1;
+  std::vector<std::list<Unique>>::iterator ul;
+  for(ul = ht.begin(); ul != ht.end(); ++ul){
+    std::list<Unique>::iterator u;
+    for(u = ul->begin(); u != ul->end(); ++u){
+      if(blockid == -1){
+        blockid = kmv->addblock();
+        kmv->acquireblock(blockid);
+      }
+      int bytes = sizeof(int)+(u->keybytes)+(u->ngval)*sizeof(int)+(u->gsize);
+      if(kmv->getblockspace(blockid) < bytes){
+        kmv->releaseblock(blockid);
+        blockid = kmv->addblock();
+        kmv->acquireblock(blockid);
+      }
+      kmv->addbytes(blockid, (char*)&(u->keybytes), (int)sizeof(int));
+      kmv->addbytes(blockid, u->key, u->keybytes);
+      std::list<Pos>::iterator l;
+      for(l = u->lpos.begin(); l != u->lpos.end(); ++l){
+        char *p = NULL;
+        tmpdata->getbytes(l->blockid, l->start, &p);
+        kmv->addbytes(blockid, p, sizeof(int)*(l->nval));
+      }
+      for(l = u->lpos.begin(); l != u->lpos.end(); ++l){
+        char *p = NULL;
+        tmpdata->getbytes(l->blockid, l->start+sizeof(int)*(l->nval), &p);
+        kmv->addbytes(blockid, p, l->size);
       }
     }
   }
+  if(blockid != -1) kmv->releaseblock(blockid);
 
   delete tmpdata;
-
 }  
 
   delete data;
@@ -233,6 +264,8 @@ uint64_t MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 //xxxxa as in argument
 MapReduce::MapReduce(MPI_Comm caller)
 {
+    Log::createLogger(caller);
+
     comm = caller;
     MPI_Comm_rank(comm,&me);
     MPI_Comm_size(comm,&nprocs);
@@ -276,6 +309,8 @@ MapReduce::MapReduce(MPI_Comm caller)
 
     map_num=0;//increment everytime you call map
     reduce_num=0;
+
+    
 }
 
 MapReduce::~MapReduce()

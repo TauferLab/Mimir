@@ -34,6 +34,9 @@ public:
 
   // get block left space
   int getblockspace(int);
+
+  // get offset of block tail
+  int getblocktail(int);
   
   // get bytes from a block
   int getbytes(int, int, char **);

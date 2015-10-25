@@ -19,7 +19,7 @@ KeyValue::KeyValue(
 KeyValue::~KeyValue(){
 }
 
-int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff=NULL, int *vff=NULL){
+int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
   if(offset >= blocks[blockid].datasize) return -1;
   
   int bufferid = blocks[blockid].bufferid;
