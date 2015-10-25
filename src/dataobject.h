@@ -9,6 +9,8 @@
 
 namespace MAPREDUCE_NS {
 
+enum DataType{ByteType, KVType, KMVType};
+
 class DataObject{
 public:
   int nitem;       // item count
@@ -19,8 +21,13 @@ public:
 
   // interfaces  
 
-  DataObject(int, int a1=1, int a2=1, int a3=1, int a4=0, 
+  DataObject(DataType,
+    int blocksize=1, 
+    int maxblock=1, 
+    int memsize=1, 
+    int outofcore=0, 
     std::string a5=std::string(""));
+
   ~DataObject();
 
   // acquire and release a block
@@ -42,6 +49,9 @@ public:
   int getbytes(int, int, char **);
   // add bytes to a block
   int addbytes(int, char *, int);
+
+  // print out the bytes data
+  void print();
  
 private:
   int findbuffer();

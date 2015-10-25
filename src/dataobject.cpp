@@ -7,7 +7,7 @@
 using namespace MAPREDUCE_NS;
 
 DataObject::DataObject(
-  int _datatype,
+  DataType _datatype,
   int _blocksize,
   int _maxblock,
   int _maxmemsize,
@@ -15,7 +15,7 @@ DataObject::DataObject(
   std::string _filename){
   datatype = _datatype;
 
-  blocksize = _blocksize * 10124 * 1024;
+  blocksize = _blocksize * 1024 * 1024;
   maxblock = _maxblock;
   maxmemsize = _maxmemsize * 1024 * 1024;
   outofcore = _outofcore;
@@ -39,6 +39,8 @@ DataObject::DataObject(
     buffers[i].blockid = -1;
     buffers[i].ref = 0;
   }
+ 
+  LOG_PRINT(DBG_GEN, "Create Object: type=%d, blocksize=%d,maxblock=%d, maxmemsize=%d\n", datatype, blocksize, maxblock, maxmemsize);
 }
 
 DataObject::~DataObject(){
@@ -130,6 +132,7 @@ void DataObject::releaseblock(int blockid){
  * get block empty space
  */
 int DataObject::getblockspace(int blockid){
+  LOG_PRINT(DBG_GEN, "get block space, id=%d, blocksize=%d, datasize=%d\n", blockid, blocksize, blocks[blockid].datasize);
   return (blocksize - blocks[blockid].datasize);
 }
 
@@ -180,7 +183,7 @@ int DataObject::addblock(){
   }
 
   //printf("blockid=%d, nblock=%d, maxblock=%d\n", blockid, nblock, maxblock);
-  LOG_ERROR("DataObject::addblock: exceed max block count");
+  LOG_ERROR("DataObject::addblock: exceed max block count nblock=%d, maxblock=%d!\n", nblock, maxblock);
   return -1;
 
 }
@@ -218,4 +221,23 @@ int DataObject::addbytes(int blockid, char *buf, int len){
   char *blockbuf = buffers[bufferid].buf;
   memcpy(blockbuf+blocks[blockid].datasize, buf, len);
   blocks[blockid].datasize += len;
+  return blocks[blockid].datasize;
+}
+
+/*
+ * print the bytes data in this object
+ */
+void DataObject::print(){
+  int line = 10;
+  for(int i = 0; i < nblock; i++){
+    acquireblock(i);
+    fprintf(stdout, "block %d, datasize=%d:", i, blocks[i].datasize);
+    for(int j=0; j < blocks[i].datasize; j++){
+      if(j % line == 0) fprintf(stdout, "\n");
+      int bufferid = blocks[i].bufferid;
+      fprintf(stdout, "  %02X", buffers[bufferid].buf[j]);
+    }
+    fprintf(stdout, "\n");
+    releaseblock(i);
+  }
 }

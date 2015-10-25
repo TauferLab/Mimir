@@ -1,36 +1,32 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "mpi.h"
+#define _DEBUG
+
+#define DBG_GEN     1
+
+#define DBG_LEVEL (DBG_GEN)
 
 #ifdef _DEBUG
-#define LOG_PRINT(level, str) (Log::getLogger()->print((level), (str)));
+#define LOG_PRINT(type, format, ...) \
+  {\
+    if(DBG_LEVEL & (type)){\
+      fprintf(stdout, (format), __VA_ARGS__);\
+    }\
+  }
 #else
-#define LOG_PRINT(level, str)
+#define LOG_PRINT(type, format, ...)
 #endif
-#define LOG_WARNING(str) (Log::getLogger()->warning((str)));
-#define LOG_ERROR(str) (Log::getLogger()->error((str)));
 
-namespace MAPREDUCE_NS {
+#define LOG_WARNING(format, ...) \
+  {\
+    fprintf(stderr, format, __VA_ARGS__);\
+  }
 
-class Log{
-public:
-    Log(MPI_Comm);
-    void print(int level, const char *); 
-    void error(const char *);
-    void warning(const char *);
+#define LOG_ERROR(format,...) \
+  {\
+    fprintf(stderr, format, __VA_ARGS__);\
+    exit(1);\
+  };
 
-    static Log *logger;
-    static Log *getLogger();    
-
-    static Log* createLogger(MPI_Comm);
-
-private:
-    MPI_Comm comm;
-    int me, size;
-    int level = 0;
-    int mod = 0; // 0 for standard output, 1 for log file
-};
-
-}
 #endif

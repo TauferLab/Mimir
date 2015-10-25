@@ -26,7 +26,7 @@ public:
       void (*mymap) (MapReduce *, char *, int), 
       int myhash(char *, int), void *);
 
-    uint64_t reduce(void (myreduce)(MapReduce *, char *, int, char *, int, 
+    uint64_t reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
        int *, void*), void* );
 
     uint64_t convert();
@@ -36,6 +36,9 @@ public:
 private:
     DataObject *data;
 
+    int *blocks;    // current block id for each threads, used in map and reduce
+    int tnum;       // number of threads
+    int state;      // mapreduce state
 
 /*******************************************************************/
 

@@ -11,7 +11,7 @@ KeyValue::KeyValue(
   int maxmemsize,
   int outofcore,
   std::string filename):
-  DataObject(1, blocksize, 
+  DataObject(KVType, blocksize, 
     maxblock, maxmemsize, outofcore, filename){
   kvtype = _kvtype;
 }
@@ -50,3 +50,59 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
   return offset;
 }
 
+/*
+ * Add a KV
+ * return 0 if success, else return -1
+ */
+int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &valuebytes){
+  int kvbytes = 0;
+  if(kvtype == 0) kvbytes = keybytes+valuebytes;
+  else if(kvtype == 1) kvbytes = 2*sizeof(int)+keybytes+valuebytes;
+
+  int datasize = blocks[blockid].datasize;
+  if(kvbytes+datasize > blocksize) return -1;
+
+  int bufferid = blocks[blockid].bufferid;
+  char *buf = buffers[bufferid].buf;
+
+  if(kvtype == 0){
+    memcpy(buf+datasize, key, keybytes);
+    datasize += keybytes;
+    memcpy(buf+datasize, value, valuebytes);
+    datasize += valuebytes;
+  }else if(kvtype == 1){
+    memcpy(buf+datasize, &keybytes, sizeof(int));
+    datasize += sizeof(int);
+    memcpy(buf+datasize, key, keybytes);
+    datasize += keybytes;
+    memcpy(buf+datasize, &valuebytes, sizeof(int));
+    datasize += sizeof(int);
+    memcpy(buf+datasize, value, valuebytes);
+    datasize += valuebytes;
+  }
+  blocks[blockid].datasize = datasize;
+  return 0;
+}
+
+
+void KeyValue::print(){
+  char *key, *value;
+  int keybytes, valuebytes;
+
+  for(int i = 0; i < nblock; i++){
+    int offset = 0;
+
+    acquireblock(i);
+
+    offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+
+    while(offset != -1){
+      printf("%s:%s\n",key, value);
+
+      offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+    }
+
+    releaseblock(i);
+
+  }
+}
