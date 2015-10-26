@@ -43,10 +43,9 @@ int level = 8; //level: explore this level of the oct-tree, used by main and gen
 
 int main(int argc, char **argv)
 {
-	int provided;
-	MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-	if (provided < MPI_THREAD_FUNNELED)
-		MPI_Abort(MPI_COMM_WORLD, 1);
+        int provided;
+	MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
+	if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
 	MPI_Comm_rank(MPI_COMM_WORLD, &me);
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 

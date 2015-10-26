@@ -147,6 +147,7 @@ int DataObject::getblocktail(int blockid){
  * add an empty block and return the block id
  */
 int DataObject::addblock(){
+  LOG_PRINT(DBG_GEN, "add block nblock=%d\n", nblock);
   int blockid = __sync_fetch_and_add(&nblock, 1);
   if(blockid < maxblock){
     if(blockid < maxbuf){

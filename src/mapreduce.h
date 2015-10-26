@@ -26,10 +26,15 @@ public:
       void (*mymap) (MapReduce *, char *, int), 
       int myhash(char *, int), void *);
 
+    //uint64_t map(int nmap, )
+
+
     uint64_t reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
        int *, void*), void* );
 
     uint64_t convert();
+
+    uint64_t scan(void (myscan)(char *, int, int, char *, int *,void *), void *);
 
     uint64_t add(char *key, int keybytes, char *value, int valuebytes);
 
@@ -94,7 +99,7 @@ public:
 
     // Map and Reduce function
     uint64_t map(char *, int, int,
-        void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int));
+        void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int, void*), void*);
 
     uint64_t map_local(int, char *, int, int, char *, char *, char *,
         void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int));

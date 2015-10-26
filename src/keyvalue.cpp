@@ -89,6 +89,8 @@ void KeyValue::print(){
   char *key, *value;
   int keybytes, valuebytes;
 
+  printf("Print KV:\n");
+
   for(int i = 0; i < nblock; i++){
     int offset = 0;
 

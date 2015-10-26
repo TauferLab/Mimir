@@ -50,6 +50,11 @@ public:
   // add bytes to a block
   int addbytes(int, char *, int);
 
+  // get data type
+  DataType getDatatype(){
+    return datatype;
+  }
+
   // print out the bytes data
   void print();
  
@@ -57,7 +62,7 @@ private:
   int findbuffer();
 
 protected:
-  int datatype;    // 0 for bytes, 1 for kv, 2 for kmv
+  DataType datatype;    // 0 for bytes, 1 for kv, 2 for kmv
 
   // information of block
   struct Block{
