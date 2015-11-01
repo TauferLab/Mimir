@@ -6,6 +6,9 @@
 
 using namespace MAPREDUCE_NS;
 
+// FIXME: out of core design may face problems
+//        when running in multi-threads environment 
+
 DataObject::DataObject(
   DataType _datatype,
   int _blocksize,
@@ -40,7 +43,7 @@ DataObject::DataObject(
     buffers[i].ref = 0;
   }
  
-  LOG_PRINT(DBG_GEN, "Create Object: type=%d, blocksize=%d,maxblock=%d, maxmemsize=%d\n", datatype, blocksize, maxblock, maxmemsize);
+  LOG_PRINT(DBG_DATA, "DataoBject: create. (type=%d, blocksize=%d, maxblock=%d, maxmemsize=%d)\n", datatype, blocksize, maxblock, maxmemsize);
 }
 
 DataObject::~DataObject(){
@@ -49,6 +52,8 @@ DataObject::~DataObject(){
   }
   delete [] blocks;
   delete [] buffers;
+
+  LOG_PRINT(DBG_DATA, "%s", "DataObejct: destory.\n");
 }
 
 /*
@@ -132,7 +137,7 @@ void DataObject::releaseblock(int blockid){
  * get block empty space
  */
 int DataObject::getblockspace(int blockid){
-  LOG_PRINT(DBG_GEN, "get block space, id=%d, blocksize=%d, datasize=%d\n", blockid, blocksize, blocks[blockid].datasize);
+  //LOG_PRINT(DBG_GEN, "get block space, id=%d, blocksize=%d, datasize=%d\n", blockid, blocksize, blocks[blockid].datasize);
   return (blocksize - blocks[blockid].datasize);
 }
 
@@ -147,7 +152,6 @@ int DataObject::getblocktail(int blockid){
  * add an empty block and return the block id
  */
 int DataObject::addblock(){
-  LOG_PRINT(DBG_GEN, "add block nblock=%d\n", nblock);
   int blockid = __sync_fetch_and_add(&nblock, 1);
   if(blockid < maxblock){
     if(blockid < maxbuf){
@@ -159,6 +163,8 @@ int DataObject::addblock(){
       blocks[blockid].bufferid = blockid;
       blocks[blockid].infile = 0;
       blocks[blockid].fileoff = 0;
+
+      LOG_PRINT(DBG_GEN, "DataObejct: add block.(blockid=%d)\n", blockid);
 
       return blockid;
     }else{
@@ -184,7 +190,7 @@ int DataObject::addblock(){
   }
 
   //printf("blockid=%d, nblock=%d, maxblock=%d\n", blockid, nblock, maxblock);
-  LOG_ERROR("DataObject::addblock: exceed max block count nblock=%d, maxblock=%d!\n", nblock, maxblock);
+  LOG_ERROR("DataObject error in addblock exceed max block count nblock=%d, maxblock=%d!\n", nblock, maxblock);
   return -1;
 
 }
@@ -197,12 +203,19 @@ int DataObject::addblock(){
  * can be used in multi-thread environment
  */
 int DataObject::addblock(char *data, int datasize){
+  if(datasize > blocksize){
+    LOG_ERROR("Error in DataObejct::addblock: the data size exceeds one block size.(datasize=%d, blocksize=%d)\n", datasize, blocksize);
+    return -1;
+  }
+
   int blockid = addblock();
   acquireblock(blockid);
   int bufferid = blocks[blockid].bufferid;
   memcpy(buffers[bufferid].buf, data, datasize);
   blocks[blockid].datasize = datasize;
   releaseblock(blockid);
+
+  LOG_PRINT(DBG_DATA, "DataObejct: add data into block.(blockid=%d, datasize=%d)\n", blockid, datasize);
 }
 
 /*

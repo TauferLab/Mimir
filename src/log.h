@@ -4,8 +4,10 @@
 #define _DEBUG
 
 #define DBG_GEN     1
+#define DBG_DATA    2
+#define DBG_COMM    4
 
-#define DBG_LEVEL (DBG_GEN)
+#define DBG_LEVEL DBG_COMM
 
 #ifdef _DEBUG
 #define LOG_PRINT(type, format, ...) \

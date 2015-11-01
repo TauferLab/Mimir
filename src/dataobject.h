@@ -9,6 +9,7 @@
 
 namespace MAPREDUCE_NS {
 
+// Datatype
 enum DataType{ByteType, KVType, KMVType};
 
 class DataObject{
@@ -23,8 +24,8 @@ public:
 
   DataObject(DataType,
     int blocksize=1, 
-    int maxblock=1, 
-    int memsize=1, 
+    int maxblock=4, 
+    int memsize=4, 
     int outofcore=0, 
     std::string a5=std::string(""));
 

@@ -69,21 +69,164 @@ struct Unique
   std::list<Pos> pos;
 };
 
-uint64_t MapReduce::map(int nstr, char **strings, int selfflag, int recurse, 
-    int readmode, void (*mymap) (MapReduce *, char *, int), 
-    int myhash(char *, int), void *ptr){
-  return 0;   
+/*
+ * Map function: (input: files)
+ *  filepath: input file path
+ *  sharedflag: 0 for local file system, 1 for global file system
+ *  recurse: 1 for recurse
+ *  readmode: 0 for by word, 1 for by line
+ *  mymap: map function
+ *  myhash: hash function
+ *  ptr: pointer
+ */
+uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
+    int readmode, void (*mymap) (MapReduce *, char *, int, void *), void *ptr){
+  
+    
+  
+  return 0; 
+}
+
+/*
+ * Map function: no communication
+ */
+uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
+    int readmode, void (*mymap)(MapReduce *, char *, int, void *), void *ptr){
+}
+
+
+/*
+ * Map function: (input: kv object)
+ */
+uint64_t MapReduce::map(MapReduce *mr, 
+    void (*mymap)(MapReduce *, char *, int, char *, int, void*), void *ptr){
+
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map start. (KV as input)\n");
+
+  addtype = 0;
+
+  DataObject *data = mr->data;
+  KeyValue *kv = new KeyValue(0);
+
+  this->data = kv;
+
+  c->init(kv);
+
+  if(data->getDatatype() != KVType){
+    LOG_ERROR("%s","Error in map_local: input object of map must be KV object\n");
+    return -1;
+  }
+
+  KeyValue *inputkv = (KeyValue*)data;
+
+  //inputkv->print();
+
+#pragma omp parallel default(shared)
+{
+  int tid = omp_get_thread_num();
+  
+  char *key, *value;
+  int keybytes, valuebytes;
+
+
+#pragma omp for
+  for(int i = 0; i < inputkv->nblock; i++){
+    int offset = 0;
+
+    inputkv->acquireblock(i);
+
+    offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+  
+    while(offset != -1){
+      mymap(this, key, keybytes, value, valuebytes, ptr);
+
+      offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+    }
+    
+    inputkv->releaseblock(i);
+  }
+
+  c->twait(tid);
+}
+  c->wait();
+
+  if(data != NULL) delete data;
+  
+  addtype = -1;
+
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map end.\n");
+
+  kv->print();
+
+  return 0;
+}
+
+
+uint64_t MapReduce::map_local(MapReduce *mr, 
+    void (*mymap)(MapReduce *, char *, int, char *, int, void *), void *ptr){
+
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map local start. (KV as input)\n");
+
+  addtype = 1;
+
+  DataObject *data = mr->data;
+  KeyValue *kv = new KeyValue(0);
+
+  this->data = kv;
+
+  if(data->getDatatype() != KVType){
+    LOG_ERROR("%s","Error in map_local: input object of map must be KV object\n");
+    return -1;
+  }
+
+  KeyValue *inputkv = (KeyValue*)data;
+
+#pragma omp parallel default(shared)
+{
+  int tid = omp_get_thread_num();
+  
+  char *key, *value;
+  int keybytes, valuebytes;
+
+
+#pragma omp for
+  for(int i = 0; i < inputkv->nblock; i++){
+    int offset = 0;
+
+    inputkv->acquireblock(i);
+
+    offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+  
+    while(offset != -1){
+      mymap(this, key, keybytes, value, valuebytes, ptr);
+
+      offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+    }
+    
+    inputkv->releaseblock(i);
+  }
+}
+
+  if(data != NULL) delete data;
+
+  addtype = -1;
+
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map local end.\n");
+
+  return 0;
 }
 
 /* convert KV to KMV */
 uint64_t MapReduce::convert(){
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: convert start.\n");
+
   KeyValue *kv = (KeyValue*)data;
   KeyMultiValue *kmv = new KeyMultiValue(0);
 
-  kv->print();
+  //kv->print();
 
 // handled by multi-threads
-//#pragma omp parallel
+#pragma omp parallel
 {
   int tid = omp_get_thread_num();
   int num = omp_get_num_threads();
@@ -245,21 +388,26 @@ uint64_t MapReduce::convert(){
   delete data;
   data = kmv;
 
-  kmv->print();
+  //kmv->print();
+
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: convert end.\n");
 
   return 0;
 }
 
 uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
     int *, void*), void* ptr){
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: reduce start.\n");
+
+  addtype = 2;
 
   KeyMultiValue *kmv = (KeyMultiValue*)data;
   KeyValue *kv = new KeyValue(1);
   data = kv;
 
-  kmv->print();
+  //kmv->print();
 
-//#pragma omp parallel
+#pragma omp parallel
 {
   int tid = omp_get_thread_num();
   int num = omp_get_num_threads();
@@ -268,7 +416,7 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
   int keybytes, nvalue, *valuebytes;
   blocks[tid] = -1;
 
-//#pragma omp for
+#pragma omp for
   for(int i = 0; i < kmv->nblock; i++){
      int offset = 0;
      kmv->acquireblock(i);
@@ -284,7 +432,10 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
 
   delete kmv;
 
-  kv->print();
+  addtype = -1;
+
+  //kv->print();
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: reduce end.\n");
 
   return 0;
 }
@@ -313,24 +464,44 @@ uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), 
 
 }
 
-uint64_t MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
+/*
+ * add a KV to this MR
+ *  always invoked in mymap or myreduce function 
+ *  must support multi-threads
+ */
+int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   KeyValue *kv = (KeyValue*)data; 
  
   int tid = omp_get_thread_num();
-  if(blocks[tid] == -1){
-    blocks[tid] = kv->addblock();
+ 
+  // invoked in map function
+  if(addtype == 0){
+
+    // get target process
+    int target = 0;
+    if(myhash != NULL) target=myhash(key, keybytes);
+    else target = hashlittle(key, keybytes, nprocs);
+    target %= nprocs;
+    
+    c->sendKV(tid, target, key, keybytes, value, valuebytes);
+
+  // invoked in map_local or reduce function
+  }else if(addtype == 1 || addtype == 2){
+    if(blocks[tid] == -1){
+      blocks[tid] = kv->addblock();
+    }
+
+    kv->acquireblock(blocks[tid]);
+
+    while(kv->addKV(blocks[tid], key, keybytes, value, valuebytes) == -1){
+      kv->releaseblock(blocks[tid]);
+      blocks[tid] = kv->addblock();
+      kv->acquireblock(blocks[tid]);
+    }
+
+    kv->releaseblock(blocks[tid]);
   }
 
-  kv->acquireblock(blocks[tid]);
-  
-  while(kv->addKV(blocks[tid], key, keybytes, value, valuebytes) == -1){
-    kv->releaseblock(blocks[tid]);
-    blocks[tid] = kv->addblock();
-    kv->acquireblock(blocks[tid]);
-  }
-  
-  kv->releaseblock(blocks[tid]);
-     
   return 0;
 }
 
@@ -341,11 +512,11 @@ uint64_t MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 #define MAXLINE 2048
 #define LOCAL_BUFFER_SIZE (1024*1024) //per proc
 
-#ifdef FUSION
-    #define N_THREADS 12
-#else
-    #define N_THREADS 4
-#endif
+//#ifdef FUSION
+//    #define N_THREADS 12
+//#else
+#define N_THREADS 4
+//#endif
 
 //xxxxa as in argument
 MapReduce::MapReduce(MPI_Comm caller)
@@ -405,10 +576,21 @@ MapReduce::MapReduce(MPI_Comm caller)
 
     blocks = new int[tnum];   
     for(int i = 0; i < tnum; i++) blocks[i] = -1;
+
+    data = NULL;
+    myhash = NULL;
+    c = new Alltoall(comm, tnum);
+    c->setup(1, 2);
+
+    addtype = -1;
+
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: construction.\n");
 }
 
 MapReduce::~MapReduce()
 {
+    delete c;
+
     delete [] blocks;
 
         delete [] map_exchange_request;
@@ -416,6 +598,8 @@ MapReduce::~MapReduce()
         delete [] map_exchange_status;
     logf_map_p_of.close();
     logf_reduce_p_of.close();
+
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: destroy.\n");
 }
 
 unsigned long int MapReduce::set_in_buffer_size(unsigned long int size)
@@ -542,6 +726,8 @@ void MapReduce::add_files_from_map()
 uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
         void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int, void *), void* ptr)
 {
+  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map start.\n");
+
   data = new KeyValue(0);
   
   map_num++;
@@ -692,95 +878,56 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
                  break;
                }
              }
-                            //if (DEBUG)
-                            //{
-                            //    logf_map_t_of<<"ok to copy to global flag is: "<<ok_cp_global<<std::endl;
-                            //}
-                            if (ok_cp_global)
-                            {
-                                //ok to copy from local buffer to global kv buffer
-                                for (int i = 0; i <nprocs; i++)
-                                {
-                                    int old_val = global_offset[i];
-                                    int local_start = (LOCAL_BUFFER_SIZE/nprocs) * i;
-                                    memcpy(&kv_buffer[old_val], &local_kv_buffer[local_start],(local_offset[i]-local_start));
-
-                                    //if (DEBUG)
-                                    //{
-                                    //    logf_map_t_of<<"copy kv from loca buffer to global buffer "
-                                    //       <<"local buffer ["<<i<<"], from "<<local_start<<" with size "
-                                    //        <<(local_offset[i]-local_start)<<" to global from start "<<old_val<<std::endl;
-                                    //}
-                                }
-                                thread_done[tid] = my_done;
-                                //my_keysize_all += tmp_keysize_all;
-                                //my_nkey_all += tmp_nkey_all;
-                                //my_kvsize_all += tmp_kvsize_all;
-
-                            }else{
-                                //not ok to copy from local buffer to global kv buffer
-                                switch_flag = true;
-                                //if (DEBUG)
-                                //{
-                                //    logf_map_t_of<<"Set switch flag to true."<<std::endl;
-                                //}
-                                //#pragma omp flush (switch_flag)
-                            }//end of to copy from local buffer to global kv buffer
+             if (ok_cp_global){
+               //ok to copy from local buffer to global kv buffer
+               for (int i = 0; i <nprocs; i++)
+               {
+                 int old_val = global_offset[i];
+                 int local_start = (LOCAL_BUFFER_SIZE/nprocs) * i;
+                 memcpy(&kv_buffer[old_val], &local_kv_buffer[local_start],(local_offset[i]-local_start));
+                }
+                thread_done[tid] = my_done;
+              }else{
+                //not ok to copy from local buffer to global kv buffer
+                switch_flag = true;
+              }//end of to copy from local buffer to global kv buffer
 
 
-                            //after copy local buffer to global buffer, need to reset local buffer offsets
-                            for (int i = 0; i<nprocs; i++)
-                            {
-                                local_offset[i] = (LOCAL_BUFFER_SIZE/nprocs) * i;
-                                global_offset[i] = 0;
-                            }
+              //after copy local buffer to global buffer, need to reset local buffer offsets
+              for (int i = 0; i<nprocs; i++)
+              {
+                local_offset[i] = (LOCAL_BUFFER_SIZE/nprocs) * i;
+                global_offset[i] = 0;
+              }
                             //tmp_keysize_all = 0;
                             //tmp_nkey_all = 0;
                             //tmp_kvsize_all = 0;
-                        }//end of local buffer fit
+            }//end of local buffer fit
 
                         
-                        if (my_done == my_nele)
-                        {
-                            //I am done, cp to global buffer
-                            //if (DEBUG)
-                            //{
-                                
-                            //    logf_map_t_of <<"If I am done: local kv buffer is full "<<std::endl;
-                            //    logf_map_t_of<<"My share is "<<my_nele<<" My done is "
-                            //        <<my_done<<" switch flag is "<<switch_flag<<std::endl;
-
-                            //}
-                            bool ok_cp_global = 1;//1: ok to copy from local kv buffer
-                            //to global kv buffer, if any global_offset overflow, set 
-                            //this bool to 0, and break with valu = 0
-                            for (int i = 0; i < nprocs; i++)
-                            {
-                                int local_start = (LOCAL_BUFFER_SIZE/nprocs) * i;
-                                opa_time_s = omp_get_wtime();
-                                global_offset[i] = OPA_fetch_and_add_int(&offset[i], (local_offset[i]-local_start));//old value
-                                opa_time_e = omp_get_wtime();
-                                opa_time += (opa_time_e - opa_time_s);
-                                //if (DEBUG)
-                                //{
-                                //    logf_map_t_of<<"after OPA fetch and add, global offset "<<i<<" is "
-                                //        <<global_offset[i]<<" local offset "<<i<< " is "<<local_offset[i]<<std::endl;
-                                //}
-                                if ( (global_offset[i] + local_offset[i]) >= (kv_buffer_size/nprocs)*(i+1))
-                                {
-                                    ok_cp_global = 0;
-                                    for (int j = i; j>=0; j--)
-                                    {
-                                        OPA_store_int(&offset[j],global_offset[j]);
-                                    }
-                                    //if (DEBUG)
-                                    //{
-                                    //    logf_map_t_of<<"Global buffer "<<i<<" overflows when try to copy."<<std::endl;
-                                    //}
-                                    
-                                    break;
-                                }
-                            }
+            if (my_done == my_nele)
+            {
+              bool ok_cp_global = 1;//1: ok to copy from local kv buffer
+                   //to global kv buffer, if any global_offset overflow, set 
+                            
+              //this bool to 0, and break with valu = 0
+              for (int i = 0; i < nprocs; i++)
+              {
+                int local_start = (LOCAL_BUFFER_SIZE/nprocs) * i;
+                opa_time_s = omp_get_wtime();
+                global_offset[i] = OPA_fetch_and_add_int(&offset[i], (local_offset[i]-local_start));//old value
+                opa_time_e = omp_get_wtime();
+                opa_time += (opa_time_e - opa_time_s);
+                if ( (global_offset[i] + local_offset[i]) >= (kv_buffer_size/nprocs)*(i+1))
+                {
+                  ok_cp_global = 0;
+                  for (int j = i; j>=0; j--)
+                  {
+                    OPA_store_int(&offset[j],global_offset[j]);
+                  }
+                  break;
+                }
+               }
                             //if (DEBUG)
                             //{
                             //    logf_map_t_of<<"ok to copy to global flag is: "<<ok_cp_global<<std::endl;
@@ -978,6 +1125,8 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
     //logf_map_p_of<<"MPI_Iall and MPI_Wait time: "<<mpi_itime<<std::endl;
     //logf_map_p_of<<"Map time: "<<map_time <<" seconds. "<<std::endl;
 
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: map end.\n");
+
     return 0;
 
 }//end of map
@@ -985,11 +1134,10 @@ uint64_t MapReduce::map(char *in_patha, int read_modea, int map_type,
 /*map_local: map without communication, output local files after applying
 a "map" function. Use the kv buffer differently.*/
 
-uint64_t MapReduce::map_local(int input_loca, char *in_patha, int read_modea, int map_type, 
-        char *log_patha, char *spill_basea, char *out_patha,
-        void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int))    
+uint64_t MapReduce::map_local(char *in_patha, int read_modea, int map_type, 
+        void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int, void*), void* ptr)    
 {
-    
+   char *spill_basea="spill";    
     //log map file for process is open in the contructor
     logf_map_p_of << "Map_local: enter map function."<<std::endl;
     double map_s_timer = omp_get_wtime();
@@ -1156,7 +1304,7 @@ uint64_t MapReduce::map_local(int input_loca, char *in_patha, int read_modea, in
                     logf_map_t_of<<"Before calling mymap funciton, word: "
                         <<word<<"."<<std::endl;
                 }
-                mymap(this, word, tmp_key, &keysize, tmp_value, &valuesize, tid);//call user mymap function with the word
+                mymap(this, word, tmp_key, &keysize, tmp_value, &valuesize, tid, ptr);//call user mymap function with the word
                 //after mymap, tmp_key and tmp_value contain c str that end with '\0'
                 //keysize = strlen(tmp_key)+1;
                 //valuesize = strlen(tmp_value)+1;
@@ -2188,54 +2336,3 @@ void MapReduce::spill(char *page, char *fname, uint64_t size)
     //num_spill_files++;
 }
 
-
-
-uint64_t MapReduce::reduce(int i, uint32_t (*myreduce) (MapReduce *, const char *key, uint32_t keysize, const char *mv, uint32_t mvsize, char *out_kv))
-{
-    //if (DEBUG)
-    //{
-    //    logf_reduce_p_of<<"Eneter reduce."<<std::endl;
-    //}
-    reduce_num++;
-
-    //double reduce_s_timer = omp_get_wtime();
-    //logf_reduce_p_of<<"Reduce start time: "<<std::setprecision(15)<<reduce_s_timer<<std::endl;
-
-    //convert each page of kv pairs to one page of kmv
-    //merge all pages of kmv to kmv with unique keys
-    KMV *kmv = new KMV(this);
-    //for each kv file, bring it to memory and convert
-    std::streampos kv_file_size;
-    //char *kv_buffer;
-    //TODO, current only work on one file, need to add iteration to work on all kv files
-    uint64_t max_kv_size =0;
-    for (int i = 0; i<ivec_spillf_kv_after_all2all.size(); i++)
-    {
-        if (ivec_spillf_kv_after_all2all[i] > max_kv_size)
-        {
-            max_kv_size=ivec_spillf_kv_after_all2all[i];
-            //if (DEBUG)
-            //{
-            //    logf_reduce_p_of<<"max kv size is: "<<max_kv_size<<std::endl;
-            //}
-        }
-
-    }//end for i=0
-
-    uint64_t reduce_out = 0;
-    reduce_out = kmv->reduce(max_kv_size, myreduce);
-    //kmv->merge();
-
-
-    //if (DEBUG)
-    //{
-    //    logf_reduce_p_of<<"Exit reduce."<<std::endl;
-    //}
-
-    //double reduce_e_timer = omp_get_wtime();
-    //double reduce_time = reduce_e_timer - reduce_s_timer;
-    //logf_reduce_p_of<<"Reduce end time: "<<reduce_e_timer<<std::endl;
-    //logf_reduce_p_of<<"Reduce time: "<<reduce_time<< " seconds."<<std::endl;
-
-    return reduce_out;
-}

@@ -16,34 +16,72 @@
 #include "dataobject.h"
 #include "keyvalue.h"
 #include "keymultivalue.h"
+#include "communicator.h"
 
 namespace MAPREDUCE_NS {
 
 class MapReduce {
 public:
     MapReduce(MPI_Comm);
-    uint64_t map(int, char **, int, int, int, 
-      void (*mymap) (MapReduce *, char *, int), 
-      int myhash(char *, int), void *);
 
-    //uint64_t map(int nmap, )
+    /* setup function */
+    void sethash(int (*_myhash)(char *, int)){
+      myhash = _myhash;
+    }
 
+    /* map functions */
 
+    uint64_t map(char *, int, int, int, 
+      void (*mymap) (MapReduce *, char *, int, void *), void *);
+
+    uint64_t map_local(char *, int, int, int, 
+      void (*mymap) (MapReduce *, char *, int, void *), void *);
+
+/*
+    uint64_t map(char *, int, int, 
+      void (*mymap) (MapReduce *, char *, int, void *), void *);
+
+    uint64_t map_local(char *, int, int, 
+      void (*mymap) (MapReduce *, char *, int, void *), void *);
+*/
+
+    uint64_t map(MapReduce *, 
+      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *);
+
+    uint64_t map_local(MapReduce *,
+      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *);
+
+    /* reduce function */
     uint64_t reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
        int *, void*), void* );
 
+    /* convert function */
     uint64_t convert();
 
+    /* scan function */
     uint64_t scan(void (myscan)(char *, int, int, char *, int *,void *), void *);
 
-    uint64_t add(char *key, int keybytes, char *value, int valuebytes);
+    /* add function invoked in mymap or myreduce */
+    int add(char *key, int keybytes, char *value, int valuebytes);
 
 private:
     DataObject *data;
 
-    int *blocks;    // current block id for each threads, used in map and reduce
-    int tnum;       // number of threads
-    int state;      // mapreduce state
+    int *blocks;      // current block id for each threads, used in map and reduce
+    int tnum;         // number of threads
+    
+    int addtype;      // -1 for nothing, 0 for map, 1 for map_local, 2 for reduce;
+    Communicator *c;  // the communicator
+
+    int (*myhash)(char *, int);
+
+    void map_task_kv(KeyValue *, void (*mymap)(MapReduce *, char *,int, char *, int, void *), void *);
+
+    // store 
+    //std::vector<std::string> filenames;
+
+    // get file name list
+    //int getfilenames(char *filepath, int shareflag);
 
 /*******************************************************************/
 
@@ -101,8 +139,8 @@ public:
     uint64_t map(char *, int, int,
         void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int, void*), void*);
 
-    uint64_t map_local(int, char *, int, int, char *, char *, char *,
-        void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int));
+    uint64_t map_local(char *, int, int,
+        void (*mymap) (MapReduce *, char *, char *, int *, char *, int *, int, void*), void*);
 
     uint64_t reduce(int, uint32_t (*myreduce) (MapReduce *));
     uint64_t reduce(int , uint32_t (*myreduce) (MapReduce *, const char *key, uint32_t keysize, const char *mv, uint32_t mvsize, char *out_kv));

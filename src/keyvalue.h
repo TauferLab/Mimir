@@ -16,8 +16,8 @@ private:
 public:
   KeyValue(int, 
     int blocksize=1, 
-    int maxblock=1, 
-    int memsize=1,
+    int maxblock=4, 
+    int memsize=4,
     int outofcore=0, 
     std::string a6=std::string(""));
   ~KeyValue();
