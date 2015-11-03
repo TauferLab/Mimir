@@ -43,9 +43,9 @@ DataObject::DataObject(
     buffers[i].blockid = -1;
     buffers[i].ref = 0;
   }
- 
-  LOG_PRINT(DBG_DATA, "DataObject: create. (type=%d, blocksize=%d, maxblock=%d, maxmemsize=%d)\n", datatype, blocksize, maxblock, maxmemsize);
-}
+
+  LOG_PRINT(DBG_DATA, "DATA: DataObject create. (type=%d)\n", datatype);
+ }
 
 DataObject::~DataObject(){
   for(int i = 0; i < nbuf; i++){
@@ -54,7 +54,7 @@ DataObject::~DataObject(){
   delete [] blocks;
   delete [] buffers;
 
-  LOG_PRINT(DBG_DATA, "%s", "DataObject: destory.\n");
+  LOG_PRINT(DBG_DATA, "DATA: DataObject destory. (type=%d)\n", datatype);
 }
 
 /*
@@ -165,7 +165,7 @@ int DataObject::addblock(){
       blocks[blockid].infile = 0;
       blocks[blockid].fileoff = 0;
 
-      LOG_PRINT(DBG_GEN, "DataObejct: add block.(blockid=%d)\n", blockid);
+      //LOG_PRINT(DBG_GEN, "DataObejct: add block.(blockid=%d)\n", blockid);
 
       return blockid;
     }else{
@@ -191,7 +191,7 @@ int DataObject::addblock(){
   }
 
   //printf("blockid=%d, nblock=%d, maxblock=%d\n", blockid, nblock, maxblock);
-  LOG_ERROR("DataObject error in addblock exceed max block count nblock=%d, maxblock=%d!\n", nblock, maxblock);
+  LOG_ERROR("Error: block count exceeds max limit. (maxblock=%d)\n", maxblock);
   return -1;
 
 }
@@ -216,19 +216,25 @@ int DataObject::addblock(char *data, int datasize){
   blocks[blockid].datasize = datasize;
   releaseblock(blockid);
 
-  LOG_PRINT(DBG_DATA, "DataObejct: add data into block.(blockid=%d, datasize=%d)\n", blockid, datasize);
+  //LOG_PRINT(DBG_DATA, "DataObejct: add data into block.(blockid=%d, datasize=%d)\n", blockid, datasize);
 }
 
 
 int DataObject::adddata(int blockid, char *data, int datasize){
+  if(datasize > blocksize){
+    LOG_ERROR("Error: data size is larger than block size. (data size=%d, block size=%d)\n", datasize, blocksize);
+  }
+ 
   if(blocks[blockid].datasize + datasize > blocksize){
     return -1;
   }
   int bufferid = blocks[blockid].bufferid;
   memcpy(buffers[bufferid].buf+blocks[blockid].datasize, data, datasize);
   blocks[blockid].datasize += datasize;
-  
-  LOG_PRINT(DBG_DATA, "DataObject: add data into block %d\n", blockid);
+
+  printf("add data: datasize=%d, total datasize=%d\n", datasize, blocks[blockid].datasize);
+
+  //LOG_PRINT(DBG_DATA, "DataObject: add data into block %d\n", blockid);
   return 0;
 }
 

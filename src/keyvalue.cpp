@@ -16,9 +16,12 @@ KeyValue::KeyValue(
   DataObject(KVType, blocksize, 
     maxblock, maxmemsize, outofcore, filename){
   kvtype = _kvtype;
+
+  LOG_PRINT(DBG_DATA, "%s", "DATA: KV Create.\n");
 }
 
 KeyValue::~KeyValue(){
+  LOG_PRINT(DBG_DATA, "%s", "DATA: KV Destroy.\n");
 }
 
 int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
@@ -60,6 +63,12 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
   int kvbytes = 0;
   if(kvtype == 0) kvbytes = keybytes+valuebytes;
   else if(kvtype == 1) kvbytes = 2*sizeof(int)+keybytes+valuebytes;
+
+  printf("kv size=%d\n", kvbytes);
+
+  if(kvbytes > blocksize){
+     LOG_ERROR("Error: KV size is larger than block size. (KV size=%d, block size=%d)\n", kvbytes, blocksize);
+  }
 
   int datasize = blocks[blockid].datasize;
   if(kvbytes+datasize > blocksize) return -1;

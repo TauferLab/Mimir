@@ -17,7 +17,7 @@
 #include "dataobject.h"
 #include "log.h"
 
-#define MAXLINE 2048
+#include "config.h"
 
 using namespace MAPREDUCE_NS;
 
@@ -88,7 +88,7 @@ MapReduce::MapReduce(MPI_Comm caller)
   
     init();
 
-    LOG_PRINT(DBG_GEN, "%s", "MapReduce: construction.\n");
+    LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: create. (thread number=%d)\n", me, nprocs, tnum);
 }
 
 MapReduce::~MapReduce()
@@ -100,7 +100,7 @@ MapReduce::~MapReduce()
     delete [] nitems;
     delete [] blocks;
 
-    LOG_PRINT(DBG_GEN, "%s", "MapReduce: destroy.\n");
+    LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: destroy.\n", me, nprocs);
 }
 
 // configurable functions
@@ -155,7 +155,7 @@ void MapReduce::sethash(int (*_myhash)(char *, int)){
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
     int readmode, void (*mymap) (MapReduce *, char *, void *), void *ptr){
   // read file
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map start. (Files as input)\n");
+  //LOG_PRINT(DBG_GEN, "%s", "MapReduce: map start. (Files as input)\n");
   
   // distribute input files
   disinputfiles(filepath, sharedflag, recurse);
@@ -181,7 +181,7 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
   void (*mymap) (MapReduce *, const char *, void *), void *ptr){
   // read file
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map start. (File name to mymap)\n");
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (File name to mymap)\n", me, nprocs);
 
   // distribute input files
   disinputfiles(filepath, sharedflag, recurse);
@@ -205,6 +205,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 {
   int tid = omp_get_thread_num();
   nitems[tid] = 0;
+#pragma omp for
   for(int i = 0; i < fcount; i++){
     mymap(this, ifiles[i].c_str(), ptr);
   }
@@ -219,14 +220,19 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   //kv->print();
 
-  return sumcount();
+  uint64_t sum = 0, count = 0;
+  sumcount(count, sum);
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum);
+
+  return sum;
 }
 
 uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse, 
   void (*mymap) (MapReduce *, const char *, void *), void *ptr){
 
   // read file
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map local start. (File name to mymap)\n");
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local start. (File name to mymap)\n", me, nprocs);
 
   // distribute input files
   disinputfiles(filepath, sharedflag, recurse);
@@ -247,6 +253,7 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 
   addtype = -1;
 
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local end.\n", me, nprocs);
 
   return 0;
 }
@@ -257,7 +264,7 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 uint64_t MapReduce::map(MapReduce *mr, 
     void (*mymap)(MapReduce *, char *, int, char *, int, void*), void *ptr){
 
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map start. (KV as input)\n");
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", me, nprocs);
 
   // create communicator
   c = new Alltoall(comm, tnum);
@@ -315,14 +322,17 @@ uint64_t MapReduce::map(MapReduce *mr,
   
   addtype = -1;
 
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map end.\n");
-
   //kv->print();
 
   delete c;
   c = NULL;
 
-  return sumcount();
+  uint64_t sum = 0, count = 0;
+  sumcount(count, sum);
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum);
+
+  return sum;
 }
 
 
@@ -376,14 +386,14 @@ uint64_t MapReduce::map_local(MapReduce *mr,
 
   addtype = -1;
 
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map local end.\n");
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local end.\n", me, nprocs);
 
   return 0;
 }
 
 /* convert KV to KMV */
 uint64_t MapReduce::convert(){
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: convert start.\n");
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert start.\n", me, nprocs);
 
   KeyValue *kv = (KeyValue*)data;
   KeyMultiValue *kmv = new KeyMultiValue(0, 
@@ -400,7 +410,9 @@ uint64_t MapReduce::convert(){
 
   std::vector<std::list<Unique>> ht;
 
-  DataObject *tmpdata = new DataObject(ByteType); 
+  DataObject *tmpdata = new DataObject(ByteType,
+                              blocksize, nmaxblock, maxmemsize, 
+                              outofcore, tmpfpath); 
 
   char *key, *value;
   int keybytes, valuebytes, ret;
@@ -454,7 +466,7 @@ uint64_t MapReduce::convert(){
       }
       
       offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes, &keyoff, &valoff);
-    }
+    } // send scan kvs
 
     //((DataObject*)(kv))->print();
 
@@ -466,6 +478,8 @@ uint64_t MapReduce::convert(){
     for(ul = ht.begin(); ul != ht.end(); ++ul){
       std::list<Unique>::iterator u;
       for(u = ul->begin(); u != ul->end(); ++u){
+       printf("u=%s\n", u->key);      
+
        // merge all values together
        int bytes = sizeof(int)*(u->cur_nval) + (u->cur_size);
 
@@ -482,8 +496,8 @@ uint64_t MapReduce::convert(){
           tmpdata->addbytes(blockid, (char*)&(l->size), (int)sizeof(int));
         }
         
-        char *p;
-        tmpdata->getbytes(blockid, off, &p);
+        //char *p;
+        //tmpdata->getbytes(blockid, off, &p);
 
         // add values
         for(l = u->cur_pos.begin(); l != u-> cur_pos.end(); ++l){
@@ -507,7 +521,7 @@ uint64_t MapReduce::convert(){
 //#pragma omp barrier
   }
 
-  //tmpdata->print();
+  tmpdata->print();
 
   // merge kvs into kmv
   int blockid = -1;
@@ -557,14 +571,14 @@ uint64_t MapReduce::convert(){
 
   //kmv->print();
 
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: convert end.\n");
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert end.\n", me, nprocs);
 
   return 0;
 }
 
 uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
     int *, void*), void* ptr){
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: reduce start.\n");
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce start.\n", me, nprocs);
 
   addtype = 2;
 
@@ -605,13 +619,18 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
  
   addtype = -1;
 
-  //kv->print();
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: reduce end.\n");
+  uint64_t sum=0, count=0;
+  sumcount(count, sum);
 
-  return sumcount();
+  //kv->print();
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce end.(Output count: local=%ld, global=%ld)\n", me, nprocs, count, sum);
+
+  return sum;
 }
 
 uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), void * ptr){
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan start.\n", me, nprocs);  
+
   KeyMultiValue *kmv = (KeyMultiValue*)data;
 
   char *key, *values;
@@ -633,6 +652,9 @@ uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), 
     kmv->releaseblock(i);
   }
 
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan end.\n", me, nprocs);
+
+  return 0;
 }
 
 /*
@@ -644,7 +666,7 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   if(!data) 
     data = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
 
-  LOG_PRINT(DBG_GEN, "MapReduce: add KV addtype=%d\n", addtype);
+  //LOG_PRINT(DBG_GEN, "MapReduce: add KV addtype=%d\n", addtype);
 
   KeyValue *kv = (KeyValue*)data;
  
@@ -702,15 +724,17 @@ void MapReduce::output(int type, FILE* fp, int format){
 /*****************************************************************************/
 
 void MapReduce::init(){
-  kvtype = 0;
-  blocksize = 1;
-  nmaxblock = 10;
-  maxmemsize = 10;
-  outofcore = 0;
-  lbufsize = 1;
-  gbufsize = 2;
+  blocksize = BLOCK_SIZE;
+  nmaxblock = MAX_BLOCKS;
+  maxmemsize = MAXMEM_SIZE;
+  lbufsize = LOCAL_BUF_SIZE;
+  gbufsize = GLOBAL_BUF_SIZE;
+
+  kvtype = KV_TYPE;
+
+  outofcore = OUT_OF_CORE; 
+  tmpfpath = std::string(TMP_PATH);
   
-  tmpfpath = std::string(".");
   myhash = NULL;
 }
 
@@ -816,13 +840,8 @@ void MapReduce::getinputfiles(const char *filepath, int sharedflag, int recurse)
   }  
 }
 
-uint64_t MapReduce::sumcount(){
-  uint64_t sum = 0;
-
-  uint64_t count = 0;
+void MapReduce::sumcount(uint64_t &count, uint64_t &sum){
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
   MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  return sum;
 }

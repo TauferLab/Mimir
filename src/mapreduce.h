@@ -108,7 +108,7 @@ private:
     void disinputfiles(const char *, int, int);
     void getinputfiles(const char *, int, int);
 
-    uint64_t sumcount();
+    void sumcount(uint64_t &, uint64_t &);
 };//class MapReduce
 
 }//namespace

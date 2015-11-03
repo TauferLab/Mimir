@@ -31,7 +31,7 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
 
 Communicator::~Communicator(){
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: destroy communicator start\n", rank, size);
+  //LOG_PRINT(DBG_COMM, "%d[%d] Comm: destroy communicator start\n", rank, size);
 
   delete [] blocks;
 
@@ -51,7 +51,7 @@ Communicator::~Communicator(){
   if(global_buffers) delete [] global_buffers;
   if(global_offsets) delete [] global_offsets;
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: destroy communicator end\n", rank, size);
+  //LOG_PRINT(DBG_COMM, "%d[%d] Comm: destroy communicator end\n", rank, size);
 }
 
 int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _nbuf){
@@ -105,12 +105,12 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   
   reqs = NULL;
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: construct communicator, type=%d, tnum=%d\n", rank, size, commtype, tnum);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
 }
 
 
 Alltoall::~Alltoall(){
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: destroy alltoall start\n", rank, size);
+  //LOG_PRINT(DBG_COMM, "%d[%d] Comm: destroy alltoall start\n", rank, size);
 
   for(int i = 0; i < nbuf; i++){
     if(recv_buf && recv_buf[i]) free(recv_buf[i]);
@@ -126,7 +126,7 @@ Alltoall::~Alltoall(){
 
   if(reqs) delete [] reqs;
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: destroy communicator!\n", rank, size);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall destroy.\n", rank, size);
 }
 
 
@@ -161,7 +161,7 @@ int Alltoall::setup(int _lbufsize, int _gbufsize, int _kvtype, int _nbuf){
 
   init(NULL);
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: setup lbufsize=%d, gbufsize=%d\n", rank, size, lbufsize, gbufsize);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (local bufffer size=%d, global buffer size=%d)\n", rank, size, lbufsize, gbufsize);
 
   return 0;
 }
@@ -187,7 +187,9 @@ void Alltoall::init(DataObject *_data){
  *   valsize: value size
  */
 int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){
-  LOG_PRINT(DBG_COMM, "%d[%d] %d Comm: send kv (%s,%s) to %d\n", rank, size, tid, key, val, target);
+  //LOG_PRINT(DBG_COMM, "%d[%d] %d Comm: send kv (%s,%s) to %d\n", rank, size, tid, key, val, target);
+ 
+  //printf("%d send kv (%s,%s) kvtype=%d kvsize=%d\n", tid, key, val, kvtype, keysize+valsize);
  
   while(1){
     // need communication
@@ -204,6 +206,10 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     if(kvtype == 0) kvsize = keysize+valsize;
     else if(kvtype == 1) kvsize = keysize+valsize+sizeof(int)*2;
     else LOG_ERROR("%s", "Error undefined kv type\n");
+
+    if(kvsize > lbufsize){
+      LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, lbufsize);
+    }
 
     int loff = local_offsets[tid][target];
     // local buffer has space
@@ -226,14 +232,16 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
         LOG_ERROR("%s", "Error undefined kv type\n");
       }
       local_offsets[tid][target] = loff;
+      //printf("put in local buffer tid=%d, loff=%d\n", tid, loff);
       break;
     // local buffer is full
     }else{
     // try to add the offset
-      if(loff + off[target] < gbufsize){
+      if(loff + off[target] <= gbufsize){
         int goff = __sync_fetch_and_add(&off[target], loff);
         // get global buffer successfully
-        if(goff + loff < gbufsize){
+        if(goff + loff <= gbufsize){
+          //printf("put in global buffer tid=%d, goff=%d, loff=%d\n", tid, goff, loff);
           memcpy(buf+target*gbufsize+goff, local_buffers[tid]+target*lbufsize, loff);
           local_offsets[tid][target] = 0;
         // global buffer is full, add back the offset
@@ -252,14 +260,14 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     }
   }
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: send kv end tid=%d\n", rank, size, tid);
+  //LOG_PRINT(DBG_COMM, "%d[%d] Comm: send kv end tid=%d\n", rank, size, tid);
 
   return 0;
 }
 
 void Alltoall::twait(int tid){
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: twait start tid=%d\n", rank, size, tid);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: thread %d begin wait.\n", rank, size, tid);
 
   // flush local buffer
   int i =0;
@@ -267,6 +275,7 @@ void Alltoall::twait(int tid){
     if(switchflag != 0){
 #pragma omp barrier
       if(tid==0){
+        exchange_kv();
         switchflag=0;
       }
 #pragma omp barrier
@@ -280,7 +289,8 @@ void Alltoall::twait(int tid){
       char *lbuf = local_buffers[tid]+i*lbufsize;
       int goff = __sync_fetch_and_add(&off[i], loff);
 
-      if(goff+loff<gbufsize){
+      if(goff+loff<=gbufsize){
+        //printf("put in global buffer tid=%d, goff=%d, loff=%d\n", tid, goff, loff);
         memcpy(buf+i*gbufsize+goff, lbuf, loff);
         local_offsets[tid][i] = 0;
         i++;
@@ -293,9 +303,7 @@ void Alltoall::twait(int tid){
       }
     }
   }
-
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: twait mid tid=%d\n", rank, size, tid);
-
+   
   // add tdone counter
 #pragma omp atomic
   tdone++;
@@ -312,12 +320,13 @@ void Alltoall::twait(int tid){
     }
   }while(tdone < tnum);
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: twait end tid=%d\n", rank, size, tid);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: thread %d finish wait.\n", rank, size, tid);
+  //LOG_PRINT(DBG_COMM, "%d[%d] Comm: twait end tid=%d\n", rank, size, tid);
 }
 
 // wait all procsses done
 void Alltoall::wait(){
-   LOG_PRINT(DBG_COMM, "%d[%d] Comm: wait\n", rank, size);
+   LOG_PRINT(DBG_COMM, "%d[%d] Comm: start wait.\n", rank, size);
 
    medone = 1;
 
@@ -331,7 +340,11 @@ void Alltoall::wait(){
        MPI_Wait(&reqs[i], &st);
        reqs[i] = MPI_REQUEST_NULL;
        int recvcount = recvcounts[i];
-       LOG_PRINT(DBG_COMM, "%d[%d] Comm: recv data count=%d\n", rank, size, recvcount);
+
+       //printf("recv ibuf=%d\n", i); 
+       //printf("recv ibuf=%d, recv count=%d\n", i, recvcount); 
+
+       LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);      
        if(recvcount > 0){
            if(blocks[0] == -1){
              blocks[0] = data->addblock();
@@ -348,16 +361,20 @@ void Alltoall::wait(){
            data->releaseblock(blocks[0]);
          }
 
+         //data->print();
+
          //data->addblock(recv_buf[i], recvcount);
      }
    }
+
+   LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);
 }
 
 void Alltoall::exchange_kv(){
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange kv\n", rank, size);
-
   int i;
 
+  int sendcount=0;
+  for(i=0; i<size; i++) sendcount += off[i];
   // exchange send count
   MPI_Alltoall(off, 1, MPI_INT, recv_count, 1, MPI_INT, comm);
 
@@ -373,6 +390,8 @@ void Alltoall::exchange_kv(){
   // exchange kv data
   MPI_Ialltoallv(buf, off, send_displs, MPI_BYTE, recv_buf[ibuf], recv_count, recv_displs,MPI_BYTE, comm,  &reqs[ibuf]);
 
+  //printf("send ibuf=%d, send count=%d\n", ibuf, sendcount);  
+
   // wait data
   ibuf = (ibuf+1)%nbuf;
   if(reqs[ibuf] != MPI_REQUEST_NULL) {
@@ -380,7 +399,10 @@ void Alltoall::exchange_kv(){
     MPI_Wait(&reqs[ibuf], &st);
     reqs[ibuf] = MPI_REQUEST_NULL;
     int recvcount = recvcounts[ibuf];
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: recv data count=%d\n", rank, size, recvcount);
+
+    //printf("recv ibuf=%d, recv count=%d\n", ibuf, recvcount); 
+
+    LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);
     if(recvcount > 0){
       //data->addblock(recv_buf[ibuf], recvcount);
       if(blocks[0] == -1){
@@ -389,7 +411,7 @@ void Alltoall::exchange_kv(){
 
       data->acquireblock(blocks[0]);
 
-      while(data->adddata(blocks[0], recv_buf[i], recvcount) == -1){
+      while(data->adddata(blocks[0], recv_buf[ibuf], recvcount) == -1){
         data->releaseblock(blocks[0]);
         blocks[0] = data->addblock();
         data->acquireblock(blocks[0]);
@@ -397,15 +419,18 @@ void Alltoall::exchange_kv(){
 
       data->releaseblock(blocks[0]);
 
+      ///data->print();
+
     }
   }
 
   // switch buffer
   buf = global_buffers[ibuf];
   off = global_offsets[ibuf];
-
   for(int i = 0; i < size; i++) off[i] = 0;
 
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
+
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%d, done count=%d)\n", rank, size, sendcount, pdone);
 }
 

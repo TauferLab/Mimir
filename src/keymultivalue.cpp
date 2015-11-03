@@ -14,10 +14,13 @@ KeyMultiValue::KeyMultiValue(
   DataObject(KMVType, blocksize, 
     maxblock, maxmemsize, outofcore, filename){
   kmvtype = _kmvtype;
+
+  LOG_PRINT(DBG_DATA, "%s", "DATA: KMV create.\n");
 }
 
 
 KeyMultiValue::~KeyMultiValue(){
+  LOG_PRINT(DBG_DATA, "%s", "DATA: KMV destroy.\n");
 }
 
 int KeyMultiValue::getNextKMV(int blockid, int offset, char **key, int &keybytes,
