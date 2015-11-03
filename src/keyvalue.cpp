@@ -2,6 +2,8 @@
 #include <string>
 #include "keyvalue.h"
 
+#include "log.h"
+
 using namespace MAPREDUCE_NS;
 
 KeyValue::KeyValue(
@@ -85,11 +87,11 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
 }
 
 
-void KeyValue::print(){
+void KeyValue::print(int type, FILE *fp, int format){
   char *key, *value;
   int keybytes, valuebytes;
 
-  printf("Print KV:\n");
+  fprintf(fp, "KV Object:\n");
 
   for(int i = 0; i < nblock; i++){
     int offset = 0;
@@ -99,7 +101,18 @@ void KeyValue::print(){
     offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
 
     while(offset != -1){
-      printf("%s:%s\n",key, value);
+      if(type == 0) fprintf(fp, "%s", key);
+      else if(type == 1) fprintf(fp, "%d", *(int*)key);
+      else if(type == 2) fprintf(fp, "%ld", *(int64_t*)key);
+      else LOG_ERROR("%s", "Error undefined output type\n");
+
+      if(valuebytes != 0){
+        if(type == 0) fprintf(fp, ",%s", value);
+        else if(type == 1) fprintf(fp, ",%d", *(int*)value);
+        else if(type == 2) fprintf(fp, ",%ld", *(int64_t*)value);
+        else LOG_ERROR("%s", "Error undefined output type\n");
+     }
+     fprintf(fp, "\n");
 
       offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
     }

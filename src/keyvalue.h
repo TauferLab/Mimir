@@ -28,7 +28,7 @@ public:
   int addKV(int, char *, int &, char *, int &);
   
    /* used for debug */
-   void print();
+   void print(int type=0, FILE *fp=stdout, int format=0);
 };
 
 }

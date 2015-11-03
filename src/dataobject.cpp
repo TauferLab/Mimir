@@ -3,6 +3,7 @@
 #include "dataobject.h"
 
 #include "log.h"
+#include "config.h"
 
 using namespace MAPREDUCE_NS;
 
@@ -18,9 +19,9 @@ DataObject::DataObject(
   std::string _filename){
   datatype = _datatype;
 
-  blocksize = _blocksize * 1024 * 1024;
+  blocksize = _blocksize * UNIT_SIZE;
   maxblock = _maxblock;
-  maxmemsize = _maxmemsize * 1024 * 1024;
+  maxmemsize = _maxmemsize * UNIT_SIZE;
   outofcore = _outofcore;
   filename = _filename;
 
@@ -43,7 +44,7 @@ DataObject::DataObject(
     buffers[i].ref = 0;
   }
  
-  LOG_PRINT(DBG_DATA, "DataoBject: create. (type=%d, blocksize=%d, maxblock=%d, maxmemsize=%d)\n", datatype, blocksize, maxblock, maxmemsize);
+  LOG_PRINT(DBG_DATA, "DataObject: create. (type=%d, blocksize=%d, maxblock=%d, maxmemsize=%d)\n", datatype, blocksize, maxblock, maxmemsize);
 }
 
 DataObject::~DataObject(){
@@ -53,7 +54,7 @@ DataObject::~DataObject(){
   delete [] blocks;
   delete [] buffers;
 
-  LOG_PRINT(DBG_DATA, "%s", "DataObejct: destory.\n");
+  LOG_PRINT(DBG_DATA, "%s", "DataObject: destory.\n");
 }
 
 /*
@@ -218,6 +219,19 @@ int DataObject::addblock(char *data, int datasize){
   LOG_PRINT(DBG_DATA, "DataObejct: add data into block.(blockid=%d, datasize=%d)\n", blockid, datasize);
 }
 
+
+int DataObject::adddata(int blockid, char *data, int datasize){
+  if(blocks[blockid].datasize + datasize > blocksize){
+    return -1;
+  }
+  int bufferid = blocks[blockid].bufferid;
+  memcpy(buffers[bufferid].buf+blocks[blockid].datasize, data, datasize);
+  blocks[blockid].datasize += datasize;
+  
+  LOG_PRINT(DBG_DATA, "DataObject: add data into block %d\n", blockid);
+  return 0;
+}
+
 /*
  * get pointer of bytes
  */
@@ -241,7 +255,7 @@ int DataObject::addbytes(int blockid, char *buf, int len){
 /*
  * print the bytes data in this object
  */
-void DataObject::print(){
+void DataObject::print(int type, FILE *fp, int format){
   int line = 10;
   for(int i = 0; i < nblock; i++){
     acquireblock(i);

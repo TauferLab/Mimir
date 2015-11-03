@@ -29,7 +29,7 @@ public:
     int outofcore=0, 
     std::string a5=std::string(""));
 
-  ~DataObject();
+  virtual ~DataObject();
 
   // acquire and release a block
   int  acquireblock(int);
@@ -39,6 +39,9 @@ public:
   int addblock();
   // add an block with data
   int addblock(char *, int);
+  
+  // add data into a block
+  int adddata(int, char *, int);
 
   // get block left space
   int getblockspace(int);
@@ -57,7 +60,7 @@ public:
   }
 
   // print out the bytes data
-  void print();
+  virtual void print(int type = 0, FILE *fp=stdout, int format=0);
  
 private:
   int findbuffer();

@@ -70,76 +70,77 @@ MapReduce::MapReduce(MPI_Comm caller)
     tnum = omp_get_num_threads();    
 }
 
-    printf("tnum=%d\n", tnum);
-
     blocks = new int[tnum];   
-    for(int i = 0; i < tnum; i++) blocks[i] = -1;
+    nitems = new uint64_t[tnum];
+    for(int i = 0; i < tnum; i++){
+      blocks[i] = -1;
+      nitems[i] = 0;
+    }
 
     data = NULL;
     myhash = NULL;
-    c = new Alltoall(comm, tnum);
-    c->setup(1, 2);
+    c = NULL;
+
+    //data = new KeyValue(0);
+    //count = 0;
 
     addtype = -1;
+  
+    init();
 
     LOG_PRINT(DBG_GEN, "%s", "MapReduce: construction.\n");
 }
 
 MapReduce::~MapReduce()
 {
-    delete c;
+    if(data) delete data;
 
+    if(c) delete c;
+
+    delete [] nitems;
     delete [] blocks;
 
     LOG_PRINT(DBG_GEN, "%s", "MapReduce: destroy.\n");
 }
 
-void MapReduce::disinputfiles(const char *filepath, int sharedflag, int recurse){
-  getinputfiles(filepath, sharedflag, recurse);
-
-  if(sharedflag){
-        
-  }
+// configurable functions
+/******************************************************/
+void MapReduce::setKVtype(int _kvtype){
+  kvtype = _kvtype;
 }
 
-void MapReduce::getinputfiles(const char *filepath, int sharedflag, int recurse){
-  // if shared, only process 0 read file names
-  if(!sharedflag || (sharedflag && me == 0)){
-    
-    struct stat inpath_stat;
-    int err = stat(filepath, &inpath_stat);
-    if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
-    
-    // regular file
-    if(S_ISREG(inpath_stat.st_mode)){
-      ifiles.push_back(std::string(filepath));
-    // dir
-    }else if(S_ISDIR(inpath_stat.st_mode)){
-      
-      struct dirent *ep;
-      DIR *dp = opendir(filepath);
-      if(!dp) LOG_ERROR("%s", "Error in get input files\n");
-      
-      while(ep = readdir(dp)){
-        
-        if(ep->d_name[0] == '.') continue;
-       
-        char newstr[MAXLINE]; 
-        sprintf(newstr, "%s/%s", filepath, ep->d_name);
-        err = stat(newstr, &inpath_stat);
-        if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
-        
-        // regular file
-        if(S_ISREG(inpath_stat.st_mode)){
-          ifiles.push_back(std::string(newstr));
-        // dir
-        }else if(S_ISDIR(inpath_stat.st_mode) && recurse){
-          getinputfiles(newstr, sharedflag, recurse);
-        }
-      }
-    }
-  }  
+void MapReduce::setBlocksize(int _blocksize){
+  blocksize = _blocksize;
 }
+
+void MapReduce::setMaxblocks(int _nmaxblock){
+  nmaxblock = _nmaxblock;
+}
+
+void MapReduce::setMaxmem(int _maxmemsize){
+  maxmemsize = _maxmemsize;
+}
+
+void MapReduce::setTmpfilePath(const char *_fpath){
+  tmpfpath = std::string(_fpath);
+}
+
+void MapReduce::setOutofcore(int _flag){
+  outofcore = _flag;
+}
+
+void MapReduce::setLocalbufsize(int _lbufsize){
+  lbufsize = _lbufsize;
+}
+
+void MapReduce::setGlobalbufsize(int _gbufsize){
+  gbufsize = _gbufsize;
+}
+
+void MapReduce::sethash(int (*_myhash)(char *, int)){
+  myhash = _myhash;
+}
+
 
 /*
  * Map function: (input: files)
@@ -159,16 +160,9 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   // distribute input files
   disinputfiles(filepath, sharedflag, recurse);
 
-  addtype = 0;
-
-  if(data) delete data;
-  KeyValue *kv = new KeyValue(0);
-  data = kv;
-  c->init(data);
-
   int fcount = ifiles.size();
   for(int i = 0; i < fcount; i++){
-    //std::cout << ifiles[i] << std::endl;
+    std::cout << me << ":" << ifiles[i] << std::endl;
   }
 
   addtype = -1;
@@ -192,25 +186,40 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   // distribute input files
   disinputfiles(filepath, sharedflag, recurse);
 
+  // create communicator
+  c = new Alltoall(comm, tnum);
+  c->setup(lbufsize, gbufsize, kvtype);
+
   addtype = 0;
 
+  // create new data object
   if(data) delete data;
-  KeyValue *kv = new KeyValue(0);
+  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
   data = kv;
+  
+  // set data object
   c->init(data);
 
   int fcount = ifiles.size();
-
-#pragma omp parallel for
+#pragma omp parallel
+{
+  int tid = omp_get_thread_num();
+  nitems[tid] = 0;
   for(int i = 0; i < fcount; i++){
-    //std::cout << ifiles[i] << std::endl;
     mymap(this, ifiles[i].c_str(), ptr);
   }
+  c->twait(tid);
+}
+  c->wait();
+
+  delete c;
+  c = NULL; 
 
   addtype = -1;
 
+  //kv->print();
 
-  return 0;
+  return sumcount();
 }
 
 uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse, 
@@ -225,7 +234,7 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
   addtype = 1;
 
   if(data) delete data;
-  KeyValue *kv = new KeyValue(0);
+  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
   data = kv;
 
   int fcount = ifiles.size();
@@ -250,10 +259,14 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   LOG_PRINT(DBG_GEN, "%s", "MapReduce: map start. (KV as input)\n");
 
+  // create communicator
+  c = new Alltoall(comm, tnum);
+  c->setup(lbufsize, gbufsize, kvtype);
+
   addtype = 0;
 
   DataObject *data = mr->data;
-  KeyValue *kv = new KeyValue(0);
+  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
 
   this->data = kv;
 
@@ -275,6 +288,7 @@ uint64_t MapReduce::map(MapReduce *mr,
   char *key, *value;
   int keybytes, valuebytes;
 
+  nitems[tid] = 0;
 
 #pragma omp for
   for(int i = 0; i < inputkv->nblock; i++){
@@ -303,9 +317,12 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   LOG_PRINT(DBG_GEN, "%s", "MapReduce: map end.\n");
 
-  kv->print();
+  //kv->print();
 
-  return 0;
+  delete c;
+  c = NULL;
+
+  return sumcount();
 }
 
 
@@ -317,7 +334,8 @@ uint64_t MapReduce::map_local(MapReduce *mr,
   addtype = 1;
 
   DataObject *data = mr->data;
-  KeyValue *kv = new KeyValue(0);
+  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
+
 
   this->data = kv;
 
@@ -368,7 +386,9 @@ uint64_t MapReduce::convert(){
   LOG_PRINT(DBG_GEN, "%s", "MapReduce: convert start.\n");
 
   KeyValue *kv = (KeyValue*)data;
-  KeyMultiValue *kmv = new KeyMultiValue(0);
+  KeyMultiValue *kmv = new KeyMultiValue(0, 
+                             blocksize, nmaxblock, maxmemsize,
+                             outofcore, tmpfpath);
 
   //kv->print();
 
@@ -548,8 +568,10 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
 
   addtype = 2;
 
+  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
   KeyMultiValue *kmv = (KeyMultiValue*)data;
-  KeyValue *kv = new KeyValue(1);
+
+
   data = kv;
 
   //kmv->print();
@@ -558,6 +580,8 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
 {
   int tid = omp_get_thread_num();
   int num = omp_get_num_threads();
+
+  nitems[tid] = 0;
 
   char *key, *values;
   int keybytes, nvalue, *valuebytes;
@@ -578,13 +602,13 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
 }
 
   delete kmv;
-
+ 
   addtype = -1;
 
   //kv->print();
   LOG_PRINT(DBG_GEN, "%s", "MapReduce: reduce end.\n");
 
-  return 0;
+  return sumcount();
 }
 
 uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), void * ptr){
@@ -617,7 +641,12 @@ uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), 
  *  must support multi-threads
  */
 int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
-  KeyValue *kv = (KeyValue*)data; 
+  if(!data) 
+    data = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
+
+  LOG_PRINT(DBG_GEN, "MapReduce: add KV addtype=%d\n", addtype);
+
+  KeyValue *kv = (KeyValue*)data;
  
   int tid = omp_get_thread_num();
  
@@ -628,12 +657,14 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     int target = 0;
     if(myhash != NULL) target=myhash(key, keybytes);
     else target = hashlittle(key, keybytes, nprocs);
-    target %= nprocs;
+
+    target &= nprocs-1;
     
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
-
+    nitems[tid]++;
+ 
   // invoked in map_local or reduce function
-  }else if(addtype == 1 || addtype == 2){
+  }else if(addtype == 1 || addtype == 2 || addtype == -1){
     if(blocks[tid] == -1){
       blocks[tid] = kv->addblock();
     }
@@ -647,7 +678,151 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     }
 
     kv->releaseblock(blocks[tid]);
+    
+    nitems[tid]++;
   }
 
   return 0;
+}
+
+/*
+ * Output data in this object
+ *   fp: file pointer
+ *   format: 0 for csv
+ */
+void MapReduce::output(int type, FILE* fp, int format){
+  if(data){
+    data->print(type, fp, format);
+  }else{
+    LOG_ERROR("%s","Error to output empty data object\n");
+  }
+}
+
+// private function
+/*****************************************************************************/
+
+void MapReduce::init(){
+  kvtype = 0;
+  blocksize = 1;
+  nmaxblock = 10;
+  maxmemsize = 10;
+  outofcore = 0;
+  lbufsize = 1;
+  gbufsize = 2;
+  
+  tmpfpath = std::string(".");
+  myhash = NULL;
+}
+
+void MapReduce::disinputfiles(const char *filepath, int sharedflag, int recurse){
+  getinputfiles(filepath, sharedflag, recurse);
+
+  if(sharedflag){
+    int fcount = ifiles.size();
+    int div = fcount / nprocs;
+    int rem = fcount % nprocs;
+    int *send_count = new int[nprocs];
+    int total_count = 0;
+
+    if(me == 0){
+      int j = 0, end=0;
+      for(int i = 0; i < nprocs; i++){
+        send_count[i] = 0;
+        end += div;
+        if(i < rem) end++;
+        while(j < end){
+          send_count[i] += strlen(ifiles[j].c_str())+1;
+          j++;
+        }
+        total_count += send_count[i];
+      }
+    }
+
+    int recv_count;
+    MPI_Scatter(send_count, 1, MPI_INT, &recv_count, 1, MPI_INT, 0, comm);
+
+    int *send_displs = new int[nprocs];
+    if(me == 0){
+      send_displs[0] = 0;
+      for(int i = 1; i < nprocs; i++){   
+        send_displs[i] = send_displs[i-1]+send_count[i-1];
+      }
+    }
+
+    char *send_buf = new char[total_count];
+    char *recv_buf = new char[recv_count];
+
+    if(me == 0){
+      int offset = 0;
+      for(int i = 0; i < fcount; i++){
+          memcpy(send_buf+offset, ifiles[i].c_str(), strlen(ifiles[i].c_str())+1);
+          offset += strlen(ifiles[i].c_str())+1;
+        }
+    }
+
+    MPI_Scatterv(send_buf, send_count, send_displs, MPI_BYTE, recv_buf, recv_count, MPI_BYTE, 0, comm);
+
+    ifiles.clear();
+    int off;
+    while(off < recv_count){
+      char *str = recv_buf+off;
+      ifiles.push_back(std::string(str));
+      off += strlen(str)+1;
+    }
+
+    delete [] send_count;
+    delete [] send_displs;
+    delete [] send_buf;
+    delete [] recv_buf;
+  }
+}
+
+void MapReduce::getinputfiles(const char *filepath, int sharedflag, int recurse){
+  // if shared, only process 0 read file names
+  if(!sharedflag || (sharedflag && me == 0)){
+    
+    struct stat inpath_stat;
+    int err = stat(filepath, &inpath_stat);
+    if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
+    
+    // regular file
+    if(S_ISREG(inpath_stat.st_mode)){
+      ifiles.push_back(std::string(filepath));
+    // dir
+    }else if(S_ISDIR(inpath_stat.st_mode)){
+      
+      struct dirent *ep;
+      DIR *dp = opendir(filepath);
+      if(!dp) LOG_ERROR("%s", "Error in get input files\n");
+      
+      while(ep = readdir(dp)){
+        
+        if(ep->d_name[0] == '.') continue;
+       
+        char newstr[MAXLINE]; 
+        sprintf(newstr, "%s/%s", filepath, ep->d_name);
+        err = stat(newstr, &inpath_stat);
+        if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
+        
+        // regular file
+        if(S_ISREG(inpath_stat.st_mode)){
+          ifiles.push_back(std::string(newstr));
+        // dir
+        }else if(S_ISDIR(inpath_stat.st_mode) && recurse){
+          getinputfiles(newstr, sharedflag, recurse);
+        }
+      }
+    }
+  }  
+}
+
+uint64_t MapReduce::sumcount(){
+  uint64_t sum = 0;
+
+  uint64_t count = 0;
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+  return sum;
 }
