@@ -232,7 +232,7 @@ int DataObject::adddata(int blockid, char *data, int datasize){
   memcpy(buffers[bufferid].buf+blocks[blockid].datasize, data, datasize);
   blocks[blockid].datasize += datasize;
 
-  printf("add data: datasize=%d, total datasize=%d\n", datasize, blocks[blockid].datasize);
+  //printf("add data: datasize=%d, total datasize=%d\n", datasize, blocks[blockid].datasize);
 
   //LOG_PRINT(DBG_DATA, "DataObject: add data into block %d\n", blockid);
   return 0;
@@ -265,13 +265,13 @@ void DataObject::print(int type, FILE *fp, int format){
   int line = 10;
   for(int i = 0; i < nblock; i++){
     acquireblock(i);
-    fprintf(stdout, "block %d, datasize=%d:", i, blocks[i].datasize);
+    fprintf(fp, "block %d, datasize=%d:", i, blocks[i].datasize);
     for(int j=0; j < blocks[i].datasize; j++){
-      if(j % line == 0) fprintf(stdout, "\n");
+      if(j % line == 0) fprintf(fp, "\n");
       int bufferid = blocks[i].bufferid;
-      fprintf(stdout, "  %02X", buffers[bufferid].buf[j]);
+      fprintf(fp, "  %02X", buffers[bufferid].buf[j]);
     }
-    fprintf(stdout, "\n");
+    fprintf(fp, "\n");
     releaseblock(i);
   }
 }

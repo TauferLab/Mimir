@@ -19,6 +19,8 @@ public:
 
   int getNextKMV(int, int, char **, int &, int &, char **, int **);
 
+  int addKMV(int,char*,int &,char *, int &, int*);
+
   void print(int type=0, FILE *fp=stdout, int format=0);
 
 private:

@@ -22,6 +22,10 @@ public:
     std::string a6=std::string(""));
   ~KeyValue();
 
+  int getKVtype(){
+    return kvtype;
+  }
+
   int getNextKV(int, int, char **, int &, char **, int &, 
     int *kff=NULL, int *vff=NULL);
 

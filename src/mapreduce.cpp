@@ -106,7 +106,26 @@ MapReduce::~MapReduce()
 // configurable functions
 /******************************************************/
 void MapReduce::setKVtype(int _kvtype){
+  if(kvtype == _kvtype) return;
+
+  if(data){
+    if(data->getDatatype() == KVType){
+      if(((KeyValue*)data)->getKVtype() != _kvtype && (data->nblock > 0)){
+        LOG_ERROR("Error: cannot switch KV type. (current type=%d, switched type=%d)\n", kvtype, _kvtype);
+        return;
+      }
+    }else if(data->nblock > 0){
+      LOG_ERROR("%s", "Error: canot switch to KV\n");
+      return;
+    }
+  }
+
   kvtype = _kvtype;
+
+  if(data) delete data;
+  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
+  data = kv;
+
 }
 
 void MapReduce::setBlocksize(int _blocksize){
@@ -205,7 +224,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 {
   int tid = omp_get_thread_num();
   nitems[tid] = 0;
-#pragma omp for
+  blocks[tid] = -1;
+#pragma omp for nowait
   for(int i = 0; i < fcount; i++){
     mymap(this, ifiles[i].c_str(), ptr);
   }
@@ -288,32 +308,43 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   //inputkv->print();
 
-#pragma omp parallel default(shared)
+#pragma omp parallel
 {
   int tid = omp_get_thread_num();
   
   char *key, *value;
   int keybytes, valuebytes;
 
+  blocks[tid] = -1;
   nitems[tid] = 0;
 
-#pragma omp for
-  for(int i = 0; i < inputkv->nblock; i++){
+  int i;
+#pragma omp for nowait
+  for(i = 0; i < inputkv->nblock; i++){
     int offset = 0;
+
+    //printf("%d[%d] tid=%d, i=%d, blocks=%d\n", me, nprocs, tid, i, inputkv->nblock);
 
     inputkv->acquireblock(i);
 
     offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
   
     while(offset != -1){
+      //printf("%d[%d] tid=%d\n", me, nprocs, tid);
+
       mymap(this, key, keybytes, value, valuebytes, ptr);
 
       offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
     }
-    
+   
+    //printf("%d[%d] tid=%d here\n", me, nprocs, tid); 
     inputkv->releaseblock(i);
+    //printf("%d[%d] %d oh here\n", me, nprocs, tid); 
   }
 
+//#pragma omp barrier
+
+  //printf("%d[%d] %d haha\n", me, nprocs, tid); 
   c->twait(tid);
 }
   c->wait();
@@ -364,7 +395,7 @@ uint64_t MapReduce::map_local(MapReduce *mr,
   int keybytes, valuebytes;
 
 
-#pragma omp for
+#pragma omp for nowait
   for(int i = 0; i < inputkv->nblock; i++){
     int offset = 0;
 
@@ -400,13 +431,19 @@ uint64_t MapReduce::convert(){
                              blocksize, nmaxblock, maxmemsize,
                              outofcore, tmpfpath);
 
-  //kv->print();
+  //printf("%d[%d] Convert: begin\n", me, nprocs);
+  //kv->print(2);
 
 // handled by multi-threads
 #pragma omp parallel
 {
+
   int tid = omp_get_thread_num();
-  int num = omp_get_num_threads();
+
+  //printf("%d[%d] %d Convert: I'm here!\n", me, nprocs, tid);
+
+  blocks[tid] = -1;
+  //int num = omp_get_num_threads();
 
   std::vector<std::list<Unique>> ht;
 
@@ -424,9 +461,13 @@ uint64_t MapReduce::convert(){
 
   //((KeyValue*)(data))->print();
 
+  //printf("%d[%d] %d nblock=%d\n", me, nprocs, tid, data->nblock);
+
   // scan all kvs to gain the thread kvs
   for(int i = 0; i < data->nblock; i++){
     int offset = 0;
+
+    //printf("thread %d handle block %d\n", tid, i);
 
     kv->acquireblock(i);
 
@@ -434,7 +475,14 @@ uint64_t MapReduce::convert(){
 
     while(offset != -1){
       uint32_t hid = hashlittle(key, keybytes, 0);
-      if(hid % num == tid){ 
+
+      //printf("%d %d kv: %ld, %ld\n", tid, hid, *(int64_t*)key, *(int64_t*)value);
+
+
+      if(hid % (uint32_t)tnum == (uint32_t)tid){ 
+
+        //printf("%d[%d] %d kv: %ld\n", me, nprocs, tid, *(int64_t*)key);
+
         int ibucket = hid % nbucket;
         std::list<Unique>& ul = ht[ibucket];
         std::list<Unique>::iterator u;
@@ -471,15 +519,19 @@ uint64_t MapReduce::convert(){
     //((DataObject*)(kv))->print();
 
     // merge locally
-    int blockid = tmpdata->addblock();
+    int blockid = blocks[tid];
+    if(blockid == -1){
+      blockid = tmpdata->addblock();
+    }
     tmpdata->acquireblock(blockid);
 
     std::vector<std::list<Unique>>::iterator ul;
     for(ul = ht.begin(); ul != ht.end(); ++ul){
       std::list<Unique>::iterator u;
       for(u = ul->begin(); u != ul->end(); ++u){
-       printf("u=%s\n", u->key);      
 
+       if(u->cur_nval == 0) continue;      
+ 
        // merge all values together
        int bytes = sizeof(int)*(u->cur_nval) + (u->cur_size);
 
@@ -495,20 +547,28 @@ uint64_t MapReduce::convert(){
         for(l = u->cur_pos.begin(); l != u->cur_pos.end(); ++l){
           tmpdata->addbytes(blockid, (char*)&(l->size), (int)sizeof(int));
         }
+
+        //printf("u=%s, nvalue=%ld", u->key, u->cur_pos.size());
         
         //char *p;
         //tmpdata->getbytes(blockid, off, &p);
+
+        //printf("val");
 
         // add values
         for(l = u->cur_pos.begin(); l != u-> cur_pos.end(); ++l){
           char *p = NULL;
           kv->getbytes(i, l->off, &p);
+          //printf(",%s", p);
           tmpdata->addbytes(blockid, p, l->size); 
         }
+        //printf("\n");
+
         u->nval += u->cur_nval;
         u->size += u->cur_size;
-        u->pos.push_back(Pos(off,u->cur_size,blockid,u->nval));
-        
+        u->pos.push_back(Pos(off,u->cur_size,blockid,u->cur_nval));
+
+        //printf("%d key=%s, nval=%d, off=%d\n", tid, u->key, u->nval, off);
 
         u->cur_nval = 0;
         u->cur_size = 0;
@@ -516,12 +576,13 @@ uint64_t MapReduce::convert(){
       }
     }
     tmpdata->releaseblock(blockid);
+    blocks[tid] = blockid;
 
     kv->releaseblock(i);
 //#pragma omp barrier
   }
 
-  tmpdata->print();
+  //tmpdata->print();
 
   // merge kvs into kmv
   int blockid = -1;
@@ -529,10 +590,14 @@ uint64_t MapReduce::convert(){
   for(ul = ht.begin(); ul != ht.end(); ++ul){
     std::list<Unique>::iterator u;
     for(u = ul->begin(); u != ul->end(); ++u){
+
+      //printf("%d key=%s\n", tid, u->key);
+
       if(blockid == -1){
         blockid = kmv->addblock();
         kmv->acquireblock(blockid);
       }
+
       int bytes = sizeof(int)+(u->keybytes)+(u->nval+1)*sizeof(int)+(u->size);
 
       if(kmv->getblockspace(blockid) < bytes){
@@ -545,17 +610,40 @@ uint64_t MapReduce::convert(){
       kmv->addbytes(blockid, u->key, u->keybytes);
       kmv->addbytes(blockid, (char*)&(u->nval), (int)sizeof(int));
 
+      //printf("%d key=%s, keysize=%d, nval=%d, %ld\n", tid, u->key, u->keybytes, u->nval, u->pos.size());
+
       std::list<Pos>::iterator l;
       for(l = u->pos.begin(); l != u->pos.end(); ++l){
         char *p = NULL;
+        //printf("%d key=%s, bid=%d, off=%d\n", tid, u->key, l->bid, l->off);
         tmpdata->getbytes(l->bid, l->off, &p);
         kmv->addbytes(blockid, p, sizeof(int)*(l->nval));
       }
       for(l = u->pos.begin(); l != u->pos.end(); ++l){
         char *p = NULL;
         tmpdata->getbytes(l->bid, l->off+sizeof(int)*(l->nval), &p);
+        //printf("%d key=%s, bid=%d, off=%d, nval=%d,p=%s\n", tid, u->key, l->bid, l->off, l->nval, p);
         kmv->addbytes(blockid, p, l->size);
       }
+
+#if 0     
+      if(blockid == -1){
+        blockid = kv->addblock();
+      }
+
+      kv->acquireblock(blockid);
+
+     char *val, *valsizes;
+     tmpdata->getbytes
+      while(kv->addKV(blocks[tid], u->key, u->keybytes, value, valuebytes) == -1){
+        kv->releaseblock(blocks[tid]);
+        blocks[tid] = kv->addblock();
+        kv->acquireblock(blocks[tid]);
+      }
+
+    kv->releaseblock(blocks[tid]);
+#endif
+
       delete [] u->key;
     }
   }
@@ -564,6 +652,8 @@ uint64_t MapReduce::convert(){
   //((DataObject*)(kmv))->print();
 
   delete tmpdata;
+
+  blocks[tid] = -1;
 } 
 
   delete data;
@@ -588,7 +678,7 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
 
   data = kv;
 
-  //kmv->print();
+  //kmv->print(2);
 
 #pragma omp parallel
 {
@@ -596,12 +686,12 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
   int num = omp_get_num_threads();
 
   nitems[tid] = 0;
+  blocks[tid] = -1;
 
   char *key, *values;
   int keybytes, nvalue, *valuebytes;
-  blocks[tid] = -1;
 
-#pragma omp for
+#pragma omp for nowait
   for(int i = 0; i < kmv->nblock; i++){
      int offset = 0;
      kmv->acquireblock(i);
@@ -613,11 +703,15 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
      }
      kmv->releaseblock(i);
   }
+
+  blocks[tid] = -1;
 }
 
   delete kmv;
  
   addtype = -1;
+
+  //printf("%d[%d] reduce end.\n", me, nprocs);
 
   uint64_t sum=0, count=0;
   sumcount(count, sum);
@@ -671,16 +765,21 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   KeyValue *kv = (KeyValue*)data;
  
   int tid = omp_get_thread_num();
+
+  //printf("tid=%d, addtype=%d, add kv\n", tid, addtype);
+  //printf("add: (%ld,%ld) addtype=%d\n", *(int64_t*)key, *(int64_t*)value, addtype);
  
   // invoked in map function
   if(addtype == 0){
 
     // get target process
+    uint32_t hid = 0;
     int target = 0;
     if(myhash != NULL) target=myhash(key, keybytes);
-    else target = hashlittle(key, keybytes, nprocs);
-
-    target &= nprocs-1;
+    else{
+      hid = hashlittle(key, keybytes, nprocs);
+      target = hid % (uint32_t)nprocs;
+    }
     
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
     nitems[tid]++;
@@ -691,6 +790,8 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
       blocks[tid] = kv->addblock();
     }
 
+    //kv->print(2);
+
     kv->acquireblock(blocks[tid]);
 
     while(kv->addKV(blocks[tid], key, keybytes, value, valuebytes) == -1){
@@ -700,9 +801,12 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     }
 
     kv->releaseblock(blocks[tid]);
+
+    //kv->print(2);
     
     nitems[tid]++;
-  }
+ 
+}
 
   return 0;
 }
@@ -787,7 +891,7 @@ void MapReduce::disinputfiles(const char *filepath, int sharedflag, int recurse)
     MPI_Scatterv(send_buf, send_count, send_displs, MPI_BYTE, recv_buf, recv_count, MPI_BYTE, 0, comm);
 
     ifiles.clear();
-    int off;
+    int off=0;
     while(off < recv_count){
       char *str = recv_buf+off;
       ifiles.push_back(std::string(str));

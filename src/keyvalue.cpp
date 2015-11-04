@@ -63,8 +63,9 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
   int kvbytes = 0;
   if(kvtype == 0) kvbytes = keybytes+valuebytes;
   else if(kvtype == 1) kvbytes = 2*sizeof(int)+keybytes+valuebytes;
+  else LOG_ERROR("Error: undefined KV type %d.\n", kvtype);
 
-  printf("kv size=%d\n", kvbytes);
+  //printf("add KV: blockid=%d, key size=%d, value size=%d\n", blockid, keybytes, valuebytes);
 
   if(kvbytes > blocksize){
      LOG_ERROR("Error: KV size is larger than block size. (KV size=%d, block size=%d)\n", kvbytes, blocksize);
@@ -75,6 +76,8 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
 
   int bufferid = blocks[blockid].bufferid;
   char *buf = buffers[bufferid].buf;
+
+  //printf("kvtype=%d, vbytes=%d, bufferid=%d, datasize=%d\n", kvtype, kvbytes, bufferid, datasize);
 
   if(kvtype == 0){
     memcpy(buf+datasize, key, keybytes);
@@ -88,10 +91,13 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
     datasize += keybytes;
     memcpy(buf+datasize, &valuebytes, sizeof(int));
     datasize += sizeof(int);
-    memcpy(buf+datasize, value, valuebytes);
-    datasize += valuebytes;
+    //memcpy(buf+datasize, value, valuebytes);
+    //datasize += valuebytes;
   }
   blocks[blockid].datasize = datasize;
+
+  //printf("kvbytes=%d, bufferid=%d, datasize=%d\n", kvbytes, bufferid, datasize);
+
   return 0;
 }
 

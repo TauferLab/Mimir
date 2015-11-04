@@ -49,6 +49,42 @@ int KeyMultiValue::getNextKMV(int blockid, int offset, char **key, int &keybytes
   return offset;
 }
 
+int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nval, int *valuesizes){
+  int kmvbytes = 0;
+
+  int valbytes = 0;
+  for(int i = 0; i < nval; i++) valbytes += valuesizes[i];
+
+  if(kmvtype == 0) kmvbytes = sizeof(int)+keysize+(nval+1)*sizeof(int)+valbytes;
+  else LOG_ERROR("Error: undefined KMV type %d.\n", kmvtype);
+
+  if(kmvbytes > blocksize){
+    LOG_ERROR("Error: KMV size is larger than block size. (KMV size=%d, block size=%d)\n", kmvbytes, blocksize);
+  }
+
+  int datasize = blocks[blockid].datasize;
+  if(kmvbytes+datasize > blocksize) return -1;
+
+  int bufferid = blocks[blockid].bufferid;
+  char *buf = buffers[bufferid].buf;
+
+  if(kmvtype == 0){
+    memcpy(buf+datasize, &keysize, sizeof(int));
+    datasize += sizeof(int);
+    memcpy(buf+datasize, key, keysize);
+    datasize += keysize;
+    memcpy(buf+datasize, &nval, sizeof(int));
+    datasize += sizeof(int);
+    memcpy(buf+datasize, valuesizes, nval*sizeof(int));
+    datasize += nval*sizeof(int);
+    memcpy(buf+datasize, val, valbytes);
+    datasize += valbytes;
+  }else LOG_ERROR("Error undefined KMV type %d.\n", kmvtype);
+  blocks[blockid].datasize = datasize;
+  return 0;
+}
+
+
 void KeyMultiValue::print(int type, FILE *fp, int format){
   char *key, *values;
   int keybytes, nvalue, *valuebytes;
