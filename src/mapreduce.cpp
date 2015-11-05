@@ -105,27 +105,10 @@ MapReduce::~MapReduce()
 
 // configurable functions
 /******************************************************/
-void MapReduce::setKVtype(int _kvtype){
-  if(kvtype == _kvtype) return;
-
-  if(data){
-    if(data->getDatatype() == KVType){
-      if(((KeyValue*)data)->getKVtype() != _kvtype && (data->nblock > 0)){
-        LOG_ERROR("Error: cannot switch KV type. (current type=%d, switched type=%d)\n", kvtype, _kvtype);
-        return;
-      }
-    }else if(data->nblock > 0){
-      LOG_ERROR("%s", "Error: canot switch to KV\n");
-      return;
-    }
-  }
-
+void MapReduce::setKVtype(int _kvtype, int _ksize, int _vsize){
   kvtype = _kvtype;
-
-  if(data) delete data;
-  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-  data = kv;
-
+  ksize = _ksize;
+  vsize = _vsize;
 }
 
 void MapReduce::setBlocksize(int _blocksize){
@@ -158,6 +141,63 @@ void MapReduce::setGlobalbufsize(int _gbufsize){
 
 void MapReduce::sethash(int (*_myhash)(char *, int)){
   myhash = _myhash;
+}
+
+
+uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
+
+  // handle data object
+  if(data) delete data;
+  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
+  kv->setKVsize(ksize,vsize);
+  data=kv;
+
+  // create communicator
+  c = new Alltoall(comm, tnum);
+  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+  c->init(kv);
+
+  addtype = 0;
+
+#pragma omp parallel
+{
+  int tid = omp_get_thread_num();
+  nitems[tid] = 0;
+  blocks[tid] = -1;
+  
+  if(tid == 0)
+    mymap(this, ptr);
+  
+  c->twait(tid);
+}
+  c->wait();
+
+  addtype = -1;
+
+  delete c;
+
+  return 0;
+}
+
+
+uint64_t MapReduce::map_local(void (*mymap)(MapReduce *, void *), void* ptr){
+   // handle data object
+  if(data) delete data;
+  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
+  kv->setKVsize(ksize, vsize);
+  data=kv;
+
+  addtype = 1;
+
+//#pragma omp parallel
+//{
+  int tid = omp_get_thread_num();
+  nitems[tid] = 0;
+  blocks[tid] = -1;
+  mymap(this, ptr);
+//}
+
+  addtype = -1;
 }
 
 
@@ -207,13 +247,14 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   // create communicator
   c = new Alltoall(comm, tnum);
-  c->setup(lbufsize, gbufsize, kvtype);
+  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
 
   addtype = 0;
 
   // create new data object
   if(data) delete data;
   KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
+  kv->setKVsize(ksize, vsize);
   data = kv;
   
   // set data object
@@ -261,6 +302,7 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 
   if(data) delete data;
   KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
+  kv->setKVsize(ksize, vsize);
   data = kv;
 
   int fcount = ifiles.size();
@@ -288,13 +330,13 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   // create communicator
   c = new Alltoall(comm, tnum);
-  c->setup(lbufsize, gbufsize, kvtype);
+  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
 
   addtype = 0;
 
   DataObject *data = mr->data;
   KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-
+  kv->setKVsize(ksize, vsize);
   this->data = kv;
 
   c->init(kv);
@@ -376,7 +418,7 @@ uint64_t MapReduce::map_local(MapReduce *mr,
 
   DataObject *data = mr->data;
   KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-
+  kv->setKVsize(ksize, vsize);
 
   this->data = kv;
 
@@ -673,6 +715,7 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
   addtype = 2;
 
   KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
+  kv->setKVsize(ksize, vsize);
   KeyMultiValue *kmv = (KeyMultiValue*)data;
 
 
@@ -757,17 +800,11 @@ uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), 
  *  must support multi-threads
  */
 int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
-  if(!data) 
-    data = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-
-  //LOG_PRINT(DBG_GEN, "MapReduce: add KV addtype=%d\n", addtype);
+  if(data->getDatatype() != KVType)
+    LOG_ERROR("%s", "Error: add function only can be used to generate KV object!\n");
 
   KeyValue *kv = (KeyValue*)data;
- 
   int tid = omp_get_thread_num();
-
-  //printf("tid=%d, addtype=%d, add kv\n", tid, addtype);
-  //printf("add: (%ld,%ld) addtype=%d\n", *(int64_t*)key, *(int64_t*)value, addtype);
  
   // invoked in map function
   if(addtype == 0){
@@ -780,17 +817,18 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
       hid = hashlittle(key, keybytes, nprocs);
       target = hid % (uint32_t)nprocs;
     }
+
+    //printf("sendKV: tid=%d, target=%d\n", tid, target);
     
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
+
     nitems[tid]++;
  
   // invoked in map_local or reduce function
-  }else if(addtype == 1 || addtype == 2 || addtype == -1){
+  }else if(addtype == 1 || addtype == 2){
     if(blocks[tid] == -1){
       blocks[tid] = kv->addblock();
     }
-
-    //kv->print(2);
 
     kv->acquireblock(blocks[tid]);
 
@@ -801,12 +839,12 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     }
 
     kv->releaseblock(blocks[tid]);
-
-    //kv->print(2);
     
     nitems[tid]++;
  
-}
+  }else{
+    LOG_ERROR("%s", "Error: add function can only be invoked in user-defined map or reduce function\n");
+  }
 
   return 0;
 }

@@ -158,22 +158,36 @@ int main(int narg, char **args)
   uint64_t nactives = 0;
 
   // switch to int mode
-  mr->setKVtype(1);
+  int ksize = (int)sizeof(int64_t);
   mr->sethash(mypartition_int);
 
-  rootvisit(mr, &st);
+  //rootvisit(mr, &st);
+
+  mr->setKVtype(2, ksize, ksize);
+  uint64_t count = mr->map(rootvisit, &st);
+  printf("count=%ld\n", count);
+
+  mr->output(2);
 
   int level = 0;
 
   do{
-    // expand vertexes
-    mr->map(mr, expand, &st);
-
     // convert into KMV
     mr->convert();
 
+    mr->output(2);
+
     // shrink vertexes
-    nactives = mr->reduce(shrink, &st);
+    mr->setKVtype(2, ksize, 0);
+    mr->reduce(shrink, &st);
+
+    mr->output(2);
+
+    // expand vertexes
+    mr->setKVtype(2, ksize, ksize);
+    nactives = mr->map(mr, expand, &st);
+
+    mr->output(2);
 
     level++;
 
@@ -299,29 +313,18 @@ void rootvisit(MapReduce *mr, void *ptr){
   csr_graph *g = &(st->g);
 
   if((st->root)/(g->nlocalverts) == me){
+
     int64_t root_local = (st->root)%(g->nlocalverts);
-    st->pred[root_local] = st->root;
     
+    st->pred[root_local] = st->root;
     SET_VISITED(root_local, (st->vis));
- 
-    mr->add((char*)&(st->root), sizeof(int64_t), NULL, 0);
-  }
-}
 
-void shrink(MapReduce *mr, char *key, int keybytes, int nvaluse, char *multivalue, int *valuebytes,void *ptr){
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
-
-  int64_t v = *(int64_t*)key;
-  int64_t v_local = v % (g->nlocalverts);
-
-  int64_t v0 = *(int64_t*)multivalue;
- 
-  if(!TEST_VISITED(v_local, st->vis)){  
-    SET_VISITED(v_local, st->vis);
-    st->pred[v_local] = v0;
-
-    mr->add(key, keybytes, NULL, 0);
+    size_t p_end = g->rowstarts[root_local+1];
+    for(size_t p = g->rowstarts[root_local]; p < p_end; p++){
+      int64_t v = g->columns[p];
+      printf("%ld, %ld\n", v, st->root);
+      mr->add((char*)&v, sizeof(int64_t), (char*)&(st->root), sizeof(int64_t));
+    } 
   }
 }
 
@@ -336,6 +339,24 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
   for(size_t p = g->rowstarts[v_local]; p < p_end; p++){
     int64_t v1 = g->columns[p];
     mr->add((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
+  }
+}
+
+void shrink(MapReduce *mr, char *key, int keybytes, int nvaluse, char *multivalue, int *valuebytes,void *ptr){
+  bfs_state *st = (bfs_state*)ptr;
+  csr_graph *g = &(st->g);
+
+  int64_t v = *(int64_t*)key;
+  int64_t v_local = v % (g->nlocalverts);
+
+  int64_t v0 = *(int64_t*)multivalue;
+ 
+  if(!TEST_VISITED(v_local, st->vis)){  
+    if(SET_VISITED(v_local, st->vis)==0){
+      printf("%ld\n", v);
+      st->pred[v_local] = v0;
+      mr->add(key, keybytes, NULL, 0);
+    }
   }
 }
 

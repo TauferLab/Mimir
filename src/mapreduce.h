@@ -23,7 +23,7 @@ public:
     ~MapReduce();
 
     // set prarameters
-    void setKVtype(int);
+    void setKVtype(int, int ksize=0, int vsize=0);
     void setBlocksize(int);
     void setMaxblocks(int);
     void setMaxmem(int);
@@ -34,12 +34,14 @@ public:
     void sethash(int (*_myhash)(char *, int));
 
     // map and reduce interfaces
+    uint64_t map(void (*mymap)(MapReduce *, void *), void *);
+    uint64_t map_local(void (*mymap)(MapReduce *, void *), void*);
+
     uint64_t map(char *, int, int, int, 
       void (*mymap) (MapReduce *, char *, void *), void *);
 
     uint64_t map_local(char *, int, int, int, 
       void (*mymap) (MapReduce *, char *, void *), void *);
-
 
     uint64_t map(char *, int, int, 
       void (*mymap) (MapReduce *, const char *, void *), void *);
@@ -70,7 +72,7 @@ public:
 
 private:
     // configuable parameters
-    int kvtype;
+    int kvtype, ksize, vsize;
     int blocksize;
     int nmaxblock;
     int maxmemsize;

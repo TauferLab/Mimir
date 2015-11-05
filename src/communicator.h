@@ -13,7 +13,7 @@ public:
   virtual ~Communicator();
 
   // main thread
-  virtual int setup(int, int, int kvtype=0, int nbuf=2);
+  virtual int setup(int, int, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
 
   virtual void init(DataObject *data = NULL);
 
@@ -44,7 +44,7 @@ protected:
   int *blocks;
   DataObject *data;
   // kv type
-  int kvtype;
+  int kvtype, ksize, vsize;
 
   // buffer size information
   int lbufsize, gbufsize, nbuf;
@@ -61,7 +61,7 @@ public:
   Alltoall(MPI_Comm, int);
   ~Alltoall();
 
-  int setup(int, int, int kvtype=0, int nbuf=2);
+  int setup(int, int, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
 
   void init(DataObject *);
  

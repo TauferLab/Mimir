@@ -11,7 +11,8 @@ namespace MAPREDUCE_NS {
 
 class KeyValue : public DataObject{
 private:
-  int kvtype; // 0 for string, 1 for binary
+  int kvtype; // 0 for string, 1 for binary, 2 for constant key, value
+  int ksize, vsize;
 
 public:
   KeyValue(int, 
@@ -20,6 +21,12 @@ public:
     int memsize=4,
     int outofcore=0, 
     std::string a6=std::string(""));
+
+  void setKVsize(int _ksize, int _vsize){
+    ksize = _ksize;
+    vsize = _vsize;
+  }
+
   ~KeyValue();
 
   int getKVtype(){

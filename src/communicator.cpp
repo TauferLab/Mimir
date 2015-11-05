@@ -15,7 +15,7 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &size);
 
-  kvtype = 0;
+  kvtype = ksize = vsize = 0;
 
   lbufsize = gbufsize = nbuf = 0;
 
@@ -51,10 +51,12 @@ Communicator::~Communicator(){
 
 }
 
-int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _nbuf){
+int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
   lbufsize = _lbufsize*UNIT_SIZE;
   gbufsize = _gbufsize*UNIT_SIZE;
   kvtype = _kvtype;
+  ksize = _ksize;
+  vsize = _vsize;
   nbuf = _nbuf;
 
   local_buffers = new char*[tnum];
@@ -130,9 +132,9 @@ Alltoall::~Alltoall(){
  *   gbufsize: global buffer size
  *   nbuf: pipeline buffer count
  */
-int Alltoall::setup(int _lbufsize, int _gbufsize, int _kvtype, int _nbuf){
+int Alltoall::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
 
-  Communicator::setup(_lbufsize, _gbufsize, _kvtype, _nbuf);
+  Communicator::setup(_lbufsize, _gbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
   recv_buf = new char*[nbuf];
 
@@ -185,6 +187,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   int kvsize = 0;
   if(kvtype == 0) kvsize = keysize+valsize;
   else if(kvtype == 1) kvsize = keysize+valsize+sizeof(int)*2;
+  else if(kvtype == 2) kvsize = keysize+valsize;
   else LOG_ERROR("%s", "Error undefined kv type\n");
 
   if(kvsize > lbufsize){
@@ -223,7 +226,16 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
         loff += sizeof(int);
         memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
         loff += valsize;
-      }else{
+      }else if(kvtype == 2){
+        if(ksize != keysize || vsize != valsize){
+          LOG_ERROR("Error: key (%d) or val (%d) size mismatch for KV type 2\n", keysize, valsize);
+        }
+        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
+        loff += keysize;
+        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
+        loff += valsize;
+      }
+      else{
         LOG_ERROR("%s", "Error undefined kv type\n");
       }
       local_offsets[tid][target] = loff;
