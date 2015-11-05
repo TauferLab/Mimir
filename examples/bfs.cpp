@@ -10,6 +10,8 @@
 
 using namespace MAPREDUCE_NS;
 
+#define TEST_TIMES 10
+
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
 
@@ -63,6 +65,13 @@ bfs_state st;
 
 int me, nprocs;
 
+double wtime[TEST_TIMES], teps[TEST_TIMES];
+
+#define MAX_LEVEL 10
+int nactives[MAX_LEVEL];
+
+FILE *rf=NULL;
+
 int main(int narg, char **args)
 {
   MPI_Init(&narg, &args);
@@ -77,9 +86,9 @@ int main(int narg, char **args)
   }
 
   // create log file
-  char logfile[10];
-  sprintf(logfile, "log.%d.%d", me, nprocs);
-  FILE *fp = fopen(logfile, "w");
+  //char logfile[10];
+  //sprintf(logfile, "log.%d.%d", me, nprocs);
+  //FILE *fp = fopen(logfile, "w");
 
   // set vertex count
   csr_graph *g = &st.g;
@@ -91,6 +100,12 @@ int main(int narg, char **args)
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
+  if(me == 0){
+    char rfile[100];
+    sprintf(rfile, "mt_mr.result.%d.txt", g->lg_nglobalverts);
+    rf = fopen(rfile, "w");
+  }
+
   g->nlocalverts = g->nglobalverts / nprocs;
 
   // create mapreduce
@@ -98,6 +113,8 @@ int main(int narg, char **args)
 
   // set hash function
   mr->sethash(mypartition_str);
+
+  if(me==0) fprintf(stdout, "make CSR graph start.\n");
 
   // make graph
   MPI_Barrier(MPI_COMM_WORLD);
@@ -134,8 +151,17 @@ int main(int narg, char **args)
 
   delete [] g->rowinserts;
 
+  if(me==0) fprintf(stdout, "make CSR graph end.\n");
+
+  int64_t *visit_roots = new int64_t[TEST_TIMES];
+
+  srand(0);
+  for(int i = 0; i < TEST_TIMES; i++){
+    visit_roots[i] = rand() % (g->nglobalverts);
+  }
+
   // print graph
-  printgraph(g);
+  //printgraph(g);
 
   // begin do traversal
   int bitmapsize = (g->nlocalverts + LONG_BITS - 1) / LONG_BITS;
@@ -143,60 +169,98 @@ int main(int narg, char **args)
   // create structure
   st.vis  = new unsigned long[bitmapsize];
   st.pred = new int64_t[g->nlocalverts];
-  
-  // set root vertex
-  st.root    = 7;
 
-  // initailize traversal structure
-  memset(st.vis, 0, sizeof(unsigned long)*(bitmapsize));
-  for(int i = 0; i < g->nlocalverts; i++){
-    st.pred[i] = -1;
-  }
- 
-  //MPI_Barrier(MPI_COMM_WORLD);
+  if(me==0) fprintf(stdout, "BFS traversal start.\n");
 
-  uint64_t nactives = 0;
+  MPI_Barrier(MPI_COMM_WORLD);
 
-  // switch to int mode
   int ksize = (int)sizeof(int64_t);
   mr->sethash(mypartition_int);
 
-  //rootvisit(mr, &st);
+  int test_count = 0;
+  for(int index=0; index < TEST_TIMES; index++){
+    if(me==0)
+      fprintf(stdout, "Traversal %d start. (root=%ld)\n", index, visit_roots[index]);
 
-  mr->setKVtype(2, ksize, ksize);
-  uint64_t count = mr->map(rootvisit, &st);
-  printf("count=%ld\n", count);
+    double start_t = MPI_Wtime();  
 
-  mr->output(2);
-
-  int level = 0;
-
-  do{
-    // convert into KMV
-    mr->convert();
-
-    mr->output(2);
-
-    // shrink vertexes
-    mr->setKVtype(2, ksize, 0);
-    mr->reduce(shrink, &st);
-
-    mr->output(2);
-
-    // expand vertexes
+    // set root vertex
+    st.root = visit_roots[index];
+    memset(st.vis, 0, sizeof(unsigned long)*(bitmapsize));
+    for(int i = 0; i < g->nlocalverts; i++){
+      st.pred[i] = -1;
+    }
+ 
+    //uint64_t nactives = 0;
     mr->setKVtype(2, ksize, ksize);
-    nactives = mr->map(mr, expand, &st);
+    int count = mr->map(rootvisit, &st);
+    if(count == 0) continue;
+    //printf("map:\n");
+    //mr->output(2);
 
-    mr->output(2);
+    int level = 0;
+    do{
+      mr->convert();
 
-    level++;
+      //printf("convert:\n");
+      //mr->output(2);
 
-  }while(nactives);
+      mr->setKVtype(2, ksize, 0);
+      mr->reduce(shrink, &st);
+      
+      //printf("reduce:\n");
+      //mr->output(2);
+
+      mr->setKVtype(2, ksize, ksize);
+      nactives[level] = mr->map(mr, expand, &st);
+ 
+      //printf("map:\n");
+      //mr->output(2);
+
+      level++;
+    }while(nactives[level-1]);
+
+    double stop_t = MPI_Wtime();
    
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    wtime[test_count] = stop_t - start_t;
+    test_count++;    
+
+    if(me==0){
+      fprintf(rf, "%ld\n", st.root);
+      fprintf(rf, "%d\n", level);
+      for(int k =0; k < level; k++){
+        fprintf(rf, "%d\n", nactives[k]);
+      }
+      fprintf(rf, "\n");
+      fprintf(stdout, "Traversal %d end. (time=%g s)\n", index, stop_t-start_t);
+    }
+  }
   MPI_Barrier(MPI_COMM_WORLD);
 
-  // print result
-  printresult(st.pred, g->nlocalverts);
+  if(me==0) fprintf(stdout, "BFS traversal end.\n");
+
+  if(me==0){
+    double avg_teps=0.0;
+    for(int i=0; i<test_count; i++){
+      teps[i] = (g->nglobaledges)/wtime[i];
+      avg_teps += teps[i];
+    }
+    avg_teps /= test_count;
+
+    double max_teps=teps[0],min_teps=teps[0];
+    for(int i=1; i<test_count; i++){
+      if(teps[i] > max_teps) max_teps = teps[i];
+      if(teps[i] < min_teps) min_teps = teps[i];
+    }
+
+    fprintf(stdout, "process count=%d, vertex count=%ld, edge count=%ld\n", nprocs, g->nglobalverts, g->nglobaledges);
+    fprintf(stdout, "Results: average=%g, max=%g, min=%g\n", avg_teps, max_teps, min_teps);
+
+  }
+
+  delete [] visit_roots;
 
   // delete buffers
   delete [] st.vis;
@@ -207,8 +271,12 @@ int main(int narg, char **args)
 
   delete mr;
 
+  if(me==0){
+    fclose(rf);
+  }
+
   // close log file
-  fclose(fp);
+  //fclose(fp);
 
   MPI_Finalize();
 }
@@ -265,9 +333,15 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
     val[0] = '\0';
     val = val +1;
 
+    if(strcmp(v0, v1) == 0){
+      line += linesize;
+      continue;
+    }
+
     //printf("%s,%s,%s\n", v0, v1, val);
     mr->add(v0, strlen(v0)+1, v1, strlen(v1)+1);
-    
+    mr->add(v1, strlen(v1)+1, v0, strlen(v0)+1);    
+
     line += linesize;
   }
 
@@ -322,7 +396,7 @@ void rootvisit(MapReduce *mr, void *ptr){
     size_t p_end = g->rowstarts[root_local+1];
     for(size_t p = g->rowstarts[root_local]; p < p_end; p++){
       int64_t v = g->columns[p];
-      printf("%ld, %ld\n", v, st->root);
+      //printf("%ld, %ld\n", v, st->root);
       mr->add((char*)&v, sizeof(int64_t), (char*)&(st->root), sizeof(int64_t));
     } 
   }
@@ -353,7 +427,7 @@ void shrink(MapReduce *mr, char *key, int keybytes, int nvaluse, char *multivalu
  
   if(!TEST_VISITED(v_local, st->vis)){  
     if(SET_VISITED(v_local, st->vis)==0){
-      printf("%ld\n", v);
+      //printf("%ld\n", v);
       st->pred[v_local] = v0;
       mr->add(key, keybytes, NULL, 0);
     }

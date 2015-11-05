@@ -108,6 +108,9 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
     if(keybytes != ksize || valuebytes != vsize){
       LOG_ERROR("Error: key (%d) or value (%d) size mismatch for KV type 2\n", keybytes, valuebytes);
     }
+    //if(valuebytes == 0){
+    //  fprintf(stdout, "addKV: %ld\n", *(int64_t*)key);
+    //}
     memcpy(buf+datasize, key, keybytes);
     datasize += keybytes;
     memcpy(buf+datasize, value, valuebytes);

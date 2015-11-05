@@ -88,6 +88,8 @@ MapReduce::MapReduce(MPI_Comm caller)
   
     init();
 
+    fprintf(stdout, "Process count=%d, thread count=%d\n", nprocs, tnum);
+
     LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: create. (thread number=%d)\n", me, nprocs, tnum);
 }
 
@@ -175,8 +177,12 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
   addtype = -1;
 
   delete c;
+  c = NULL;
 
-  return 0;
+  uint64_t sum = 0, count = 0;
+  sumcount(count, sum);
+
+  return sum;
 }
 
 
