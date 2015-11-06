@@ -15,6 +15,7 @@ public:
   // main thread
   virtual int setup(int, int, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
 
+  // main thread
   virtual void init(DataObject *data = NULL);
 
   // multi-threads

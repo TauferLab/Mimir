@@ -17,6 +17,8 @@
 
 namespace MAPREDUCE_NS {
 
+enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
+
 class MapReduce {
 public:
     MapReduce(MPI_Comm);
@@ -63,8 +65,8 @@ public:
 
     uint64_t scan(void (myscan)(char *, int, int, char *, int *,void *), void *);
 
-    /* add function invoked in mymap or myreduce */
-    int add(char *key, int keybytes, char *value, int valuebytes);
+    // interfaces in user-defined map and reduce functions
+    void add(char *key, int keybytes, char *value, int valuebytes);
 
     // output data into file
     // type: 0 for string, 1 for int, 2 for int64_t
@@ -88,9 +90,12 @@ private:
     MPI_Comm comm;
     int me, nprocs, tnum; 
 
-    // used to add 
-    int addtype;      // -1 for nothing, 0 for map, 1 for map_local, 2 for reduce;
+    // Current operation
+    OpMode mode;      // -1 for nothing, 0 for map, 1 for map_local, 2 for reduce;
+    
+    // thread private data
     int *blocks;      // current block id for each threads, used in map and reduce
+    uint64_t *nitems;
 
     // data object
     DataObject *data;
@@ -101,16 +106,11 @@ private:
     // input file list
     std::vector<std::string> ifiles;
 
-    // counter for each thread
-    uint64_t *nitems;
-    //uint64_t sum;
-
     // private functions
     void init();
+    void tinit(int); // thread initialize
     void disinputfiles(const char *, int, int);
     void getinputfiles(const char *, int, int);
-
-    void sumcount(uint64_t &, uint64_t &);
 };//class MapReduce
 
 }//namespace

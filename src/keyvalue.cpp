@@ -26,6 +26,7 @@ KeyValue::~KeyValue(){
   LOG_PRINT(DBG_DATA, "%s", "DATA: KV Destroy.\n");
 }
 
+
 int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
   if(offset >= blocks[blockid].datasize) return -1;
   
@@ -77,6 +78,7 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
  */
 int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &valuebytes){
   int kvbytes = 0;
+  
   if(kvtype == 0) kvbytes = keybytes+valuebytes;
   else if(kvtype == 1) kvbytes = 2*sizeof(int)+keybytes+valuebytes;
   else if(kvtype == 2) kvbytes = ksize + vsize;
@@ -104,13 +106,12 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
     datasize += keybytes;
     memcpy(buf+datasize, &valuebytes, sizeof(int));
     datasize += sizeof(int);
+    memcpy(buf+datasize, value, valuebytes);
+    datasize += valuebytes;
   }else if(kvtype == 2){
     if(keybytes != ksize || valuebytes != vsize){
       LOG_ERROR("Error: key (%d) or value (%d) size mismatch for KV type 2\n", keybytes, valuebytes);
     }
-    //if(valuebytes == 0){
-    //  fprintf(stdout, "addKV: %ld\n", *(int64_t*)key);
-    //}
     memcpy(buf+datasize, key, keybytes);
     datasize += keybytes;
     memcpy(buf+datasize, value, valuebytes);

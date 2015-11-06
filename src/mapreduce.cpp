@@ -78,13 +78,9 @@ MapReduce::MapReduce(MPI_Comm caller)
     }
 
     data = NULL;
-    myhash = NULL;
     c = NULL;
 
-    //data = new KeyValue(0);
-    //count = 0;
-
-    addtype = -1;
+    mode = NoneMode;
   
     init();
 
@@ -146,82 +142,125 @@ void MapReduce::sethash(int (*_myhash)(char *, int)){
 }
 
 
+/*
+ * map: (no input) 
+ * arguments:
+ *   mymap: user defined map function
+ *   ptr:   user defined pointer
+ * return:
+ *   global KV count
+ */
 uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
 
-  // handle data object
+  // create data object
   if(data) delete data;
-  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-  kv->setKVsize(ksize,vsize);
+  KeyValue *kv = new KeyValue(kvtype, 
+                              blocksize, 
+                              nmaxblock, 
+                              maxmemsize, 
+                              outofcore, 
+                              tmpfpath);
   data=kv;
+  kv->setKVsize(ksize,vsize);
 
   // create communicator
   c = new Alltoall(comm, tnum);
   c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
   c->init(kv);
 
-  addtype = 0;
+  mode = MapMode;
 
+  // begin traversal
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
-  nitems[tid] = 0;
-  blocks[tid] = -1;
   
+  tinit(tid);
+  
+  // FIXME: should I invoke user-defined map in each thread?
   if(tid == 0)
     mymap(this, ptr);
   
+  // wait all threads quit
   c->twait(tid);
 }
+  // wait all processes done
   c->wait();
 
-  addtype = -1;
+  mode = NoneMode;
 
+  // destroy communicator
   delete c;
   c = NULL;
 
-  uint64_t sum = 0, count = 0;
-  sumcount(count, sum);
+  // sum kv count
+  uint64_t sum = 0, count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
 
   return sum;
 }
 
-
+/*
+ * map_local: (no input) 
+ * arguments:
+ *   mymap: user defined map function
+ *   ptr:   user defined pointer
+ * return:
+ *   local KV count
+ */
 uint64_t MapReduce::map_local(void (*mymap)(MapReduce *, void *), void* ptr){
-   // handle data object
+  // create data object
   if(data) delete data;
-  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-  kv->setKVsize(ksize, vsize);
+  KeyValue *kv = new KeyValue(kvtype, 
+                              blocksize, 
+                              nmaxblock, 
+                              maxmemsize, 
+                              outofcore, 
+                              tmpfpath);
   data=kv;
+  kv->setKVsize(ksize, vsize);
 
-  addtype = 1;
+  mode = MapLocalMode;
 
-//#pragma omp parallel
-//{
+
+#pragma omp parallel
+{
   int tid = omp_get_thread_num();
-  nitems[tid] = 0;
-  blocks[tid] = -1;
-  mymap(this, ptr);
-//}
+  tinit(tid);
+  // FIXME: should invoke mymap in each thread?
+  if(tid == 0)
+    mymap(this, ptr);
+}
 
-  addtype = -1;
+  mode = NoneMode;
+
+  uint64_t count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  return count;
 }
 
 
 /*
- * Map function: (input: files)
- *  filepath: input file path
+ * map: (files as input, main thread reads files)
+ * arguments:
+ *  filepath:   input file path
  *  sharedflag: 0 for local file system, 1 for global file system
- *  recurse: 1 for recurse
- *  readmode: 0 for by word, 1 for by line
- *  mymap: map function
- *  myhash: hash function
- *  ptr: pointer
+ *  recurse:    1 for recurse
+ *  readmode:   0 for by word, 1 for by line
+ *  mymap:      user defined map function
+ *  ptr:        user-defined pointer
+ * return:
+ *  global KV count
  */
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
     int readmode, void (*mymap) (MapReduce *, char *, void *), void *ptr){
-  // read file
-  //LOG_PRINT(DBG_GEN, "%s", "MapReduce: map start. (Files as input)\n");
+
+  LOG_ERROR("%s", "map (files as input, main thread reads files) has been implemented!\n");
   
+  // TODO: Finish it!!!!
   // distribute input files
   disinputfiles(filepath, sharedflag, recurse);
 
@@ -230,48 +269,63 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
     std::cout << me << ":" << ifiles[i] << std::endl;
   }
 
-  addtype = -1;
+  mode = NoneMode;
  
   return 0; 
 }
 
 /*
- * Map function: no communication
+ * map_local: (files as input, main thread reads files)
  */
+// TODO: finish it!!!
 uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
     int readmode, void (*mymap)(MapReduce *, char *, void *), void *ptr){
   return 0;
 }
 
+/*
+ * map: (files as input, user-defined map reads files)
+ * argument:
+ *  filepath:   input file path
+ *  sharedflag: 0 for local file system, 1 for global file system
+ *  recurse:    1 for resucse
+ *  mymap:      user-defined map
+ *  ptr:        user-defined pointer
+ * return:
+ *  global KV count
+ */
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
   void (*mymap) (MapReduce *, const char *, void *), void *ptr){
-  // read file
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (File name to mymap)\n", me, nprocs);
 
-  // distribute input files
+  // distribute input fil list
   disinputfiles(filepath, sharedflag, recurse);
+
+  // create new data object
+  if(data) delete data;
+  KeyValue *kv = new KeyValue(kvtype, 
+                              blocksize, 
+                              nmaxblock, 
+                              maxmemsize, 
+                              outofcore, 
+                              tmpfpath);
+  data = kv;
+  kv->setKVsize(ksize, vsize);
+
 
   // create communicator
   c = new Alltoall(comm, tnum);
   c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-
-  addtype = 0;
-
-  // create new data object
-  if(data) delete data;
-  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-  kv->setKVsize(ksize, vsize);
-  data = kv;
-  
-  // set data object
   c->init(data);
 
-  int fcount = ifiles.size();
+  mode = MapMode;
+
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
-  nitems[tid] = 0;
-  blocks[tid] = -1;
+  tinit(tid);
+  
+  int fcount = ifiles.size();
 #pragma omp for nowait
   for(int i = 0; i < fcount; i++){
     mymap(this, ifiles[i].c_str(), ptr);
@@ -280,168 +334,213 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 }
   c->wait();
 
+  // delete communicator
   delete c;
   c = NULL; 
 
-  addtype = -1;
+  mode = NoneMode;
 
-  //kv->print();
+  // sum KV count
+  uint64_t sum = 0, count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  uint64_t sum = 0, count = 0;
-  sumcount(count, sum);
+  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum);
 
   return sum;
 }
 
+/*
+ * map_local: (files as input, user-defined map reads files)
+ * argument:
+ *  filepath:   input file path
+ *  sharedflag: 0 for local file system, 1 for global file system
+ *  recurse:    1 for resucse
+ *  mymap:      user-defined map
+ *  ptr:        user-defined pointer
+ * return:
+ *  local KV count
+ */
 uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse, 
   void (*mymap) (MapReduce *, const char *, void *), void *ptr){
 
-  // read file
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local start. (File name to mymap)\n", me, nprocs);
 
-  // distribute input files
+  // distribute input file list
   disinputfiles(filepath, sharedflag, recurse);
 
-  addtype = 1;
-
+  // create data object
   if(data) delete data;
-  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-  kv->setKVsize(ksize, vsize);
+  KeyValue *kv = new KeyValue(kvtype, 
+                              blocksize, 
+                              nmaxblock, 
+                              maxmemsize, 
+                              outofcore, 
+                              tmpfpath);
   data = kv;
+  kv->setKVsize(ksize, vsize);
+
+  mode = MapLocalMode;
+
+#pragma omp parallel
+{
+  int tid = omp_get_thread_num();
+  tinit(tid);
 
   int fcount = ifiles.size();
-
-#pragma omp parallel for
+#pragma omp for
   for(int i = 0; i < fcount; i++){
     //std::cout << ifiles[i] << std::endl;
     mymap(this, ifiles[i].c_str(), ptr);
   }
+}
 
-  addtype = -1;
+  mode = NoneMode;
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local end.\n", me, nprocs);
 
-  return 0;
+  // sum KV count
+  uint64_t count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  return count;
 }
 
 /*
- * Map function: (input: kv object)
+ * map: (KV object as input)
+ * argument:
+ *  mr:     input mapreduce object
+ *  mymap:  user-defined map
+ *  ptr:    user-defined pointer
+ * return:
+ *  global KV count
  */
 uint64_t MapReduce::map(MapReduce *mr, 
     void (*mymap)(MapReduce *, char *, int, char *, int, void*), void *ptr){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", me, nprocs);
 
-  // create communicator
-  c = new Alltoall(comm, tnum);
-  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-
-  addtype = 0;
-
+  // save original data object
   DataObject *data = mr->data;
-  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-  kv->setKVsize(ksize, vsize);
-  this->data = kv;
-
-  c->init(kv);
-
-  if(data->getDatatype() != KVType){
+  if(!data || data->getDatatype() != KVType){
     LOG_ERROR("%s","Error in map_local: input object of map must be KV object\n");
     return -1;
   }
 
+  // create new data object
+  KeyValue *kv = new KeyValue(kvtype, 
+                              blocksize, 
+                              nmaxblock, 
+                              maxmemsize, 
+                              outofcore, 
+                              tmpfpath);
+  kv->setKVsize(ksize, vsize);
+  this->data = kv;
+
+
+  // create communicator
+  c = new Alltoall(comm, tnum);
+  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+  c->init(kv);
+
+  mode = MapMode;
+
+
   KeyValue *inputkv = (KeyValue*)data;
-
-  //inputkv->print();
-
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
-  
+  tinit(tid);  
+
   char *key, *value;
   int keybytes, valuebytes;
-
-  blocks[tid] = -1;
-  nitems[tid] = 0;
 
   int i;
 #pragma omp for nowait
   for(i = 0; i < inputkv->nblock; i++){
     int offset = 0;
 
-    //printf("%d[%d] tid=%d, i=%d, blocks=%d\n", me, nprocs, tid, i, inputkv->nblock);
-
     inputkv->acquireblock(i);
 
     offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
   
     while(offset != -1){
-      //printf("%d[%d] tid=%d\n", me, nprocs, tid);
 
       mymap(this, key, keybytes, value, valuebytes, ptr);
 
       offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
     }
    
-    //printf("%d[%d] tid=%d here\n", me, nprocs, tid); 
     inputkv->releaseblock(i);
-    //printf("%d[%d] %d oh here\n", me, nprocs, tid); 
   }
 
-//#pragma omp barrier
-
-  //printf("%d[%d] %d haha\n", me, nprocs, tid); 
   c->twait(tid);
 }
   c->wait();
 
-  if(data != NULL) delete data;
-  
-  addtype = -1;
+  // delete data object
+  delete data;
 
-  //kv->print();
-
+  // delete communicator
   delete c;
   c = NULL;
+ 
+  mode= NoneMode;
 
-  uint64_t sum = 0, count = 0;
-  sumcount(count, sum);
+  // sum KV count
+  uint64_t sum = 0, count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum);
+  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum); 
 
   return sum;
 }
 
-
+/*
+ * map_local: (KV object as input)
+ * argument:
+ *  mr:     input mapreduce object
+ *  mymap:  user-defined map
+ *  ptr:    user-defined pointer
+ * return:
+ *  local KV count
+ */
 uint64_t MapReduce::map_local(MapReduce *mr, 
     void (*mymap)(MapReduce *, char *, int, char *, int, void *), void *ptr){
 
   LOG_PRINT(DBG_GEN, "%s", "MapReduce: map local start. (KV as input)\n");
 
-  addtype = 1;
-
+  // save original data object
   DataObject *data = mr->data;
-  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-  kv->setKVsize(ksize, vsize);
-
-  this->data = kv;
-
-  if(data->getDatatype() != KVType){
+  if(!data || data->getDatatype() != KVType){
     LOG_ERROR("%s","Error in map_local: input object of map must be KV object\n");
     return -1;
   }
 
+  // create new data object
+  KeyValue *kv = new KeyValue(kvtype, 
+                              blocksize, 
+                              nmaxblock, 
+                              maxmemsize, 
+                              outofcore, 
+                              tmpfpath);
+  this->data = kv;
+  kv->setKVsize(ksize, vsize);
+
+  mode = MapLocalMode;
+
   KeyValue *inputkv = (KeyValue*)data;
 
-#pragma omp parallel default(shared)
+#pragma omp parallel
 {
   int tid = omp_get_thread_num();
+  tinit(tid);
   
   char *key, *value;
   int keybytes, valuebytes;
-
 
 #pragma omp for nowait
   for(int i = 0; i < inputkv->nblock; i++){
@@ -461,43 +560,49 @@ uint64_t MapReduce::map_local(MapReduce *mr,
   }
 }
 
-  if(data != NULL) delete data;
+  delete data;
 
-  addtype = -1;
+  mode = NoneMode;
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local end.\n", me, nprocs);
 
-  return 0;
+  uint64_t count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  return count;
 }
 
-/* convert KV to KMV */
+/*
+ * convert: convert KMV to KV
+ *   return: local kmvs count
+ */
+// FIXME: should convert return global count?
 uint64_t MapReduce::convert(){
+  // check input data
+  if(!data || data->getDatatype() != KVType){
+    LOG_ERROR("%s", "Error: input of convert must be KV data!\n");
+    return -1;
+  }
+
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert start.\n", me, nprocs);
 
-  KeyValue *kv = (KeyValue*)data;
+  // create KMV object
   KeyMultiValue *kmv = new KeyMultiValue(0, 
-                             blocksize, nmaxblock, maxmemsize,
-                             outofcore, tmpfpath);
+                             blocksize, 
+                             nmaxblock, 
+                             maxmemsize,
+                             outofcore, 
+                             tmpfpath);
 
-  //printf("%d[%d] Convert: begin\n", me, nprocs);
-  //kv->print(2);
+  KeyValue *kv = (KeyValue*)data;
 
-// handled by multi-threads
 #pragma omp parallel
 {
 
   int tid = omp_get_thread_num();
-
-  //printf("%d[%d] %d Convert: I'm here!\n", me, nprocs, tid);
-
-  blocks[tid] = -1;
-  //int num = omp_get_num_threads();
+  tinit(tid);
 
   std::vector<std::list<Unique>> ht;
-
-  DataObject *tmpdata = new DataObject(ByteType,
-                              blocksize, nmaxblock, maxmemsize, 
-                              outofcore, tmpfpath); 
 
   char *key, *value;
   int keybytes, valuebytes, ret;
@@ -507,15 +612,18 @@ uint64_t MapReduce::convert(){
   ht.reserve(nbucket);
   for(int i = 0; i < nbucket; i++) ht.emplace_back();
 
-  //((KeyValue*)(data))->print();
-
-  //printf("%d[%d] %d nblock=%d\n", me, nprocs, tid, data->nblock);
+  // FIXME: should thread private object use the same configure as others?
+  // create thread private data object
+  DataObject *tmpdata = new DataObject(ByteType,
+                                       blocksize, 
+                                       nmaxblock, 
+                                       maxmemsize, 
+                                       outofcore, 
+                                       tmpfpath); 
 
   // scan all kvs to gain the thread kvs
   for(int i = 0; i < data->nblock; i++){
     int offset = 0;
-
-    //printf("thread %d handle block %d\n", tid, i);
 
     kv->acquireblock(i);
 
@@ -524,12 +632,8 @@ uint64_t MapReduce::convert(){
     while(offset != -1){
       uint32_t hid = hashlittle(key, keybytes, 0);
 
-      //printf("%d %d kv: %ld, %ld\n", tid, hid, *(int64_t*)key, *(int64_t*)value);
-
-
+      // FIXME: is there any more efficient way to process the kvs?
       if(hid % (uint32_t)tnum == (uint32_t)tid){ 
-
-        //printf("%d[%d] %d kv: %ld\n", me, nprocs, tid, *(int64_t*)key);
 
         int ibucket = hid % nbucket;
         std::list<Unique>& ul = ht[ibucket];
@@ -537,6 +641,7 @@ uint64_t MapReduce::convert(){
      
         // search to see if the key has been in the list
         for(u = ul.begin(); u != ul.end(); u++){
+          // key hit in the list
           if(memcmp(u->key, key, keybytes) == 0){
             u->cur_pos.push_back(Pos(valoff,valuebytes));
             u->cur_size += valuebytes;
@@ -564,9 +669,7 @@ uint64_t MapReduce::convert(){
       offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes, &keyoff, &valoff);
     } // send scan kvs
 
-    //((DataObject*)(kv))->print();
-
-    // merge locally
+    // merge the results in a single block
     int blockid = blocks[tid];
     if(blockid == -1){
       blockid = tmpdata->addblock();
@@ -596,27 +699,16 @@ uint64_t MapReduce::convert(){
           tmpdata->addbytes(blockid, (char*)&(l->size), (int)sizeof(int));
         }
 
-        //printf("u=%s, nvalue=%ld", u->key, u->cur_pos.size());
-        
-        //char *p;
-        //tmpdata->getbytes(blockid, off, &p);
-
-        //printf("val");
-
         // add values
         for(l = u->cur_pos.begin(); l != u-> cur_pos.end(); ++l){
           char *p = NULL;
           kv->getbytes(i, l->off, &p);
-          //printf(",%s", p);
           tmpdata->addbytes(blockid, p, l->size); 
         }
-        //printf("\n");
 
         u->nval += u->cur_nval;
         u->size += u->cur_size;
         u->pos.push_back(Pos(off,u->cur_size,blockid,u->cur_nval));
-
-        //printf("%d key=%s, nval=%d, off=%d\n", tid, u->key, u->nval, off);
 
         u->cur_nval = 0;
         u->cur_size = 0;
@@ -627,10 +719,7 @@ uint64_t MapReduce::convert(){
     blocks[tid] = blockid;
 
     kv->releaseblock(i);
-//#pragma omp barrier
   }
-
-  //tmpdata->print();
 
   // merge kvs into kmv
   int blockid = -1;
@@ -638,8 +727,6 @@ uint64_t MapReduce::convert(){
   for(ul = ht.begin(); ul != ht.end(); ++ul){
     std::list<Unique>::iterator u;
     for(u = ul->begin(); u != ul->end(); ++u){
-
-      //printf("%d key=%s\n", tid, u->key);
 
       if(blockid == -1){
         blockid = kmv->addblock();
@@ -658,84 +745,75 @@ uint64_t MapReduce::convert(){
       kmv->addbytes(blockid, u->key, u->keybytes);
       kmv->addbytes(blockid, (char*)&(u->nval), (int)sizeof(int));
 
-      //printf("%d key=%s, keysize=%d, nval=%d, %ld\n", tid, u->key, u->keybytes, u->nval, u->pos.size());
-
       std::list<Pos>::iterator l;
       for(l = u->pos.begin(); l != u->pos.end(); ++l){
         char *p = NULL;
-        //printf("%d key=%s, bid=%d, off=%d\n", tid, u->key, l->bid, l->off);
         tmpdata->getbytes(l->bid, l->off, &p);
         kmv->addbytes(blockid, p, sizeof(int)*(l->nval));
       }
       for(l = u->pos.begin(); l != u->pos.end(); ++l){
         char *p = NULL;
         tmpdata->getbytes(l->bid, l->off+sizeof(int)*(l->nval), &p);
-        //printf("%d key=%s, bid=%d, off=%d, nval=%d,p=%s\n", tid, u->key, l->bid, l->off, l->nval, p);
         kmv->addbytes(blockid, p, l->size);
       }
 
-#if 0     
-      if(blockid == -1){
-        blockid = kv->addblock();
-      }
-
-      kv->acquireblock(blockid);
-
-     char *val, *valsizes;
-     tmpdata->getbytes
-      while(kv->addKV(blocks[tid], u->key, u->keybytes, value, valuebytes) == -1){
-        kv->releaseblock(blocks[tid]);
-        blocks[tid] = kv->addblock();
-        kv->acquireblock(blocks[tid]);
-      }
-
-    kv->releaseblock(blocks[tid]);
-#endif
-
+      nitems[tid]++;
+ 
       delete [] u->key;
     }
   }
   if(blockid != -1) kmv->releaseblock(blockid);
 
-  //((DataObject*)(kmv))->print();
-
   delete tmpdata;
-
-  blocks[tid] = -1;
 } 
 
+  // set new data
   delete data;
   data = kmv;
 
-  //kmv->print();
-
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert end.\n", me, nprocs);
 
-  return 0;
+  uint64_t count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  return count;
 }
 
+/*
+ * reduce:
+ * argument:
+ *  myreduce: user-defined reduce function
+ *  ptr:      user-defined pointer
+ * return:
+ *  local KV count
+ */
 uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
     int *, void*), void* ptr){
+  if(!data || data->getDatatype() != KMVType){
+    LOG_ERROR("%s", "Error: the input of reduce function must be KMV object!\n");
+    return -1;
+  }
+
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce start.\n", me, nprocs);
 
-  addtype = 2;
-
-  KeyValue *kv = new KeyValue(kvtype, blocksize, nmaxblock, maxmemsize, outofcore, tmpfpath);
-  kv->setKVsize(ksize, vsize);
   KeyMultiValue *kmv = (KeyMultiValue*)data;
 
-
+  // create new data object
+  KeyValue *kv = new KeyValue(kvtype, 
+                      blocksize, 
+                      nmaxblock, 
+                      maxmemsize, 
+                      outofcore, 
+                      tmpfpath);
+  kv->setKVsize(ksize, vsize);
   data = kv;
 
-  //kmv->print(2);
+  mode = ReduceMode;
 
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
-  int num = omp_get_num_threads();
-
-  nitems[tid] = 0;
-  blocks[tid] = -1;
+  tinit(tid);
 
   char *key, *values;
   int keybytes, nvalue, *valuebytes;
@@ -746,39 +824,51 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
      kmv->acquireblock(i);
      offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
      while(offset != -1){
-       // apply myreudce here
        myreduce(this, key, keybytes, nvalue, values, valuebytes, ptr);        
        offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
      }
      kmv->releaseblock(i);
   }
-
-  blocks[tid] = -1;
 }
 
   delete kmv;
  
-  addtype = -1;
+  mode = NoneMode;
 
-  //printf("%d[%d] reduce end.\n", me, nprocs);
+  // sum KV count
+  uint64_t count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  uint64_t sum=0, count=0;
-  sumcount(count, sum);
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce end.(Output count: local=%ld)\n", me, nprocs, count);
 
-  //kv->print();
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce end.(Output count: local=%ld, global=%ld)\n", me, nprocs, count, sum);
-
-  return sum;
+  return count;
 }
 
+/*
+ * scan: (KMV object as input)
+ * argument:
+ *  myscan: user-defined scan function
+ *  ptr:    user-defined pointer
+ * return:
+ *  local KMV count
+ */
+// FIXME: should I provide multi-thread scan function?
 uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), void * ptr){
+
+  if(!data || data->getDatatype() != KMVType){
+    LOG_ERROR("%s", "Error: the input of scan (KMV) must be KMV object!\n");
+  }
+
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan start.\n", me, nprocs);  
 
   KeyMultiValue *kmv = (KeyMultiValue*)data;
 
   char *key, *values;
   int keybytes, nvalue, *valuebytes;
-  
+
+  int tid = omp_get_thread_num();
+  tinit(tid);  
+
   for(int i = 0; i < kmv->nblock; i++){
     int offset = 0;
     
@@ -789,6 +879,8 @@ uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), 
     while(offset != -1){
       myscan(key, keybytes, nvalue, values, valuebytes, ptr);
 
+      nitems[tid]++;
+
       offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
     }
 
@@ -797,23 +889,34 @@ uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), 
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan end.\n", me, nprocs);
 
-  return 0;
+  // sum KV count
+  uint64_t count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  return count;
 }
 
 /*
- * add a KV to this MR
- *  always invoked in mymap or myreduce function 
- *  must support multi-threads
+ * add a KV (invoked in user-defined map or reduce functions) 
+ *  argument:
+ *   key:        key 
+ *   keybytes:   keysize
+ *   value:      value
+ *   valuebytes: valuesize
  */
-int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
-  if(data->getDatatype() != KVType)
+void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
+  if(!data || data->getDatatype() != KVType){
     LOG_ERROR("%s", "Error: add function only can be used to generate KV object!\n");
+  }
 
-  KeyValue *kv = (KeyValue*)data;
+  if(mode == NoneMode){
+    LOG_ERROR("%s", "Error: add function only can be invoked in user-defined map and reduce functions\n");
+  }
+
   int tid = omp_get_thread_num();
  
   // invoked in map function
-  if(addtype == 0){
+  if(mode == MapMode){
 
     // get target process
     uint32_t hid = 0;
@@ -824,14 +927,20 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
       target = hid % (uint32_t)nprocs;
     }
 
-    //printf("sendKV: tid=%d, target=%d\n", tid, target);
-    
+    // send KV    
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
 
     nitems[tid]++;
  
+    return;
+   }
+
   // invoked in map_local or reduce function
-  }else if(addtype == 1 || addtype == 2){
+  if(mode == MapLocalMode || mode == ReduceMode){
+    
+    // add KV into data object 
+    KeyValue *kv = (KeyValue*)data;
+
     if(blocks[tid] == -1){
       blocks[tid] = kv->addblock();
     }
@@ -845,20 +954,17 @@ int MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     }
 
     kv->releaseblock(blocks[tid]);
-    
     nitems[tid]++;
- 
-  }else{
-    LOG_ERROR("%s", "Error: add function can only be invoked in user-defined map or reduce function\n");
   }
 
-  return 0;
+  return;
 }
 
 /*
  * Output data in this object
- *   fp: file pointer
- *   format: 0 for csv
+ *  type: 0 for string, 1 for int, 2 for int64_t
+ *  fp:     file pointer
+ *  format: hasn't been used
  */
 void MapReduce::output(int type, FILE* fp, int format){
   if(data){
@@ -871,6 +977,7 @@ void MapReduce::output(int type, FILE* fp, int format){
 // private function
 /*****************************************************************************/
 
+// process init
 void MapReduce::init(){
   blocksize = BLOCK_SIZE;
   nmaxblock = MAX_BLOCKS;
@@ -886,6 +993,13 @@ void MapReduce::init(){
   myhash = NULL;
 }
 
+// thread init
+void MapReduce::tinit(int tid){
+  blocks[tid] = -1;
+  nitems[tid] = 0;
+}
+
+// distribute input file list
 void MapReduce::disinputfiles(const char *filepath, int sharedflag, int recurse){
   getinputfiles(filepath, sharedflag, recurse);
 
@@ -949,6 +1063,7 @@ void MapReduce::disinputfiles(const char *filepath, int sharedflag, int recurse)
   }
 }
 
+// get input file list
 void MapReduce::getinputfiles(const char *filepath, int sharedflag, int recurse){
   // if shared, only process 0 read file names
   if(!sharedflag || (sharedflag && me == 0)){
@@ -988,8 +1103,3 @@ void MapReduce::getinputfiles(const char *filepath, int sharedflag, int recurse)
   }  
 }
 
-void MapReduce::sumcount(uint64_t &count, uint64_t &sum){
-  for(int i = 0; i < tnum; i++) count += nitems[i];
-
-  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
-}

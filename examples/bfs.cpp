@@ -114,6 +114,9 @@ int main(int narg, char **args)
   // set hash function
   mr->sethash(mypartition_str);
 
+  mr->setGlobalbufsize(16);
+  mr->setBlocksize(16);
+
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
 
   // make graph
@@ -182,6 +185,7 @@ int main(int narg, char **args)
     if(me==0)
       fprintf(stdout, "Traversal %d start. (root=%ld)\n", index, visit_roots[index]);
 
+    double map_t=0.0, convert_t=0.0, reduce_t=0.0;
     double start_t = MPI_Wtime();  
 
     // set root vertex
@@ -200,20 +204,36 @@ int main(int narg, char **args)
 
     int level = 0;
     do{
+      printf("begin convert:\n");
+
+      double t1 = MPI_Wtime();
       mr->convert();
+      double t2 = MPI_Wtime();
 
       //printf("convert:\n");
       //mr->output(2);
 
+      printf("begin reduce:\n");
       mr->setKVtype(2, ksize, 0);
       mr->reduce(shrink, &st);
+
+      double t3 = MPI_Wtime();
       
       //printf("reduce:\n");
-      //mr->output(2);
+      mr->output(2);
 
+      printf("begin map:\n");
       mr->setKVtype(2, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &st);
- 
+
+      //fprintf(stdout, "")
+
+      double t4 = MPI_Wtime();
+
+      map_t += (t4-t3);
+      convert_t += (t2-t1);
+      reduce_t += (t3-t2);
+
       //printf("map:\n");
       //mr->output(2);
 
@@ -234,7 +254,7 @@ int main(int narg, char **args)
         fprintf(rf, "%d\n", nactives[k]);
       }
       fprintf(rf, "\n");
-      fprintf(stdout, "Traversal %d end. (time=%g s)\n", index, stop_t-start_t);
+      fprintf(stdout, "Traversal %d end. (time=%g s %g %g %g)\n", index, stop_t-start_t, map_t, convert_t, reduce_t);
     }
   }
   MPI_Barrier(MPI_COMM_WORLD);

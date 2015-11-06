@@ -90,6 +90,7 @@ void Communicator::init(DataObject *_data){
   for(int i = 0; i < tnum; i++) blocks[i] = -1;
 }
 
+
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   switchflag = 0;
 
@@ -184,6 +185,7 @@ void Alltoall::init(DataObject *_data){
  *   valsize: value size
  */
 int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){ 
+
   int kvsize = 0;
   if(kvtype == 0) kvsize = keysize+valsize;
   else if(kvtype == 1) kvsize = keysize+valsize+sizeof(int)*2;

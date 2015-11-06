@@ -4,11 +4,11 @@
 // memory
 #define UNIT_SIZE   1024*1024
 
-#define BLOCK_SIZE         4
-#define MAX_BLOCKS       128
-#define MAXMEM_SIZE      128
+#define BLOCK_SIZE         8
+#define MAX_BLOCKS      1024
+#define MAXMEM_SIZE     1024
 #define LOCAL_BUF_SIZE     1
-#define GLOBAL_BUF_SIZE    2
+#define GLOBAL_BUF_SIZE    4
 
 // README
 // LOCAL_BUF_SIZE <= GLOBAL_BUF_SIZE <= BLOCK_SIZE

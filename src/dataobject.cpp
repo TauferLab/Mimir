@@ -17,6 +17,7 @@ DataObject::DataObject(
   int _maxmemsize,
   int _outofcore,
   std::string _filename){
+
   datatype = _datatype;
 
   blocksize = _blocksize * UNIT_SIZE;
@@ -61,8 +62,10 @@ DataObject::~DataObject(){
  * find a buffer which can bu used
  */
 int DataObject::findbuffer(){
+  
   int i;
   for(i = 0; i < nbuf; i++){
+    // this buffer can be 
     if(buffers[i].ref == 0){
       int blockid = buffers[i].blockid;
       if(blockid != -1){
@@ -100,26 +103,39 @@ int DataObject::findbuffer(){
  * acquire a block according to the blockid
  */
 int DataObject::acquireblock(int blockid){
-  if(blockid < nblock){
-    int bufferid = blocks[blockid].bufferid;
-    if(bufferid != -1){
-      buffers[bufferid].ref++;
-      return 0;
-    }
-    if(blocks[blockid].infile){
-      int i = findbuffer();
-      FILE *fp = fopen(filename.c_str(), "rb");
-      if(!fp) return -1;
-      fseek(fp, blocks[blockid].fileoff, SEEK_SET);
-      size_t ret = fread(buffers[i].buf, blocksize, 1, fp);
-      fclose(fp);
-      buffers[i].blockid = blockid;
-      buffers[i].ref = 1;
-      blocks[blockid].bufferid = i;
-      return 0;
-    }
-    return -1;
+  if(blockid < 0 || blockid > nblock){
+    LOG_ERROR("Warning: the block id %d isn't correct!\n", blockid);
   }
+  
+  // if the block will not be flushed into disk
+  if(!outofcore) return 0;
+
+  // the block is in the memory
+  int bufferid = blocks[blockid].bufferid;
+  if(bufferid != -1){
+    // FIXME: the buffer may be flushed into disk.
+    buffers[bufferid].ref++;
+    return 0;
+  }
+
+  // FIXME: out of core support
+  // the block is in the file
+  if(blocks[blockid].infile){
+    // find empty buffer
+    int i = findbuffer();
+    // read block
+    FILE *fp = fopen(filename.c_str(), "rb");
+    if(!fp) return -1;
+    fseek(fp, blocks[blockid].fileoff, SEEK_SET);
+    size_t ret = fread(buffers[i].buf, blocksize, 1, fp);
+    fclose(fp);
+    buffers[i].blockid = blockid;
+    buffers[i].ref = 1;
+    blocks[blockid].bufferid = i;
+    return 0;
+  }
+
+  LOG_ERROR("%s", "Error: acquire block error!\n");
   
   return -1;
 }
@@ -128,6 +144,9 @@ int DataObject::acquireblock(int blockid){
  * release a block according to block id
  */
 void DataObject::releaseblock(int blockid){
+  if(!outofcore) return;
+
+  // FIXME: out of core support
   int bufferid = blocks[blockid].bufferid;
   if(bufferid != -1){
     buffers[bufferid].ref--;
@@ -138,7 +157,6 @@ void DataObject::releaseblock(int blockid){
  * get block empty space
  */
 int DataObject::getblockspace(int blockid){
-  //LOG_PRINT(DBG_GEN, "get block space, id=%d, blocksize=%d, datasize=%d\n", blockid, blocksize, blocks[blockid].datasize);
   return (blocksize - blocks[blockid].datasize);
 }
 
@@ -153,47 +171,48 @@ int DataObject::getblocktail(int blockid){
  * add an empty block and return the block id
  */
 int DataObject::addblock(){
+  // add counter FOP
   int blockid = __sync_fetch_and_add(&nblock, 1);
-  if(blockid < maxblock){
-    if(blockid < maxbuf){
-      buffers[blockid].buf = (char*)malloc(blocksize);
-      buffers[blockid].blockid = blockid;
-      buffers[blockid].ref = 0;
-      nbuf++;
+
+  if(blockid >= maxblock){
+    LOG_ERROR("%s", "Error: block count is larger than max number!\n");
+    return -1;
+  }
+
+  // has enough buffer
+  if(blockid < maxbuf){
+    buffers[blockid].buf = (char*)malloc(blocksize);
+    buffers[blockid].blockid = blockid;
+    buffers[blockid].ref = 0;
+    nbuf++;
+      
+    blocks[blockid].datasize = 0;
+    blocks[blockid].bufferid = blockid;
+    blocks[blockid].infile = 0;
+    blocks[blockid].fileoff = 0;
+
+    return blockid;
+  }else{
+    // FIXME: out of core support
+    if(outofcore){
+      int i = findbuffer();
+      if(i == -1){
+        printf("Error: cannot find empty buffer!\n");
+        return -1;
+      }
+      buffers[i].blockid = blockid;
+      buffers[i].ref     = 0;
       blocks[blockid].datasize = 0;
-      blocks[blockid].bufferid = blockid;
+      blocks[blockid].bufferid = i;
       blocks[blockid].infile = 0;
       blocks[blockid].fileoff = 0;
 
-      //LOG_PRINT(DBG_GEN, "DataObejct: add block.(blockid=%d)\n", blockid);
-
       return blockid;
-    }else{
-      if(outofcore){
-        int i = findbuffer();
-        if(i == -1){
-          printf("Error: cannot find empty buffer!\n");
-          return -1;
-        }
-        buffers[i].blockid = blockid;
-        buffers[i].ref     = 0;
-        blocks[blockid].datasize = 0;
-        blocks[blockid].bufferid = i;
-        blocks[blockid].infile = 0;
-        blocks[blockid].fileoff = 0;
-
-        return blockid;
-      }else{
-        printf("Error: exceeds the max memory size!\n");
-        return -1;
-      }
     }
   }
 
-  //printf("blockid=%d, nblock=%d, maxblock=%d\n", blockid, nblock, maxblock);
-  LOG_ERROR("Error: block count exceeds max limit. (maxblock=%d)\n", maxblock);
+  LOG_ERROR("%s", "Error: memory size is larger than max size!\n");
   return -1;
-
 }
 
 /*
@@ -215,26 +234,27 @@ int DataObject::addblock(char *data, int datasize){
   memcpy(buffers[bufferid].buf, data, datasize);
   blocks[blockid].datasize = datasize;
   releaseblock(blockid);
-
-  //LOG_PRINT(DBG_DATA, "DataObejct: add data into block.(blockid=%d, datasize=%d)\n", blockid, datasize);
 }
 
-
+/*
+ * add data into the block with blockid
+ *  return 0 if success, -1 is failed
+ */
 int DataObject::adddata(int blockid, char *data, int datasize){
   if(datasize > blocksize){
     LOG_ERROR("Error: data size is larger than block size. (data size=%d, block size=%d)\n", datasize, blocksize);
   }
  
+  // this block doesn't have enough space
   if(blocks[blockid].datasize + datasize > blocksize){
     return -1;
   }
+  
+  // copy data
   int bufferid = blocks[blockid].bufferid;
   memcpy(buffers[bufferid].buf+blocks[blockid].datasize, data, datasize);
   blocks[blockid].datasize += datasize;
 
-  //printf("add data: datasize=%d, total datasize=%d\n", datasize, blocks[blockid].datasize);
-
-  //LOG_PRINT(DBG_DATA, "DataObject: add data into block %d\n", blockid);
   return 0;
 }
 
@@ -243,6 +263,12 @@ int DataObject::adddata(int blockid, char *data, int datasize){
  */
 int DataObject::getbytes(int blockid, int offset, char **ptr){
   int bufferid = blocks[blockid].bufferid;
+
+  if(offset > blocks[blockid].datasize){
+    LOG_ERROR("%s", "Error: block offset is larger than block size!\n");
+    return -1;
+  }
+
   *ptr = buffers[bufferid].buf + offset;
   return 0;
 }
@@ -251,10 +277,18 @@ int DataObject::getbytes(int blockid, int offset, char **ptr){
  * add bytes into a block
  */
 int DataObject::addbytes(int blockid, char *buf, int len){
+
   int bufferid = blocks[blockid].bufferid;
   char *blockbuf = buffers[bufferid].buf;
+
+  if(len + blocks[blockid].datasize > blocksize){
+    LOG_ERROR("%s", "Error: added data is larger than block size!\n");
+    return -1;
+  }
+
   memcpy(blockbuf+blocks[blockid].datasize, buf, len);
   blocks[blockid].datasize += len;
+
   return blocks[blockid].datasize;
 }
 

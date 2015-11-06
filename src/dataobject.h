@@ -14,14 +14,9 @@ enum DataType{ByteType, KVType, KMVType};
 
 class DataObject{
 public:
-  int nitem;       // item count
   int nblock;      // block count
-  int blocksize;   // block size
-  int maxblock;    // max block
-  int maxmemsize;  // max memory size
 
   // interfaces  
-
   DataObject(DataType,
     int blocksize=1, 
     int maxblock=4, 
@@ -51,6 +46,7 @@ public:
   
   // get bytes from a block
   int getbytes(int, int, char **);
+
   // add bytes to a block
   int addbytes(int, char *, int);
 
@@ -85,14 +81,17 @@ protected:
 
   Block  *blocks;
   Buffer *buffers;
-  int     nbuf;  // current buffer number
+  int     nbuf;
   int     maxbuf;
 
-  std::string filename;
-  int outofcore;
+  int nitem;       // item count
+  int blocksize;   // block size
+  int maxblock;    // max block
+  int maxmemsize;  // max memory size
 
-  //Block   *headers;
-  //char    **blocks;
+  // out of core file name
+  std::string filename;
+  int outofcore;   // out of core
 };
  
 }
