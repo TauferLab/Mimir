@@ -108,6 +108,8 @@ int main(int narg, char **args)
 
   g->nlocalverts = g->nglobalverts / nprocs;
 
+  //printf("");
+
   // create mapreduce
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
@@ -115,7 +117,7 @@ int main(int narg, char **args)
   mr->sethash(mypartition_str);
 
   mr->setGlobalbufsize(16);
-  mr->setBlocksize(16);
+  mr->setBlocksize(64);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
 
@@ -123,7 +125,7 @@ int main(int narg, char **args)
   MPI_Barrier(MPI_COMM_WORLD);
 
   // read edge list
-  int nedges = mr->map(args[2],1,0,fileread,NULL);
+  int nedges = mr->map(args[2],1,0,fileread,&st);
   g->nglobaledges = nedges;
 
   // convert edge list to kmv
@@ -204,7 +206,7 @@ int main(int narg, char **args)
 
     int level = 0;
     do{
-      printf("begin convert:\n");
+      //printf("begin convert:\n");
 
       double t1 = MPI_Wtime();
       mr->convert();
@@ -213,18 +215,20 @@ int main(int narg, char **args)
       //printf("convert:\n");
       //mr->output(2);
 
-      printf("begin reduce:\n");
+     // printf("begin reduce:\n");
       mr->setKVtype(2, ksize, 0);
       mr->reduce(shrink, &st);
 
       double t3 = MPI_Wtime();
       
       //printf("reduce:\n");
-      mr->output(2);
+      //mr->output(2);
 
-      printf("begin map:\n");
+      //printf("begin map:\n");
       mr->setKVtype(2, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &st);
+
+      //printf("actives=%d\n", nactives[level]);
 
       //fprintf(stdout, "")
 
@@ -302,13 +306,13 @@ int main(int narg, char **args)
 }
 
 int mypartition_str(char *key, int keybytes){
-  int64_t v = atoi(key);
+  int64_t v = atoi(key) - 1;
 
   return v/(st.g.nlocalverts);
 }
 
 int mypartition_int(char *key, int keybytes){
-  int64_t v = *(int64_t*)key;
+  int64_t v = *(int64_t*)key; 
 
   return v/(st.g.nlocalverts);
 }
@@ -316,6 +320,8 @@ int mypartition_int(char *key, int keybytes){
 void fileread(MapReduce *mr, const char *fname, void *ptr){
   //int tid = omp_get_thread_num();
   //printf("%d input file=%s\n", tid, fname);
+  bfs_state *st = (bfs_state*)ptr;
+  csr_graph *g = &(st->g);
 
   struct stat stbuf;
   int flag = stat(fname,&stbuf);
@@ -353,6 +359,16 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
     val[0] = '\0';
     val = val +1;
 
+    if(atoi(v0)<=0 || atoi(v0) > g->nglobalverts){
+      fprintf(stderr, "Error: vertex %s is larger than max vertex index!\n", v0);
+      exit(1);
+    }
+
+    if(atoi(v1)<=0 || atoi(v1) > g->nglobalverts){
+      fprintf(stderr, "Error: vertex %s is larger than max vertex index!\n", v1);
+      exit(1);
+    }
+
     if(strcmp(v0, v1) == 0){
       line += linesize;
       continue;
@@ -377,13 +393,13 @@ void makegraph(MapReduce *mr, char *key, int keybytes, int nvalues,char *multiva
   char *value;
   int offset=0;
 
-  v0 = atoi(key);
+  v0 = atoi(key)-1;
   v0_local = v0 % (g->nlocalverts);
   
   // different threads handle different vertex
   for(int i = 0; i < nvalues;i++){
     value = multivalue+offset;
-    v1 = atoi(value);
+    v1 = atoi(value)-1;
     g->columns[g->rowstarts[v0_local]+g->rowinserts[v0_local]] = v1;
     g->rowinserts[v0_local]++;
     offset += valuebytes[i];
@@ -398,7 +414,7 @@ void countedge(char *key, int keybytes, int nval, char *multivalue, int *valueby
 
   g->nlocaledges += nval;
 
-  int64_t v0 = atoi(key);
+  int64_t v0 = atoi(key)-1;
   g->rowstarts[v0%(g->nlocalverts)+1] = nval;
 }
 

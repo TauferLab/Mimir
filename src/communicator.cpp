@@ -34,6 +34,7 @@ Communicator::~Communicator(){
   delete [] blocks;
 
   for(int i = 0; i < tnum; i++){
+    //printf("free: buffers[%d]=%p\n", i, local_buffers[i]);
     if(local_buffers && local_buffers[i]) free(local_buffers[i]);
     if(local_offsets && local_offsets[i]) free(local_offsets[i]);
   }
@@ -66,6 +67,9 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
   {
     int tid = omp_get_thread_num();
     local_buffers[tid] = (char*)malloc(size*lbufsize);
+
+    //printf("malloc: buffers[%d]=%p\n", tid, local_buffers[tid]);
+
     local_offsets[tid]   = (int*)malloc(size*sizeof(int));
     for(int i = 0; i < size; i++) local_offsets[tid][i] = 0;
   }
@@ -186,6 +190,14 @@ void Alltoall::init(DataObject *_data){
  */
 int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){ 
 
+  if(target < 0 || target >= size){
+    LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
+  }
+
+  if(tid < 0 || tid >= tnum){
+    LOG_ERROR("Error: thread num (%d) isn't correct!\n", tid);
+  }
+
   int kvsize = 0;
   if(kvtype == 0) kvsize = keysize+valsize;
   else if(kvtype == 1) kvsize = keysize+valsize+sizeof(int)*2;
@@ -246,15 +258,31 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     }else{
        // try to add the offset
       if(loff + off[target] <= gbufsize){
-        int goff = __sync_fetch_and_add(&off[target], loff);
+
+//#pragma omp critical
+//{
+//        goff = off[target];
+//        if(off[target] + loff <= gbufsize)
+//          off[target] += loff;
+//}
+        //printf("local=%d, global=%d\n", loff, off[target]);
+        int goff=0;
+        do{
+          goff = off[target];
+          if(goff + loff > gbufsize) break;
+          if(__sync_bool_compare_and_swap(&off[target], goff, goff+loff))
+            break;
+        }while(1);
+       // printf("global=%d\n", off[target]);
+        //int goff = __sync_fetch_and_add(&off[target], loff);
         // get global buffer successfully
         if(goff + loff <= gbufsize){
           memcpy(buf+target*gbufsize+goff, local_buffers[tid]+target*lbufsize, loff);
           local_offsets[tid][target] = 0;
         // global buffer is full, add back the offset
         }else{
-          int noff = 0-loff;
-          __sync_fetch_and_add(&off[target], noff);
+          //int noff = 0-loff;
+          //__sync_fetch_and_add(&off[target], noff);
           /* need wait flush */
 #pragma omp atomic
           switchflag++;
@@ -291,35 +319,46 @@ void Alltoall::twait(int tid){
       }
 #pragma omp barrier
     }
+    
+    int   loff = local_offsets[tid][i];
+    // skip empty buffer
+    if(loff == 0){
+      i++;
+      continue;
+    }
 
-    while(i < size){
-      
-      int   loff = local_offsets[tid][i];
-      // skip empty buffer
-      if(loff == 0){
-        i++;
-        continue;
-      }
+    // try to flush local buffer into global bufer
+    char *lbuf = local_buffers[tid]+i*lbufsize;
+      //int goff = __sync_fetch_and_add(&off[i], loff);
 
-      // try to flush local buffer into global bufer
-      char *lbuf = local_buffers[tid]+i*lbufsize;
-      int goff = __sync_fetch_and_add(&off[i], loff);
+//      int goff;
+//#pragma omp critical
+//{
+//      goff = off[target];
+//      if(off[target] + loff <= gbufsize)
+//        off[target] += loff;
+//}
+    int goff=0;
+    do{
+      goff = off[i];
+      if(goff + loff > gbufsize) break;
+      if(__sync_bool_compare_and_swap(&off[i], goff, goff+loff))
+         break;
+     }while(1);
 
-      // copy data to global buffer
-      if(goff+loff<=gbufsize){
-        memcpy(buf+i*gbufsize+goff, lbuf, loff);
-        local_offsets[tid][i] = 0;
-        i++;
-        continue;
+     // copy data to global buffer
+     if(goff+loff<=gbufsize){
+       memcpy(buf+i*gbufsize+goff, lbuf, loff);
+       local_offsets[tid][i] = 0;
+       i++;
+       continue;
       // need flush global buffer firstly
-      }else{
-        int noff = 0-loff;
-        __sync_fetch_and_add(&off[i], noff);
+     }else{
+        //int noff = 0-loff;
+        //__sync_fetch_and_add(&off[i], noff);
 #pragma omp atomic
-        switchflag++;
-        break;
-      }
-    } // end i<size
+       switchflag++;
+     }
   } // end i <size
  
   // add tdone counter

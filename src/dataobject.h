@@ -43,6 +43,10 @@ public:
 
   // get offset of block tail
   int getblocktail(int);
+
+  int getblocksize(){
+    return blocksize;
+  }
   
   // get bytes from a block
   int getbytes(int, int, char **);

@@ -182,6 +182,10 @@ int DataObject::addblock(){
   // has enough buffer
   if(blockid < maxbuf){
     buffers[blockid].buf = (char*)malloc(blocksize);
+    if(!buffers[blockid].buf){
+      LOG_ERROR("Error: malloc memory for data object failed (block count=%d, block size=%d)!\n", nblock, blocksize);
+      return -1;
+    }
     buffers[blockid].blockid = blockid;
     buffers[blockid].ref = 0;
     nbuf++;
@@ -282,7 +286,7 @@ int DataObject::addbytes(int blockid, char *buf, int len){
   char *blockbuf = buffers[bufferid].buf;
 
   if(len + blocks[blockid].datasize > blocksize){
-    LOG_ERROR("%s", "Error: added data is larger than block size!\n");
+    LOG_ERROR("Error: added data (%d) is larger than block size (blockid=%d, tail=%d, blocksize=%d)!\n", len, blockid, blocks[blockid].datasize, blocksize);
     return -1;
   }
 

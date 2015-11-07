@@ -44,6 +44,7 @@ protected:
   // received data added into this object
   int *blocks;
   DataObject *data;
+
   // kv type
   int kvtype, ksize, vsize;
 
@@ -88,7 +89,7 @@ private:
   int  *off;
 
   // used for MPI_Ialltoall
-  int *send_displs;
+  int *send_displs;   
   int *recv_count;
   int *recv_displs;
   char **recv_buf;     

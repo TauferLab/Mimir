@@ -446,6 +446,7 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   mode = MapMode;
 
+  //printf("begin parallel\n");
 
   KeyValue *inputkv = (KeyValue*)data;
 #pragma omp parallel
@@ -477,10 +478,15 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   c->twait(tid);
 }
+  //printf("end parallel\n");
+
   c->wait();
 
+
+  //printf("begin delete\n");
   // delete data object
-  delete data;
+  delete inputkv;
+  //printf("end delete\n");
 
   // delete communicator
   delete c;
@@ -494,7 +500,7 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
 
-   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum); 
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum); 
 
   return sum;
 }
@@ -560,7 +566,7 @@ uint64_t MapReduce::map_local(MapReduce *mr,
   }
 }
 
-  delete data;
+  delete inputkv;
 
   mode = NoneMode;
 
@@ -686,10 +692,20 @@ uint64_t MapReduce::convert(){
        // merge all values together
        int bytes = sizeof(int)*(u->cur_nval) + (u->cur_size);
 
+       //printf("local merge [%d] bytes=%d, cur_nval=%d, blockid=%d, tail=%d, remain=%d\n", tid, bytes, u->cur_nval, blockid, tmpdata->getblocktail(blockid), tmpdata->getblockspace(blockid));
+
+       // FIXME: how to handle this situtation?
+       if(bytes > tmpdata->getblocksize()){
+         LOG_ERROR("Error: KVM size (%d) is larger than block size (%d)\n", bytes, tmpdata->getblocksize());
+       }
+
        // if the block is full, add another block 
        if(tmpdata->getblockspace(blockid) < bytes){
+          //printf("haha\n");
           tmpdata->releaseblock(blockid);
           blockid = tmpdata->addblock();
+          //if(tmpdata->getblockspace(blockid) < bytes){
+          //}
           tmpdata->acquireblock(blockid);
         }
         // add sizes
@@ -734,6 +750,13 @@ uint64_t MapReduce::convert(){
       }
 
       int bytes = sizeof(int)+(u->keybytes)+(u->nval+1)*sizeof(int)+(u->size);
+
+      //printf("global merge [%d] bytes=%d, blockid=%d, remain=%d\n", tid,  bytes, blockid, kmv->getblockspace(blockid));
+
+       if(bytes > kmv->getblocksize()){
+         LOG_ERROR("Error: KVM size (%d) is larger than block size (%d)\n", bytes, kmv->getblocksize());
+       }
+
 
       if(kmv->getblockspace(blockid) < bytes){
         kmv->releaseblock(blockid);
@@ -921,7 +944,10 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     // get target process
     uint32_t hid = 0;
     int target = 0;
-    if(myhash != NULL) target=myhash(key, keybytes);
+    if(myhash != NULL){
+      target=myhash(key, keybytes);
+      //if(target == 1) printf("key=%s\n", key);
+    }
     else{
       hid = hashlittle(key, keybytes, nprocs);
       target = hid % (uint32_t)nprocs;
