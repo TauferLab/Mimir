@@ -34,6 +34,7 @@ void rootvisit(MapReduce *, void *);
 void expand(MapReduce *, char *, int, char *, int, void *);
 // shrink vertex
 void shrink(MapReduce *, char *, int, int, char *, int *,void *);
+void shrink_mm(MapReduce *, char *, int, char *, int,void *);
 
 // CSR graph
 typedef struct _csr_graph{
@@ -74,7 +75,11 @@ FILE *rf=NULL;
 
 int main(int narg, char **args)
 {
-  MPI_Init(&narg, &args);
+  int provided;
+  MPI_Init_thread(&narg, &args, MPI_THREAD_FUNNELED, &provided);
+  if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
+
+//  MPI_Init(&narg, &args);
 
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -209,6 +214,8 @@ int main(int narg, char **args)
       //printf("begin convert:\n");
 
       double t1 = MPI_Wtime();
+
+#ifndef BFS_MM
       mr->convert();
       double t2 = MPI_Wtime();
 
@@ -218,6 +225,11 @@ int main(int narg, char **args)
      // printf("begin reduce:\n");
       mr->setKVtype(2, ksize, 0);
       mr->reduce(shrink, &st);
+#else
+      double t2 = MPI_Wtime();
+      mr->setKVtype(2, ksize, 0);
+      mr->map(mr, shrink_mm, &st);
+#endif
 
       double t3 = MPI_Wtime();
       
@@ -460,6 +472,24 @@ void shrink(MapReduce *mr, char *key, int keybytes, int nvaluse, char *multivalu
   int64_t v_local = v % (g->nlocalverts);
 
   int64_t v0 = *(int64_t*)multivalue;
+ 
+  if(!TEST_VISITED(v_local, st->vis)){  
+    if(SET_VISITED(v_local, st->vis)==0){
+      //printf("%ld\n", v);
+      st->pred[v_local] = v0;
+      mr->add(key, keybytes, NULL, 0);
+    }
+  }
+}
+
+void shrink_mm(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,void *ptr){
+  bfs_state *st = (bfs_state*)ptr;
+  csr_graph *g = &(st->g);
+
+  int64_t v = *(int64_t*)key;
+  int64_t v_local = v % (g->nlocalverts);
+
+  int64_t v0 = *(int64_t*)value;
  
   if(!TEST_VISITED(v_local, st->vis)){  
     if(SET_VISITED(v_local, st->vis)==0){

@@ -1,6 +1,8 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include <mpi.h>
+
 #define _DEBUG
 
 #define DBG_GEN     1
@@ -33,7 +35,7 @@
 #define LOG_ERROR(format,...) \
   {\
     fprintf(stderr, format, __VA_ARGS__);\
-    exit(1);\
+    MPI_Abort(MPI_COMM_WORLD, 1);\
   };
 
 #endif

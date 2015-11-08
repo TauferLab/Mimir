@@ -8,6 +8,7 @@
 using namespace MAPREDUCE_NS;
 
 Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
+
   comm = _comm;
   commtype = _commtype;
   tnum = _tnum;
@@ -96,13 +97,20 @@ void Communicator::init(DataObject *_data){
 
 
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
+  int provided;
+  MPI_Query_thread(&provided);
+  if(provided < MPI_THREAD_FUNNELED){
+    LOG_ERROR("%s", "Error: MPI_THREAD_FUNNELED mode should be supported!\n");
+  }
+
   switchflag = 0;
 
   ibuf = 0;
   buf = NULL;
   off = NULL;
 
-  send_displs = recv_count = recv_displs = NULL;
+  recv_count = NULL;
+  send_displs = recv_displs = NULL;
 
   recv_buf = NULL;
   recvcounts = NULL;
@@ -116,14 +124,15 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
 Alltoall::~Alltoall(){
   for(int i = 0; i < nbuf; i++){
     if(recv_buf && recv_buf[i]) free(recv_buf[i]);
+    if(recv_count && recv_count[i]) free(recv_count[i]);
   }
 
+  if(recv_count) delete [] recv_count;
   if(recv_buf) delete [] recv_buf;
 
   if(send_displs) delete [] send_displs;
   if(recv_displs) delete [] recv_displs;
-  if(recv_count) delete [] recv_count;
-
+  
   if(recvcounts) delete [] recvcounts;
 
   if(reqs) delete [] reqs;
@@ -142,13 +151,14 @@ int Alltoall::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _
   Communicator::setup(_lbufsize, _gbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
   recv_buf = new char*[nbuf];
+  recv_count  = new int*[nbuf];
 
   for(int i = 0; i < nbuf; i++){
     recv_buf[i] = (char*)malloc(size*gbufsize);
+    recv_count[i] = (int*)malloc(size*sizeof(int));
   }
 
   send_displs = new int[size];
-  recv_count  = new int[size];
   recv_displs = new int[size];
 
   reqs = new MPI_Request[nbuf];
@@ -266,13 +276,15 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 //          off[target] += loff;
 //}
         //printf("local=%d, global=%d\n", loff, off[target]);
-        int goff=0;
-        do{
-          goff = off[target];
-          if(goff + loff > gbufsize) break;
-          if(__sync_bool_compare_and_swap(&off[target], goff, goff+loff))
-            break;
-        }while(1);
+        int goff=fetch_and_add_with_max(&off[target], loff, gbufsize);
+   
+        //int goff=0;
+        //do{
+        //  goff = off[target];
+        //  if(goff + loff > gbufsize) break;
+        //  if(__sync_bool_compare_and_swap(&off[target], goff, goff+loff))
+        //    break;
+        //}while(1);
        // printf("global=%d\n", off[target]);
         //int goff = __sync_fetch_and_add(&off[target], loff);
         // get global buffer successfully
@@ -338,13 +350,7 @@ void Alltoall::twait(int tid){
 //      if(off[target] + loff <= gbufsize)
 //        off[target] += loff;
 //}
-    int goff=0;
-    do{
-      goff = off[i];
-      if(goff + loff > gbufsize) break;
-      if(__sync_bool_compare_and_swap(&off[i], goff, goff+loff))
-         break;
-     }while(1);
+    int goff=fetch_and_add_with_max(&off[i], loff, gbufsize);
 
      // copy data to global buffer
      if(goff+loff<=gbufsize){
@@ -402,21 +408,7 @@ void Alltoall::wait(){
        int recvcount = recvcounts[i];
 
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);      
-       if(recvcount > 0){
-         if(blocks[0] == -1){
-           blocks[0] = data->addblock();
-         }
-
-         data->acquireblock(blocks[0]);
-
-         while(data->adddata(blocks[0], recv_buf[i], recvcount) == -1){
-           data->releaseblock(blocks[0]);
-           blocks[0] = data->addblock();
-           data->acquireblock(blocks[0]);
-         }
-
-         data->releaseblock(blocks[0]);
-       }
+       if(recvcount > 0) save_data(i);
      }
    }
 
@@ -431,19 +423,19 @@ void Alltoall::exchange_kv(){
   int sendcount=0;
   for(i=0; i<size; i++) sendcount += off[i];
   // exchange send count
-  MPI_Alltoall(off, 1, MPI_INT, recv_count, 1, MPI_INT, comm);
+  MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
   for(i = 0; i < size; i++) send_displs[i] = i*gbufsize;
 
-  recvcounts[ibuf] = recv_count[0];
+  recvcounts[ibuf] = recv_count[ibuf][0];
   recv_displs[0] = 0;
   for(i = 1; i < size; i++){
-    recv_displs[i] = recv_count[i-1] + recv_displs[i-1];
-    recvcounts[ibuf] += recv_count[i];
+    recv_displs[i] = recv_count[ibuf][i-1] + recv_displs[i-1];
+    recvcounts[ibuf] += recv_count[ibuf][i];
   }
 
   // exchange kv data
-  MPI_Ialltoallv(buf, off, send_displs, MPI_BYTE, recv_buf[ibuf], recv_count, recv_displs,MPI_BYTE, comm,  &reqs[ibuf]);
+  MPI_Ialltoallv(buf, off, send_displs, MPI_BYTE, recv_buf[ibuf], recv_count[ibuf], recv_displs,MPI_BYTE, comm,  &reqs[ibuf]);
 
   //printf("send ibuf=%d, send count=%d\n", ibuf, sendcount);  
 
@@ -458,25 +450,7 @@ void Alltoall::exchange_kv(){
     //printf("recv ibuf=%d, recv count=%d\n", ibuf, recvcount); 
 
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);
-    if(recvcount > 0){
-      //data->addblock(recv_buf[ibuf], recvcount);
-      if(blocks[0] == -1){
-        blocks[0] = data->addblock();
-      }
-
-      data->acquireblock(blocks[0]);
-
-      while(data->adddata(blocks[0], recv_buf[ibuf], recvcount) == -1){
-        data->releaseblock(blocks[0]);
-        blocks[0] = data->addblock();
-        data->acquireblock(blocks[0]);
-      }
-
-      data->releaseblock(blocks[0]);
-
-      ///data->print();
-
-    }
+    if(recvcount > 0) save_data(ibuf);
   }
 
   // switch buffer
@@ -491,3 +465,182 @@ void Alltoall::exchange_kv(){
   //printf("exchange kv end\n");
 }
 
+
+void Alltoall::save_data(int i){
+  if(blocks[0] == -1){
+    blocks[0] = data->addblock();
+  }
+
+  data->acquireblock(blocks[0]);
+
+  int offset=0;
+  for(int k = 0; k < size; k++){
+     if(recv_count[i][k] == 0) continue;
+     while(data->adddata(blocks[0], recv_buf[i]+offset, recv_count[i][k]) == -1){
+       data->releaseblock(blocks[0]);
+       blocks[0] = data->addblock();
+       data->acquireblock(blocks[0]);
+     }
+
+     offset += recv_count[i][k];
+  }
+
+  data->releaseblock(blocks[0]);
+}
+
+P2P::P2P(MPI_Comm _comm, int _tnum) : Communicator(_comm, 1, _tnum){
+  int provided;
+  MPI_Query_thread(&provided);
+  if(provided < MPI_THREAD_FUNNELED){
+    LOG_ERROR("%s", "Error: MPI_THREAD_FUNNELED mode should be supported!\n");
+  }
+
+  flags = NULL;
+  ibuf = NULL;
+  buf = NULL;
+  off = NULL;
+}
+
+P2P::~P2P(){
+  if(flags) delete [] flags;
+  if(ibuf)  delete [] ibuf;
+  if(buf)   delete [] buf;
+  if(off)   delete [] off;
+}
+
+int P2P::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
+  Communicator::setup(_lbufsize, _gbufsize, _kvtype, _ksize, _vsize, _nbuf);
+
+  flags = new int[size];
+  ibuf = new int[size];
+  buf = new char*[size];
+  off = new int*[size];
+
+  for(int i=0; i<size; i++){
+    flags[i] = 0;
+    ibuf[i]  = 0;
+    buf[i] = global_buffers[0]+gbufsize*i;
+    off[i] = &global_offsets[0][i];
+    *off[i] = 0;
+  }
+
+}
+
+void P2P::init(DataObject *){
+}
+
+int P2P::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){
+   if(target < 0 || target >= size){
+    LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
+  }
+
+  if(tid < 0 || tid >= tnum){
+    LOG_ERROR("Error: thread num (%d) isn't correct!\n", tid);
+  }
+
+  int kvsize = 0;
+  if(kvtype == 0) kvsize = keysize+valsize;
+  else if(kvtype == 1) kvsize = keysize+valsize+sizeof(int)*2;
+  else if(kvtype == 2) kvsize = keysize+valsize;
+  else LOG_ERROR("%s", "Error undefined kv type\n");
+
+  if(kvsize > lbufsize){
+    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, lbufsize);
+  }
+ 
+  /* copy kv into local buffer */
+  while(1){
+
+    int loff = local_offsets[tid][target];
+    // local buffer has space
+    if(loff + kvsize <= lbufsize){
+      if(kvtype == 0){
+        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
+        loff += keysize;
+        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
+        loff += valsize;
+     }else if(kvtype == 1){
+        memcpy(local_buffers[tid]+target*lbufsize+loff, (char*)&keysize, sizeof(int)); 
+        loff += sizeof(int);
+        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
+        loff += keysize;
+        memcpy(local_buffers[tid]+target*lbufsize+loff, (char*)&valsize, sizeof(int));
+        loff += sizeof(int);
+        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
+        loff += valsize;
+      }else if(kvtype == 2){
+        if(ksize != keysize || vsize != valsize){
+          LOG_ERROR("Error: key (%d) or val (%d) size mismatch for KV type 2\n", keysize, valsize);
+        }
+        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
+        loff += keysize;
+        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
+        loff += valsize;
+      }
+      else{
+        LOG_ERROR("%s", "Error undefined kv type\n");
+      }
+      local_offsets[tid][target] = loff;
+      break;
+    // local buffer is full
+    }else{
+       // make sure global buffer is ready
+      while(flags[target] != 0){
+        int flag;
+        MPI_Is_thread_main(&flag);
+        if(flag){
+          exchange_kv();  
+        }
+      }
+
+       // try to add the offset
+      if(loff + *off[target] <= gbufsize){
+        int goff=fetch_and_add_with_max(off[target], loff, gbufsize);
+        // get global buffer successfully
+        if(goff + loff <= gbufsize){
+          memcpy(buf[target]+goff, local_buffers[tid]+target*lbufsize, loff);
+          local_offsets[tid][target] = 0;
+        }else{
+          __sync_bool_compare_and_swap(&flags[target], 0, 1);
+        }
+      /* need wait flush */
+      }else{
+        __sync_bool_compare_and_swap(&flags[target], 0, 1);
+      }
+    }
+  }
+
+  // do communication
+  int flag;
+  MPI_Is_thread_main(&flag);
+  if(flag){
+    exchange_kv();  
+  }
+
+  return 0;
+}
+
+void P2P::twait(int tid){
+}
+
+void P2P::wait(){
+}
+
+void P2P::exchange_kv(){
+  int i;
+
+  for(i = 0; i  < size; i++){
+    if(flags[i] != 0){
+      int ib = ibuf[i];
+      MPI_Isend(buf[i], *off[i], MPI_BYTE, i, 0, comm, &reqs[i][ib]);
+      ib = (ib+1)%nbuf;
+      if(reqs[i][ib] != MPI_REQUEST_NULL){
+        MPI_Status st;
+        MPI_Wait(&reqs[i][ib], &st);
+        buf[i] = global_buffers[ib]+i*gbufsize;
+        off[i] = &global_offsets[ib][i];
+        
+      }
+    }
+  }  
+}

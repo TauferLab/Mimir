@@ -33,11 +33,11 @@ int main(int argc, char *argv[])
 
   mr->map(argv[1], 1, 0, fileread, NULL);
 
-  mr->output();
+  //mr->output();
 
   mr->convert();
 
-  mr->output();
+  //mr->output();
 
   mr->reduce(countword, NULL);
 

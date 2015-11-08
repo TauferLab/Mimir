@@ -28,6 +28,16 @@ public:
   virtual void wait() = 0;
 
 protected:
+  int fetch_and_add_with_max(int *counter, int adder, int maxnum){
+    int val=0;
+    do{
+      val = *counter;
+      if(val+adder>maxnum) break;
+      if(__sync_bool_compare_and_swap(counter, val, val+adder))
+        break;
+    }while(1);
+    return val;
+  }
 
   // communicator and thread information
   MPI_Comm comm;
@@ -80,6 +90,8 @@ private:
    // exchange kv buffer
   void exchange_kv();
 
+  void save_data(int);
+
    // data struct for type 0
   int switchflag;
 
@@ -90,11 +102,45 @@ private:
 
   // used for MPI_Ialltoall
   int *send_displs;   
-  int *recv_count;
   int *recv_displs;
+
+  int **recv_count;
   char **recv_buf;     
   int  *recvcounts; 
   MPI_Request *reqs;
+};
+
+class P2P : public Communicator{
+public:
+  P2P(MPI_Comm, int);
+  ~P2P();
+
+  // main thread
+  int setup(int, int, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
+
+  // main thread
+  void init(DataObject *);
+
+  // multi-thread
+  int sendKV(int, int, char *, int, char *, int);
+
+  // thread wait
+  void twait(int tid);
+
+  // process wait
+  void wait();
+
+private:
+  void exchange_kv();
+
+  int  *flags;
+  
+  int  *ibuf;
+
+  char **buf;
+  int  **off;
+
+  MPI_Request **reqs;
 };
 
 }
