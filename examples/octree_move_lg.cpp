@@ -16,12 +16,12 @@
 using namespace MAPREDUCE_NS;
 
 /*---------------functions definition----------------------------------------------------------*/
-void generate_octkey(MapReduce *, char *, char *, int *, char *, int *, int, void*);
+void generate_octkey(MapReduce *, char *, char *, int *, char *, int *, int);
 
 
 double slope(double[], double[], int); //function inside generate_octkey
 void explore_level(int, int, MapReduce * ); //explore the int level of the tree
-void gen_leveled_octkey(MapReduce *, char *, char *, int *, char *, int *, int, void*);
+void gen_leveled_octkey(MapReduce *, char *, char *, int *, char *, int *, int );
 uint32_t sum(MapReduce *, const char *, uint32_t, const char *, uint32_t, char * );
 
 
@@ -43,81 +43,102 @@ int level = 8; //level: explore this level of the oct-tree, used by main and gen
 
 int main(int argc, char **argv)
 {
-  int provided;
-  MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
-  if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
+        int provided;
+	MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
+	if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
+	MPI_Comm_rank(MPI_COMM_WORLD, &me);
+	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-  MPI_Comm_rank(MPI_COMM_WORLD, &me);
-  MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+	char *in_path = argv[1];
+	char *log_base = argv[2];
+	char *spill_base = argv[3];
+	char *out_base = argv[4];
+	thresh = atoi(argv[5]);
 
-  char *in_path = argv[1];
-  //char *log_base = argv[2];
-  //char *spill_base = argv[3];
-  //char *out_base = argv[4];
-  thresh = atoi(argv[2]);
+	char *in_file = new char[256];
+	sprintf(in_file, "%s/%d", in_path, me);
 
-  char *in_file = new char[256];
-  sprintf(in_file, "%s", in_path, me);
+	printf("P%d: in main, in path %s.\n", me, in_file);
 
-  printf("P%d: in main, in path %s.\n", me, in_file);	
-		
-  /*var initilization*/
-  int min_limit, max_limit; //level: explore this level of the oct-tree
-  min_limit=0;
-  max_limit=digits+1;
-  level=floor((max_limit+min_limit)/2);
+	//////////
+	
+	
+	/*var initilization*/
+	int min_limit, max_limit; //level: explore this level of the oct-tree
+	min_limit=0;
+	max_limit=digits+1;
+	level=floor((max_limit+min_limit)/2);
+	
+	
+	/*map: (1) compute octey for each ligand; (2) based on the level to explore x,  partial count of each ocatant (3) output octant id, and partial counts*/
+	MapReduce *mr = new MapReduce(MPI_COMM_WORLD, log_base, spill_base, out_base);
+	//unsigned long int size=2147483648L;
+	//printf("P%d: size is: %lu.\n", me, size);
+	mr->set_in_buffer_size(32*1024*1024);
+	mr->set_kv_buffer_size(16*1024*1024);
 
-  /*map: (1) compute octey for each ligand; (2) based on the level to explore x,  partial count of each ocatant (3) output octant id, and partial counts*/
-  MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-  //unsigned long int size=2147483648L;
-  //printf("P%d: size is: %lu.\n", me, size);
-  mr->set_in_buffer_size(32*1024*1024);
-  mr->set_kv_buffer_size(16*1024*1024);
+	printf("P%d, before map_local.\n",me);
+			/*
+		int: intput local or lustre
+		char *: input path
+		int: map read mode, word (1) or line (2)
+		int: map type
+			4 types of maps
+			1 - save kv chunk to file before comm + no combiner
+			2 - save kv chunk to file before comm + with combiner 
+			3 - no save kv chunk to file before comm + no combiner
+			4 - no save kv chunk to file before comm + with combiner
+		char *: log path
+		char *: spill path
+		char *: out path
+		*/
+	char map_local_spillpath[2048];
+	sprintf(map_local_spillpath,"%s/%s_%d",spill_base, "spill", me);
+	printf("P%d, spill path: %s.\n", me, map_local_spillpath);
 
-  printf("P%d, before map_local.\n",me);
+	uint64_t nwords = mr->map_local(0, in_file, 2,2, log_base,
+		map_local_spillpath, out_base, generate_octkey);
+	printf("P%d, after map_local.\n",me);
 
-  //char map_local_spillpath[2048];
-  //sprintf(map_local_spillpath,"%s/%s_%d",spill_base, "spill", me);
-  //printf("P%d, spill path: %s.\n", me, map_local_spillpath);
+	/*map (at the end do the communication), so it has to pair with reduce
+	map: take first 5 dig of the octkey, emilt octkey[0--4], 1
+	reduce: sum all the 1s*/
 
-  uint64_t nwords = mr->map_local(in_file, 2,2, generate_octkey, NULL);
 
-  printf("P%d, after map_local.\n",me);
 
-  /*map (at the end do the communication), so it has to pair with reduce
-    map: take first 5 dig of the octkey, emilt octkey[0--4], 1
-    reduce: sum all the 1s*/
+	while ((min_limit+1) != max_limit){
 
-#if 0
-  while ((min_limit+1) != max_limit){
+		printf("P%d, before map, leve %d.\n",me, level );
 
-    printf("P%d, before map, leve %d.\n",me, level );
-    uint64_t nkeys = mr->map(map_local_spillpath, 1, 2, gen_leveled_octkey, NULL);
-    printf("P%d, after map.\n",me);
+		uint64_t nkeys = mr->map(0, map_local_spillpath, 1, 2, 
+				log_base, spill_base, out_base, gen_leveled_octkey);
+		printf("P%d, after map.\n",me);
 
-    printf("P%d, before reduce.\n", me);
-    uint64_t nkv = mr->reduce(1, sum);
-    printf("P%d, after reduce.\n", me);
+		printf("P%d, before reduce.\n", me);
 
-    if (nkv >0){
-      /*there exsit an octant that is dense enough, branch down the tree*/
-      printf("P%d, nkv is %d.\n",me, nkv);
-      min_limit=level;
-      level =  floor((max_limit+min_limit)/2);
-    }else{
-      /*there is no octant that is dense enough,
+		uint64_t nkv = mr->reduce(1, sum);
+		printf("P%d, after reduce.\n", me);
+
+		if (nkv >0){
+			/*there exsit an octant that is dense enough,
+			branch down the tree*/
+			printf("P%d, nkv is %d.\n",me, nkv);
+			min_limit=level;
+			level =  floor((max_limit+min_limit)/2);
+
+		}else{
+			/*there is no octant that is dense enough,
 			branch up*/
-      printf("P%d, nkv is 0...\n", me);
-      max_limit=level;
-      level =  floor((max_limit+min_limit)/2);
-    }
-  }
-#endif
+			printf("P%d, nkv is 0...\n", me);
+			max_limit=level;
+			level =  floor((max_limit+min_limit)/2);
+		}
+	}
 
-  delete [] in_file;
-  delete mr;
-
-  MPI_Finalize();	
+	delete [] in_file;
+	delete mr;
+	MPI_Finalize();
+	
 	
 }
 
@@ -169,7 +190,7 @@ uint32_t sum(MapReduce *mr, const char *key, uint32_t keysize, const char *mv,
 }
 
 
-void gen_leveled_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *value, int *vsize, int tid, void *ptr)
+void gen_leveled_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *value, int *vsize, int tid)
 {
 	/*std::string logf_map_t = mr->log_base + "/log_lg_p" + std::to_string(me)
 		+ "t"+std::to_string(tid);
@@ -190,19 +211,19 @@ void gen_leveled_octkey(MapReduce *mr, char *word, char *key, int *keysize, char
 	logf_map_t_of.close();*/
 }
 
-void generate_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *value, int *vsize, int tid, void* ptr)
+void generate_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *value, int *vsize, int tid)
 {
 	/*key code for wordcount, memcpy(to, from, len)*/
 	//*keysize = strlen(word);
 	//memcpy(key,word,(*keysize)+1);
 
-	//std::string logf_map_t = mr->log_base + "/log_lg_p" + std::to_string(me)
-	//	+ "t"+std::to_string(tid);
-	//std::ofstream logf_map_t_of;	
-	//logf_map_t_of.open(logf_map_t,  std::ofstream::out|std::ofstream::app);
+	std::string logf_map_t = mr->log_base + "/log_lg_p" + std::to_string(me)
+		+ "t"+std::to_string(tid);
+	std::ofstream logf_map_t_of;	
+	logf_map_t_of.open(logf_map_t,  std::ofstream::out|std::ofstream::app);
 
-	//logf_map_t_of<<"In generate_octkey, the word passed by lib is: "<<std::endl<<"|"
-	//	<<word<<"|."<<std::endl;
+	logf_map_t_of<<"In generate_octkey, the word passed by lib is: "<<std::endl<<"|"
+		<<word<<"|."<<std::endl;
 
 
 	double tmp=0, range_up=10.0, range_down=-10.0; //the upper and down limit of the range of slopes
@@ -217,15 +238,15 @@ void generate_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *v
 	word2[word_len]=' ';
 	word2[word_len+1]='\0';
 
-	//logf_map_t_of<<"The word2 is: "<<std::endl<<"|"<<word2<<"|."<<std::endl;
-	//logf_map_t_of<<"The length of word is: "<<strlen(word)<<". the length of word2 is: "<<strlen(word2)<<"."<<std::endl;
-	//logf_map_t_of<<"The const int word_len is: "<<word_len<<std::endl;
+	logf_map_t_of<<"The word2 is: "<<std::endl<<"|"<<word2<<"|."<<std::endl;
+	logf_map_t_of<<"The length of word is: "<<strlen(word)<<". the length of word2 is: "<<strlen(word2)<<"."<<std::endl;
+	logf_map_t_of<<"The const int word_len is: "<<word_len<<std::endl;
 
 	int num_coor=0;
 	//char *token = strtok(word2, " ");
 	char *saveptr;
 	char *token = strtok_r(word2, " ", &saveptr);
-	//logf_map_t_of<<"Before while, token: |"<<token<<"|."<<std::endl;
+	logf_map_t_of<<"Before while, token: |"<<token<<"|."<<std::endl;
 	memcpy(ligand_id,token,strlen(token));
 	while (token != NULL)
 	{
@@ -241,7 +262,7 @@ void generate_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *v
 
 		}
 	}
-	//logf_map_t_of<<"After while, num_coor: "<<num_coor<<std::endl;
+	logf_map_t_of<<"After while, num_coor: "<<num_coor<<std::endl;
 	/* actual x,y,z are from coords[1] to coords[num_coords-2] */
 	/*if (realdata){
 		const int num_atoms = (num_coor-2)/3;//1st: id, last 2: energy and rmsd
@@ -250,7 +271,7 @@ void generate_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *v
 	}*/
 	const int num_atoms = floor((num_coor-2)/3);
 	
-	//logf_map_t_of<<"The num_atoms is: "<<num_atoms<<std::endl;
+	logf_map_t_of<<"The num_atoms is: "<<num_atoms<<std::endl;
 	double x[num_atoms], y[num_atoms], z[num_atoms];
 	/*x,y,z double arries store the cooridnates of ligands */
 	for (int i=0; i!=(num_atoms); i++){
@@ -302,8 +323,8 @@ void generate_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *v
 	
 		++count;
 	}
-	//logf_map_t_of<<"The octkey is: |"<<octkey<<"|."<<std::endl;
-	//logf_map_t_of<<"The real octkey is: |"<<coords[num_coor - 1]<<"|."<<std::endl;
+	logf_map_t_of<<"The octkey is: |"<<octkey<<"|."<<std::endl;
+	logf_map_t_of<<"The real octkey is: |"<<coords[num_coor - 1]<<"|."<<std::endl;
 
 	if (realdata == false){
 	//use the real octkey from reading the line of synthetic dataset
@@ -311,9 +332,9 @@ void generate_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *v
 		//printf("from process: %d, the real octkey is: %s, the copied real octkey is: %s.\n", itask, real_key.c_str(), key);
 		//memcpy(key, (char *) &coords[num_coor - 1], digits);
 		double realkey = coords[num_coor - 1];
-		//logf_map_t_of<<"The realkey is: "<<realkey<<std::endl;
+		logf_map_t_of<<"The realkey is: "<<realkey<<std::endl;
 		sprintf(key, "%f", realkey);
-		//logf_map_t_of<<"The key is: "<<key<<std::endl;
+		logf_map_t_of<<"The key is: "<<key<<std::endl;
 		*keysize = digits;
 
 	}else{
@@ -325,7 +346,7 @@ void generate_octkey(MapReduce *mr, char *word, char *key, int *keysize, char *v
 	/*no value, set the vsize to -1, since in the lib, it +1 to account for the null*/
 	//char *myval ="1";
 	*vsize = -1;
-	//logf_map_t_of.close();
+	logf_map_t_of.close();
 
 }
 
@@ -352,3 +373,14 @@ double slope(double x[], double y[], int num_atoms){
 	return slope;
 	
 }
+
+
+
+
+
+
+
+
+
+
+

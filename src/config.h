@@ -6,7 +6,7 @@
 
 #define BLOCK_SIZE         8
 #define MAX_BLOCKS      1024
-#define MAXMEM_SIZE     1024
+#define MAXMEM_SIZE     4096
 #define LOCAL_BUF_SIZE     1
 #define GLOBAL_BUF_SIZE    4
 
