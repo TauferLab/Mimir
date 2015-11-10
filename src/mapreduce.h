@@ -39,10 +39,10 @@ public:
     uint64_t map(void (*mymap)(MapReduce *, void *), void *);
     uint64_t map_local(void (*mymap)(MapReduce *, void *), void*);
 
-    uint64_t map(char *, int, int, int, 
+    uint64_t map(char *, int, int, char *, 
       void (*mymap) (MapReduce *, char *, void *), void *);
 
-    uint64_t map_local(char *, int, int, int, 
+    uint64_t map_local(char *, int, int, char *, 
       void (*mymap) (MapReduce *, char *, void *), void *);
 
     uint64_t map(char *, int, int, 

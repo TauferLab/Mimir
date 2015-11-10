@@ -256,22 +256,127 @@ uint64_t MapReduce::map_local(void (*mymap)(MapReduce *, void *), void* ptr){
  *  global KV count
  */
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
-    int readmode, void (*mymap) (MapReduce *, char *, void *), void *ptr){
+    char *whitespace, void (*mymap) (MapReduce *, char *, void *), void *ptr){
 
-  LOG_ERROR("%s", "map (files as input, main thread reads files) has been implemented!\n");
+  //LOG_ERROR("%s", "map (files as input, main thread reads files) has been implemented!\n");
+  // create data object
+  if(data) delete data;
+  KeyValue *kv = new KeyValue(kvtype, 
+                              blocksize, 
+                              nmaxblock, 
+                              maxmemsize, 
+                              outofcore, 
+                              tmpfpath);
+  data=kv;
+  kv->setKVsize(ksize,vsize);
+
+  // create communicator
+  c = new Alltoall(comm, tnum);
+  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+  c->init(kv);
+
+  mode = MapMode;
+
+  if(strlen(whitespace) == 0){
+    LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
+  }
   
   // TODO: Finish it!!!!
   // distribute input files
   disinputfiles(filepath, sharedflag, recurse);
 
+  struct stat stbuf;
+
+  int input_buffer_size=BLOCK_SIZE*UNIT_SIZE;
+
+  char *text = new char[input_buffer_size+1];
+
   int fcount = ifiles.size();
   for(int i = 0; i < fcount; i++){
-    std::cout << me << ":" << ifiles[i] << std::endl;
+    //std::cout << me << ":" << ifiles[i] << std::endl;
+    int flag = stat(ifiles[i].c_str(), &stbuf);
+    if( flag < 0){
+      LOG_ERROR("Error: could not query file size of %s\n", ifiles[i].c_str());
+    }
+
+    FILE *fp = fopen(ifiles[i].c_str(), "r");
+    int fsize = stbuf.st_size;
+    int foff = 0, boff = 0;
+    while(fsize > 0){
+      // set file pointer
+      fseek(fp, foff, SEEK_SET);
+      // read a block
+      int readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
+      text[boff+readsize+1] = '\0';
+
+      // the last block
+      //if(boff+readsize < input_buffer_size) 
+      boff = 0;
+      while(!strchr(whitespace, text[input_buffer_size-boff])) boff++;
+
+#pragma omp parallel
+{
+      int tid = omp_get_thread_num();
+      tinit(tid);
+
+      int divisor = input_buffer_size / tnum;
+      int remain  = input_buffer_size % tnum;
+
+      int tstart = tid * divisor;
+      if(tid < remain) tstart += tid;
+      else tstart += remain;
+
+      int tend = tstart + divisor;
+      if(tid < remain) tend += 1;
+
+      if(tid == tnum-1) tend -= boff;
+
+      // start by the first none whitespace char
+      int i;
+      for(i = tstart; i < tend; i++){
+        if(!strchr(whitespace, text[i])) break;
+      }
+      tstart = i;
+      
+      // end by the first whitespace char
+      for(i = tend; i < input_buffer_size; i++){
+        if(strchr(whitespace, text[i])) break;
+      }
+      tend = i;
+      text[tend] = '\0';
+
+      char *saveptr = NULL;
+      char *word = strtok_r(text+tstart, whitespace, &saveptr);
+      while(word){
+        mymap(this, word, ptr);
+        word = strtok_r(NULL,whitespace,&saveptr);
+      }
+}
+
+      foff += readsize;
+      fsize -= readsize;
+      
+      for(int i =0; i < boff; i++) text[i] = text[input_buffer_size-boff+i];
+    }
+    
+    fclose(fp);
   }
 
-  mode = NoneMode;
- 
-  return 0; 
+  delete []  text;
+
+   mode = NoneMode;
+
+  // destroy communicator
+  delete c;
+  c = NULL;
+
+  // sum kv count
+  uint64_t sum = 0, count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+  return sum;
 }
 
 /*
@@ -279,8 +384,114 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
  */
 // TODO: finish it!!!
 uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
-    int readmode, void (*mymap)(MapReduce *, char *, void *), void *ptr){
-  return 0;
+    char *whitespace, void (*mymap)(MapReduce *, char *, void *), void *ptr){
+
+  if(strlen(whitespace) == 0){
+    LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
+  }
+
+  // create data object
+  if(data) delete data;
+  KeyValue *kv = new KeyValue(kvtype, 
+                              blocksize, 
+                              nmaxblock, 
+                              maxmemsize, 
+                              outofcore, 
+                              tmpfpath);
+  data=kv;
+  kv->setKVsize(ksize, vsize);
+  
+  // TODO: Finish it!!!!
+  // distribute input files
+  disinputfiles(filepath, sharedflag, recurse);
+
+  struct stat stbuf;
+
+  int input_buffer_size=BLOCK_SIZE*UNIT_SIZE;
+
+  char *text = new char[input_buffer_size+1];
+
+  mode = MapLocalMode;
+
+  int fcount = ifiles.size();
+  for(int i = 0; i < fcount; i++){
+    //std::cout << me << ":" << ifiles[i] << std::endl;
+    int flag = stat(ifiles[i].c_str(), &stbuf);
+    if( flag < 0){
+      LOG_ERROR("Error: could not query file size of %s\n", ifiles[i].c_str());
+    }
+
+    FILE *fp = fopen(ifiles[i].c_str(), "r");
+    int fsize = stbuf.st_size;
+    int foff = 0, boff = 0;
+    while(fsize > 0){
+      // set file pointer
+      fseek(fp, foff, SEEK_SET);
+      // read a block
+      int readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
+      text[boff+readsize+1] = '\0';
+
+      // the last block
+      //if(boff+readsize < input_buffer_size) 
+      boff = 0;
+      while(!strchr(whitespace, text[input_buffer_size-boff])) boff++;
+
+#pragma omp parallel
+{
+      int tid = omp_get_thread_num();
+      tinit(tid);
+
+      int divisor = input_buffer_size / tnum;
+      int remain  = input_buffer_size % tnum;
+
+      int tstart = tid * divisor;
+      if(tid < remain) tstart += tid;
+      else tstart += remain;
+
+      int tend = tstart + divisor;
+      if(tid < remain) tend += 1;
+
+      if(tid == tnum-1) tend -= boff;
+
+      // start by the first none whitespace char
+      int i;
+      for(i = tstart; i < tend; i++){
+        if(!strchr(whitespace, text[i])) break;
+      }
+      tstart = i;
+      
+      // end by the first whitespace char
+      for(i = tend; i < input_buffer_size; i++){
+        if(strchr(whitespace, text[i])) break;
+      }
+      tend = i;
+      text[tend] = '\0';
+
+      char *saveptr = NULL;
+      char *word = strtok_r(text+tstart, whitespace, &saveptr);
+      while(word){
+        mymap(this, word, ptr);
+        word = strtok_r(NULL,whitespace,&saveptr);
+      }
+}
+
+      foff += readsize;
+      fsize -= readsize;
+      
+      for(int i =0; i < boff; i++) text[i] = text[input_buffer_size-boff+i];
+    }
+    
+    fclose(fp);
+  }
+
+  delete []  text;
+
+  mode = NoneMode;
+
+  uint64_t count = 0; 
+  for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  return count;
 }
 
 /*
