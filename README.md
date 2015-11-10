@@ -22,16 +22,23 @@ $ make
 ### How to Run ###
 To run the wordcount benchmark:
 ```
-$ cd /path/to/benchmarks/bench_wc
-$ make
-$ mpiexec -n 2 -ppn 1 ./wordcount input_path log_path spill_path out_path
+$ cd /path/to/examples
+$ make wordcount
+$ mpiexec -n 2 -ppn 1 ./wordcount ./input_path
+```
+
+To run the bfs benchmark:
+```
+$ cd /path/to/examples
+$ make bfs
+$ mpiexec -n 2 -ppn 1 ./bfs N ./input_path
 ```
 
 To run the octree_lg benchmark:
 ```
-$ cd /path/to/benchmarks/bench_lg
-$ make
-$ mpiexec -n 2 -ppn 1 ./octree_lg input_path log_path spill_path out_path map_local_spill_path 500(density)
+$ cd /path/to/examples
+$ make ochre_move_lg
+$ mpiexec -n 2 -ppn 1 ./octree_move_lg input_path 500(density)
 ```
 
 # Related Projects #
