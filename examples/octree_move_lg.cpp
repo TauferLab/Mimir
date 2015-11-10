@@ -49,6 +49,7 @@ int main(int argc, char **argv)
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
   char *inpath = argv[1];
+  thresh = atoi(argv[2]);
 
   /*var initilization*/
   int min_limit, max_limit; //level: explore this level of the oct-tree
