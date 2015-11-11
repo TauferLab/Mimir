@@ -121,7 +121,7 @@ int main(int narg, char **args)
   // set hash function
   mr->sethash(mypartition_str);
 
-  mr->setGlobalbufsize(8);
+  mr->setGlobalbufsize(16);
   mr->setBlocksize(32);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
@@ -228,7 +228,7 @@ int main(int narg, char **args)
 #else
       double t2 = MPI_Wtime();
       mr->setKVtype(2, ksize, 0);
-      mr->map(mr, shrink_mm, &st);
+      mr->map_local(mr, shrink_mm, &st);
 #endif
 
       double t3 = MPI_Wtime();

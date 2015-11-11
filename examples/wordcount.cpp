@@ -31,11 +31,14 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
+  mr->setGlobalbufsize(16);
+  mr->setBlocksize(64);
+
   MPI_Barrier(MPI_COMM_WORLD);
 
   double t1 = MPI_Wtime();
 
-  uint64_t nword = mr->map(argv[1], 1, 0, fileread, NULL);
+  uint64_t nword = mr->map(argv[1], 0, 1, fileread, NULL);
 
   double t2 = MPI_Wtime();
 
@@ -88,6 +91,8 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
 
   io_t += (t2-t1);
 
+  //printf("text=%s\n", text);
+
   text[nchar] = '\0';
   fclose(fp);
 
@@ -95,7 +100,9 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   char whitespace[20] = " \t\n\f\r\0";
   char *word = strtok_r(text,whitespace,&saveptr);
   while (word) {
+    //printf("word=%s\n", word);
     char val[1]="";
+    //if(me==16) printf("word=%s\n", word);
     mr->add(word,strlen(word)+1,val,strlen(val)+1);
     word = strtok_r(NULL,whitespace,&saveptr);
   }

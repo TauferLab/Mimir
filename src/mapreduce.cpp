@@ -829,6 +829,9 @@ uint64_t MapReduce::convert(){
   ht.reserve(nbucket);
   for(int i = 0; i < nbucket; i++) ht.emplace_back();
 
+  double insert_t=0.0, compare_t=0.0, add_t=0.0, merge_t=0.0;
+  //double t1 = MPI_Wtime();
+
   // FIXME: should thread private object use the same configure as others?
   // create thread private data object
   DataObject *tmpdata = new DataObject(ByteType,
@@ -837,6 +840,8 @@ uint64_t MapReduce::convert(){
                                        maxmemsize, 
                                        outofcore, 
                                        tmpfpath); 
+
+  //printf("block count=%d\n", data->nblock);
 
   // scan all kvs to gain the thread kvs
   for(int i = 0; i < data->nblock; i++){
@@ -852,6 +857,8 @@ uint64_t MapReduce::convert(){
       // FIXME: is there any more efficient way to process the kvs?
       if(hid % (uint32_t)tnum == (uint32_t)tid){ 
 
+        //double t1 = MPI_Wtime();
+
         int ibucket = hid % nbucket;
         std::list<Unique>& ul = ht[ibucket];
         std::list<Unique>::iterator u;
@@ -866,6 +873,8 @@ uint64_t MapReduce::convert(){
             break;
           }
         }
+        //double t2 = MPI_Wtime();
+        //compare_t += (t2-t1);
         // add the key to the list
         if(u==ul.end()){          
           ul.emplace_back();
@@ -881,10 +890,15 @@ uint64_t MapReduce::convert(){
           ul.back().nval=0;
           ul.back().size=0;
         }
+
+        //insert_t += (MPI_Wtime()-t1);
+        //add_t += (MPI_Wtime()-t2);
       }
       
       offset = kv->getNextKV(i, offset, &key, keybytes, &value, valuebytes, &keyoff, &valoff);
     } // send scan kvs
+
+    //double t1 = MPI_Wtime();
 
     // merge the results in a single block
     int blockid = blocks[tid];
@@ -944,9 +958,13 @@ uint64_t MapReduce::convert(){
     }
     tmpdata->releaseblock(blockid);
     blocks[tid] = blockid;
+    
+    //merge_t += (MPI_Wtime() - t1);
 
     kv->releaseblock(i);
   }
+
+  //double t2 = MPI_Wtime();
 
   // merge kvs into kmv
   int blockid = -1;
@@ -999,6 +1017,10 @@ uint64_t MapReduce::convert(){
   if(blockid != -1) kmv->releaseblock(blockid);
 
   delete tmpdata;
+
+  //double t3 = MPI_Wtime();
+
+  //if(tid==0) {fprintf(stdout, "t2-t1=%g, t3-t2=%g, insert time=%g, compare_t=%g, add_t=%g, merge time=%g\n", t2-t1, t3-t2, insert_t, add_t, compare_t, merge_t);}
 } 
 
   // set new data

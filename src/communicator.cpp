@@ -83,6 +83,12 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
     global_offsets[i] = (int*)malloc(size*sizeof(int));
     for(int j = 0; j < size; j++) global_offsets[i][j] = 0;
   }
+
+  for(int i = 0; i < nbuf; i++){
+    if(!local_buffers[i] || !global_buffers[i]){
+      LOG_ERROR("%s", "Error: communication buffer is overflow!\n");
+    }
+  }
  
   return 0;
 }
@@ -200,6 +206,8 @@ void Alltoall::init(DataObject *_data){
  */
 int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){ 
 
+  //printf("rank=%d, tid=%d, target=%d\n", rank, tid,  target);
+
   if(target < 0 || target >= size){
     LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
   }
@@ -289,6 +297,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
         //int goff = __sync_fetch_and_add(&off[target], loff);
         // get global buffer successfully
         if(goff + loff <= gbufsize){
+          /*if(rank==16) *///fprintf(stderr, "%d: size=%d, target=%d, goff=%d, gbufsize=%d, loff=%d, lbufsize=%d\n", rank, size, target, goff, gbufsize, loff, lbufsize); 
           memcpy(buf+target*gbufsize+goff, local_buffers[tid]+target*lbufsize, loff);
           local_offsets[tid][target] = 0;
         // global buffer is full, add back the offset
