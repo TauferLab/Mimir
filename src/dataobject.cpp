@@ -181,14 +181,16 @@ int DataObject::addblock(){
 
   // has enough buffer
   if(blockid < maxbuf){
-    buffers[blockid].buf = (char*)malloc(blocksize);
+    if(buffers[blockid].buf == NULL){
+      buffers[blockid].buf = (char*)malloc(blocksize);
+      nbuf++;
+    }
     if(!buffers[blockid].buf){
       LOG_ERROR("Error: malloc memory for data object failed (block count=%d, block size=%d)!\n", nblock, blocksize);
       return -1;
     }
     buffers[blockid].blockid = blockid;
     buffers[blockid].ref = 0;
-    nbuf++;
       
     blocks[blockid].datasize = 0;
     blocks[blockid].bufferid = blockid;

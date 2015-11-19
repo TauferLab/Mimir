@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-  mr->setGlobalbufsize(16);
+  mr->setGlobalbufsize(8);
   mr->setBlocksize(64);
 
   MPI_Barrier(MPI_COMM_WORLD);
@@ -42,13 +42,13 @@ int main(int argc, char *argv[])
 
   double t2 = MPI_Wtime();
 
-  //mr->output();
+  mr->output();
 
   mr->convert();
 
-  double t3 = MPI_Wtime();
+  mr->output();
 
-  //mr->output();
+  double t3 = MPI_Wtime();
 
   mr->reduce(countword, NULL);
 

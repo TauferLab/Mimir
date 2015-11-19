@@ -17,14 +17,27 @@ public:
 
   ~KeyMultiValue();
 
+  int getKMVtype(){
+    return kmvtype;
+  }
+
+  void setKVsize(int _ksize, int _vsize){
+    ksize = _ksize;
+    vsize = _vsize;
+  }
+
   int getNextKMV(int, int, char **, int &, int &, char **, int **);
 
-  int addKMV(int,char*,int &,char *, int &, int*);
+  int addKMV(int,char*,int &,char *, int &, int &, int*);
+
+  //int convert(KeyValue *);
 
   void print(int type=0, FILE *fp=stdout, int format=0);
 
 private:
-  int kmvtype; // only 0 is used
+  int kmvtype;       // only 0 is used
+  int ksize, vsize; 
+
 };
 
 }

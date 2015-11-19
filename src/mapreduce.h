@@ -15,6 +15,8 @@
 #include "keymultivalue.h"
 #include "communicator.h"
 
+#include "spool.h"
+
 namespace MAPREDUCE_NS {
 
 enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
@@ -111,6 +113,38 @@ private:
     void tinit(int); // thread initialize
     void disinputfiles(const char *, int, int);
     void getinputfiles(const char *, int, int);
+
+    struct Block
+    {
+      uint64_t nvalue;
+      uint64_t mvbytes;
+      int      *soffset;
+      int      s_off;
+      char     *voffset;
+      int      v_off;
+      int      bid;
+      Block    *next;
+    };
+
+    struct Unique
+    {
+      char *key;              // key pointer
+      int  keybytes;          // key bytes
+      uint64_t nvalue;        // value count
+      uint64_t mvbytes;       // multi-value bytes
+      int  *soffset;          // start offset
+      char *voffset;          // value offset
+      Block *blocks;          // block pointer
+      Unique *next;           // next pointer
+    };
+
+    int nbucket;
+
+    void checkbuffer(int, char **, int *, Spool*);
+    void unique2kmv(Unique **, KeyValue *, KeyMultiValue *);
+    void unique2tmp(Unique **, KeyValue *, DataObject *, int);
+    void mergeunique(Unique **, DataObject *, KeyMultiValue *);
+    int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
 };//class MapReduce
 
 }//namespace

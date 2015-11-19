@@ -26,7 +26,7 @@ def create_data_file(filename, maxsize):
        if count % 10 == 0:
            f.write('\n')
        filesize = get_file_size(filename)
-       filesize /= (1024)
+       filesize /= (1024*1024)
        if filesize >= maxsize:
            break
     f.close()

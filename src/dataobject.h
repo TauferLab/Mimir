@@ -59,6 +59,19 @@ public:
     return datatype;
   }
 
+  char *getblockbuffer(int blockid){
+    int bufferid = blocks[blockid].bufferid; 
+    return buffers[bufferid].buf;
+  }
+
+  void setblockdatasize(int blockid, int datasize){
+    blocks[blockid].datasize = datasize;
+  }
+
+  void clear(){
+    nblock=0;    
+  }
+
   // print out the bytes data
   virtual void print(int type = 0, FILE *fp=stdout, int format=0);
  
