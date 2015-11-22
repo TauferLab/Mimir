@@ -37,20 +37,6 @@ int KeyMultiValue::getNextKMV(int blockid, int offset, char **key, int &keybytes
   char *buf = buffers[bufferid].buf + offset;
 
   if(kmvtype == 0){
-    keybytes = strlen(buf)+1;
-    *key = buf;
-    buf += keybytes;
-    nvalue = *(int*)buf;
-    buf += sizeof(int);
-    *valuebytes = NULL;
-    *values = buf;
-    offset += sizeof(int)+keybytes;
-    for(int i=0; i<nvalue; i++){
-      int valuesize = strlen(buf)+1;
-      offset += valuesize;
-      buf += valuesize;
-    }
-  }else if(kmvtype == 1){
     keybytes = *(int*)buf;
     buf += sizeof(int);
     *key = buf;
@@ -64,6 +50,20 @@ int KeyMultiValue::getNextKMV(int blockid, int offset, char **key, int &keybytes
 
     int *valsize = *valuebytes;
     for(int i = 0; i < nvalue; i++) offset += valsize[i];
+  }else if(kmvtype == 1){
+    keybytes = strlen(buf)+1;
+    *key = buf;
+    buf += keybytes;
+    nvalue = *(int*)buf;
+    buf += sizeof(int);
+    *valuebytes = NULL;
+    *values = buf;
+    offset += sizeof(int)+keybytes;
+    for(int i=0; i<nvalue; i++){
+      int valuesize = strlen(buf)+1;
+      offset += valuesize;
+      buf += valuesize;
+    }
 
   }else if(kmvtype == 2){
     keybytes = ksize;
@@ -85,8 +85,8 @@ int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nv
   //int valbytes = 0;
   //for(int i = 0; i < nval; i++) valbytes += valuesizes[i];
 
-  if(kmvtype == 0) kmvbytes = keysize + sizeof(int) + valbytes;
-  else if(kmvtype == 1) kmvbytes = sizeof(int)+keysize+(nval+1)*sizeof(int)+valbytes;
+  if(kmvtype == 1) kmvbytes = sizeof(int)+keysize+(nval+1)*sizeof(int)+valbytes;
+  else if(kmvtype == 0) kmvbytes = keysize + sizeof(int) + valbytes;
   else if(kmvtype == 2) kmvbytes = keysize + sizeof(int) + valbytes;
   else LOG_ERROR("Error: undefined KMV type %d.\n", kmvtype);
 
@@ -101,13 +101,6 @@ int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nv
   char *buf = buffers[bufferid].buf;
 
   if(kmvtype == 0){
-    memcpy(buf+datasize, key, keysize);
-    datasize += keysize;
-    memcpy(buf+datasize, &nval, sizeof(int));
-    datasize += sizeof(int);
-    memcpy(buf+datasize, val, valbytes);
-    datasize += valbytes;
-  }else if(kmvtype == 1){
     memcpy(buf+datasize, &keysize, sizeof(int));
     datasize += sizeof(int);
     memcpy(buf+datasize, key, keysize);
@@ -116,6 +109,13 @@ int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nv
     datasize += sizeof(int);
     memcpy(buf+datasize, valuesizes, nval*sizeof(int));
     datasize += nval*sizeof(int);
+    memcpy(buf+datasize, val, valbytes);
+    datasize += valbytes;
+  }else if(kmvtype == 1){
+    memcpy(buf+datasize, key, keysize);
+    datasize += keysize;
+    memcpy(buf+datasize, &nval, sizeof(int));
+    datasize += sizeof(int);
     memcpy(buf+datasize, val, valbytes);
     datasize += valbytes;
   }else if(kmvtype == 2){
@@ -153,14 +153,6 @@ void KeyMultiValue::print(int type, FILE *fp, int format){
 
       if(kmvtype==0){
         for(int j = 0; j < nvalue; j++){
-            if(type==0) fprintf(fp, ",%s", values);
-            else if(type==1) fprintf(fp, ",%d", *(int*)values);
-            else if(type==2) fprintf(fp, ",%ld", *(int64_t*)values);
-            else LOG_ERROR("%s", "Error undefined output type\n");
-            values += (strlen(values)+1);
-        }
-      }else if(kmvtype==1){
-        for(int j = 0; j < nvalue; j++){
           if(valuebytes != 0){ 
             if(type==0) fprintf(fp, ",%s", values);
             else if(type==1) fprintf(fp, ",%d", *(int*)values);
@@ -169,7 +161,24 @@ void KeyMultiValue::print(int type, FILE *fp, int format){
           }
           values += valuebytes[j];
         }
+      }else if(kmvtype==1){
+        for(int j = 0; j < nvalue; j++){
+            if(type==0) fprintf(fp, ",%s", values);
+            else if(type==1) fprintf(fp, ",%d", *(int*)values);
+            else if(type==2) fprintf(fp, ",%ld", *(int64_t*)values);
+            else LOG_ERROR("%s", "Error undefined output type\n");
+            values += (strlen(values)+1);
+        }
+      }else if(kmvtype==2){
+        for(int j = 0; j < nvalue; j++){
+            if(type==0) fprintf(fp, ",%s", values);
+            else if(type==1) fprintf(fp, ",%d", *(int*)values);
+            else if(type==2) fprintf(fp, ",%ld", *(int64_t*)values);
+            else LOG_ERROR("%s", "Error undefined output type\n");
+            values += vsize;
+        }
       }
+
       fprintf(fp, "\n");
       offset = getNextKMV(i, offset, &key, keybytes, nvalue,  &values, &valuebytes);
     }

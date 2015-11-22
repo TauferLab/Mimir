@@ -32,7 +32,9 @@ int main(int argc, char *argv[])
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
   mr->setGlobalbufsize(8);
-  mr->setBlocksize(64);
+  mr->setBlocksize(8);
+
+  mr->setKVtype(1);
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -42,11 +44,11 @@ int main(int argc, char *argv[])
 
   double t2 = MPI_Wtime();
 
-  mr->output();
+  //mr->output();
 
   mr->convert();
 
-  mr->output();
+  //mr->output();
 
   double t3 = MPI_Wtime();
 

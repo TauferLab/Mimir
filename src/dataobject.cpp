@@ -103,8 +103,9 @@ int DataObject::findbuffer(){
  * acquire a block according to the blockid
  */
 int DataObject::acquireblock(int blockid){
-  if(blockid < 0 || blockid > nblock){
-    LOG_ERROR("Warning: the block id %d isn't correct!\n", blockid);
+
+  if(blockid < 0 || blockid >= nblock){
+    LOG_ERROR("Error: the block id %d isn't correcti, nblock=%d!\n", blockid, nblock);
   }
   
   // if the block will not be flushed into disk
@@ -172,7 +173,10 @@ int DataObject::getblocktail(int blockid){
  */
 int DataObject::addblock(){
   // add counter FOP
+ 
   int blockid = __sync_fetch_and_add(&nblock, 1);
+
+  //printf("blockid=%d, nblock=%d\n", blockid, nblock);
 
   if(blockid >= maxblock){
     LOG_ERROR("%s", "Error: block count is larger than max number!\n");
@@ -185,10 +189,12 @@ int DataObject::addblock(){
       buffers[blockid].buf = (char*)malloc(blocksize);
       nbuf++;
     }
+    
     if(!buffers[blockid].buf){
       LOG_ERROR("Error: malloc memory for data object failed (block count=%d, block size=%d)!\n", nblock, blocksize);
       return -1;
     }
+
     buffers[blockid].blockid = blockid;
     buffers[blockid].ref = 0;
       

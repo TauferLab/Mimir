@@ -121,8 +121,10 @@ int main(int narg, char **args)
   // set hash function
   mr->sethash(mypartition_str);
 
-  mr->setGlobalbufsize(16);
-  mr->setBlocksize(32);
+  mr->setKVtype(1);
+
+  //mr->setGlobalbufsize(16);
+  //mr->setBlocksize(32);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
 
@@ -133,8 +135,16 @@ int main(int narg, char **args)
   int nedges = mr->map(args[2],1,0,fileread,&st);
   g->nglobaledges = nedges;
 
+  //mr->output();
+
+  printf("begin convert\n");
+
   // convert edge list to kmv
   mr->convert();
+
+  printf("end convert\n");
+
+  //mr->output();
 
   // initialize CSR structure
   g->rowstarts = new size_t[g->nlocalverts+1]; 
@@ -222,7 +232,7 @@ int main(int narg, char **args)
       //printf("convert:\n");
       //mr->output(2);
 
-     // printf("begin reduce:\n");
+      //printf("begin reduce:\n");
       mr->setKVtype(2, ksize, 0);
       mr->reduce(shrink, &st);
 #else
@@ -397,6 +407,8 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
 }
 
 void makegraph(MapReduce *mr, char *key, int keybytes, int nvalues,char *multivalue,  int *valuebytes, void *ptr){
+ // printf("key=%s, multivalue=%s\n", key, multivalue);
+
   // get graph strcuture
   bfs_state *st = (bfs_state*)ptr;
   csr_graph *g = &(st->g);
@@ -406,15 +418,19 @@ void makegraph(MapReduce *mr, char *key, int keybytes, int nvalues,char *multiva
   int offset=0;
 
   v0 = atoi(key)-1;
-  v0_local = v0 % (g->nlocalverts);
-  
+  v0_local = v0 % (g->nlocalverts);  
+
+  //printf("key=%s\n", key);
+
   // different threads handle different vertex
   for(int i = 0; i < nvalues;i++){
     value = multivalue+offset;
+    //printf("value=%s\n", value);
     v1 = atoi(value)-1;
     g->columns[g->rowstarts[v0_local]+g->rowinserts[v0_local]] = v1;
     g->rowinserts[v0_local]++;
-    offset += valuebytes[i];
+    //offset += valuebytes[i];
+    offset += strlen(value)+1;
   }
 }
 
@@ -475,7 +491,7 @@ void shrink(MapReduce *mr, char *key, int keybytes, int nvaluse, char *multivalu
  
   if(!TEST_VISITED(v_local, st->vis)){  
     if(SET_VISITED(v_local, st->vis)==0){
-      //printf("%ld\n", v);
+      //printf("key=%s, keybytes=%d\n", key, keybytes);
       st->pred[v_local] = v0;
       mr->add(key, keybytes, NULL, 0);
     }

@@ -217,8 +217,9 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   }
 
   int kvsize = 0;
-  if(kvtype == 0) kvsize = keysize+valsize;
-  else if(kvtype == 1) kvsize = keysize+valsize+sizeof(int)*2;
+
+  if(kvtype == 0) kvsize = keysize+valsize+sizeof(int)*2;
+  else if(kvtype == 1) kvsize = keysize+valsize;
   else if(kvtype == 2) kvsize = keysize+valsize;
   else LOG_ERROR("%s", "Error undefined kv type\n");
 
@@ -244,18 +245,18 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 
     // local buffer has space
     if(loff + kvsize <= lbufsize){
-      if(kvtype == 0){
-        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
-        loff += keysize;
-        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
-        loff += valsize;
-     }else if(kvtype == 1){
+     if(kvtype == 0){
         memcpy(local_buffers[tid]+target*lbufsize+loff, (char*)&keysize, sizeof(int)); 
         loff += sizeof(int);
         memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
         loff += keysize;
         memcpy(local_buffers[tid]+target*lbufsize+loff, (char*)&valsize, sizeof(int));
         loff += sizeof(int);
+        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
+        loff += valsize;
+      }else if(kvtype == 1){
+        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
+        loff += keysize;
         memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
         loff += valsize;
       }else if(kvtype == 2){
@@ -548,8 +549,8 @@ int P2P::sendKV(int tid, int target, char *key, int keysize, char *val, int vals
   }
 
   int kvsize = 0;
-  if(kvtype == 0) kvsize = keysize+valsize;
-  else if(kvtype == 1) kvsize = keysize+valsize+sizeof(int)*2;
+  if(kvtype == 0) kvsize = keysize+valsize+sizeof(int)*2;
+  else if(kvtype == 1) kvsize = keysize+valsize;
   else if(kvtype == 2) kvsize = keysize+valsize;
   else LOG_ERROR("%s", "Error undefined kv type\n");
 
@@ -563,18 +564,18 @@ int P2P::sendKV(int tid, int target, char *key, int keysize, char *val, int vals
     int loff = local_offsets[tid][target];
     // local buffer has space
     if(loff + kvsize <= lbufsize){
-      if(kvtype == 0){
-        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
-        loff += keysize;
-        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
-        loff += valsize;
-     }else if(kvtype == 1){
+     if(kvtype == 1){
         memcpy(local_buffers[tid]+target*lbufsize+loff, (char*)&keysize, sizeof(int)); 
         loff += sizeof(int);
         memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
         loff += keysize;
         memcpy(local_buffers[tid]+target*lbufsize+loff, (char*)&valsize, sizeof(int));
         loff += sizeof(int);
+        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
+        loff += valsize;
+      }else if(kvtype == 0){
+        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
+        loff += keysize;
         memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
         loff += valsize;
       }else if(kvtype == 2){

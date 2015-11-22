@@ -16,10 +16,10 @@ Spool::Spool(int _blocksize,int _maxblocks){
 }
 
 Spool::~Spool(){
-  delete [] blocks;
   for(int i = 0; i < maxblocks; i++) {
     if(blocks[i]) free(blocks[i]);
   }
+  delete [] blocks;
 }
 
 char* Spool::addblock(){
