@@ -1,6 +1,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "dataobject.h"
+#include <mpi.h>
+#include <omp.h>
+
 
 #include "log.h"
 #include "config.h"
@@ -26,7 +29,7 @@ DataObject::DataObject(
   outofcore = _outofcore;
   filepath = _filepath;
 
-  printf("maxmemsize=%d, blocksize=%d\n", maxmemsize, blocksize);
+  //printf("maxmemsize=%d, blocksize=%d\n", maxmemsize, blocksize);
 
   maxbuf = _maxmemsize / _blocksize;  
 
@@ -53,6 +56,14 @@ DataObject::DataObject(
  }
 
 DataObject::~DataObject(){
+  if(outofcore){
+    for(int i = 0; i < nblock; i++){
+      std::string filename;
+      getfilename(i, filename);
+      remove(filename.c_str());
+    }
+  }
+
   for(int i = 0; i < nbuf; i++){
     if(buffers[i].buf) free(buffers[i].buf);
   }
@@ -65,7 +76,17 @@ DataObject::~DataObject(){
 void DataObject::getfilename(int blockid, std::string &fname){
   //fname=filepath+std::string(blockid);
   char str[MAXLINE+1];
-  sprintf(str, "%d.%d", id, blockid);
+
+  // FIXME: should we use user-defined communicator?
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  if(datatype==ByteType) sprintf(str,"BT");
+  else if(datatype==KVType) sprintf(str,"KV");
+  else if(datatype==KMVType) sprintf(str, "KMV");
+  else sprintf(str, "UN");
+
+  sprintf(str, "%s.%d.%d.%d", str, rank, id, blockid);
   fname = str;
 }
 
@@ -73,7 +94,10 @@ void DataObject::getfilename(int blockid, std::string &fname){
  * find a buffer which can bu used
  */
 int DataObject::acquirebuffer(int blockid){
-  
+  int tid = omp_get_thread_num(); 
+
+  //printf("%d acquire buffer for block %d of object %d\n", tid, blockid, id);
+ 
   int i;
   for(i = 0; i < nbuf; i++){
     
@@ -81,17 +105,20 @@ int DataObject::acquirebuffer(int blockid){
     if(blocks[blockid].bufferid != -1) return 0;
 
     //printf("i=%d, ref=%d, bufid=%d\n", i, buffers[i].ref, blocks[]);
-   
+
+    //printf("%d i=%d, ref=%d\n", tid, i, buffers[i].ref);  
+
     // the buffer is empty and the
     if(buffers[i].ref == 0){
       // lock the reference
       if(__sync_bool_compare_and_swap(&buffers[i].ref, 0, -1)){
+        //printf("%d set ref success!\n", tid);  
 
         // set buffer id
         if(__sync_bool_compare_and_swap(&blocks[blockid].bufferid, -1, i)){
           std::string filename;
 
-          printf("haha!\n");
+          //printf("%d set buffer id success!\n", tid);
 
           int oldid = buffers[i].blockid;
           if(oldid != -1){
@@ -125,6 +152,9 @@ int DataObject::acquirebuffer(int blockid){
         __sync_bool_compare_and_swap(&buffers[i].ref, -1, 0);
         return 0;
       }// end if ref
+      //else{
+      //  printf("%d set ref failed!\n", tid);  
+      //}
     }// end if
   }// end for
 
@@ -143,7 +173,9 @@ int DataObject::acquireblock(int blockid){
   // if the block will not be flushed into disk
   if(!outofcore) return 0;
 
-  LOG_PRINT(DBG_OOC, "Try to acquire block %d of object %d\n", blockid, id);
+  int tid = omp_get_thread_num();
+  //printf("%d try to acquire block %d of object %d\n", tid, blockid, id);
+  //LOG_PRINT(DBG_OOC, "Try to acquire block %d of object %d\n", blockid, id);
 
 again:
   // the block is in the memory
@@ -155,8 +187,10 @@ again:
     int ref = buffers[bufferid].ref;
     if(ref != -1){
       // FIXME: the buffer may be flushed into disk.
-      if(__sync_bool_compare_and_swap(&buffers[bufferid].ref, ref, ref+1))
+      if(__sync_bool_compare_and_swap(&buffers[bufferid].ref, ref, ref+1)){
+        //printf("%d get block %d of object %d success!\n", tid, blockid, id);
         return 0;
+      }
     }
     
     bufferid = blocks[blockid].bufferid;
@@ -164,11 +198,15 @@ again:
 
   // find empty buffer
   int ret = acquirebuffer(blockid);
-  if(ret) return 0;
+  if(ret==1){
+    //printf("%d get block %d of object %d success (acquire buffer)!\n", tid, blockid, id);
+    return 0;
+  }
 
   if(ret==0) goto again;
 
-  LOG_PRINT(DBG_OOC, "Failed: cquire block %d of object %d\n", blockid, id);
+  //LOG_PRINT(DBG_OOC, "Failed: cquire block %d of object %d\n", blockid, id);
+  //printf("%d get block %d of object %d failed!\n", tid, blockid, id);
 
   LOG_ERROR("%s", "Error: acquire block error!\n");
   return -1;
@@ -195,6 +233,19 @@ int DataObject::getblockspace(int blockid){
   return (blocksize - blocks[blockid].datasize);
 }
 
+void DataObject::clear(){
+
+  if(outofcore){
+    for(int i = 0; i < nblock; i++){
+      std::string filename;
+      getfilename(i, filename);
+      remove(filename.c_str());
+    }
+  }
+
+  nblock=0;
+}
+
 /*
  * get offset of block tail
  */
@@ -217,7 +268,7 @@ int DataObject::addblock(){
     return -1;
   }
 
-  printf("maxbuf=%d\n", maxbuf);
+  //printf("maxbuf=%d\n", maxbuf);
 
   // has enough buffer
   if(blockid < maxbuf){

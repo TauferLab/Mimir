@@ -84,9 +84,15 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
     for(int j = 0; j < size; j++) global_offsets[i][j] = 0;
   }
 
+  for(int i = 0; i < tnum; i++){
+    if(!local_buffers[i]){
+      LOG_ERROR("%s", "Error: communication buffer is overflow!\n");
+    }
+  }
+
   for(int i = 0; i < nbuf; i++){
-    if(!local_buffers[i] || !global_buffers[i]){
-      LOG_ERROR("Error: communication buffer is overflow, lbufsize=%d, gbufsize=%d, size=%d!\n", lbufsize, gbufsize, size);
+    if(!global_buffers[i]){
+      LOG_ERROR("%s", "Error: communication buffer is overflow!\n");
     }
   }
  

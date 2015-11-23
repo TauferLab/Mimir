@@ -68,9 +68,7 @@ public:
     blocks[blockid].datasize = datasize;
   }
 
-  void clear(){
-    nblock=0;    
-  }
+  void clear();
 
   // print out the bytes data
   virtual void print(int type = 0, FILE *fp=stdout, int format=0);

@@ -123,8 +123,8 @@ int main(int narg, char **args)
 
   mr->setKVtype(1);
 
-  //mr->setGlobalbufsize(16);
-  //mr->setBlocksize(64);
+  mr->setGlobalbufsize(16);
+  mr->setBlocksize(64);
   mr->setOutofcore(1);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
