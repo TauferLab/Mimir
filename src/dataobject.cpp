@@ -7,8 +7,8 @@
 
 using namespace MAPREDUCE_NS;
 
-// FIXME: out of core design may face problems
-//        when running in multi-threads environment 
+
+int DataObject::oid = 0;
 
 DataObject::DataObject(
   DataType _datatype,
@@ -16,7 +16,7 @@ DataObject::DataObject(
   int _maxblock,
   int _maxmemsize,
   int _outofcore,
-  std::string _filename){
+  std::string _filepath){
 
   datatype = _datatype;
 
@@ -24,7 +24,7 @@ DataObject::DataObject(
   maxblock = _maxblock;
   maxmemsize = _maxmemsize * UNIT_SIZE;
   outofcore = _outofcore;
-  filename = _filename;
+  filepath = _filepath;
 
   maxbuf = _maxmemsize / _blocksize;  
 
@@ -36,14 +36,16 @@ DataObject::DataObject(
   for(int i = 0; i < maxblock; i++){
     blocks[i].datasize = 0;
     blocks[i].bufferid = -1;
-    blocks[i].infile   = 0;
-    blocks[i].fileoff  = 0;
+    //blocks[i].infile   = 0;
+    //blocks[i].fileoff  = 0;
   }
   for(int i = 0; i < maxbuf; i++){
     buffers[i].buf = NULL;
     buffers[i].blockid = -1;
     buffers[i].ref = 0;
   }
+
+  id = DataObject::oid++;
 
   LOG_PRINT(DBG_DATA, "DATA: DataObject create. (type=%d)\n", datatype);
  }
@@ -58,43 +60,58 @@ DataObject::~DataObject(){
   LOG_PRINT(DBG_DATA, "DATA: DataObject destory. (type=%d)\n", datatype);
 }
 
+void DataObject::getfilename(int blockid, std::string &fname){
+  //fname=filepath+std::string(blockid);
+}
+
 /*
  * find a buffer which can bu used
  */
-int DataObject::findbuffer(){
+int DataObject::acquirebuffer(int blockid){
   
   int i;
   for(i = 0; i < nbuf; i++){
-    // this buffer can be 
-    if(buffers[i].ref == 0){
-      int blockid = buffers[i].blockid;
-      if(blockid != -1){
-        int64_t off;
-        if(blocks[blockid].infile)
-          off = blocks[blockid].fileoff;
-        else{
-          struct stat statbuf;
-          stat(filename.c_str(), &statbuf);
-          off = statbuf.st_size;
-        }
-        FILE *fp = fopen(filename.c_str(), "wb+");
-        if(!fp){
-          printf("Error: cannot open data file!\n");
-          return -1;
-        }
-        fseek(fp, off, SEEK_SET);
-        fwrite(buffers[blockid].buf, blocksize, 1, fp);
-        fclose(fp);
-        blocks[blockid].bufferid = -1;
-        blocks[blockid].infile = 1;
-        blocks[blockid].fileoff = off;
+    
+    // some other threads has acquired buffer for this block
+    if(blocks[blockid].bufferid != -1) return 0;
 
-        buffers[i].blockid = -1;
-        buffers[i].ref     = 0;
-        return i;
-      }
-    }
-  }
+    // the buffer is empty and the
+    if(buffers[i].ref == 0){
+      // lock the reference
+      if(__sync_bool_compare_and_swap(&buffers[i].ref, 0, -1)){
+
+        // set buffer id
+        if(__sync_bool_compare_and_swap(&blocks[i].bufferid, -1, i)){
+          std::string filename;
+
+          int oldid = buffers[i].blockid;
+          if(oldid != -1){
+            getfilename(oldid, filename);
+            FILE *fp = fopen(filename.c_str(), "wb+");
+            if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
+            fwrite(buffers[i].buf, blocksize, 1, fp);
+            fclose(fp);
+            blocks[oldid].bufferid = -1;
+          }
+          
+          buffers[i].blockid = blockid;
+
+          getfilename(blockid, filename);
+          FILE *fp = fopen(filename.c_str(), "rb");
+          if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
+          size_t ret = fread(buffers[i].buf, blocksize, 1, fp);
+          fclose(fp);
+
+          __sync_bool_compare_and_swap(&buffers[i].ref, -1, 1);
+          return 1;
+        }// end if bufferid
+
+        // some other threads has acquired buffer for this block
+        __sync_bool_compare_and_swap(&buffers[i].ref, -1, 0);
+        return 0;
+      }// end if ref
+    }// end if
+  }// end for
 
   return -1;
 }
@@ -111,33 +128,28 @@ int DataObject::acquireblock(int blockid){
   // if the block will not be flushed into disk
   if(!outofcore) return 0;
 
+again:
   // the block is in the memory
   int bufferid = blocks[blockid].bufferid;
-  if(bufferid != -1){
-    // FIXME: the buffer may be flushed into disk.
-    buffers[bufferid].ref++;
-    return 0;
+
+  while(bufferid != -1){
+    int ref = buffers[bufferid].ref;
+    if(ref != -1){
+      // FIXME: the buffer may be flushed into disk.
+      if(__sync_bool_compare_and_swap(&buffers[bufferid].ref, ref, ref+1))
+        return 0;
+    }
+    
+    bufferid = blocks[blockid].bufferid;
   }
 
-  // FIXME: out of core support
-  // the block is in the file
-  if(blocks[blockid].infile){
-    // find empty buffer
-    int i = findbuffer();
-    // read block
-    FILE *fp = fopen(filename.c_str(), "rb");
-    if(!fp) return -1;
-    fseek(fp, blocks[blockid].fileoff, SEEK_SET);
-    size_t ret = fread(buffers[i].buf, blocksize, 1, fp);
-    fclose(fp);
-    buffers[i].blockid = blockid;
-    buffers[i].ref = 1;
-    blocks[blockid].bufferid = i;
-    return 0;
-  }
+  // find empty buffer
+  int ret = acquirebuffer(blockid);
+  if(ret) return 0;
+
+  if(ret==0) goto again;
 
   LOG_ERROR("%s", "Error: acquire block error!\n");
-  
   return -1;
 }
 
@@ -149,9 +161,10 @@ void DataObject::releaseblock(int blockid){
 
   // FIXME: out of core support
   int bufferid = blocks[blockid].bufferid;
-  if(bufferid != -1){
-    buffers[bufferid].ref--;
-  }
+  if(bufferid==-1)
+    LOG_ERROR("%s", "Error: aquired block should have buffer!\n");
+
+  __sync_fetch_and_add(&buffers[bufferid].ref, -1);
 }
 
 /*
@@ -200,24 +213,17 @@ int DataObject::addblock(){
       
     blocks[blockid].datasize = 0;
     blocks[blockid].bufferid = blockid;
-    blocks[blockid].infile = 0;
-    blocks[blockid].fileoff = 0;
+    //blocks[blockid].infile = 0;
+    //blocks[blockid].fileoff = 0;
 
     return blockid;
   }else{
     // FIXME: out of core support
     if(outofcore){
-      int i = findbuffer();
-      if(i == -1){
-        printf("Error: cannot find empty buffer!\n");
-        return -1;
-      }
-      buffers[i].blockid = blockid;
-      buffers[i].ref     = 0;
       blocks[blockid].datasize = 0;
-      blocks[blockid].bufferid = i;
-      blocks[blockid].infile = 0;
-      blocks[blockid].fileoff = 0;
+      blocks[blockid].bufferid = -1;
+      //blocks[blockid].infile = 0;
+      //blocks[blockid].fileoff = 0;
 
       return blockid;
     }

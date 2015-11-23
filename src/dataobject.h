@@ -76,24 +76,25 @@ public:
   virtual void print(int type = 0, FILE *fp=stdout, int format=0);
  
 private:
-  int findbuffer();
+  int acquirebuffer(int);
+  void getfilename(int, std::string &);
 
 protected:
   DataType datatype;    // 0 for bytes, 1 for kv, 2 for kmv
 
   // information of block
   struct Block{
-    int       datasize;
-    int       bufferid;
-    int       infile;
-    int64_t   fileoff;
+    int       datasize;   // datasize in this block
+    int       bufferid;   // buffer id
+    //int       infile;     // in the file
+    //int64_t   fileoff;    // file offset
   };
  
   // information of buffer
   struct Buffer{
-    char *buf;
-    int blockid;
-    int  ref;
+    char *buf;        // buffer pointer
+    int blockid;      // block id
+    int  ref;         // uses reference
   };
 
   Block  *blocks;
@@ -107,8 +108,13 @@ protected:
   int maxmemsize;  // max memory size
 
   // out of core file name
-  std::string filename;
+  int id;
+  std::string filepath;
+  //std::string filename;
   int outofcore;   // out of core
+
+public:
+static int oid;    // data object id
 };
  
 }
