@@ -3,6 +3,7 @@
 #include <mpi.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <omp.h>
 
 #include "mapreduce.h"
 
@@ -31,8 +32,8 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-  mr->setGlobalbufsize(8);
-  mr->setBlocksize(8);
+  mr->setGlobalbufsize(16);
+  mr->setBlocksize(64);
 
   mr->setKVtype(1);
 
@@ -74,6 +75,8 @@ int main(int argc, char *argv[])
 void fileread(MapReduce *mr, const char *fname, void *ptr){
   //printf("%d[%d] read file name=%s\n", me, nprocs, fname);
 
+  int tid = omp_get_thread_num();
+
   struct stat stbuf;
   int flag = stat(fname,&stbuf);
   if (flag < 0) {
@@ -91,7 +94,7 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
 
   double t2 = MPI_Wtime();
 
-  io_t += (t2-t1);
+  if(tid == 0) io_t += (t2-t1);
 
   //printf("text=%s\n", text);
 

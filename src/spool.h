@@ -7,7 +7,7 @@ namespace MAPREDUCE_NS {
 
 class Spool{
 public:
-  Spool(int,int _maxblocks=MAX_BLOCKS);
+  Spool(int,int _maxblocks=1024);
   ~Spool();
 
   char *addblock();
