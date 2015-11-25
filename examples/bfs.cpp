@@ -138,7 +138,7 @@ int main(int narg, char **args)
   int nedges = mr->map(args[2],1,0,fileread,&st);
   g->nglobaledges = nedges;
 
-  mr->output();
+  //mr->output();
 
   //printf("begin convert\n");
 
@@ -184,7 +184,7 @@ int main(int narg, char **args)
   }
 
   // print graph
-  printgraph(g);
+  //printgraph(g);
 
   // begin do traversal
   int bitmapsize = (g->nlocalverts + LONG_BITS - 1) / LONG_BITS;

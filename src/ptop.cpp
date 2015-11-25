@@ -56,13 +56,13 @@ int Ptop::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsiz
   off = new int*[size];
   lock = new omp_lock_t[size];
 
-  recv_buf = (char*)malloc(_gbufsize*UNIT_SIZE);
+  recv_buf = (char*)malloc(gbufsize);
 
   reqs = new MPI_Request*[nbuf];
   for(int i=0; i<_nbuf; i++){
     reqs[i] = new MPI_Request[size];
     for(int k=0; k<size; k++){
-      reqs[i][k] = MPI_REQUEST_NULL;
+      *(reqs[i]+k) = MPI_REQUEST_NULL;
     }
   }
 
@@ -94,6 +94,8 @@ void Ptop::init(DataObject *_data){
 }
 
 int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){
+  //printf("(%d)%d send KV(%s,%s) to %d\n", tid, rank, key, val, target);
+
   if(target < 0 || target >= size){
     LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
   }
@@ -192,6 +194,8 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
 }
 
 void Ptop::twait(int tid){
+  printf("P%d,t%d wait\n", rank, tid);
+
   int i=0;
   while(i<size){
 
@@ -241,6 +245,7 @@ void Ptop::twait(int tid){
 }
 
 void Ptop::wait(){
+  printf("P%d wait\n", rank);
 
   //printf("Begin to flush buffers:\n");
   for(int i = 0; i < size; i++){
@@ -248,19 +253,26 @@ void Ptop::wait(){
       //printf("%d off=%d\n", i, *off[i]);
       int ib=ibuf[i];
       //printf("ib=%d\n", ib);
-      MPI_Isend(buf[i], *off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);
+      //printf("%d->%d: length=%d\n", rank, i, *off[i]);
+      MPI_Isend(buf[i], *off[i], MPI_BYTE, i, 0, comm, reqs[ib]+i);
     }
   }
 
   //printf("Send zero messages:\n");
   for(int i = 0; i < size; i++){
     int ib=ibuf[i];
-    MPI_Isend(NULL, 0, MPI_BYTE, i, 0, comm, &reqs[ib][i]);
+    //printf("%d->%d: length=0\n", rank, i);
+    MPI_Isend(NULL, 0, MPI_BYTE, i, 0, comm, reqs[ib]+i);
   }
 
   //printf("wait others!\n");
   do{
     exchange_kv();
+    //int flag;
+    //MPI_Is_thread_main(&flag);
+    //if(flag){
+    //  exchange_kv();  
+    //}
   }while(pdone<size);
 
   //printf("cancel recveieve\n");
@@ -273,15 +285,18 @@ void Ptop::exchange_kv(){
 
   for(i = 0; i  < size; i++){
     if(flags[i] != 0){
-        omp_set_lock(&lock[i]);
         int ib = ibuf[i];
-        MPI_Isend(buf[i], *off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);
+        //printf("%d->%d: length=%d\n", rank, i, *off[i]);
+        MPI_Isend(buf[i], *off[i], MPI_BYTE, i, 0, comm, reqs[ib]+i);
         ib = (ib+1)%nbuf;
-        if(reqs[ib][i] != MPI_REQUEST_NULL){
+        if(*(reqs[ib]+i) != MPI_REQUEST_NULL){
           MPI_Status st;
-          MPI_Wait(&reqs[ib][i], &st);
-          reqs[ib][i] = MPI_REQUEST_NULL;
+          //printf("%d wait %d %d\n", rank, ib, i);
+          MPI_Wait(reqs[ib]+i, &st);
+          //printf("end wait %d %d\n", ib, i);
+          *(reqs[ib]+i) = MPI_REQUEST_NULL;
         }
+        omp_set_lock(&lock[i]);
         buf[i]                = global_buffers[ib]+i*gbufsize;
         global_offsets[ib][i] = 0;
         off[i]                = &global_offsets[ib][i];
@@ -301,6 +316,7 @@ void Ptop::exchange_kv(){
     if(flag){
       int count;
       MPI_Get_count(&st, MPI_BYTE, &count);
+      //printf("%d receieve %d\n", rank, count);
       if(count>0) save_data(count);
       else pdone++;
       MPI_Irecv(recv_buf, gbufsize, MPI_BYTE, MPI_ANY_SOURCE, 0, comm, &recv_req);
