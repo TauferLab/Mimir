@@ -63,7 +63,7 @@ int main(int argc, char **argv)
 
   mr->setKVtype(2, digits, 0);
   char whitespace[10] = " \t\r\n";
-  uint64_t nwords = mr->map_local(inpath, 1, 1, whitespace, generate_octkey, NULL);
+  /*uint64_t nwords =*/ mr->map_local(inpath, 1, 1, whitespace, generate_octkey, NULL);
   printf("P%d, after map_local.\n",me);
   //mr->output(2);
 
@@ -76,7 +76,7 @@ int main(int argc, char **argv)
   while ((min_limit+1) != max_limit){
     printf("P%d, before map, leve %d.\n",me, level );
 
-    uint64_t nkeys = mr->map(mr, gen_leveled_octkey, NULL);
+    /*uint64_t nkeys =*/ mr->map(mr, gen_leveled_octkey, NULL);
     printf("P%d, after map.\n",me);
 
     //mr->output();
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
 
     printf("P%d, after reduce.\n", me);
     if (nkv >0){
-       printf("P%d, nkv is %d.\n",me, nkv);
+       printf("P%d, nkv is %ld.\n",me, nkv);
       min_limit=level;
       level =  floor((max_limit+min_limit)/2);
     }else{
@@ -117,9 +117,9 @@ void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsiz
     offset += valsizes[i];
   }
 
-  if (sum >= thresh){
+  if (sum >= (uint64_t)thresh){
     char tmp[1024];
-    sprintf(tmp, "%d", sum);
+    sprintf(tmp, "%ld", sum);
     mr->add(key, keysize, tmp, strlen(tmp)+1);
   }
 }
@@ -134,7 +134,7 @@ void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int va
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)
 {
-  double tmp=0, range_up=10.0, range_down=-10.0; //the upper and down limit of the range of slopes
+  double /*tmp=0,*/ range_up=10.0, range_down=-10.0; //the upper and down limit of the range of slopes
   char octkey[digits];
   bool realdata = false;//the last one is the octkey
 

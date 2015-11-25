@@ -15,6 +15,8 @@
 
 #include "mapreduce.h"
 #include "dataobject.h"
+#include "alltoall.h"
+#include "ptop.h"
 #include "spool.h"
 
 #include "log.h"
@@ -100,6 +102,11 @@ void MapReduce::setGlobalbufsize(int _gbufsize){
   gbufsize = _gbufsize;
 }
 
+void MapReduce::setCommMode(int _commmode){
+  commmode = _commmode;
+}
+
+
 void MapReduce::sethash(int (*_myhash)(char *, int)){
   myhash = _myhash;
 }
@@ -127,7 +134,10 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
   kv->setKVsize(ksize,vsize);
 
   // create communicator
-  c = new Alltoall(comm, tnum);
+  if(commmode==0)
+    c = new Alltoall(comm, tnum);
+  else if(commmode==1)
+    c = new Ptop(comm, tnum);
   c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
   c->init(kv);
 
@@ -234,7 +244,12 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   kv->setKVsize(ksize,vsize);
 
   // create communicator
-  c = new Alltoall(comm, tnum);
+  //c = new Alltoall(comm, tnum);
+  if(commmode==0)
+    c = new Alltoall(comm, tnum);
+  else if(commmode==1)
+    c = new Ptop(comm, tnum);
+
   c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
   c->init(kv);
 
@@ -488,7 +503,11 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
 
   // create communicator
-  c = new Alltoall(comm, tnum);
+  //c = new Alltoall(comm, tnum);
+  if(commmode==0)
+    c = new Alltoall(comm, tnum);
+  else if(commmode==1)
+    c = new Ptop(comm, tnum);
   c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
   c->init(data);
 
@@ -614,7 +633,12 @@ uint64_t MapReduce::map(MapReduce *mr,
 
 
   // create communicator
-  c = new Alltoall(comm, tnum);
+  //c = new Alltoall(comm, tnum);
+  if(commmode==0)
+    c = new Alltoall(comm, tnum);
+  else if(commmode==1)
+    c = new Ptop(comm, tnum);
+
   c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
   c->init(kv);
 
@@ -1216,6 +1240,8 @@ void MapReduce::init(){
 
   outofcore = OUT_OF_CORE; 
   tmpfpath = std::string(TMP_PATH);
+
+  commmode=0;
   
   myhash = NULL;
 }

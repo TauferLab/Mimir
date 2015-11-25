@@ -35,6 +35,7 @@ public:
     void setOutofcore(int);
     void setLocalbufsize(int);
     void setGlobalbufsize(int);
+    void setCommMode(int);
     void sethash(int (*_myhash)(char *, int));
 
     // map and reduce interfaces
@@ -81,7 +82,9 @@ private:
     int nmaxblock;
     int maxmemsize;
     int outofcore;
-    
+
+    int commmode;
+ 
     int lbufsize;
     int gbufsize;
 
