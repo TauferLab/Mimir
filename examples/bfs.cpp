@@ -127,7 +127,7 @@ int main(int narg, char **args)
   //mr->setBlocksize(64);
   mr->setOutofcore(0);
 
-  mr->setCommMode(1);
+  mr->setCommMode(0);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
 

@@ -6,6 +6,10 @@
 #include "config.h"
 #include "alltoall.h"
 
+#if GATHER_STAT
+#include "stat.h"
+#endif
+
 using namespace MAPREDUCE_NS;
 
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
@@ -28,6 +32,11 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   recvcounts = NULL;
   
   reqs = NULL;
+
+#if GATHER_STAT
+  tcomm = st.init_timer("exchange kv");
+  pwait = st.init_timer("process wait");
+#endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
 }
@@ -279,6 +288,10 @@ void Alltoall::twait(int tid){
 void Alltoall::wait(){
    LOG_PRINT(DBG_COMM, "%d[%d] Comm: start wait.\n", rank, size);
 
+#if GATHER_STAT
+  double tstart = MPI_Wtime();
+#endif
+
    medone = 1;
 
    // do exchange kv until all processes done
@@ -299,10 +312,19 @@ void Alltoall::wait(){
      }
    }
 
+#if GATHER_STAT
+  double tstop = MPI_Wtime();
+  st.inc_timer(pwait, tstop-tstart);
+#endif
+
    LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);
 }
 
 void Alltoall::exchange_kv(){
+#if GATHER_STAT
+  double tstart = MPI_Wtime();
+#endif
+
   int i;
   int sendcount=0;
   for(i=0; i<size; i++) sendcount += off[i];
@@ -339,6 +361,11 @@ void Alltoall::exchange_kv(){
   for(int i = 0; i < size; i++) off[i] = 0;
 
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
+
+#if GATHER_STAT
+  double tstop = MPI_Wtime();
+  st.inc_timer(tcomm, tstop-tstart);
+#endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%d, done count=%d)\n", rank, size, sendcount, pdone);
 }

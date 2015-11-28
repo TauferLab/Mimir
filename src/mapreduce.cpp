@@ -22,7 +22,13 @@
 #include "log.h"
 #include "config.h"
 
+#if GATHER_STAT
+#include "stat.h"
+#endif
+
 using namespace MAPREDUCE_NS;
+
+extern Stat s;
 
 MapReduce::MapReduce(MPI_Comm caller)
 {
@@ -234,6 +240,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   //LOG_ERROR("%s", "map (files as input, main thread reads files) has been implemented!\n");
   // create data object
   if(data) delete data;
+  ifiles.clear();
+
   KeyValue *kv = new KeyValue(kvtype, 
                               blocksize, 
                               nmaxblock, 
@@ -370,6 +378,8 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 
   // create data object
   if(data) delete data;
+  ifiles.clear();
+
   KeyValue *kv = new KeyValue(kvtype, 
                               blocksize, 
                               nmaxblock, 
@@ -486,18 +496,19 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
   void (*mymap) (MapReduce *, const char *, void *), void *ptr){
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (File name to mymap)\n", me, nprocs);
-
-  // distribute input fil list
-  disinputfiles(filepath, sharedflag, recurse);
-
   // create new data object
   if(data) delete data;
+  ifiles.clear();
   KeyValue *kv = new KeyValue(kvtype, 
                               blocksize, 
                               nmaxblock, 
                               maxmemsize, 
                               outofcore, 
                               tmpfpath);
+
+  // distribute input fil list
+  disinputfiles(filepath, sharedflag, recurse);
+
   data = kv;
   kv->setKVsize(ksize, vsize);
 
@@ -560,11 +571,10 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local start. (File name to mymap)\n", me, nprocs);
 
-  // distribute input file list
-  disinputfiles(filepath, sharedflag, recurse);
-
   // create data object
   if(data) delete data;
+  ifiles.clear();
+
   KeyValue *kv = new KeyValue(kvtype, 
                               blocksize, 
                               nmaxblock, 
@@ -573,6 +583,9 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
                               tmpfpath);
   data = kv;
   kv->setKVsize(ksize, vsize);
+
+  // distribute input file list
+  disinputfiles(filepath, sharedflag, recurse);
 
   mode = MapLocalMode;
 
@@ -874,7 +887,10 @@ uint64_t MapReduce::convert(){
         ret = findukey(ulist, ibucket, key, keybytes, &ukey, &pre); 
 
         // gather information
-        if(!ret) nunique++;
+        if(!ret) {
+          nunique++;
+          nitems[tid]++;
+        }
         nvals++;
         totalksize+=keybytes;
         totalvsize+=valuebytes;
@@ -1020,10 +1036,12 @@ uint64_t MapReduce::convert(){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert end.\n", me, nprocs);
 
-  uint64_t count = 0; 
+  uint64_t count = 0, sum = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  return count;
+  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+  return sum;
 }
 
 /*
@@ -1209,6 +1227,18 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   }
 
   return;
+}
+
+void MapReduce::print_stat(int verb, FILE *out){
+#if GATHER_STAT
+  st.print(verb, out);
+#endif
+}
+
+void MapReduce::clear_stat(){
+#if GATHER_STAT
+  st.clear();
+#endif
 }
 
 /*

@@ -26,6 +26,9 @@ public:
   void wait();
 
 private:
+#if GATHER_STAT
+  int tcomm, pwait;
+#endif
 
    // exchange kv buffer
   void exchange_kv();
