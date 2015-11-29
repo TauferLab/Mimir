@@ -6,7 +6,7 @@
 #include <vector>
 #include <string>
 
-//namespace MAPREDUCE_NS {
+namespace MAPREDUCE_NS {
 
 class Stat{
 public:
@@ -38,11 +38,10 @@ private:
   int *timer_verb;
   std::vector<std::string> timer_str;
 };
+}
 
 #if GATHER_STAT
 extern Stat st;
 #endif
-
-//}
 
 #endif

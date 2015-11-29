@@ -22,7 +22,8 @@ public:
     int maxblock=4, 
     int memsize=4, 
     int outofcore=0, 
-    std::string a5=std::string(""));
+    std::string a5=std::string(""),
+    int threadsafe=1);
 
   virtual ~DataObject();
 
@@ -38,11 +39,25 @@ public:
   // add data into a block
   int adddata(int, char *, int);
 
-  // get block left space
-  int getblockspace(int);
 
-  // get offset of block tail
-  int getblocktail(int);
+  int getblockspace(int blockid){
+    return (blocksize - blocks[blockid].datasize);
+  }
+
+  void clear(){
+    if(outofcore){
+      for(int i = 0; i < nblock; i++){
+        std::string filename;
+        getfilename(i, filename);
+        remove(filename.c_str());
+      }
+    }
+    nblock=0;
+  }
+
+  int getblocktail(int blockid){
+    return blocks[blockid].datasize;
+  }
 
   int getblocksize(){
     return blocksize;
@@ -67,8 +82,6 @@ public:
   void setblockdatasize(int blockid, int datasize){
     blocks[blockid].datasize = datasize;
   }
-
-  void clear();
 
   // print out the bytes data
   virtual void print(int type = 0, FILE *fp=stdout, int format=0);
@@ -110,6 +123,8 @@ protected:
   std::string filepath;
   //std::string filename;
   int outofcore;   // out of core
+
+  int threadsafe;  // multi-thread safe
 
 public:
 static int oid;    // data object id

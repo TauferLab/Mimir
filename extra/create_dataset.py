@@ -5,8 +5,8 @@ import string
 
 filedir=''
 
-minword = 0
-maxword = 10000
+minword = 10
+maxword = 100010
 
 def get_file_size(filename):
     fullname = os.path.join(filedir, filename)

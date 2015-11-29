@@ -22,11 +22,3 @@ Spool::~Spool(){
   delete [] blocks;
 }
 
-char* Spool::addblock(){
-  if(nblock >= maxblocks) 
-    LOG_ERROR("Error: Spool is overflow! max block count=%d\n", maxblocks);
-  blocks[nblock] = (char*)malloc(blocksize);
-  nblock++;
-  return blocks[nblock-1];
-}
-

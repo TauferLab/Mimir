@@ -14,10 +14,11 @@ void countword(MapReduce *, char *, int, int, char *, int *, void*);
 
 int me, nprocs;
 
-#define TEST_TIMES 10
+#define TEST_TIMES 1
 double wtime[TEST_TIMES]; 
 
 //double io_t = 0.0;
+//double s = 0.0;
 
 int main(int argc, char *argv[])
 {
@@ -36,12 +37,13 @@ int main(int argc, char *argv[])
   if(me==0) fprintf(stdout, "wordcount test begin\n");
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-  mr->setBlocksize(1024);
-  mr->setKVtype(1);
+  mr->setBlocksize(64*1024);
+  mr->setKVtype(3);
 
   for(int i = 0; i < TEST_TIMES; i++){
  
     mr->clear_stat();
+    //seek_t = 0.0;
   
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -55,7 +57,9 @@ int main(int argc, char *argv[])
 
     double t3 = MPI_Wtime();
 
+    //printf("begin reduce\n");
     mr->reduce(countword, NULL);
+    //printf("end reduce\n");
 
     double t4 = MPI_Wtime();
 
@@ -66,7 +70,7 @@ int main(int argc, char *argv[])
     if(me==0) mr->print_stat();
 
     if(me==0){
-      printf("%d nword=%ld, nunique=%ld, time=%g(map=%g, convert=%g, reduce=%g)\n", i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3);
+      printf("%d nword=%ld, nunique=%ld, time=%g(map=%g, convert=%g, reduce=%g\n", i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3);
     }
   }
 
@@ -91,9 +95,7 @@ int main(int argc, char *argv[])
 }
 
 void fileread(MapReduce *mr, const char *fname, void *ptr){
-  //printf("%d[%d] read file name=%s\n", me, nprocs, fname);
-
-  //int tid = omp_get_thread_num();
+  int tid = omp_get_thread_num();
 
   struct stat stbuf;
   int flag = stat(fname,&stbuf);
@@ -106,15 +108,7 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   FILE *fp = fopen(fname,"r");
   char *text = new char[filesize+1];
 
-  //double t1 = MPI_Wtime();
-
   int nchar = fread(text,1,filesize,fp);
-
-  //double t2 = MPI_Wtime();
-
-  //if(tid == 0) io_t += (t2-t1);
-
-  //printf("text=%s\n", text);
 
   text[nchar] = '\0';
   fclose(fp);
@@ -124,8 +118,11 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   char *word = strtok_r(text,whitespace,&saveptr);
   while (word) {
     char val[1]="";
-    mr->add(word,strlen(word)+1,val,strlen(val)+1);
+    mr->add(word,strlen(word)+1,NULL,0);
+    //double t1 = omp_get_wtime();
     word = strtok_r(NULL,whitespace,&saveptr);
+    //double t2 = omp_get_wtime();
+    //if(tid==0) seek_t += (t2-t1);
   }
 
   delete [] text;
@@ -136,3 +133,6 @@ void countword(MapReduce *mr, char *key, int keysize, int nval, char *val, int *
   sprintf(count, "%d", nval);
   mr->add(key, keysize, count, strlen(count)+1);
 }
+
+//char * mystrtok(char *text, ){
+//}

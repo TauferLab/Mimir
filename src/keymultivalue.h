@@ -13,7 +13,8 @@ public:
     int maxblock=4, 
     int memsize=4,
     int outofcore=0,
-    std::string a6=std::string(""));
+    std::string a6=std::string(""),
+    int threadsafe=1);
 
   ~KeyMultiValue();
 

@@ -6,11 +6,11 @@
 #include "config.h"
 #include "alltoall.h"
 
+using namespace MAPREDUCE_NS;
+
 #if GATHER_STAT
 #include "stat.h"
 #endif
-
-using namespace MAPREDUCE_NS;
 
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   int provided;
@@ -35,7 +35,15 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
 
 #if GATHER_STAT
   tcomm = st.init_timer("exchange kv");
-  pwait = st.init_timer("process wait");
+  //pwait = st.init_timer("process wait");
+  //tsendkv = new int[tnum];
+  //thwait = new int[tnum];
+  //for(int i=0; i<tnum; i++){
+  //  tsendkv[i] = st.init_timer("send KV");
+  //}
+  //for(int i=0; i<tnum; i++){
+  //  thwait[i] = st.init_timer("thread wait");
+  //}
 #endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
@@ -56,6 +64,11 @@ Alltoall::~Alltoall(){
   if(recvcounts) delete [] recvcounts;
 
   if(reqs) delete [] reqs;
+
+#if GATHER_STAT
+  //delete [] tsendkv; 
+  //delete [] thwait;
+#endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall destroy.\n", rank, size);
 }
@@ -130,11 +143,16 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   if(kvtype == 0) kvsize = keysize+valsize+sizeof(int)*2;
   else if(kvtype == 1) kvsize = keysize+valsize;
   else if(kvtype == 2) kvsize = keysize+valsize;
+  else if(kvtype == 3) kvsize = keysize;
   else LOG_ERROR("%s", "Error undefined kv type\n");
 
   if(kvsize > lbufsize){
     LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, lbufsize);
   }
+
+#if GATHER_STAT
+  //double t1 = omp_get_wtime();      
+#endif
  
   /* copy kv into local buffer */
   while(1){
@@ -176,8 +194,10 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
         loff += keysize;
         memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
         loff += valsize;
-      }
-      else{
+      }else if(kvtype == 3){
+        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
+        loff += keysize;
+      }else{
         LOG_ERROR("%s", "Error undefined kv type\n");
       }
       local_offsets[tid][target] = loff;
@@ -205,6 +225,11 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     }
   }
 
+#if GATHER_STAT
+  //double t2 = omp_get_wtime();
+  //st.inc_timer(tsendkv[tid], t2-t1);    
+#endif
+
   return 0;
 }
 
@@ -220,6 +245,10 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 void Alltoall::twait(int tid){
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: thread %d begin wait.\n", rank, size, tid);
+
+#if GATHER_STAT
+  //double t1 = MPI_Wtime();
+#endif
 
   // flush local buffer
   int i =0;
@@ -281,6 +310,11 @@ void Alltoall::twait(int tid){
     }
   }while(tdone < tnum);
 
+#if GATHER_STAT
+  //double t2 = omp_get_wtime();
+  //st.inc_timer(thwait[tid], t2-t1);    
+#endif
+
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: thread %d finish wait.\n", rank, size, tid);
 }
 
@@ -289,7 +323,7 @@ void Alltoall::wait(){
    LOG_PRINT(DBG_COMM, "%d[%d] Comm: start wait.\n", rank, size);
 
 #if GATHER_STAT
-  double tstart = MPI_Wtime();
+  //double tstart = MPI_Wtime();
 #endif
 
    medone = 1;
@@ -313,8 +347,8 @@ void Alltoall::wait(){
    }
 
 #if GATHER_STAT
-  double tstop = MPI_Wtime();
-  st.inc_timer(pwait, tstop-tstart);
+  //double tstop = MPI_Wtime();
+  //st.inc_timer(pwait, tstop-tstart);
 #endif
 
    LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);

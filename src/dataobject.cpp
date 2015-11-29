@@ -19,7 +19,8 @@ DataObject::DataObject(
   int _maxblock,
   int _maxmemsize,
   int _outofcore,
-  std::string _filepath){
+  std::string _filepath,
+  int _threadsafe){
 
   datatype = _datatype;
 
@@ -27,6 +28,7 @@ DataObject::DataObject(
   maxblock = _maxblock;
   maxmemsize = _maxmemsize * UNIT_SIZE;
   outofcore = _outofcore;
+  threadsafe = _threadsafe;
   filepath = _filepath;
 
   maxbuf = _maxmemsize / _blocksize;  
@@ -149,14 +151,13 @@ int DataObject::acquirebuffer(int blockid){
  * acquire a block according to the blockid
  */
 int DataObject::acquireblock(int blockid){
+  // if the block will not be flushed into disk
+  if(!outofcore) return 0;
 
   if(blockid < 0 || blockid >= nblock){
     LOG_ERROR("Error: the block id %d isn't correcti, nblock=%d!\n", blockid, nblock);
   }
   
-  // if the block will not be flushed into disk
-  if(!outofcore) return 0;
-
   int tid = omp_get_thread_num();
 
 again:
@@ -201,46 +202,24 @@ void DataObject::releaseblock(int blockid){
 /*
  * get block empty space
  */
-int DataObject::getblockspace(int blockid){
-  return (blocksize - blocks[blockid].datasize);
-}
-
-void DataObject::clear(){
-
-  if(outofcore){
-    for(int i = 0; i < nblock; i++){
-      std::string filename;
-      getfilename(i, filename);
-      remove(filename.c_str());
-    }
-  }
-
-  nblock=0;
-}
-
-/*
- * get offset of block tail
- */
-int DataObject::getblocktail(int blockid){
-  return blocks[blockid].datasize;
-}
 
 /*
  * add an empty block and return the block id
  */
 int DataObject::addblock(){
   // add counter FOP
- 
-  int blockid = __sync_fetch_and_add(&nblock, 1);
-
-  //printf("blockid=%d, nblock=%d\n", blockid, nblock);
+  int blockid = -1;
+  if(threadsafe)
+    blockid = __sync_fetch_and_add(&nblock, 1);
+  else{
+    blockid = nblock;
+    nblock++;
+  }
 
   if(blockid >= maxblock){
     LOG_ERROR("%s", "Error: block count is larger than max number!\n");
     return -1;
   }
-
-  //printf("maxbuf=%d\n", maxbuf);
 
   // has enough buffer
   if(blockid < maxbuf){

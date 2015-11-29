@@ -146,12 +146,29 @@ private:
 
     int nbucket;
 
-    void checkbuffer(int, char **, int *, Spool*);
+    inline void checkbuffer(int, char **, int *, Spool*);
+    
+    int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
+
     void unique2kmv(Unique **, KeyValue *, KeyMultiValue *);
     void unique2tmp(Unique **, KeyValue *, DataObject *, int);
     void mergeunique(Unique **, DataObject *, KeyMultiValue *);
-    int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
+
+    void unique2kmv_keyonly(Spool *, KeyMultiValue *);
 };//class MapReduce
+
+// check if we need add another block
+void MapReduce::checkbuffer(int bytes, char **buf, int *off, Spool *pool){
+  //if(bytes > pool->getblocksize())
+  //  LOG_ERROR("Error: memory requirement %d is larger than block size %d!\n", bytes, pool->getblocksize()); 
+
+  int blocksize = pool->getblocksize();
+  if(*off+bytes > blocksize){
+    //memset(*buf+*off, 0, blocksize-*off);
+    *buf = pool->addblock();
+    *off = 0;
+  }
+}
 
 }//namespace
 

@@ -13,9 +13,10 @@ KeyMultiValue::KeyMultiValue(
   int maxblock,
   int maxmemsize,
   int outofcore,
-  std::string filename):
+  std::string filename,
+  int threadsafe):
   DataObject(KMVType, blocksize, 
-    maxblock, maxmemsize, outofcore, filename){
+    maxblock, maxmemsize, outofcore, filename, threadsafe){
   kmvtype = _kmvtype;
 
   ksize = vsize = 0;
@@ -64,7 +65,6 @@ int KeyMultiValue::getNextKMV(int blockid, int offset, char **key, int &keybytes
       offset += valuesize;
       buf += valuesize;
     }
-
   }else if(kmvtype == 2){
     keybytes = ksize;
     *key = buf;
@@ -74,6 +74,15 @@ int KeyMultiValue::getNextKMV(int blockid, int offset, char **key, int &keybytes
     *valuebytes = NULL;
     *values = buf;
     offset += (ksize+sizeof(int)+nvalue*vsize);
+  }else if(kmvtype == 3){
+    keybytes = strlen(buf)+1;
+    *key = buf;
+    buf += keybytes;
+    nvalue = *(int*)buf;
+    buf += sizeof(int);
+    *valuebytes = NULL;
+    *values = NULL;
+    offset += sizeof(int)+keybytes;
   }
 
   return offset;
@@ -85,9 +94,10 @@ int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nv
   //int valbytes = 0;
   //for(int i = 0; i < nval; i++) valbytes += valuesizes[i];
 
-  if(kmvtype == 1) kmvbytes = sizeof(int)+keysize+(nval+1)*sizeof(int)+valbytes;
-  else if(kmvtype == 0) kmvbytes = keysize + sizeof(int) + valbytes;
+  if(kmvtype == 0) kmvbytes = sizeof(int)+keysize+(nval+1)*sizeof(int)+valbytes;
+  else if(kmvtype == 1) kmvbytes = keysize + sizeof(int) + valbytes;
   else if(kmvtype == 2) kmvbytes = keysize + sizeof(int) + valbytes;
+  else if(kmvtype == 3) kmvbytes = keysize + sizeof(int);
   else LOG_ERROR("Error: undefined KMV type %d.\n", kmvtype);
 
   if(kmvbytes > blocksize){
@@ -125,6 +135,11 @@ int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nv
     datasize += sizeof(int);
     memcpy(buf+datasize, val, valbytes);
     datasize += valbytes;
+  }else if(kmvtype == 3){
+    memcpy(buf+datasize, key, keysize);
+    datasize += keysize;
+    memcpy(buf+datasize, &nval, sizeof(int));
+    datasize += sizeof(int);
   }else LOG_ERROR("Error undefined KMV type %d.\n", kmvtype);
   
   blocks[blockid].datasize = datasize;
@@ -177,6 +192,7 @@ void KeyMultiValue::print(int type, FILE *fp, int format){
             else LOG_ERROR("%s", "Error undefined output type\n");
             values += vsize;
         }
+      }else if(kmvtype==3){
       }
 
       fprintf(fp, "\n");

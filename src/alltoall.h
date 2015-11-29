@@ -28,6 +28,7 @@ public:
 private:
 #if GATHER_STAT
   int tcomm, pwait;
+  int *tsendkv, *thwait;
 #endif
 
    // exchange kv buffer

@@ -124,7 +124,7 @@ int main(int narg, char **args)
   mr->setKVtype(1);
 
   //mr->setGlobalbufsize(16);
-  //mr->setBlocksize(64);
+  mr->setBlocksize(64*1024);
   mr->setOutofcore(0);
 
   mr->setCommMode(0);

@@ -1,7 +1,7 @@
 #include "stat.h"
 #include "config.h"
 
-//using namespace MAPREDUCE_NS;
+using namespace MAPREDUCE_NS;
 
 #if GATHER_STAT
 Stat st;
@@ -42,7 +42,7 @@ void Stat::inc_counter(int id, int inc){
 }
 
 void Stat::print_counters(int verb, FILE *out){
-  fprintf(out, "Total Countes: %d\n", ncounter);
+  //fprintf(out, "Total Countes: %d\n", ncounter);
   for(int i=0; i<ncounter; i++){
     if(verb>=counter_verb[i])
       fprintf(out, "Counter %d %s=%ld\n", i, counter_str[i].c_str(), counters[i]);
@@ -64,7 +64,7 @@ void Stat::inc_timer(int id, double inc){
 }
 
 void Stat::print_timers(int verb, FILE *out){
-  fprintf(out, "Total Timers: %d\n", ntimer);
+  //fprintf(out, "Total Timers: %d\n", ntimer);
   for(int i=0; i<ntimer; i++){
     if(verb>=timer_verb[i])
       fprintf(out, "Timer %d %s=%g\n", i, timer_str[i].c_str(), timers[i]);

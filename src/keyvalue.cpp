@@ -12,9 +12,10 @@ KeyValue::KeyValue(
   int maxblock,
   int maxmemsize,
   int outofcore,
-  std::string filename):
+  std::string filename,
+  int threadsafe):
   DataObject(KVType, blocksize, 
-    maxblock, maxmemsize, outofcore, filename){
+    maxblock, maxmemsize, outofcore, filename, threadsafe){
   kvtype = _kvtype;
 
   ksize = vsize = 0;
@@ -42,8 +43,8 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
     valuebytes = *(int*)buf;
     buf += sizeof(int);
     *value = buf;
-    if(kff != NULL) *kff = offset+sizeof(int);
-    if(vff != NULL) *vff = offset+sizeof(int)+keybytes+sizeof(int);
+    //if(kff != NULL) *kff = offset+sizeof(int);
+    //if(vff != NULL) *vff = offset+sizeof(int)+keybytes+sizeof(int);
     offset += 2*sizeof(int)+keybytes+valuebytes;
   // view KV as string pair
   }else if(kvtype == 1){
@@ -52,8 +53,8 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
     buf += keybytes;
     *value = buf;
     valuebytes = strlen(*value)+1;
-    if(kff != NULL) *kff = offset;
-    if(vff != NULL) *vff = (offset+keybytes);
+    //if(kff != NULL) *kff = offset;
+    //if(vff != NULL) *vff = (offset+keybytes);
     offset += keybytes+valuebytes;
    // view KV as constant bytes pair
   }else if(kvtype == 2){
@@ -62,9 +63,13 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
     valuebytes = vsize;
     buf += ksize;
     *value = buf;
-    if(kff != NULL) *kff = offset;
-    if(vff != NULL) *vff = offset+ksize;
+    //if(kff != NULL) *kff = offset;
+    //if(vff != NULL) *vff = offset+ksize;
     offset += ksize+vsize;
+  }else if(kvtype == 3){
+    *key = buf;
+    keybytes = strlen(*key)+1;
+    offset += keybytes;
   }else{
     LOG_ERROR("Error: undefined KV type %d!\n", kvtype);
   }
@@ -82,11 +87,14 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
   if(kvtype == 0) kvbytes = 2*sizeof(int)+keybytes+valuebytes; 
   else if(kvtype == 1) kvbytes = keybytes+valuebytes;
   else if(kvtype == 2) kvbytes = ksize + vsize;
+  else if(kvtype == 3) kvbytes = keybytes;
   else LOG_ERROR("Error: undefined KV type %d.\n", kvtype);
 
+#if SAFE_CHECK
   if(kvbytes > blocksize){
      LOG_ERROR("Error: KV size is larger than block size. (KV size=%d, block size=%d)\n", kvbytes, blocksize);
   }
+#endif
 
   int datasize = blocks[blockid].datasize;
   if(kvbytes+datasize > blocksize) return -1;
@@ -95,11 +103,13 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
   char *buf = buffers[bufferid].buf;
 
   if(kvtype == 0){
-    memcpy(buf+datasize, &keybytes, sizeof(int));
+    *(int*)(buf+datasize)=keybytes;
+    //memcpy(buf+datasize, &keybytes, sizeof(int));
     datasize += sizeof(int);
     memcpy(buf+datasize, key, keybytes);
     datasize += keybytes;
-    memcpy(buf+datasize, &valuebytes, sizeof(int));
+    //memcpy(buf+datasize, &valuebytes, sizeof(int));
+    *(int*)(buf+datasize)=valuebytes;
     datasize += sizeof(int);
     memcpy(buf+datasize, value, valuebytes);
     datasize += valuebytes;
@@ -109,14 +119,18 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
     memcpy(buf+datasize, value, valuebytes);
     datasize += valuebytes;
   }else if(kvtype == 2){
-     //printf("keybytes=%d, ksize=%d, valuebytes=%d, vsize=%d", keybytes, ksize, valuebytes, vsize);
+#if SAFE_CHECK
     if(keybytes != ksize || valuebytes != vsize){
       LOG_ERROR("Error: key (%d) or value (%d) size mismatch for KV type 2\n", keybytes, valuebytes);
     }
+#endif
     memcpy(buf+datasize, key, keybytes);
     datasize += keybytes;
     memcpy(buf+datasize, value, valuebytes);
     datasize += valuebytes;
+  }else if(kvtype == 3){
+    memcpy(buf+datasize, key, keybytes);
+    datasize += keybytes;
   }else{
     LOG_ERROR("Error: undefined KV type %d\n", kvtype);
   }

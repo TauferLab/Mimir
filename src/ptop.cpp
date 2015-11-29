@@ -109,6 +109,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
   if(kvtype == 0) kvsize = keysize+valsize+sizeof(int)*2;
   else if(kvtype == 1) kvsize = keysize+valsize;
   else if(kvtype == 2) kvsize = keysize+valsize;
+  else if(kvtype == 3) kvsize = keysize;
   else LOG_ERROR("%s", "Error undefined kv type\n");
 
   if(kvsize > lbufsize){
@@ -143,6 +144,9 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
        loff += keysize;
        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
        loff += valsize;
+     }else if(kvtype == 3){
+       memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
+       loff += keysize;
      }else{
        LOG_ERROR("%s", "Error undefined kv type\n");
      }
