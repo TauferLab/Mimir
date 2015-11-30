@@ -62,7 +62,7 @@ typedef struct _bfs_state{
   int64_t root;              // root vertex
 }bfs_state;
 
-bfs_state st; 
+bfs_state bfs_st; 
 
 int me, nprocs;
 
@@ -96,7 +96,7 @@ int main(int narg, char **args)
   //FILE *fp = fopen(logfile, "w");
 
   // set vertex count
-  csr_graph *g = &st.g;
+  csr_graph *g = &bfs_st.g;
   g->lg_nglobalverts = atoi(args[1]);
   g->nglobalverts = (1 << g->lg_nglobalverts);
 
@@ -121,7 +121,7 @@ int main(int narg, char **args)
   // set hash function
   mr->sethash(mypartition_str);
 
-  mr->setKVtype(1);
+  //mr->setKVtype(1);
 
   //mr->setGlobalbufsize(16);
   mr->setBlocksize(64*1024);
@@ -135,7 +135,7 @@ int main(int narg, char **args)
   MPI_Barrier(MPI_COMM_WORLD);
 
   // read edge list
-  int nedges = mr->map(args[2],1,0,fileread,&st);
+  int nedges = mr->map(args[2],1,0,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
   //mr->output();
@@ -161,7 +161,7 @@ int main(int narg, char **args)
   g->nlocaledges = 0;
 
   // single thread is used to gather information
-  mr->scan(countedge, &st);
+  mr->scan(countedge, &bfs_st);
 
   for(int i = 0; i < g->nlocalverts; i++){
     g->rowstarts[i+1] += g->rowstarts[i];
@@ -170,7 +170,7 @@ int main(int narg, char **args)
   g->columns   = new int64_t[g->nlocaledges];
 
   // begin to make CSR graph
-  mr->reduce(makegraph,&st);
+  mr->reduce(makegraph,&bfs_st);
 
   delete [] g->rowinserts;
 
@@ -190,8 +190,8 @@ int main(int narg, char **args)
   int bitmapsize = (g->nlocalverts + LONG_BITS - 1) / LONG_BITS;
 
   // create structure
-  st.vis  = new unsigned long[bitmapsize];
-  st.pred = new int64_t[g->nlocalverts];
+  bfs_st.vis  = new unsigned long[bitmapsize];
+  bfs_st.pred = new int64_t[g->nlocalverts];
 
   if(me==0) fprintf(stdout, "BFS traversal start.\n");
 
@@ -209,15 +209,15 @@ int main(int narg, char **args)
     double start_t = MPI_Wtime();  
 
     // set root vertex
-    st.root = visit_roots[index];
-    memset(st.vis, 0, sizeof(unsigned long)*(bitmapsize));
+    bfs_st.root = visit_roots[index];
+    memset(bfs_st.vis, 0, sizeof(unsigned long)*(bitmapsize));
     for(int i = 0; i < g->nlocalverts; i++){
-      st.pred[i] = -1;
+      bfs_st.pred[i] = -1;
     }
  
     //uint64_t nactives = 0;
-    mr->setKVtype(2, ksize, ksize);
-    int count = mr->map(rootvisit, &st);
+    //mr->setKVtype(2, ksize, ksize);
+    int count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
     //printf("map:\n");
     //mr->output(2);
@@ -236,12 +236,12 @@ int main(int narg, char **args)
       //mr->output(2);
 
       //printf("begin reduce:\n");
-      mr->setKVtype(2, ksize, 0);
-      mr->reduce(shrink, &st);
+      //mr->setKVtype(2, ksize, 0);
+      mr->reduce(shrink, &bfs_st);
 #else
       double t2 = MPI_Wtime();
-      mr->setKVtype(2, ksize, 0);
-      mr->map_local(mr, shrink_mm, &st);
+      //mr->setKVtype(2, ksize, 0);
+      mr->map_local(mr, shrink_mm, &bfs_st);
 #endif
 
       double t3 = MPI_Wtime();
@@ -250,8 +250,8 @@ int main(int narg, char **args)
       //mr->output(2);
 
       //printf("begin map:\n");
-      mr->setKVtype(2, ksize, ksize);
-      nactives[level] = mr->map(mr, expand, &st);
+      //mr->setKVtype(2, ksize, ksize);
+      nactives[level] = mr->map(mr, expand, &bfs_st);
 
       //printf("actives=%d\n", nactives[level]);
 
@@ -277,7 +277,7 @@ int main(int narg, char **args)
     test_count++;    
 
     if(me==0){
-      fprintf(rf, "%ld\n", st.root);
+      fprintf(rf, "%ld\n", bfs_st.root);
       fprintf(rf, "%d\n", level);
       for(int k =0; k < level; k++){
         fprintf(rf, "%d\n", nactives[k]);
@@ -312,8 +312,8 @@ int main(int narg, char **args)
   delete [] visit_roots;
 
   // delete buffers
-  delete [] st.vis;
-  delete [] st.pred; 
+  delete [] bfs_st.vis;
+  delete [] bfs_st.pred; 
 
   delete [] g->rowstarts;
   delete [] g->columns;
@@ -333,13 +333,13 @@ int main(int narg, char **args)
 int mypartition_str(char *key, int keybytes){
   int64_t v = atoi(key) - 1;
 
-  return v/(st.g.nlocalverts);
+  return v/(bfs_st.g.nlocalverts);
 }
 
 int mypartition_int(char *key, int keybytes){
   int64_t v = *(int64_t*)key; 
 
-  return v/(st.g.nlocalverts);
+  return v/(bfs_st.g.nlocalverts);
 }
 
 void fileread(MapReduce *mr, const char *fname, void *ptr){

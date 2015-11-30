@@ -127,7 +127,7 @@ protected:
   int threadsafe;  // multi-thread safe
 
 public:
-static int oid;    // data object id
+  static int oid;    // data object id
 };
  
 }

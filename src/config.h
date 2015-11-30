@@ -4,17 +4,17 @@
 // memory
 #define UNIT_SIZE               1024  // 1K
 
-#define BLOCK_SIZE           64*1024  // 16M 
+#define BLOCK_SIZE          256*1024  // 16M 
 
 #define LOCAL_BUF_SIZE            32  // 1K
 #define GLOBAL_BUF_SIZE         1024  // 1M
-#define MAXMEM_SIZE        1024*1024  // 1G  
+#define MAXMEM_SIZE      2*1024*1024  // 1G  
 #define MAX_BLOCKS              1024  // 1024 blocks
 
 
 #define UNIQUE_POOL_SIZE      32*1024  // 16M
-#define BLOCK_POOL_SIZE       16*1024  // 16M
-#define TMP_BLOCK_SIZE       128*1024 // 128M
+#define BLOCK_POOL_SIZE       32*1024  // 16M
+#define TMP_BLOCK_SIZE       256*1024 // 128M
 // README
 // LOCAL_BUF_SIZE <= GLOBAL_BUF_SIZE <= BLOCK_SIZE
 

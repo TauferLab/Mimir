@@ -7,7 +7,7 @@ CFLAGS = -fopenmp -std=c++11 $(DEBUG) -O2  -DDEBUG=0 -DFUSION
 LFLAGS = 
 ARCHIEVE = ar
 AFLAGS =  -rcv
-OBJS = mapreduce.o dataobject.o keyvalue.o keymultivalue.o communicator.o alltoall.o  ptop.o hash.o spool.o stat.o 
+OBJS = mapreduce.o dataobject.o keyvalue.o keymultivalue.o communicator.o alltoall.o  ptop.o hash.o spool.o const.o stat.o 
 
 all: libmrmpi
 
@@ -40,6 +40,9 @@ hash.o: hash.cpp hash.h
 
 spool.o: spool.cpp spool.h
 	$(CPP) $(CFLAGS) -c spool.cpp
+
+const.o: const.cpp const.h
+	$(CPP) $(CFLAGS) -c const.cpp
 
 stat.o: stat.cpp stat.h
 	$(CPP) $(CFLAGS) -c stat.cpp

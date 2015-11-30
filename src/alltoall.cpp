@@ -6,6 +6,8 @@
 #include "config.h"
 #include "alltoall.h"
 
+#include "const.h"
+
 using namespace MAPREDUCE_NS;
 
 #if GATHER_STAT
@@ -141,7 +143,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 #endif
 
   int kvsize = 0;
-  if(kvtype == 0) kvsize = keysize+valsize+sizeof(int)*2;
+  if(kvtype == 0) kvsize = keysize+valsize+twointlen;
   else if(kvtype == 1) kvsize = keysize+valsize;
   else if(kvtype == 2) kvsize = keysize+valsize;
   else if(kvtype == 3) kvsize = keysize;
@@ -156,7 +158,9 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 #if GATHER_STAT
   //double t1 = omp_get_wtime();      
 #endif
- 
+
+  char *lbuf = local_buffers[tid]+target*lbufsize;
+
   /* copy kv into local buffer */
   while(1){
     // need communication
@@ -176,14 +180,12 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     // local buffer has space
     if(loff + kvsize <= lbufsize){
      if(kvtype == 0){
-        memcpy(local_buffers[tid]+target*lbufsize+loff, (char*)&keysize, sizeof(int)); 
-        loff += sizeof(int);
-        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
-        loff += keysize;
-        memcpy(local_buffers[tid]+target*lbufsize+loff, (char*)&valsize, sizeof(int));
-        loff += sizeof(int);
-        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
-        loff += valsize;
+        *(int*)(lbuf+loff)=keysize;
+        *(int*)(lbuf+loff+oneintlen)=valsize;
+        loff += twointlen;
+        memcpy(lbuf+loff, key, keysize);
+        memcpy(lbuf+loff+keysize, val, valsize);
+        loff += keysize+valsize;
       }else if(kvtype == 1){
         memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
         loff += keysize;

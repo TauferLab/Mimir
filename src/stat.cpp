@@ -38,7 +38,8 @@ int Stat::init_counter(const char *name, int verb){
 }
 
 void Stat::inc_counter(int id, int inc){
-  counters[id]++;
+#pragma omp atomic
+  counters[id]+=inc;
 }
 
 void Stat::print_counters(int verb, FILE *out){
@@ -60,6 +61,7 @@ int Stat::init_timer(const char *name, int verb){
 }
 
 void Stat::inc_timer(int id, double inc){
+#pragma omp atomic
   timers[id] += inc;
 }
 

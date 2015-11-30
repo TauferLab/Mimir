@@ -792,6 +792,7 @@ uint64_t MapReduce::convert(){
   KeyValue *kv = (KeyValue*)data;
 
 #if GATHER_STAT
+  int convert_maxmem=st.init_counter("convert memsize");
   //int *kv2tmp_t = new int[tnum];
   //for(int i=0;i<tnum;i++) 
   //  kv2tmp_t[i]=st.init_timer("kv2tmp");
@@ -1031,6 +1032,8 @@ uint64_t MapReduce::convert(){
     } // send scan kvs
 
     kv->releaseblock(i);
+
+#pragma omp barrier
   }
 
   if(!keyonly){ 
@@ -1071,6 +1074,16 @@ uint64_t MapReduce::convert(){
     unique2kmv_keyonly(unique_pool, kmv);
   }
 
+#if GATHER_STAT
+  uint64_t maxmem = 0;
+  maxmem += (unique_pool->nblock) * (unique_pool->getblocksize());
+  maxmem += (block_pool->nblock) * (block_pool->getblocksize());
+  maxmem += (tmpdata->nblock) * (tmpdata->getblocksize());
+  maxmem += (tkv->nblock) * (tkv->getblocksize());
+  printf("%d unique pool=%d, block pool=%d, tmpdata nblock=%d, tkv nblock=%d\n", tid, unique_pool->nblock, block_pool->nblock, tmpdata->nblock, tkv->nblock);
+  st.inc_counter(convert_maxmem, maxmem);
+#endif
+
   // delete memory
   delete unique_pool;
   delete block_pool;
@@ -1079,6 +1092,11 @@ uint64_t MapReduce::convert(){
 } 
 
 #if GATHER_STAT
+  uint64_t maxmem=0;
+  maxmem += (data->nblock) * (data->getblocksize());
+  maxmem += (kmv->nblock) * (kmv->getblocksize());
+  //printf("kv nblock=%d, kmv nblock=%d\n", data->nblock, kmv->nblock);
+  st.inc_counter(convert_maxmem, maxmem);
   //delete [] kv2tmp_t;
   //delete [] tmp2kmv_t;
 #endif

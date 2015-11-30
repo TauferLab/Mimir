@@ -120,7 +120,8 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
   while(1){
 
     int loff = local_offsets[tid][target];
-    
+  
+    // FIXME: error!!!!  
     // local buffer has space
     if(loff + kvsize <= lbufsize){
      if(kvtype == 0){

@@ -4,7 +4,10 @@
 
 #include "log.h"
 
+#include "const.h"
+
 using namespace MAPREDUCE_NS;
+
 
 KeyValue::KeyValue(
   int _kvtype,
@@ -37,15 +40,11 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
   // view KV as bytes pair
   if(kvtype == 0){
     keybytes = *(int*)buf;
-    buf += sizeof(int);
+    valuebytes = *(int*)(buf+oneintlen);
+    buf += twointlen;
     *key = buf;
-    buf += keybytes;
-    valuebytes = *(int*)buf;
-    buf += sizeof(int);
-    *value = buf;
-    //if(kff != NULL) *kff = offset+sizeof(int);
-    //if(vff != NULL) *vff = offset+sizeof(int)+keybytes+sizeof(int);
-    offset += 2*sizeof(int)+keybytes+valuebytes;
+    *value = buf+keybytes;
+    offset += twointlen+keybytes+valuebytes;
   // view KV as string pair
   }else if(kvtype == 1){
     *key = buf;
@@ -84,7 +83,7 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
 int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &valuebytes){
   int kvbytes = 0;
 
-  if(kvtype == 0) kvbytes = 2*sizeof(int)+keybytes+valuebytes; 
+  if(kvtype == 0) kvbytes = twointlen+keybytes+valuebytes; 
   else if(kvtype == 1) kvbytes = keybytes+valuebytes;
   else if(kvtype == 2) kvbytes = ksize + vsize;
   else if(kvtype == 3) kvbytes = keybytes;
@@ -104,15 +103,11 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
 
   if(kvtype == 0){
     *(int*)(buf+datasize)=keybytes;
-    //memcpy(buf+datasize, &keybytes, sizeof(int));
-    datasize += sizeof(int);
+    *(int*)(buf+datasize+oneintlen)=valuebytes;
+    datasize += twointlen;
     memcpy(buf+datasize, key, keybytes);
-    datasize += keybytes;
-    //memcpy(buf+datasize, &valuebytes, sizeof(int));
-    *(int*)(buf+datasize)=valuebytes;
-    datasize += sizeof(int);
-    memcpy(buf+datasize, value, valuebytes);
-    datasize += valuebytes;
+    memcpy(buf+datasize+keybytes, value, valuebytes);
+    datasize += keybytes+valuebytes;
   }else if(kvtype == 1){
     memcpy(buf+datasize, key, keybytes);
     datasize += keybytes;
