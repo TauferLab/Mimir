@@ -129,7 +129,8 @@ void Alltoall::init(DataObject *_data){
  *   val:     value buffer
  *   valsize: value size
  */
-int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){ 
+int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){
+#if SAFE_CHECK 
   if(target < 0 || target >= size){
     LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
   }
@@ -137,18 +138,20 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   if(tid < 0 || tid >= tnum){
     LOG_ERROR("Error: thread num (%d) isn't correct!\n", tid);
   }
+#endif
 
   int kvsize = 0;
-
   if(kvtype == 0) kvsize = keysize+valsize+sizeof(int)*2;
   else if(kvtype == 1) kvsize = keysize+valsize;
   else if(kvtype == 2) kvsize = keysize+valsize;
   else if(kvtype == 3) kvsize = keysize;
   else LOG_ERROR("%s", "Error undefined kv type\n");
 
+#if SAFE_CHECK
   if(kvsize > lbufsize){
     LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, lbufsize);
   }
+#endif
 
 #if GATHER_STAT
   //double t1 = omp_get_wtime();      
@@ -187,9 +190,11 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
         memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
         loff += valsize;
       }else if(kvtype == 2){
+#if SAFE_CHECK
         if(ksize != keysize || vsize != valsize){
           LOG_ERROR("Error: key (%d) or val (%d) size mismatch for KV type 2\n", keysize, valsize);
         }
+#endif
         memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
         loff += keysize;
         memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);

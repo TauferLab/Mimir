@@ -19,6 +19,8 @@
 
 namespace MAPREDUCE_NS {
 
+enum KVType{GeneralKV, StringKV, FixedKV, StringKeyOnly};
+
 enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
 
 class MapReduce {
@@ -26,6 +28,49 @@ public:
     MapReduce(MPI_Comm);
     ~MapReduce();
 
+    void setKVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
+      kvtype = _kvtype;
+      ksize = _ksize;
+      vsize = _vsize;
+    }
+
+    void setBlocksize(int _blocksize){
+      blocksize = _blocksize;
+    }
+
+    void setMaxblocks(int _nmaxblock){
+      nmaxblock = _nmaxblock;
+    }
+
+    void setMaxmem(int _maxmemsize){
+      maxmemsize = _maxmemsize;
+    }
+
+    void setTmpfilePath(const char *_fpath){
+      tmpfpath = std::string(_fpath);
+    }
+
+    void setOutofcore(int _flag){
+      outofcore = _flag;
+    }
+
+    void setLocalbufsize(int _lbufsize){
+      lbufsize = _lbufsize;
+    }
+ 
+    void setGlobalbufsize(int _gbufsize){
+      gbufsize = _gbufsize;
+    }
+
+    void setCommMode(int _commmode){
+      commmode = _commmode;
+    }
+
+    void sethash(int (*_myhash)(char *, int)){
+      myhash = _myhash;
+    }
+
+#if 0
     // set prarameters
     void setKVtype(int, int ksize=0, int vsize=0);
     void setBlocksize(int);
@@ -37,6 +82,7 @@ public:
     void setGlobalbufsize(int);
     void setCommMode(int);
     void sethash(int (*_myhash)(char *, int));
+#endif
 
     // map and reduce interfaces
     uint64_t map(void (*mymap)(MapReduce *, void *), void *);

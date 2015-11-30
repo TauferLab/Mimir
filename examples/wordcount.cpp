@@ -14,7 +14,7 @@ void countword(MapReduce *, char *, int, int, char *, int *, void*);
 
 int me, nprocs;
 
-#define TEST_TIMES 1
+#define TEST_TIMES 10
 double wtime[TEST_TIMES]; 
 
 //double io_t = 0.0;
@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
   mr->setBlocksize(64*1024);
-  mr->setKVtype(3);
+  mr->setKVtype(GeneralKV);
 
   for(int i = 0; i < TEST_TIMES; i++){
  

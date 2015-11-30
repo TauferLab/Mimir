@@ -72,49 +72,6 @@ MapReduce::~MapReduce()
 
 // configurable functions
 /******************************************************/
-void MapReduce::setKVtype(int _kvtype, int _ksize, int _vsize){
-  kvtype = _kvtype;
-  ksize = _ksize;
-  vsize = _vsize;
-}
-
-void MapReduce::setBlocksize(int _blocksize){
-  blocksize = _blocksize;
-}
-
-void MapReduce::setMaxblocks(int _nmaxblock){
-  nmaxblock = _nmaxblock;
-}
-
-void MapReduce::setMaxmem(int _maxmemsize){
-  maxmemsize = _maxmemsize;
-}
-
-void MapReduce::setTmpfilePath(const char *_fpath){
-  tmpfpath = std::string(_fpath);
-}
-
-void MapReduce::setOutofcore(int _flag){
-  outofcore = _flag;
-}
-
-void MapReduce::setLocalbufsize(int _lbufsize){
-  lbufsize = _lbufsize;
-}
-
-void MapReduce::setGlobalbufsize(int _gbufsize){
-  gbufsize = _gbufsize;
-}
-
-void MapReduce::setCommMode(int _commmode){
-  commmode = _commmode;
-}
-
-
-void MapReduce::sethash(int (*_myhash)(char *, int)){
-  myhash = _myhash;
-}
-
 
 /*
  * map: (no input) 
@@ -835,15 +792,15 @@ uint64_t MapReduce::convert(){
   KeyValue *kv = (KeyValue*)data;
 
 #if GATHER_STAT
-  int *kv2tmp_t = new int[tnum];
-  for(int i=0;i<tnum;i++) 
-    kv2tmp_t[i]=st.init_timer("kv2tmp");
-  int *tmp2kmv_t = new int[tnum];
-  for(int i=0;i<tnum;i++)
-    tmp2kmv_t[i]=st.init_timer("tmp2kmv");
-  int *findkey_t = new int[tnum];
-  for(int i=0;i<tnum;i++)
-    findkey_t[i]=st.init_timer("find key");
+  //int *kv2tmp_t = new int[tnum];
+  //for(int i=0;i<tnum;i++) 
+  //  kv2tmp_t[i]=st.init_timer("kv2tmp");
+  //int *tmp2kmv_t = new int[tnum];
+  //for(int i=0;i<tnum;i++)
+  //  tmp2kmv_t[i]=st.init_timer("tmp2kmv");
+  //int *findkey_t = new int[tnum];
+  //for(int i=0;i<tnum;i++)
+  //  findkey_t[i]=st.init_timer("find key");
 #endif
 
 #pragma omp parallel
@@ -926,7 +883,7 @@ uint64_t MapReduce::convert(){
         int ibucket = hid % nbucket;
 
 #if GATHER_STAT
-        double t1 = omp_get_wtime();          
+        //double t1 = omp_get_wtime();          
 #endif
 
         // find the key
@@ -934,8 +891,8 @@ uint64_t MapReduce::convert(){
         ret = findukey(ulist, ibucket, key, keybytes, &ukey, &pre); 
 
 #if GATHER_STAT
-        double t2 = omp_get_wtime();
-        st.inc_timer(findkey_t[tid], t2-t1);
+        //double t2 = omp_get_wtime();
+        //st.inc_timer(findkey_t[tid], t2-t1);
 #endif
 
         // gather information
@@ -960,13 +917,13 @@ uint64_t MapReduce::convert(){
           if(kmvsize > tmpsize){
 
 #if GATHER_STAT
-            double t1 = omp_get_wtime();          
+            //double t1 = omp_get_wtime();          
 #endif
             // convert tkv to tmp data
             unique2tmp(ulist, tkv, tmpdata, kmvtype);
 #if GATHER_STAT
-            double t2 = omp_get_wtime();
-            st.inc_timer(kv2tmp_t[tid], t2-t1);
+            //double t2 = omp_get_wtime();
+            //st.inc_timer(kv2tmp_t[tid], t2-t1);
 #endif
 
             blockid=-1;
@@ -1087,27 +1044,27 @@ uint64_t MapReduce::convert(){
     if(firstblock && kmvsize < blocksize*UNIT_SIZE){
       //printf("I'm here!\n");
 #if GATHER_STAT
-      double t1 = omp_get_wtime();
+      //double t1 = omp_get_wtime();
 #endif
       unique2kmv(ulist, tkv, kmv);
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tmp2kmv_t[tid], t2-t1);
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(tmp2kmv_t[tid], t2-t1);
 #endif
   // convert unique to tmp firstly, then merge
     }else{
 #if GATHER_STAT
-      double t1 = omp_get_wtime();
+      //double t1 = omp_get_wtime();
 #endif
       unique2tmp(ulist, tkv, tmpdata, kmvtype);
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(kv2tmp_t[tid], t2-t1);
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(kv2tmp_t[tid], t2-t1);
 #endif
       mergeunique(ulist, tmpdata, kmv);
 #if GATHER_STAT
-      double t3 = omp_get_wtime();
-      st.inc_timer(tmp2kmv_t[tid], t3-t2);
+      //double t3 = omp_get_wtime();
+      //st.inc_timer(tmp2kmv_t[tid], t3-t2);
 #endif
     }
   }else{
@@ -1122,8 +1079,8 @@ uint64_t MapReduce::convert(){
 } 
 
 #if GATHER_STAT
-  delete [] kv2tmp_t;
-  delete [] tmp2kmv_t;
+  //delete [] kv2tmp_t;
+  //delete [] tmp2kmv_t;
 #endif
 
   // set new data
@@ -1267,6 +1224,8 @@ uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), 
  *   valuebytes: valuesize
  */
 void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
+
+#if SAFE_CHECK
   if(!data || data->getDatatype() != KVType){
     LOG_ERROR("%s", "Error: add function only can be used to generate KV object!\n");
   }
@@ -1274,6 +1233,7 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   if(mode == NoneMode){
     LOG_ERROR("%s", "Error: add function only can be invoked in user-defined map and reduce functions\n");
   }
+#endif
 
   int tid = omp_get_thread_num();
  
@@ -1285,7 +1245,6 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     int target = 0;
     if(myhash != NULL){
       target=myhash(key, keybytes);
-      //if(target == 1) printf("key=%s\n", key);
     }
     else{
       hid = hashlittle(key, keybytes, nprocs);
@@ -1735,17 +1694,20 @@ void MapReduce::mergeunique(Unique **ulist, DataObject *tmpdata, KeyMultiValue *
         off += sizeof(int);
         memcpy(outbuf+off, key, keybytes);
         off += keybytes;
-        memcpy(outbuf+off, &nvalue, sizeof(int));
+        //memcpy(outbuf+off, &nvalue, sizeof(int));
+        *(int*)(outbuf+off)=nvalue;
         off += sizeof(int);
       }else if(kmvtype==1){
         memcpy(outbuf+off, key, keybytes);
         off += keybytes;
-        memcpy(outbuf+off, &nvalue, sizeof(int));
+        //memcpy(outbuf+off, &nvalue, sizeof(int));
+        *(int*)(outbuf+off)=nvalue;
         off += sizeof(int);
       }else if(kmvtype==2){
         memcpy(outbuf+off, key, keybytes);
         off += keybytes;
-        memcpy(outbuf+off, &nvalue, sizeof(int));
+        //memcpy(outbuf+off, &nvalue, sizeof(int));
+        *(int*)(outbuf+off)=nvalue;
         off += sizeof(int);
       }
 
@@ -1783,8 +1745,6 @@ void MapReduce::mergeunique(Unique **ulist, DataObject *tmpdata, KeyMultiValue *
 }
 
 void MapReduce::unique2kmv_keyonly(Spool *pool, KeyMultiValue *kmv){
-  //printf("unique2kmv_keyonly\n");
-
   char *inbuf=NULL, *outbuf=NULL;
   int inoff=0, outoff=0;
 
@@ -1797,13 +1757,11 @@ void MapReduce::unique2kmv_keyonly(Spool *pool, KeyMultiValue *kmv){
   outoff = 0;
 
   for(int i=0; i < pool->nblock; i++){
-    //printf("i=%d\n", i);
     inbuf = pool->getblockbuffer(i);
     while(1){
       Unique *ukey = (Unique*)(inbuf+inoff);
       if((blocksize-inoff < sizeof(Unique)) || (ukey->key==NULL))
         break;
-      //printf("key=%s(%d), %ld\n", ukey->key, ukey->keybytes, ukey->nvalue);
       int kmvsize=ukey->keybytes+sizeof(int);
       if(outoff+kmvsize>kmv->getblocksize()){
         kmv->setblockdatasize(blockid, outoff);
@@ -1822,12 +1780,8 @@ void MapReduce::unique2kmv_keyonly(Spool *pool, KeyMultiValue *kmv){
     inoff=0;
   }
 
-  //printf("here!\n");
-
   kmv->setblockdatasize(blockid, outoff);
   kmv->releaseblock(blockid);
-
-  //printf("unique2kmv_keyonly end\n");
 }
 
 
