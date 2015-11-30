@@ -168,13 +168,14 @@ private:
 
     struct Block
     {
-      uint64_t nvalue;
-      uint64_t mvbytes;
+      int       id;
+      int       nvalue;
+      uint64_t  mvbytes;
       int      *soffset;
-      int      s_off;
+      int       s_off;
       char     *voffset;
-      int      v_off;
-      int      bid;
+      int       v_off;
+      int       blockid;
       Block    *next;
     };
 
@@ -182,10 +183,8 @@ private:
     {
       char *key;              // key pointer
       int  keybytes;          // key bytes
-      uint64_t nvalue;        // value count
+      int nvalue;             // value count
       uint64_t mvbytes;       // multi-value bytes
-      int  *soffset;          // start offset
-      char *voffset;          // value offset
       Block *blocks;          // block pointer
       Unique *next;           // next pointer
     };

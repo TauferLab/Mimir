@@ -28,6 +28,14 @@ public:
     vsize = _vsize;
   }
 
+  int getkeysize(){
+    return ksize;
+  }
+
+  int getvalsize(){
+    return vsize;
+  }
+
   ~KeyValue();
 
   int getKVtype(){

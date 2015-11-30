@@ -12,11 +12,14 @@
 #define MAX_BLOCKS              1024  // 1024 blocks
 
 
-#define UNIQUE_POOL_SIZE      32*1024  // 16M
-#define BLOCK_POOL_SIZE       32*1024  // 16M
 #define TMP_BLOCK_SIZE       256*1024 // 128M
 // README
 // LOCAL_BUF_SIZE <= GLOBAL_BUF_SIZE <= BLOCK_SIZE
+
+
+#define UNIQUE_COUNT           1024 
+#define BLOCK_COUNT            1024
+#define KEY_COUNT         1024*1024
 
 // convert
 #define BUCKET_SIZE               22
