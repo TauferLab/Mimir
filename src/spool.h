@@ -31,6 +31,11 @@ public:
     return blocks[i];
   }
 
+  void clear(){
+    for(int i=0; i<nblock;i++) free(blocks[i]);
+    nblock=0;
+  }
+
 public:
   int nblock;
 

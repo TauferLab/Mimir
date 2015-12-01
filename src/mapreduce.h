@@ -170,7 +170,7 @@ private:
     {
       int       id;
       int       nvalue;
-      uint64_t  mvbytes;
+      int  mvbytes;
       int      *soffset;
       int       s_off;
       char     *voffset;
@@ -184,9 +184,11 @@ private:
       char *key;              // key pointer
       int  keybytes;          // key bytes
       int nvalue;             // value count
-      uint64_t mvbytes;       // multi-value bytes
+      int mvbytes;       // multi-value bytes
       Block *blocks;          // block pointer
       Unique *next;           // next pointer
+      int   *soffset;
+      char  *voffset;
     };
 
     int nbucket;
@@ -194,12 +196,12 @@ private:
     inline void checkbuffer(int, char **, int *, Spool*);
     
     int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
+    void merge(DataObject *, KeyMultiValue *, Spool *);
 
-    void unique2kmv(Unique **, KeyValue *, KeyMultiValue *);
-    void unique2tmp(Unique **, KeyValue *, DataObject *, int);
-    void mergeunique(Unique **, DataObject *, KeyMultiValue *);
-
-    void unique2kmv_keyonly(Spool *, KeyMultiValue *);
+    //void unique2kmv(Unique **, KeyValue *, KeyMultiValue *);
+    //void unique2tmp(Unique **, KeyValue *, DataObject *, int);
+    //void mergeunique(Unique **, DataObject *, KeyMultiValue *);
+    //void unique2kmv_keyonly(Spool *, KeyMultiValue *);
 };//class MapReduce
 
 // check if we need add another block

@@ -53,7 +53,11 @@ int main(int argc, char *argv[])
 
     double t2 = MPI_Wtime();
 
+    mr->output();
+
+    printf("begin convert\n");
     uint64_t nunique = mr->convert();
+    printf("end convert!\n");
 
     double t3 = MPI_Wtime();
 
