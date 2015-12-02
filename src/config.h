@@ -4,10 +4,10 @@
 // memory
 #define UNIT_SIZE               1024  // 1K
 
-#define BLOCK_SIZE          256*1024  // 16M 
+#define BLOCK_SIZE                 4  // 16M 
 
-#define LOCAL_BUF_SIZE            32  // 1K
-#define GLOBAL_BUF_SIZE         1024  // 1M
+#define LOCAL_BUF_SIZE             4  // 1K
+#define GLOBAL_BUF_SIZE            4  // 1M
 #define MAXMEM_SIZE      2*1024*1024  // 1G  
 #define MAX_BLOCKS              1024  // 1024 blocks
 
@@ -17,9 +17,9 @@
 // LOCAL_BUF_SIZE <= GLOBAL_BUF_SIZE <= BLOCK_SIZE
 
 
-#define UNIQUE_COUNT           1024 
-#define BLOCK_COUNT            1024
-#define KEY_COUNT         1024*1024
+#define UNIQUE_COUNT            1024
+#define BLOCK_COUNT             8192
+#define KEY_COUNT            1048576
 
 // convert
 #define BUCKET_SIZE               22
@@ -35,6 +35,6 @@
 #define MAXLINE            2048
 
 #define GATHER_STAT                1
-#define SAFE_CHECK                 0
+#define SAFE_CHECK                 1
 
 #endif

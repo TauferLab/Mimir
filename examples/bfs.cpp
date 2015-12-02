@@ -10,7 +10,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#define TEST_TIMES 10
+#define TEST_TIMES 1
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -68,7 +68,7 @@ int me, nprocs;
 
 double wtime[TEST_TIMES], teps[TEST_TIMES];
 
-#define MAX_LEVEL 10
+#define MAX_LEVEL 1
 int nactives[MAX_LEVEL];
 
 FILE *rf=NULL;
@@ -121,10 +121,10 @@ int main(int narg, char **args)
   // set hash function
   mr->sethash(mypartition_str);
 
-  //mr->setKVtype(1);
+  //mr->setKVtype(StringKV);
 
   //mr->setGlobalbufsize(16);
-  mr->setBlocksize(64*1024);
+  //mr->setBlocksize(64*1024);
   mr->setOutofcore(0);
 
   mr->setCommMode(0);
@@ -134,18 +134,20 @@ int main(int narg, char **args)
   // make graph
   MPI_Barrier(MPI_COMM_WORLD);
 
+  printf("begin map\n");
+
   // read edge list
   int nedges = mr->map(args[2],1,0,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
   //mr->output();
 
-  //printf("begin convert\n");
+  printf("begin convert\n");
 
   // convert edge list to kmv
   mr->convert();
 
-  //printf("end convert\n");
+  printf("end convert\n");
 
   //mr->output();
 
@@ -216,11 +218,10 @@ int main(int narg, char **args)
     }
  
     //uint64_t nactives = 0;
-    //mr->setKVtype(2, ksize, ksize);
+    //mr->setKVtype(FixedKV, ksize, ksize);
     int count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
     //printf("map:\n");
-    //mr->output(2);
 
     int level = 0;
     do{
@@ -229,6 +230,7 @@ int main(int narg, char **args)
       double t1 = MPI_Wtime();
 
 #ifndef BFS_MM
+      //mr->output(2);
       mr->convert();
       double t2 = MPI_Wtime();
 
@@ -236,7 +238,7 @@ int main(int narg, char **args)
       //mr->output(2);
 
       //printf("begin reduce:\n");
-      //mr->setKVtype(2, ksize, 0);
+      //mr->setKVtype(FixedKV, ksize, 0);
       mr->reduce(shrink, &bfs_st);
 #else
       double t2 = MPI_Wtime();
@@ -250,7 +252,7 @@ int main(int narg, char **args)
       //mr->output(2);
 
       //printf("begin map:\n");
-      //mr->setKVtype(2, ksize, ksize);
+      //mr->setKVtype(FixedKV, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &bfs_st);
 
       //printf("actives=%d\n", nactives[level]);

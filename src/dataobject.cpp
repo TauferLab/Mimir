@@ -224,7 +224,14 @@ int DataObject::addblock(){
   // has enough buffer
   if(blockid < maxbuf){
     if(buffers[blockid].buf == NULL){
+      printf("blocksize=%d\n", blocksize);
       buffers[blockid].buf = (char*)malloc(blocksize);
+      printf("block pass\n");
+#if SAFE_CHECK
+     if(buffers[blockid].buf==NULL){
+       LOG_ERROR("%s", "Error: malloc memory for data object error!\n");
+     }
+#endif
       nbuf++;
     }
     

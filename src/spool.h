@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "log.h"
 #include "config.h"
 
 namespace MAPREDUCE_NS {
@@ -18,7 +19,12 @@ public:
     //if(nblock >= maxblocks) 
     //  LOG_ERROR("Error: Spool is overflow! max block count=%d\n", maxblocks);
     blocks[nblock] = (char*)malloc(blocksize);
-    memset(blocks[nblock], 0, blocksize);
+#if SAFE_CHECK
+    if(blocks[nblock]==NULL){
+      LOG_ERROR("%s", "Error: malloc memory for block error!\n");
+    }
+#endif
+    //memset(blocks[nblock], 0, blocksize);
     nblock++;
     return blocks[nblock-1];
   }
@@ -32,7 +38,10 @@ public:
   }
 
   void clear(){
-    for(int i=0; i<nblock;i++) free(blocks[i]);
+    for(int i=0; i<nblock;i++) {
+      free(blocks[i]);
+      blocks[i]=NULL;
+    }
     nblock=0;
   }
 

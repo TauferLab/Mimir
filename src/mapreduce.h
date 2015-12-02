@@ -211,7 +211,7 @@ void MapReduce::checkbuffer(int bytes, char **buf, int *off, Spool *pool){
 
   int blocksize = pool->getblocksize();
   if(*off+bytes > blocksize){
-    //memset(*buf+*off, 0, blocksize-*off);
+    memset(*buf+*off, 0, blocksize-*off);
     *buf = pool->addblock();
     *off = 0;
   }

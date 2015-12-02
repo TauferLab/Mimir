@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
   if(me==0) fprintf(stdout, "wordcount test begin\n");
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-  mr->setBlocksize(256*1024);
+  mr->setBlocksize(64*1024);
   mr->setKVtype(GeneralKV);
 
   for(int i = 0; i < TEST_TIMES; i++){
@@ -53,17 +53,19 @@ int main(int argc, char *argv[])
 
     double t2 = MPI_Wtime();
 
-    mr->output();
+    //mr->output();
 
-    printf("begin convert\n");
+    //printf("begin convert\n");
     uint64_t nunique = mr->convert();
-    printf("end convert!\n");
+    //printf("end convert!\n");
 
     double t3 = MPI_Wtime();
 
     //printf("begin reduce\n");
     mr->reduce(countword, NULL);
     //printf("end reduce\n");
+
+    //mr->output();
 
     double t4 = MPI_Wtime();
 
