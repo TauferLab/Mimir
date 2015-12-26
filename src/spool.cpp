@@ -6,7 +6,7 @@
 using namespace MAPREDUCE_NS;
 
 Spool::Spool(int _blocksize,int _maxblocks){
-  blocksize = _blocksize*UNIT_SIZE;
+  blocksize = _blocksize;
   maxblocks = _maxblocks;
 
   blocks = new char*[maxblocks];

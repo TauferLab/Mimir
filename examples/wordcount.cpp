@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     mr->reduce(countword, NULL);
     //printf("end reduce\n");
 
-    //mr->output();
+    mr->output();
 
     double t4 = MPI_Wtime();
 

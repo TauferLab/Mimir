@@ -70,20 +70,6 @@ public:
       myhash = _myhash;
     }
 
-#if 0
-    // set prarameters
-    void setKVtype(int, int ksize=0, int vsize=0);
-    void setBlocksize(int);
-    void setMaxblocks(int);
-    void setMaxmem(int);
-    void setTmpfilePath(const char *);
-    void setOutofcore(int);
-    void setLocalbufsize(int);
-    void setGlobalbufsize(int);
-    void setCommMode(int);
-    void sethash(int (*_myhash)(char *, int));
-#endif
-
     // map and reduce interfaces
     uint64_t map(void (*mymap)(MapReduce *, void *), void *);
     uint64_t map_local(void (*mymap)(MapReduce *, void *), void*);
@@ -110,6 +96,9 @@ public:
     uint64_t reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
        int *, void*), void* );
 
+    // convert KV object to KMV object
+    //   input must be KV obejct
+    //   output must be KMV object
     uint64_t convert();
 
     uint64_t scan(void (myscan)(char *, int, int, char *, int *,void *), void *);
@@ -170,10 +159,10 @@ private:
     {
       int       id;
       int       nvalue;
-      int  mvbytes;
+      int       mvbytes;
       int      *soffset;
-      int       s_off;
       char     *voffset;
+      int       s_off;
       int       v_off;
       int       blockid;
       Block    *next;
@@ -181,41 +170,22 @@ private:
 
     struct Unique
     {
-      char *key;              // key pointer
-      int  keybytes;          // key bytes
-      int nvalue;             // value count
-      int mvbytes;       // multi-value bytes
-      Block *blocks;          // block pointer
-      Unique *next;           // next pointer
-      int   *soffset;
-      char  *voffset;
+      char    *key;
+      int      keybytes;
+      int      nvalue;
+      int      mvbytes;
+      int     *soffset;
+      char    *voffset;
+      Block   *blocks;
+      Unique  *next;
     };
 
-    int nbucket;
-
-    inline void checkbuffer(int, char **, int *, Spool*);
-    
+    // check if a buffer is ok
+    void checkbuffer(int, char **, int *, Spool*);
     int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
     void merge(DataObject *, KeyMultiValue *, Spool *);
-
-    //void unique2kmv(Unique **, KeyValue *, KeyMultiValue *);
-    //void unique2tmp(Unique **, KeyValue *, DataObject *, int);
-    //void mergeunique(Unique **, DataObject *, KeyMultiValue *);
-    //void unique2kmv_keyonly(Spool *, KeyMultiValue *);
 };//class MapReduce
 
-// check if we need add another block
-void MapReduce::checkbuffer(int bytes, char **buf, int *off, Spool *pool){
-  //if(bytes > pool->getblocksize())
-  //  LOG_ERROR("Error: memory requirement %d is larger than block size %d!\n", bytes, pool->getblocksize()); 
-
-  int blocksize = pool->getblocksize();
-  if(*off+bytes > blocksize){
-    memset(*buf+*off, 0, blocksize-*off);
-    *buf = pool->addblock();
-    *off = 0;
-  }
-}
 
 }//namespace
 

@@ -16,17 +16,13 @@ public:
   ~Spool();
 
   char *addblock(){
-    //if(nblock >= maxblocks) 
-    //  LOG_ERROR("Error: Spool is overflow! max block count=%d\n", maxblocks);
     blocks[nblock] = (char*)malloc(blocksize);
 #if SAFE_CHECK
     if(blocks[nblock]==NULL){
       LOG_ERROR("%s", "Error: malloc memory for block error!\n");
     }
 #endif
-    //memset(blocks[nblock], 0, blocksize);
-    nblock++;
-    return blocks[nblock-1];
+    return blocks[nblock++];
   }
 
   int getblocksize(){
@@ -38,7 +34,7 @@ public:
   }
 
   void clear(){
-    for(int i=0; i<nblock;i++) {
+    for(int i=0; i<nblock;i++){
       free(blocks[i]);
       blocks[i]=NULL;
     }

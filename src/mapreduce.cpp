@@ -756,30 +756,26 @@ uint64_t MapReduce::map_local(MapReduce *mr,
   return count;
 }
 
+
 /*
  * convert: convert KMV to KV
  *   return: local kmvs count
  */
-// FIXME: should user can change KMV representation? 
 uint64_t MapReduce::convert(){
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert start.\n", me, nprocs);
 
 #if SAFE_CHECK
-  // check input data
   if(!data || data->getDatatype() != KVType){
     LOG_ERROR("%s", "Error: input of convert must be KV data!\n");
     return -1;
   }
 #endif
 
-  // set bucket size
-  nbucket = pow(2, BUCKET_SIZE);
+  int nbucket = pow(2, BUCKET_SIZE);
 
-  // input KV data
   KeyValue *kv = (KeyValue*)data;
   int kvtype=kv->getKVtype();
 
-  // create KMV object
   KeyMultiValue *kmv = new KeyMultiValue(kvtype,
                              blocksize, 
                              nmaxblock, 
@@ -790,12 +786,9 @@ uint64_t MapReduce::convert(){
 
 #pragma omp parallel
 {
-
-  // initialize thread
   int tid = omp_get_thread_num();
   tinit(tid);
 
-  // store tmp data 
   int tmpsize = TMP_BLOCK_SIZE*UNIT_SIZE;
   DataObject *tmpdata = NULL;
   tmpdata = new KeyValue(ByteType, 
@@ -806,47 +799,32 @@ uint64_t MapReduce::convert(){
                   tmpfpath,
                   0);
 
-
-  // Gather Unique information
   Unique **ulist = new Unique*[nbucket];
   for(int i=0; i<nbucket; i++) ulist[i]=NULL;
 
   Spool *unique_pool=NULL, *block_pool=NULL;
   char *ubuf=NULL;
   Block *blocks=NULL;
-  int nunique=0, nblock=0, uoff=0;
 
-  unique_pool = new Spool((UNIQUE_COUNT)*sizeof(Unique));
+  int nunique=0, nblock=0, uoff=0;
+  unique_pool = new Spool(UNIQUE_SIZE*UNIT_SIZE);
   ubuf=unique_pool->addblock();
-  //memset(ubuf, 0, unique_pool->getblocksize());
 
   block_pool  = new Spool((BLOCK_COUNT)*sizeof(Block));
   blocks=(Block*)block_pool->addblock(); 
 
-  // Gather KV information  
   Spool *key_id_pool=NULL, *key_pos_pool=NULL;
   int *key_id=NULL, *key_pos=NULL;
   key_id_pool=new Spool((KEY_COUNT)*sizeof(int));
   key_pos_pool=new Spool((KEY_COUNT)*sizeof(int));
 
-  //printf("key_id=%lx\n", key_id); 
- 
-  // tmp variables
   char *key, *value;
   int keybytes, valuebytes, kvsize;
 
   int blockid=-1;
-
-  //printf("nblock=%d\n", kv->nblock);
-
-  kv->print();
-
-  printf("begin scan kv, nblock=%d\n", kv->nblock);
-
+ 
   // scan all kvs to gain the thread kvs
   for(int i = 0; i < kv->nblock; i++){
-
-    //printf("i=%d\n", i);
 
     key_id = (int*)key_id_pool->addblock();
     key_pos = (int*)key_pos_pool->addblock();
@@ -857,11 +835,9 @@ uint64_t MapReduce::convert(){
     int datasize = kv->getblocktail(i);
 
     int nkey=0;
-    int offset = 0, mvbytes=0, start_block=nblock;
-    while(offset < datasize){
-
-      //printf("offset=%d, datasize=%d\n", offset, datasize);
-      
+    int offset=0, mvbytes=0, start_block=nblock;
+    
+    while(offset < datasize){      
       // get key and keysize
       if(kvtype==0){
         keybytes = *(int*)(kvbuf+offset);
@@ -888,22 +864,17 @@ uint64_t MapReduce::convert(){
         valuebytes=0;
         kvsize=keybytes;
       }
-
-      //printf("key=%s, value=%s\n", key, value);
-
-      //printf("key=%s, kvsize=%d, valuebytes=%d\n", key, kvsize, valuebytes);
       
       // if this key is handled by this thread
       uint32_t hid = hashlittle(key, keybytes, 0);
       if(hid % (uint32_t)tnum == (uint32_t)tid){
-        int ibucket = hid % nbucket;
+
         // find the key
+        int ibucket = hid % nbucket;
         Unique *ukey, *pre;
         Block *block;
         int ret = findukey(ulist, ibucket, key, keybytes, &ukey, &pre);
 
-        //printf("key=%s, ret=%d\n", key, ret);
-      
         // key hit
         if(ret){
           ukey->nvalue++;
@@ -914,20 +885,16 @@ uint64_t MapReduce::convert(){
           if(block->blockid != -1){
             // add a block
             block=&blocks[nblock%BLOCK_COUNT];
-            
             block->next = ukey->blocks;
             ukey->blocks=block;
 
-            //printf("block id=%d\n", nblock);             
- 
-            block->id=nblock;
+            block->id=nblock++;
             block->nvalue=0;
             block->mvbytes=0;
             block->soffset=NULL;
             block->voffset=NULL;
             block->blockid=-1;
 
-            nblock++;
             if(nblock%BLOCK_COUNT==0){
               blocks=(Block*)block_pool->addblock();
             }
@@ -936,7 +903,7 @@ uint64_t MapReduce::convert(){
           // add key information into block
           block->nvalue++;
           block->mvbytes += valuebytes;
-          
+
         // add unique key
         }else{
           checkbuffer(sizeof(Unique)+keybytes, &ubuf, &uoff, unique_pool);
@@ -955,27 +922,20 @@ uint64_t MapReduce::convert(){
           memcpy(ubuf+uoff, key, keybytes);
           uoff += keybytes;
  
-          ukey->keybytes = keybytes;
+          ukey->keybytes=keybytes;
           ukey->nvalue=1;
-          
           ukey->mvbytes=valuebytes;
-          ukey->blocks=NULL;
-
           block=&blocks[nblock%BLOCK_COUNT];
-
-          block->next = ukey->blocks;
-          ukey->blocks=block;
-
-          //printf("block id=%d\n", nblock);                   
+          block->next=NULL;
+          ukey->blocks=block;             
  
-          block->id=nblock;
+          block->id=nblock++;
           block->nvalue=1;
           block->mvbytes=valuebytes;
           block->soffset=NULL;
           block->voffset=NULL;
           block->blockid=-1;
 
-          nblock++;
           if(nblock%BLOCK_COUNT==0){
             blocks=(Block*)block_pool->addblock();
           }
@@ -995,20 +955,20 @@ uint64_t MapReduce::convert(){
           key_id=(int*)key_id_pool->addblock();
           key_pos=(int*)key_pos_pool->addblock();
         }
-
       }
 
       offset+=kvsize;
 
     } // scan kvs
-
-    printf("i=%d, blockid=%d, local convert\n", i, blockid);
-    printf("mvbytes=%d\n", mvbytes);
+      
+#if SAFE_CHECK
+    if(mvbytes > tmpdata->getblocksize()){
+      LOG_ERROR("The mvbytes %d is larger than the block size %d\n", mvbytes, tmpdata->getblocksize());
+    }
+#endif
 
     if(blockid==-1){
-      printf("begin malloc tmp\n");
       blockid = tmpdata->addblock();
-      printf("end malloc tmp\n");
       tmpdata->acquireblock(blockid);
     }
  
@@ -1027,8 +987,6 @@ uint64_t MapReduce::convert(){
       char *buf = block_pool->getblockbuffer(k/BLOCK_COUNT);
       Block *block = (Block*)buf+(k%BLOCK_COUNT);
 
-      //printf("%d blockid=%d\n", k, block->id);
-
       if(kvtype==0){
         block->soffset=(int*)(outbuf+outoff);
         block->s_off=outoff;
@@ -1042,8 +1000,6 @@ uint64_t MapReduce::convert(){
       block->mvbytes=0;
     }
 
-    printf("%d nblock=%d\n", tid, nblock);
-
 #if SAFE_CHECK
     if(outoff > tmpdata->getblocksize())
       LOG_ERROR("The offset %d of tmp data is larger than block size %d!\n", outoff, tmpdata->getblocksize());
@@ -1054,12 +1010,14 @@ uint64_t MapReduce::convert(){
 
     tmpdata->setblockdatasize(blockid, outoff);
 
-    printf("neky=%d\n", nkey);
-
     // compute keys
     for(int k=0; k < nkey; k++){
-      int *key_id = (int*)(key_id_pool->getblockbuffer(k/KEY_COUNT))+k%KEY_COUNT;
-      int *key_pos = (int*)(key_pos_pool->getblockbuffer(k/KEY_COUNT))+k%KEY_COUNT;
+
+      int k_quo=k/KEY_COUNT;
+      int k_rem=k%KEY_COUNT;
+      
+      int *key_id = (int*)(key_id_pool->getblockbuffer(k_quo))+k_rem;
+      int *key_pos = (int*)(key_pos_pool->getblockbuffer(k_quo))+k_rem;
 
 #if SAFE_CHECK
      if(*key_id >= nblock)
@@ -1068,7 +1026,10 @@ uint64_t MapReduce::convert(){
        LOG_ERROR("Error: key offset=%d is larger than block size %d!\n", *key_pos, kv->getblocksize());
 #endif      
 
-      Block *block = (Block*)(block_pool->getblockbuffer((*key_id)/BLOCK_COUNT))+(*key_id)%BLOCK_COUNT;
+      int block_quo=(*key_id)/BLOCK_COUNT;
+      int block_rem=(*key_id)%BLOCK_COUNT;
+
+      Block *block = (Block*)(block_pool->getblockbuffer(block_quo))+block_rem;
 
       char *key, *value;
       int keybytes, valuebytes;
@@ -1094,13 +1055,11 @@ uint64_t MapReduce::convert(){
         value=NULL;
         valuebytes=0;
       }
-     
+
       if(kvtype==0) block->soffset[block->nvalue++]=valuebytes;
       memcpy(block->voffset+block->mvbytes, value, valuebytes);
       block->mvbytes+=valuebytes;
     }
-
-    printf("i=%d, local convert end\n", i);
 
     key_id_pool->clear();
     key_pos_pool->clear();
@@ -1110,28 +1069,19 @@ uint64_t MapReduce::convert(){
 
   if(blockid!=-1) tmpdata->releaseblock(blockid);
 
-
   memset(ubuf+uoff, 0, unique_pool->getblocksize()-uoff);
   merge(tmpdata, kmv, unique_pool);
 
-  printf("begin delete key\n");
-  // delete key memory
   delete key_id_pool;
   delete key_pos_pool;
-
-  //printf("begin delete others\n");
 
   // delete unique memory
   delete [] ulist;
   delete unique_pool;
   delete block_pool;
 
-  //printf("begin delete tmp\n");
- 
   // delete tmp data
   delete tmpdata;
-
-  //printf("end delete\n");
 
   nitems[tid]=nunique;
 } 
@@ -1493,356 +1443,9 @@ void MapReduce::getinputfiles(const char *filepath, int sharedflag, int recurse)
   }  
 }
 
-#if 0
-
-/*
- * Convert Unique to tmp data
- */
-void MapReduce::unique2tmp(Unique **ulist, KeyValue *tkv, DataObject *tmpdata, int kmvtype){
-  // add block
-  int blockid = tmpdata->addblock();
-  tmpdata->acquireblock(blockid);
-
-  // get buffer
-  char *outbuf = tmpdata->getblockbuffer(blockid);
-  int off = 0;
-
-  // search the Unique list
-  for(int i=0; i < nbucket; i++){
-    
-    if(ulist[i] != NULL){
-      Unique *ukey = ulist[i];
-      do{
-        Block *block = ukey->blocks;
-        if(block->bid == -1){
-          if(kmvtype==0){
-            block->soffset=(int*)(outbuf+off);
-            block->s_off = off;
-            off += (block->nvalue)*sizeof(int);
-            block->voffset=outbuf+off;
-            block->v_off = off;
-            off += block->mvbytes;
-          }else if(kmvtype==1){
-            block->soffset=NULL;
-            block->s_off = -1;
-            block->voffset=outbuf+off;
-            block->v_off = off;
-            off += block->mvbytes;
-          }else if(kmvtype==2){
-            block->soffset=NULL;
-            block->s_off = -1;
-            block->voffset=outbuf+off;
-            block->v_off = off;
-            off += block->mvbytes;
-          }else LOG_ERROR("Error: undefined KV type %d!\n", kvtype);
-          block->bid=blockid;
-          block->nvalue=0;
-          block->mvbytes=0;
-        }
-      }while(ukey=ukey->next);
-    }
-  }
-
-#if SAFE_CHECK
-  if(off > blocksize*UNIT_SIZE)
-    LOG_ERROR("Error: offset %d is larger than block size %d\n", off, blocksize);
-#endif
-
-  tmpdata->setblockdatasize(blockid, off);
-
-  // convert KV to tmp KMV
-  char *key, *val;
-  int keybytes, valbytes;
-  for(int i = 0; i < tkv->nblock; i++){
-    tkv->acquireblock(i);
-    int offset = 0;
-    offset = tkv->getNextKV(i, offset, &key, keybytes, &val, valbytes);
-    while(offset != -1){
-      uint32_t hid = hashlittle(key, keybytes, 0);
-      int ibucket = hid % nbucket;
-      Unique *ukey;
-      if(findukey(ulist, ibucket, key, keybytes, &ukey)){
-        Block *block = ukey->blocks;
-        if(kmvtype==0){
-          block->soffset[block->nvalue]=valbytes;
-          block->nvalue++;
-          memcpy(block->voffset+block->mvbytes, val, valbytes);
-          block->mvbytes += valbytes;
-        }else if(kmvtype==1){
-          block->nvalue++;
-          memcpy(block->voffset+block->mvbytes, val, valbytes);
-          block->mvbytes += valbytes;
-        }else if(kmvtype == 2){
-          block->nvalue++;
-          memcpy(block->voffset+block->mvbytes, val, valbytes);
-          block->mvbytes += valbytes;
-        }
-      }else{
-        LOG_ERROR("Error: cannot find key (size=%d)\n", keybytes);
-      }
-      offset = tkv->getNextKV(i, offset, &key, keybytes, &val, valbytes);
-    }
-    tkv->releaseblock(i);
-  }
-
-  // clear thread KV data
-  tkv->clear();
-
-  tmpdata->releaseblock(blockid);
-}
-
-/*
- * convert unique to KMV data object
- */
-void MapReduce::unique2kmv(Unique **ulist, KeyValue *tkv, KeyMultiValue *kmv){
-
-  int kmvtype=kmv->getKMVtype();  
-  int blockid = kmv->addblock();
-
-  char *outbuf = kmv->getblockbuffer(blockid);  
-  int off = 0;
-
-  kmv->acquireblock(blockid);
-
-  // search unique list
-  for(int i=0; i < nbucket; i++){
-    if(ulist[i] != NULL){
-      Unique *ukey = ulist[i];
-      do{
-         if(kmvtype==0){
-          *(int*)(outbuf+off)=ukey->keybytes;
-          off += sizeof(int);
-          memcpy(outbuf+off, ukey->key, ukey->keybytes);
-          off += ukey->keybytes;
-          *(int*)(outbuf+off)=ukey->nvalue;
-          off += sizeof(int);
-          ukey->soffset=(int*)(outbuf+off);
-          off += (ukey->nvalue)*sizeof(int);
-          ukey->voffset=outbuf+off;
-          off += ukey->mvbytes;
-        }else if(kmvtype==1){
-          memcpy(outbuf+off, ukey->key, ukey->keybytes);
-          off += ukey->keybytes;
-          *(int*)(outbuf+off)=ukey->nvalue;
-          off += sizeof(int);
-          ukey->soffset=NULL;
-          ukey->voffset=outbuf+off;
-          off += ukey->mvbytes;
-        }else if(kmvtype==2){
-          memcpy(outbuf+off, ukey->key, ukey->keybytes);
-          off += ukey->keybytes;
-          *(int*)(outbuf+off)=ukey->nvalue;
-          off += sizeof(int);
-          ukey->soffset=NULL;
-          ukey->voffset=outbuf+off;
-          off += ukey->mvbytes;
-        }else LOG_ERROR("Error: undefined KV type %d!\n", kmvtype);
-        ukey->nvalue=0;
-        ukey->mvbytes=0;
-      }while(ukey=ukey->next);
-    }
-  }
-
-#if SAFE_CHECK
-  if(off > blocksize*UNIT_SIZE)
-    LOG_ERROR("Error: offset %d is larger than block size %d\n", off, blocksize);
-#endif
-
-  kmv->setblockdatasize(blockid, off);
-
-  char *key, *val;
-  int keybytes, valbytes;
-
-  for(int i = 0; i < tkv->nblock; i++){
-
-    tkv->acquireblock(i);
-
-    int offset = 0;
-    offset = tkv->getNextKV(i, offset, &key, keybytes, &val, valbytes);
-
-    while(offset != -1){
-
-      uint32_t hid = hashlittle(key, keybytes, 0);
-      int ibucket = hid % nbucket;
-
-      Unique *ukey;
-
-      if(findukey(ulist, ibucket, key, keybytes, &ukey, NULL)){
-
-        if(kmvtype==0){
-          ukey->soffset[ukey->nvalue]=valbytes;
-          ukey->nvalue++;
-          memcpy(ukey->voffset+ukey->mvbytes, val, valbytes);
-          ukey->mvbytes += valbytes;
-        }else if(kmvtype==1){
-          ukey->nvalue++;
-          memcpy(ukey->voffset+ukey->mvbytes, val, valbytes);
-          ukey->mvbytes += valbytes;
-        }else if(kmvtype == 2){
-          ukey->nvalue++;
-          memcpy(ukey->voffset+ukey->mvbytes, val, valbytes);
-          ukey->mvbytes += valbytes;
-        }
-      }else{
-        LOG_ERROR("Error: cannot find key (size=%d)\n", keybytes);
-      }
-      offset = tkv->getNextKV(i, offset, &key, keybytes, &val, valbytes);
-    }
-    tkv->releaseblock(i);
-  }
-
-  kmv->releaseblock(blockid);
-}
-
-/*
- * merge unique
- */
-void MapReduce::mergeunique(Unique **ulist, DataObject *tmpdata, KeyMultiValue *kmv){
-  int kmvtype = kmv->getKMVtype();
-
-  int blockid = kmv->addblock();
-  kmv->acquireblock(blockid);
-  
-  char *outbuf = kmv->getblockbuffer(blockid);
-  int off = 0;
-
-  // search unique list
-  for(int i = 0; i < nbucket; i++){
-
-    Unique *ukey = ulist[i];
-    if(ukey==NULL) continue;
-
-    do{
-
-      char *key = ukey->key;
-      int keybytes = ukey->keybytes;
-      int nvalue = ukey->nvalue;
-      int mvbytes = ukey->mvbytes;
-
-      int kmvsize=0;
-      if(kmvtype==0) 
-        kmvsize = sizeof(int)+keybytes+sizeof(int)*(nvalue+1)+mvbytes;
-      else if(kmvtype==1)
-        kmvsize = keybytes+sizeof(int)+mvbytes;
-      else if(kmvtype==2) 
-        kmvsize = keybytes+sizeof(int)+mvbytes;
-      else LOG_ERROR("Error: undefined KV type %d\n", kmvtype);
-
-      if(kmvsize > kmv->getblocksize()){
-        LOG_ERROR("Error: one KMV size %d is larger than block size!\n", kmvsize);
-      }
-
-      // add another block
-      if(kmvsize+off > kmv->getblocksize()){
-        kmv->setblockdatasize(blockid, off);
-        kmv->releaseblock(blockid);
-        blockid = kmv->addblock();
-        kmv->acquireblock(blockid);
-        outbuf = kmv->getblockbuffer(blockid);
-        off = 0;
-      }
-
-      // copy key data
-      if(kmvtype==0){
-        memcpy(outbuf+off, &keybytes, sizeof(int));
-        off += sizeof(int);
-        memcpy(outbuf+off, key, keybytes);
-        off += keybytes;
-        //memcpy(outbuf+off, &nvalue, sizeof(int));
-        *(int*)(outbuf+off)=nvalue;
-        off += sizeof(int);
-      }else if(kmvtype==1){
-        memcpy(outbuf+off, key, keybytes);
-        off += keybytes;
-        //memcpy(outbuf+off, &nvalue, sizeof(int));
-        *(int*)(outbuf+off)=nvalue;
-        off += sizeof(int);
-      }else if(kmvtype==2){
-        memcpy(outbuf+off, key, keybytes);
-        off += keybytes;
-        //memcpy(outbuf+off, &nvalue, sizeof(int));
-        *(int*)(outbuf+off)=nvalue;
-        off += sizeof(int);
-      }
-
-      // copy block information
-      Block *block = ukey->blocks;
-      do{
-        tmpdata->acquireblock(block->bid);
-
-        char *tmpbuf = tmpdata->getblockbuffer(block->bid);
-        block->soffset = (int*)(tmpbuf + block->s_off);
-        block->voffset = tmpbuf + block->v_off;
-        if(kmvtype==0){
-          memcpy(outbuf+off, block->soffset, (block->nvalue)*sizeof(int));
-          off += (block->nvalue)*sizeof(int);
-          memcpy(outbuf+off, block->voffset, block->mvbytes);
-          off += block->mvbytes;
-        }else if(kmvtype==1){
-          memcpy(outbuf+off, block->voffset, block->mvbytes);
-          off += block->mvbytes;
-        }else if(kmvtype==2){
-          memcpy(outbuf+off, block->voffset, block->mvbytes);
-          off += block->mvbytes;
-        }
-
-        tmpdata->releaseblock(block->bid);
-      }while(block = block->next);
-
-    }while(ukey=ukey->next);// end while
-
-  }// end for
-
-  kmv->setblockdatasize(blockid, off);
-  kmv->releaseblock(blockid);
-}
-
-void MapReduce::unique2kmv_keyonly(Spool *pool, KeyMultiValue *kmv){
-  char *inbuf=NULL, *outbuf=NULL;
-  int inoff=0, outoff=0;
-
-  inoff=nbucket*sizeof(Unique*);
-  int blocksize = pool->getblocksize();
-
-  int blockid = kmv->addblock();
-  kmv->acquireblock(blockid);
-  outbuf = kmv->getblockbuffer(blockid);
-  outoff = 0;
-
-  for(int i=0; i < pool->nblock; i++){
-    inbuf = pool->getblockbuffer(i);
-    while(1){
-      Unique *ukey = (Unique*)(inbuf+inoff);
-      if((blocksize-inoff < sizeof(Unique)) || (ukey->key==NULL))
-        break;
-      int kmvsize=ukey->keybytes+sizeof(int);
-      if(outoff+kmvsize>kmv->getblocksize()){
-        kmv->setblockdatasize(blockid, outoff);
-        kmv->releaseblock(blockid);
-        blockid=kmv->addblock();
-        kmv->acquireblock(blockid);
-        outbuf = kmv->getblockbuffer(blockid);
-        outoff=0;
-      }
-      memcpy(outbuf+outoff, ukey->key, ukey->keybytes);
-      outoff+=ukey->keybytes;
-      *(int*)(outbuf+outoff)=ukey->nvalue;
-      outoff+=sizeof(int);
-      inoff+=(ukey->keybytes+sizeof(Unique));
-    }
-    inoff=0;
-  }
-
-  kmv->setblockdatasize(blockid, outoff);
-  kmv->releaseblock(blockid);
-}
-#endif
-
 void MapReduce::merge(DataObject *tmpdata, KeyMultiValue *kmv, Spool *unique_pool){
   int kmvtype=kmv->getKMVtype();
   int blocksize=unique_pool->getblocksize();
-
-  //printf("merge: kmv type=%d\n", kmvtype);
 
   char *inbuf=NULL, *outbuf=NULL;
   int inoff=0, outoff=0;
@@ -1864,12 +1467,13 @@ void MapReduce::merge(DataObject *tmpdata, KeyMultiValue *kmv, Spool *unique_poo
       if(kmvtype==0) kmvsize += (ukey->nvalue+1)*sizeof(int);
 
 #if SAFE_CHECK
-        if(kmvsize > kmv->getblocksize()){
-          LOG_ERROR("Error: KMV size %d is larger than block size %d\n", kmvsize, kmv->getblocksize());
-        }
+      if(kmvsize > kmv->getblocksize()){
+        LOG_ERROR("Error: KMV size %d is larger than block size %d\n", kmvsize, kmv->getblocksize());
+      }
 #endif
 
       if(outoff+kmvsize>kmv->getblocksize()){
+
 #if SAFE_CHECK
         if(outoff > kmv->getblocksize()){
           LOG_ERROR("Error: offset in KMV %d is larger than block size %d\n", outoff, kmv->getblocksize());
@@ -1879,13 +1483,13 @@ void MapReduce::merge(DataObject *tmpdata, KeyMultiValue *kmv, Spool *unique_poo
         kmv->releaseblock(blockid);
         blockid=kmv->addblock();
         kmv->acquireblock(blockid);
-        outbuf = kmv->getblockbuffer(blockid);
+        outbuf=kmv->getblockbuffer(blockid);
         outoff=0;
       }
      
       if(kmvtype==0){
         *(int*)(outbuf+outoff)=ukey->keybytes;
-        outbuf+=sizeof(int);
+        outoff+=sizeof(int);
       }
 
       memcpy(outbuf+outoff, ukey->key, ukey->keybytes);
@@ -1901,10 +1505,6 @@ void MapReduce::merge(DataObject *tmpdata, KeyMultiValue *kmv, Spool *unique_poo
       ukey->voffset=outbuf+outoff;
       outoff+=(ukey->mvbytes);
 
-      //if(kmvtype==2){
-      //    printf("key=%ld, nvalue=%d, mvbytes=%d\n", *(int64_t*)(ukey->key), ukey->nvalue, ukey->mvbytes);
-      //}
-
       ukey->nvalue=0;
       ukey->mvbytes=0;
 
@@ -1916,15 +1516,7 @@ void MapReduce::merge(DataObject *tmpdata, KeyMultiValue *kmv, Spool *unique_poo
         char *tmpbuf = tmpdata->getblockbuffer(block->blockid);
         block->soffset = (int*)(tmpbuf + block->s_off);
         block->voffset = tmpbuf + block->v_off;
-
-        //int nvalue=block->nvalue;
-        //printf("nvalue=%d\n", nvalue);
-        //int tmpoff=0;
-        //for(int ii=0; ii<nvalue; ii++){
-        //  printf("value=%s\n", block->voffset+tmpoff);
-        //  tmpoff+=block->soffset[ii];
-        //}
-
+ 
         if(kmvtype==0){
           memcpy(ukey->soffset+ukey->nvalue, block->soffset, (block->nvalue)*sizeof(int));
           ukey->nvalue+=block->nvalue;
@@ -1937,19 +1529,22 @@ void MapReduce::merge(DataObject *tmpdata, KeyMultiValue *kmv, Spool *unique_poo
       }while(block = block->next);     
 
       inoff+=(ukey->keybytes+sizeof(Unique));
+
 #if SAFE_CHECK
       if(inoff > blocksize)
         LOG_ERROR("Error: offset %d in unique pool is larger than block size %d\n", inoff, blocksize);
 #endif
+
     }
     inoff=0;
   }
 
 #if SAFE_CHECK
-        if(outoff > kmv->getblocksize()){
-          LOG_ERROR("Error: offset in KMV %d is larger than block size %d\n", outoff, kmv->getblocksize());
-        }
+  if(outoff > kmv->getblocksize()){
+    LOG_ERROR("Error: offset in KMV %d is larger than block size %d\n", outoff, kmv->getblocksize());
+  }
 #endif
+
   kmv->setblockdatasize(blockid, outoff);
   kmv->releaseblock(blockid);
 }
@@ -1979,3 +1574,12 @@ int MapReduce::findukey(Unique **unique_list, int ibucket, char *key, int keybyt
   return ret;
 }
 
+// check if we need add another block
+void MapReduce::checkbuffer(int bytes, char **buf, int *off, Spool *pool){
+  int blocksize = pool->getblocksize();
+  if(*off+bytes > blocksize){
+    memset(*buf+*off, 0, blocksize-*off);
+    *buf = pool->addblock();
+    *off = 0;
+  }
+}

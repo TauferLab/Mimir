@@ -10,7 +10,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#define TEST_TIMES 1
+#define TEST_TIMES 10
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -68,7 +68,7 @@ int me, nprocs;
 
 double wtime[TEST_TIMES], teps[TEST_TIMES];
 
-#define MAX_LEVEL 1
+#define MAX_LEVEL 10
 int nactives[MAX_LEVEL];
 
 FILE *rf=NULL;
@@ -171,6 +171,8 @@ int main(int narg, char **args)
   
   g->columns   = new int64_t[g->nlocaledges];
 
+ // mr->output();
+
   // begin to make CSR graph
   mr->reduce(makegraph,&bfs_st);
 
@@ -212,6 +214,7 @@ int main(int narg, char **args)
 
     // set root vertex
     bfs_st.root = visit_roots[index];
+
     memset(bfs_st.vis, 0, sizeof(unsigned long)*(bitmapsize));
     for(int i = 0; i < g->nlocalverts; i++){
       bfs_st.pred[i] = -1;
@@ -221,12 +224,9 @@ int main(int narg, char **args)
     //mr->setKVtype(FixedKV, ksize, ksize);
     int count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
-    //printf("map:\n");
 
     int level = 0;
     do{
-      //printf("begin convert:\n");
-
       double t1 = MPI_Wtime();
 
 #ifndef BFS_MM
@@ -248,16 +248,10 @@ int main(int narg, char **args)
 
       double t3 = MPI_Wtime();
       
-      //printf("reduce:\n");
-      //mr->output(2);
-
-      //printf("begin map:\n");
       //mr->setKVtype(FixedKV, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &bfs_st);
 
       //printf("actives=%d\n", nactives[level]);
-
-      //fprintf(stdout, "")
 
       double t4 = MPI_Wtime();
 
@@ -281,8 +275,13 @@ int main(int narg, char **args)
     if(me==0){
       fprintf(rf, "%ld\n", bfs_st.root);
       fprintf(rf, "%d\n", level);
-      for(int k =0; k < level; k++){
+
+      //printf("level=%d\n", level);
+
+      for(int k=0; k<level; k++){
+        //printf("nactives[%d]=%d\n", k, nactives[k]);
         fprintf(rf, "%d\n", nactives[k]);
+        //printf("k=%d, level=%d\n", k, level);
       }
       fprintf(rf, "\n");
       fprintf(stdout, "Traversal %d end. (time=%g s %g %g %g)\n", index, stop_t-start_t, map_t, convert_t, reduce_t);

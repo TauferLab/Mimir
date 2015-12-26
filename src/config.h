@@ -17,7 +17,8 @@
 // LOCAL_BUF_SIZE <= GLOBAL_BUF_SIZE <= BLOCK_SIZE
 
 
-#define UNIQUE_COUNT            1024
+#define UNIQUE_SIZE             1024
+
 #define BLOCK_COUNT             8192
 #define KEY_COUNT            1048576
 
@@ -28,13 +29,13 @@
 #define KV_TYPE                    0
 
 // out of core 
-#define OUT_OF_CORE           0
-#define TMP_PATH            "."
+#define OUT_OF_CORE                0
+#define TMP_PATH                  "."
 
 // others
-#define MAXLINE            2048
+#define MAXLINE                  2048
 
-#define GATHER_STAT                1
-#define SAFE_CHECK                 1
+#define GATHER_STAT                 1
+#define SAFE_CHECK                  1
 
 #endif
