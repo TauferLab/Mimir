@@ -10,7 +10,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#define TEST_TIMES 10
+#define TEST_TIMES 1
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -121,12 +121,11 @@ int main(int narg, char **args)
   // set hash function
   mr->sethash(mypartition_str);
 
-  //mr->setKVtype(StringKV);
+  mr->setKVtype(StringKV);
 
   //mr->setGlobalbufsize(16);
   //mr->setBlocksize(64*1024);
   mr->setOutofcore(0);
-
   mr->setCommMode(0);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
@@ -134,7 +133,7 @@ int main(int narg, char **args)
   // make graph
   MPI_Barrier(MPI_COMM_WORLD);
 
-  printf("begin map\n");
+  //printf("begin map\n");
 
   // read edge list
   int nedges = mr->map(args[2],1,0,fileread,&bfs_st);
@@ -142,12 +141,12 @@ int main(int narg, char **args)
 
   //mr->output();
 
-  printf("begin convert\n");
+  //printf("begin convert\n");
 
   // convert edge list to kmv
   mr->convert();
 
-  printf("end convert\n");
+  //printf("end convert\n");
 
   //mr->output();
 
@@ -221,7 +220,7 @@ int main(int narg, char **args)
     }
  
     //uint64_t nactives = 0;
-    //mr->setKVtype(FixedKV, ksize, ksize);
+    mr->setKVtype(FixedKV, ksize, ksize);
     int count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
 
@@ -238,7 +237,7 @@ int main(int narg, char **args)
       //mr->output(2);
 
       //printf("begin reduce:\n");
-      //mr->setKVtype(FixedKV, ksize, 0);
+      mr->setKVtype(FixedKV, ksize, 0);
       mr->reduce(shrink, &bfs_st);
 #else
       double t2 = MPI_Wtime();
@@ -248,7 +247,7 @@ int main(int narg, char **args)
 
       double t3 = MPI_Wtime();
       
-      //mr->setKVtype(FixedKV, ksize, ksize);
+      mr->setKVtype(FixedKV, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &bfs_st);
 
       //printf("actives=%d\n", nactives[level]);
@@ -319,6 +318,8 @@ int main(int narg, char **args)
   delete [] g->rowstarts;
   delete [] g->columns;
 
+  mr->print_stat();
+
   delete mr;
 
   if(me==0){
@@ -344,8 +345,9 @@ int mypartition_int(char *key, int keybytes){
 }
 
 void fileread(MapReduce *mr, const char *fname, void *ptr){
-  //int tid = omp_get_thread_num();
+  int tid = omp_get_thread_num();
   //printf("%d input file=%s\n", tid, fname);
+
   bfs_state *st = (bfs_state*)ptr;
   csr_graph *g = &(st->g);
 

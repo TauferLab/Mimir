@@ -31,7 +31,7 @@ DataObject::DataObject(
   threadsafe = _threadsafe;
   filepath = _filepath;
 
-  maxbuf = _maxmemsize / _blocksize;  
+  maxbuf = _maxmemsize / _blocksize;
 
   nitem = nblock = nbuf = 0;
 

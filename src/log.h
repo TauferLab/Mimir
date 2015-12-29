@@ -9,8 +9,10 @@
 #define DBG_DATA    2
 #define DBG_COMM    4
 #define DBG_OOC     8
+#define DBG_CVT    16
 
-#define DBG_LEVEL DBG_OOC
+#define DBG_LEVEL    0
+//#define DBG_LEVEL DBG_CVT
 //#define DBG_LEVEL  DBG_COMM
 //#define DBG_LEVEL    DBG_GEN
 //#define DBG_LEVEL  (DBG_GEN | DBG_DATA)
@@ -30,12 +32,12 @@
 
 #define LOG_WARNING(format, ...) \
   {\
-    fprintf(stderr, format, __VA_ARGS__);\
+    fprintf(stdout, format, __VA_ARGS__);\
   }
 
 #define LOG_ERROR(format,...) \
   {\
-    fprintf(stderr, format, __VA_ARGS__);\
+    fprintf(stdout, format, __VA_ARGS__);\
     MPI_Abort(MPI_COMM_WORLD, 1);\
   };
 

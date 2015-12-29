@@ -142,6 +142,8 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   }
 #endif
 
+  //printf("send KV: %s, %s\n", key, val);
+
   int kvsize = 0;
   if(kvtype == 0) kvsize = keysize+valsize+twointlen;
   else if(kvtype == 1) kvsize = keysize+valsize;
