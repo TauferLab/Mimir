@@ -43,8 +43,6 @@ public:
 
 public:
   int nblock;
-
-private:
   char **blocks;
   int blocksize;
   int maxblocks;

@@ -4,7 +4,7 @@
 // memory
 #define UNIT_SIZE               1024  // 1K
 
-#define BLOCK_SIZE          512*1024  // 16M 
+#define BLOCK_SIZE           64*1024  // 16M 
 
 #define LOCAL_BUF_SIZE             1  // 1K
 #define GLOBAL_BUF_SIZE       4*1024  // 1M

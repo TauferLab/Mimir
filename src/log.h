@@ -24,6 +24,7 @@
   {\
     if(DBG_LEVEL & (type)){\
       printf((format), __VA_ARGS__);\
+      fflush(stdout);\
     }\
   }
 #else

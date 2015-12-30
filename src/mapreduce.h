@@ -180,6 +180,13 @@ private:
       Unique  *next;
     };
 
+    struct KV_Block_info
+    {
+      Spool *hid_pool;
+      Spool *pos_pool;
+      int   kv_num;
+    };
+
     // check if a buffer is ok
     void checkbuffer(int, char **, int *, Spool*);
     int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
