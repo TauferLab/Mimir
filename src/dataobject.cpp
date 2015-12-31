@@ -13,6 +13,7 @@ using namespace MAPREDUCE_NS;
 
 int DataObject::oid = 0;
 
+// FIXME: the memory size may exceed the range of one integer number?
 DataObject::DataObject(
   DataType _datatype,
   int _blocksize,
@@ -23,7 +24,7 @@ DataObject::DataObject(
   int _threadsafe){
 
   datatype = _datatype;
-
+ 
   blocksize = _blocksize * UNIT_SIZE;
   maxblock = _maxblock;
   maxmemsize = _maxmemsize * UNIT_SIZE;

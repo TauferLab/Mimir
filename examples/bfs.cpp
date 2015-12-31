@@ -144,9 +144,9 @@ int main(int narg, char **args)
   //printf("begin convert\n");
 
   // convert edge list to kmv
-  printf("convert start.\n");fflush(stdout);
+  //printf("convert start.\n");fflush(stdout);
   mr->convert();
-  printf("convert end.\n");fflush(stdout);
+  //printf("convert end.\n");fflush(stdout);
 
   //printf("end convert\n");
 

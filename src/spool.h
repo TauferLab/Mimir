@@ -22,6 +22,7 @@ public:
       LOG_ERROR("%s", "Error: malloc memory for block error!\n");
     }
 #endif
+    //printf("create block %d: %p\n",nblock, blocks[nblock]); fflush(stdout);
     return blocks[nblock++];
   }
 
@@ -35,6 +36,7 @@ public:
 
   void clear(){
     for(int i=0; i<nblock;i++){
+      //printf("delete block %d: %p\n", i, blocks[i]); fflush(stdout);
       free(blocks[i]);
       blocks[i]=NULL;
     }
