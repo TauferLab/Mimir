@@ -231,12 +231,14 @@ int main(int narg, char **args)
       double t1 = MPI_Wtime();
 
 #ifndef BFS_MM
+
+      //printf("before convert:\n");
       //mr->output(2);
       mr->convert();
-      double t2 = MPI_Wtime();
-
-      //printf("convert:\n");
+      //printf("after convert:\n");
       //mr->output(2);
+
+      double t2 = MPI_Wtime();
 
       //printf("begin reduce:\n");
       mr->setKVtype(FixedKV, ksize, 0);

@@ -182,10 +182,15 @@ private:
 
     struct KV_Block_info
     {
-      Spool *hid_pool;
-      Spool *pos_pool;
-      Spool *len_pool;
-      int   kv_num;
+      //Spool *hid_pool;
+      //Spool *pos_pool;
+      //Spool *len_pool;
+     
+      //mSpool *tid_pool;
+      int   *tkv_off;
+      int   *tkv_size;
+      
+      //int   kv_num;
     };
 
     // check if a buffer is ok
