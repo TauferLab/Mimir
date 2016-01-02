@@ -16,6 +16,7 @@ public:
   ~Spool();
 
   char *addblock(){
+    //printf("blocksize=%d\n", blocksize);
     blocks[nblock] = (char*)malloc(blocksize);
 #if SAFE_CHECK
     if(blocks[nblock]==NULL){

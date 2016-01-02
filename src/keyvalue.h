@@ -10,7 +10,7 @@ namespace MAPREDUCE_NS {
 
 
 class KeyValue : public DataObject{
-private:
+public:
   int kvtype; // 0 for string, 1 for binary, 2 for constant key, value
   int ksize, vsize;
 
