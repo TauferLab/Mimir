@@ -46,8 +46,9 @@ public:
 
 public:
   int nblock;
-  char **blocks;
   int blocksize;
+
+  char **blocks;
   int maxblocks;
 };
 

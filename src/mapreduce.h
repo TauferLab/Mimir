@@ -197,8 +197,16 @@ private:
     void checkbuffer(int, char **, int *, Spool*);
     int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
 
-    void preprocess(KeyValue *, KeyValue *tkv);
-    void merge(DataObject *, KeyMultiValue *, Spool *);
+    void  kv2tkv(KeyValue *, KeyValue *, KV_Block_info *);
+    //void  kv2unique(int, KeyValue *, int, Unique **, Spool *, Spool *);
+
+    void  unique2tmp_first();
+    void  unique2tmp();
+
+    void  unique2kmv();
+    void  merge(DataObject *, KeyMultiValue *, Spool *);
+
+    //void preprocess(KeyValue *, KeyValue *tkv);
 };//class MapReduce
 
 
