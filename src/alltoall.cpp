@@ -145,11 +145,14 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   //printf("send KV: %s, %s\n", key, val);
 
   int kvsize = 0;
-  if(kvtype == 0) kvsize = keysize+valsize+twointlen;
-  else if(kvtype == 1) kvsize = keysize+valsize;
-  else if(kvtype == 2) kvsize = keysize+valsize;
-  else if(kvtype == 3) kvsize = keysize;
-  else LOG_ERROR("%s", "Error undefined kv type\n");
+  kvsize = twointlen+ASIZE(keysize,ALIGNK)+ASIZE(valsize,ALIGNV);
+  kvsize = ASIZE(kvsize,ALIGNT);
+  //printf("kvsize=%d\n", kvsize);
+  //if(kvtype == 0) kvsize = keysize+valsize+twointlen;
+  //else if(kvtype == 1) kvsize = keysize+valsize;
+  //else if(kvtype == 2) kvsize = keysize+valsize;
+  //else if(kvtype == 3) kvsize = keysize;
+  //else LOG_ERROR("%s", "Error undefined kv type\n");
 
 #if SAFE_CHECK
   if(kvsize > lbufsize){
@@ -161,7 +164,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   //double t1 = omp_get_wtime();      
 #endif
 
-  char *lbuf = local_buffers[tid]+target*lbufsize;
+  //char *lbuf = local_buffers[tid]+target*lbufsize;
 
   /* copy kv into local buffer */
   while(1){
@@ -178,16 +181,30 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     }
 
     int loff = local_offsets[tid][target];
+    char *lbuf = local_buffers[tid]+target*lbufsize+loff;
+
+    //printf("loff=%d\n", loff);
 
     // local buffer has space
     if(loff + kvsize <= lbufsize){
-     if(kvtype == 0){
-        *(int*)(lbuf+loff)=keysize;
-        *(int*)(lbuf+loff+oneintlen)=valsize;
-        loff += twointlen;
-        memcpy(lbuf+loff, key, keysize);
-        memcpy(lbuf+loff+keysize, val, valsize);
-        loff += keysize+valsize;
+     //if(kvtype == 0){
+        char *lbuf_start=lbuf;
+        *(int*)(lbuf)=keysize;
+        *(int*)(lbuf+oneintlen)=valsize;
+        lbuf += twointlen;
+        lbuf=ROUNDUP(lbuf,(ALIGNK-1));
+        memcpy(lbuf, key, keysize);
+        lbuf+=keysize;
+        lbuf=ROUNDUP(lbuf,(ALIGNV-1));
+        memcpy(lbuf, val, valsize);
+        lbuf+=valsize;
+        lbuf=ROUNDUP(lbuf,(ALIGNT-1));
+        loff += (lbuf-lbuf_start);
+        //printf("%p->%p, loff=%d, kvsize=%d\n", lbuf_start, lbuf, loff, kvsize);
+        //loff += ASIZE(valsize,ALIGNV);
+        //loff += ASIZE() 
+        //loff += 
+#if 0
       }else if(kvtype == 1){
         memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
         loff += keysize;
@@ -209,6 +226,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       }else{
         LOG_ERROR("%s", "Error undefined kv type\n");
       }
+#endif
       local_offsets[tid][target] = loff;
       break;
     // local buffer is full

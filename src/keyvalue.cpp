@@ -38,13 +38,20 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
   char *buf = buffers[bufferid].buf + offset;
 
   // view KV as bytes pair
-  if(kvtype == 0){
+  //if(kvtype == 0){
+    char *start_buf=buf;
     keybytes = *(int*)buf;
     valuebytes = *(int*)(buf+oneintlen);
     buf += twointlen;
+    buf = ROUNDUP(buf, (ALIGNK-1));
     *key = buf;
-    *value = buf+keybytes;
-    offset += twointlen+keybytes+valuebytes;
+    buf += keybytes;
+    buf = ROUNDUP(buf, (ALIGNV-1));
+    *value = buf;
+    buf += valuebytes;
+    buf = ROUNDUP(buf, (ALIGNT-1));
+    offset += (buf-start_buf);
+#if 0
   // view KV as string pair
   }else if(kvtype == 1){
     *key = buf;
@@ -72,6 +79,7 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
   }else{
     LOG_ERROR("Error: undefined KV type %d!\n", kvtype);
   }
+#endif
 
   return offset;
 }
@@ -82,12 +90,14 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
  */
 int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &valuebytes){
   int kvbytes = 0;
-
-  if(kvtype == 0) kvbytes = twointlen+keybytes+valuebytes; 
-  else if(kvtype == 1) kvbytes = keybytes+valuebytes;
-  else if(kvtype == 2) kvbytes = ksize + vsize;
-  else if(kvtype == 3) kvbytes = keybytes;
-  else LOG_ERROR("Error: undefined KV type %d.\n", kvtype);
+  kvbytes=twointlen+ASIZE(keybytes,ALIGNK)+ASIZE(valuebytes,ALIGNV);
+  kvbytes=ASIZE(kvbytes, ALIGNT);
+ 
+  /*if(kvtype == 0)*/ //kvbytes = twointlen+keybytes+valuebytes;
+  //else if(kvtype == 1) kvbytes = keybytes+valuebytes;
+  //else if(kvtype == 2) kvbytes = ksize + vsize;
+  //else if(kvtype == 3) kvbytes = keybytes;
+  //else LOG_ERROR("Error: undefined KV type %d.\n", kvtype);
 
 #if SAFE_CHECK
   if(kvbytes > blocksize){
@@ -95,19 +105,31 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
   }
 #endif
 
+#if 1
   int datasize = blocks[blockid].datasize;
   if(kvbytes+datasize > blocksize) return -1;
 
   int bufferid = blocks[blockid].bufferid;
   char *buf = buffers[bufferid].buf;
 
-  if(kvtype == 0){
+  //if(kvtype == 0){
+    //*(int*)(buf+datasize)=keybytes;
+    //*(int*)(buf+datasize+oneintlen)=valuebytes;
+    //datasize += twointlen;
+    //memcpy(buf+datasize, key, keybytes);
+    //memcpy(buf+datasize+keybytes, value, valuebytes);
+    //datasize += keybytes+valuebytes;
+    
     *(int*)(buf+datasize)=keybytes;
     *(int*)(buf+datasize+oneintlen)=valuebytes;
     datasize += twointlen;
     memcpy(buf+datasize, key, keybytes);
-    memcpy(buf+datasize+keybytes, value, valuebytes);
-    datasize += keybytes+valuebytes;
+    datasize += ASIZE(keybytes,ALIGNK);
+    memcpy(buf+datasize, value, valuebytes);
+    datasize += ASIZE(valuebytes, ALIGNV);
+
+#endif
+#if 0
   }else if(kvtype == 1){
     memcpy(buf+datasize, key, keybytes);
     datasize += keybytes;
@@ -129,8 +151,9 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
   }else{
     LOG_ERROR("Error: undefined KV type %d\n", kvtype);
   }
+#endif
 
-  blocks[blockid].datasize = datasize;
+  blocks[blockid].datasize += kvbytes;
 
   return 0;
 }

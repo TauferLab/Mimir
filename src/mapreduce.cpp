@@ -814,8 +814,10 @@ uint64_t MapReduce::convert(){
   double t1 = MPI_Wtime();
 #endif
 
-  printf("nblock=%d\n", kv->nblock);
+  //printf("nblock=%d\n", kv->nblock);
   KV_Block_info *block_info = new KV_Block_info[kv->nblock];
+
+  //kv->print();
 
 #pragma omp parallel
 {
@@ -858,22 +860,38 @@ uint64_t MapReduce::convert(){
  
     char *kvbuf = kv->getblockbuffer(i);
     int datasize = kv->getblocktail(i);
+    char *kvbuf_end = kvbuf+datasize;
+
+    //printf("datasize=%d\n", datasize);
 
 #if GATHER_STAT
     double tt1=omp_get_wtime();
 #endif
 
-    int offset=0;
-    while(offset < datasize){
+    //int offset=0;
+    while(kvbuf < kvbuf_end){
       
       // get key and keysize
-      if(kvtype==0){
-        keybytes = *(int*)(kvbuf+offset);
-        valuebytes = *(int*)(kvbuf+offset+oneintlen);
-        key = kvbuf+offset+twointlen;
-        value=kvbuf+offset+twointlen+keybytes;
-        kvsize = twointlen+keybytes+valuebytes;
-//#if 0      
+      //if(kvtype==0){
+        char *kvbuf_start=kvbuf;
+        keybytes = *(int*)(kvbuf);
+        valuebytes = *(int*)(kvbuf+oneintlen);
+
+        kvbuf += twointlen;
+        kvbuf = ROUNDUP(kvbuf, (ALIGNK-1));
+        key = kvbuf;
+        kvbuf += keybytes;
+        kvbuf = ROUNDUP(kvbuf, (ALIGNV-1));
+        value = kvbuf;
+        kvbuf += valuebytes;
+        kvbuf = ROUNDUP(kvbuf, (ALIGNT-1));
+        kvsize=kvbuf-kvbuf_start;
+
+        //printf("key=%s, value=%s, kvsize=%d\n", key, value, kvsize);
+
+        //printf("star=%p, kvbuf=%p, key=%s, value=%s, kvsize=%d\n", kvbuf_start, kvbuf, key, value, kvsize);
+
+#if 0
      }else if(kvtype==1){
         key=kvbuf+offset;
         keybytes = strlen(key)+1;
@@ -893,7 +911,9 @@ uint64_t MapReduce::convert(){
         valuebytes=0;
         kvsize=keybytes;
       }
-//#endif
+#endif
+
+      //printf("kvsize=%d\n", kvsize);
 
       uint32_t hid = hashlittle(key, keybytes, 0);
       info->tkv_size[hid%tnum]+=kvsize;
@@ -904,7 +924,7 @@ uint64_t MapReduce::convert(){
         key_hid = (uint32_t*)hid_pool->addblock();
       }
 
-      offset+=kvsize;
+      //offset+=kvsize;
     }
 
 #if GATHER_STAT
@@ -921,21 +941,40 @@ uint64_t MapReduce::convert(){
     tkv->acquireblock(tkv_blockid);
     char *tkvbuf = tkv->getblockbuffer(tkv_blockid);
 
-    printf("pool block=%d\n", hid_pool->nblock);
+    //printf("pool block=%d\n", hid_pool->nblock);
 
     //printf("block[%d]=%lx\n", i, tkvbuf);
 
-    offset=0;
+    //offset=0;
+    kvbuf = kv->getblockbuffer(i);
     for(int j=0; j<nkey; j++){  
 
+      char *kvbuf_start=kvbuf;
+      keybytes = *(int*)(kvbuf);
+      valuebytes = *(int*)(kvbuf+oneintlen);
+
+      kvbuf += twointlen;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNK-1));
+      key = kvbuf;
+      kvbuf += keybytes;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNV-1));
+      value = kvbuf;
+      kvbuf += valuebytes;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNT-1));
+      kvsize=kvbuf-kvbuf_start;
+
+      //printf("key=%s, value=%s, kvsize=%d\n", key, value, kvsize);
+
       // get key and keysize
-      if(kvtype==0){
+      //if(kvtype==0){
+#if 0
         keybytes = *(int*)(kvbuf+offset);
         valuebytes = *(int*)(kvbuf+offset+oneintlen);
         key = kvbuf+offset+twointlen;
         value=kvbuf+offset+twointlen+keybytes;
         kvsize = twointlen+keybytes+valuebytes;
-//#if 0
+#endif
+#if 0
       }else if(kvtype==1){
         key=kvbuf+offset;
         keybytes = strlen(key)+1;
@@ -955,17 +994,17 @@ uint64_t MapReduce::convert(){
         valuebytes=0;
         kvsize=keybytes;
       }
-//#endif
+#endif
 
       uint32_t hid = *((int*)hid_pool->blocks[j/KEY_COUNT]+j%KEY_COUNT);
 
       int tkvoff = insert_off[hid%tnum];
  
-      // printf("%d kvbuf=%lx offset=%d, key=%s, value=%s\n", i, tkvbuf, tkvoff, key, value);
+      //printf("%d kvbuf=%p offset=%d, key=%s, value=%s\n", i, tkvbuf, tkvoff, key, value);
 
-      memcpy(tkvbuf+tkvoff, kvbuf+offset, kvsize);
+      memcpy(tkvbuf+tkvoff, kvbuf_start, kvsize);
       insert_off[hid%tnum]+=kvsize;
-      offset+=kvsize;
+      //offset+=kvsize;
     }
 #if GATHER_STAT
     double tt3=omp_get_wtime();
@@ -1041,7 +1080,6 @@ uint64_t MapReduce::convert(){
     int offset=0, mvbytes=0, start_block=nblock;
 
     //printf("tid=%d, i=%d\n", tid, i);
-    char *kvbuf = tkv->getblockbuffer(i);
 
     //printf("tid=%d, i=%d, kvbuf=%lx\n", tid, i, kvbuf);
 
@@ -1059,7 +1097,28 @@ uint64_t MapReduce::convert(){
 
     //printf("block %d %d [%d->%d]\n", i, tid, offset, datasize); fflush(stdout);
 
-    while(offset < datasize){
+    char *kvbuf = tkv->getblockbuffer(i);
+    char *kvbuf_end=kvbuf+datasize;
+
+    //printf("datasize=%d\n", datasize);
+
+    while(kvbuf < kvbuf_end){
+       char *start_buf=kvbuf;
+       keybytes = *(int*)(kvbuf);
+       valuebytes = *(int*)(kvbuf+oneintlen);
+       kvbuf += twointlen;
+       kvbuf = ROUNDUP(kvbuf, (ALIGNK-1));
+       key = kvbuf;
+       kvbuf += keybytes;
+       kvbuf = ROUNDUP(kvbuf, (ALIGNV-1));
+       value = kvbuf;
+       kvbuf += valuebytes;
+       kvbuf = ROUNDUP(kvbuf, (ALIGNT-1));
+       kvsize=kvbuf-start_buf;
+   
+       //printf("(%s,%s) %p->%p kvsize=%d\n", key, value, kvbuf, kvbuf_end, kvsize);
+
+#if 0
       // get key and keysize
       if(kvtype==0){
         keybytes = *(int*)(kvbuf+offset);
@@ -1086,6 +1145,7 @@ uint64_t MapReduce::convert(){
         valuebytes=0;
         kvsize=keybytes;
       }
+#endif
 
 //#ifdef GATHER_STAT
 //     double tstart=omp_get_wtime();
@@ -1171,7 +1231,7 @@ uint64_t MapReduce::convert(){
         nunique++;
       }
 
-      if(kvtype==0) mvbytes += sizeof(int);
+      /*if(kvtype==0)*/ mvbytes += sizeof(int);
       mvbytes += valuebytes;
 
       block_id[nkey%KEY_COUNT]=block->id;
@@ -1229,11 +1289,11 @@ uint64_t MapReduce::convert(){
       char *buf = block_pool->getblockbuffer(k/BLOCK_COUNT);
       Block *block = (Block*)buf+(k%BLOCK_COUNT);
 
-      if(kvtype==0){
+      //if(kvtype==0){
         block->soffset=(int*)(outbuf+outoff);
         block->s_off=outoff;
         outoff+=(block->nvalue)*sizeof(int);
-      }
+      //}
       block->voffset=outbuf+outoff;
       block->v_off=outoff;
       outoff+=block->mvbytes;
@@ -1265,9 +1325,10 @@ uint64_t MapReduce::convert(){
     //printf("nblock=%d\n", nblock); fflush(stdout);
     //offset=0;
     int k=0;
+    kvbuf = tkv->getblockbuffer(i);
     offset=info->tkv_off[tid];
     //int datasize=offset+info->tkv_size[i];
-    while(offset < datasize){ 
+    while(kvbuf < kvbuf_end){ 
       //printf("%d\n", k/KEY_COUNT);
       int key_block_id = *((int*)(block_id_pool->blocks[k/KEY_COUNT])+(k%KEY_COUNT));
       //printf("key_block")
@@ -1281,6 +1342,22 @@ uint64_t MapReduce::convert(){
       char *key, *value;
       int keybytes, valuebytes;
 
+      char *start_buf=kvbuf;
+      keybytes = *(int*)(kvbuf);
+      valuebytes = *(int*)(kvbuf+oneintlen);
+      kvbuf += twointlen;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNK-1));
+      key = kvbuf;
+      kvbuf += keybytes;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNV-1));
+      value = kvbuf;
+      kvbuf += valuebytes;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNT-1));
+      kvsize=kvbuf-start_buf;
+
+      //printf("%s,%s\n", key, value);
+
+#if 0
       if(kvtype==0){
         keybytes = *(int*)(kvbuf+offset);
         valuebytes = *(int*)(kvbuf+offset+oneintlen);
@@ -1306,12 +1383,13 @@ uint64_t MapReduce::convert(){
         valuebytes=0;
         kvsize=keybytes;
       }
+#endif
 
       //printf("%d (%s,%s)\n", tid, key, value);
 
       //printf("key=%s\n", key);
 
-      if(kvtype==0) block->soffset[block->nvalue++]=valuebytes;
+      /*if(kvtype==0)*/ block->soffset[block->nvalue++]=valuebytes;
       memcpy(block->voffset+block->mvbytes, value, valuebytes);
       block->mvbytes+=valuebytes;
   
