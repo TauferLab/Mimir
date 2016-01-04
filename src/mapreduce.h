@@ -155,55 +155,79 @@ private:
     void disinputfiles(const char *, int, int);
     void getinputfiles(const char *, int, int);
 
-    struct Block
+    //
+    // Data Structure used in convert function
+    // KV_Block_info: record information in KV block
+    // UniqueList: whole unique list information
+    // Unique: unique item
+    // UKeyBlock: 
+
+    struct KV_Block_info
     {
-      int       id;
+      int   *tkv_off;
+      int   *tkv_size;
+    };
+
+    struct Set
+    {
+      int       myid;
       int       nvalue;
       int       mvbytes;
       int      *soffset;
       char     *voffset;
       int       s_off;
       int       v_off;
-      int       blockid;
-      Block    *next;
+      int       mv_block_id;
+      Set      *next;
+    };
+
+    struct Partition
+    {
+      int    index;
+      int    nkey;
+      Spool *set_id_pool;
+      Spool *tmp_kv_pool;
+      int   *set_id;
+      char  *tmp_kv;
+      int    tmp_kv_off;
     };
 
     struct Unique
     {
-      char    *key;
-      int      keybytes;
-      int      nvalue;
-      int      mvbytes;
-      int     *soffset;
-      char    *voffset;
-      Block   *blocks;
-      Unique  *next;
+      char      *key;
+      int        keybytes;
+      int        nvalue;
+      int        mvbytes;
+      int       *soffset;
+      char      *voffset;
+      Set       *mysets;
+      Unique    *next;
     };
 
-    struct KV_Block_info
+    struct UniqueList
     {
-      //Spool *hid_pool;
-      //Spool *pos_pool;
-      //Spool *len_pool;
-     
-      //mSpool *tid_pool;
-      int   *tkv_off;
-      int   *tkv_size;
-      
-      //int   kv_num;
+      int        nunique;
+      Unique   **ulist;
+      Spool     *unique_pool;
+      Spool     *set_pool;
+      char      *ubuf;
+      int        uoff;
+      Set       *sets;
+      int        nset;
     };
+
+    int nbucket;
 
     // check if a buffer is ok
     void checkbuffer(int, char **, int *, Spool*);
     int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
 
     void  kv2tkv(KeyValue *, KeyValue *, KV_Block_info *);
-    //void  kv2unique(int, KeyValue *, int, Unique **, Spool *, Spool *);
 
     void  unique2tmp_first();
     void  unique2tmp();
 
-    void  unique2kmv();
+    void  unique2kmv(UniqueList *, Partition *p, KeyMultiValue *);
     void  merge(DataObject *, KeyMultiValue *, Spool *);
 
     //void preprocess(KeyValue *, KeyValue *tkv);

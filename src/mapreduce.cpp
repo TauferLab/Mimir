@@ -760,7 +760,6 @@ uint64_t MapReduce::map_local(MapReduce *mr,
   return count;
 }
 
-
 /*
  * convert: convert KMV to KV
  *   return: local kmvs count
@@ -776,45 +775,34 @@ uint64_t MapReduce::convert(){
   }
 #endif
 
-  int nbucket = pow(2, BUCKET_SIZE);
+  nbucket = pow(2, BUCKET_SIZE);
 
   KeyValue *kv = (KeyValue*)data;
   int kvtype=kv->getKVtype();
 
-#if GATHER_STAT
-  // level 0
-  int tpar=st.init_timer("convert parallel");
-  // level 1
-  int tstage1=st.init_timer("convert stage 1");
-  int tstage11=st.init_timer("convert stage 1.1");
-  int tstage12=st.init_timer("convert stage 1.2");
-  int tstage2=st.init_timer("convert stage 2");
-  int tstage21=st.init_timer("convert stage 2.1");
-  int tstage22=st.init_timer("convert stage 2.2");
-  int tstage23=st.init_timer("convert stage 2.3");
-  int tstage3=st.init_timer("convert stage 3");
-  int thotpot=st.init_timer("Hot pot");
-  double t1 = MPI_Wtime();
-#endif
-
-#define TID 2
-
-  //printf("nblock=%d\n", kv->nblock);
-
+#if 0
+  // Convert KV to thread KV
+  int istkv=0;
   KeyValue *tkv = NULL;
-  tkv = new KeyValue(KVType,
+  if(kv->nblock > tnum){
+    tkv = new KeyValue(KVType,
 		blocksize,
 		nmaxblock,
 		nmaxblock*blocksize,
 		outofcore,
 		tmpfpath);
-  tkv->setKVsize(ksize, vsize);
+    tkv->setKVsize(ksize, vsize);
 
-  KV_Block_info *block_info = new KV_Block_info[kv->nblock];
-  kv2tkv(kv, tkv, block_info);
-  delete kv;
-  tkv->print();
+    KV_Block_info *block_info = new KV_Block_info[kv->nblock];
+    kv2tkv(kv, tkv, block_info);
+    delete kv;
+    kv=tkv;
+    istkv=1;
+    tkv->print();
+  }
+#endif
 
+  // Create KMV Object
   KeyMultiValue *kmv = new KeyMultiValue(kvtype,
                              blocksize, 
                              nmaxblock, 
@@ -826,35 +814,33 @@ uint64_t MapReduce::convert(){
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
-  tinit(tid);  
+  tinit(tid);
 
-#if 1
-// Stage: 2
-  LOG_PRINT(DBG_CVT, "%d[%d] Convert: thread %d stage 2 start.\n", me, nprocs, tid);
-  
-  // Strcuture for unique list
-  Unique **ulist = new Unique*[nbucket];
-  for(int i=0; i<nbucket; i++) ulist[i]=NULL;
+  LOG_PRINT(DBG_CVT, "%d[%d] Convert: thread %d parallel start.\n", me, nprocs, tid);
 
-  Spool *unique_pool=NULL, *block_pool=NULL;
-  char *ubuf=NULL;
-  Block *blocks=NULL;
+  // initialize the unique list
+  UniqueList *u=new UniqueList();
+  u->ulist = new Unique*[nbucket];
+  memset(u->ulist, 0, nbucket*sizeof(Unique*));
+  u->unique_pool=new Spool(UNIQUE_SIZE*UNIT_SIZE);
+  u->set_pool=new Spool((SET_COUNT)*sizeof(Set));
+  u->nunique=0;
+  u->ubuf=u->unique_pool->addblock();
+  u->uoff=0;
+  u->sets=NULL;
+  u->nset=0;
 
-  unique_pool = new Spool(UNIQUE_SIZE*UNIT_SIZE);
-  ubuf=unique_pool->addblock();
+  // initialize partition structure
+  Partition *p=new Partition();
+  p->set_id_pool = new Spool((KEY_COUNT)*sizeof(int));
+  p->tmp_kv_pool = new Spool(blocksize*UNIT_SIZE);
+  p->nkey=0;
+  p->set_id=(int*)p->set_id_pool->addblock();
+  p->tmp_kv=p->tmp_kv_pool->addblock();
+  p->tmp_kv_off=0;
+  p->index=0;
 
-  block_pool  = new Spool((BLOCK_COUNT)*sizeof(Block));
-  blocks=(Block*)block_pool->addblock(); 
-
-  int nunique=0, nblock=0, uoff=0;
-
-  // Intermediate data for local convert
-  Spool *block_id_pool = new Spool((KEY_COUNT)*sizeof(int));
-  int *block_id = (int*)block_id_pool->addblock();
-  Spool *tmp_kv_pool = new Spool(blocksize*UNIT_SIZE);
-  char *tmp_kv=tmp_kv_pool->addblock();
-
-  // Store results of local convert
+  // store results of local convert
   int tmpsize = TMP_BLOCK_SIZE*UNIT_SIZE;
   DataObject *tmpdata = NULL;
   tmpdata = new KeyValue(ByteType, 
@@ -865,34 +851,25 @@ uint64_t MapReduce::convert(){
                   tmpfpath,
                   0);
 
-  //int blockid=-1;
-
+  // <Key, Value> Variable
   char *key, *value;
   int keybytes, valuebytes, kvsize;
-  int isfirst=1, start_block=0, mvbytes=0, kmvbytes=0, neky=0;
+
+  int isfirst=1, start_block=0, mvbytes=0, kmvbytes=0;
 
   // scan all kvs to gain the thread kvs
-  for(int i = 0; i < tkv->nblock; i++){
+  for(int i = 0; i < kv->nblock; i++){
 
-    //printf("block id add a block\n"); fflush(stdout);
+    kv->acquireblock(i);
 
-    tkv->acquireblock(i);
-  
+    int   datasize  = kv->getblocktail(i);
+    char *kvbuf     = kv->getblockbuffer(i);
+    char *kvbuf_end =kvbuf+datasize;
 
-    LOG_PRINT(DBG_CVT, "%d[%d] Convert: thread %d block %d stage 2.1 start.\n", me, nprocs, tid, i);
-
-    KV_Block_info *info = &block_info[i];
-
-// Stage 2.1
-    int offset=info->tkv_off[tid];
-    int datasize=offset+info->tkv_size[tid];
-
-    char *kvbuf = tkv->getblockbuffer(i);
-    char *kvbuf_end=kvbuf+datasize;
-
+    // Scan KVs
     while(kvbuf < kvbuf_end){
       // Get Key and Value
-      char *start_buf=kvbuf;
+      char *kvbuf_start=kvbuf;
       keybytes = *(int*)(kvbuf);
       valuebytes = *(int*)(kvbuf+oneintlen);
       kvbuf += twointlen;
@@ -903,127 +880,142 @@ uint64_t MapReduce::convert(){
       value = kvbuf;
       kvbuf += valuebytes;
       kvbuf = ROUNDUP(kvbuf, (ALIGNT-1));
-      kvsize=kvbuf-start_buf;
+      kvsize=kvbuf-kvbuf_start;
 
+      //printf("key=%s, value=%s\n", key, value);
+
+      // Get hash
       uint32_t hid = hashlittle(key, keybytes, 0);
-   
-      // find the key
+      if(hid%tnum != tid) continue;
+
+      // Find the key
       int ibucket = hid % nbucket;
       Unique *ukey, *pre;
-      Block *block;
-      int ret = findukey(ulist, ibucket, key, keybytes, &ukey, &pre);
+      int ret = findukey(u->ulist, ibucket, key, keybytes, &ukey, &pre);
 
-      int mv_inc=sizeof(int)+mvbytes;
-
-      // The first block be converted into tmp data
+      // Decide if we need a local convert 
+      int mv_inc=sizeof(int)+valuebytes;
       if(isfirst){
         kmvbytes+=mv_inc;
-        if(!hit) kmvbytes+=(keybytes+sizeof(int));
+        if(!ret) kmvbytes+=(keybytes+2*sizeof(int));
 
-        if(kmvbytes > blocksize*UNIT_SIZE)
+        if(kmvbytes > blocksize*UNIT_SIZE){
+          LOG_ERROR("%s", "Single block support!\n");
+          // convert KV to temp MV
           unique2tmp_first();
-
-        isfirst=0;
+          isfirst=0;
+        }
       }
-
-      // Local convert
-      if(mvbytes + mv_inc > TMP_BLOCK_SIZE*UNIT_SIZE){
+      if(mvbytes + mv_inc > tmpsize){
+        LOG_ERROR("%s", "Single block support!\n");
         unique2tmp();
         mvbytes=0;
       }
-
       mvbytes += mv_inc;
 
-      // key hit
+      // Key hit
+      Set *pset=NULL;
       if(ret){
         ukey->nvalue++;
         ukey->mvbytes += valuebytes;
         if(!isfirst){
-          block=ukey->blocks;
-
-          // add a new block
-          if(block->blockid != -1){
+          pset=ukey->mysets;
+          // Add a new block
+          if(pset->mv_block_id != -1){
             // add a block
-            block=&blocks[nblock%BLOCK_COUNT];
-            block->next = ukey->blocks;
-            ukey->blocks=block;
+            pset=&(u->sets)[(u->nset)%SET_COUNT];
 
-            block->id=nblock++;
-            block->nvalue=0;
-            block->mvbytes=0;
-            block->soffset=NULL;
-            block->voffset=NULL;
-            block->blockid=-1;
+            pset->myid=u->nset;
+            u->nset++;
+            pset->nvalue=0;
+            pset->mvbytes=0;
+            pset->soffset=NULL;
+            pset->voffset=NULL;
+            pset->mv_block_id=-1;
 
-            if(nblock%BLOCK_COUNT==0){
-              blocks=(Block*)block_pool->addblock();
+            pset->next = ukey->mysets;
+            ukey->mysets=pset;
+
+
+            if(u->nset%SET_COUNT==0){
+              u->sets=(Set*)u->set_pool->addblock();
             }
           }
 
           // add key information into block
-          block->nvalue++;
-          block->mvbytes += valuebytes;
+          pset->nvalue++;
+          pset->mvbytes += valuebytes;
         }
-        
         
       // add unique key
       }else{
-        checkbuffer(sizeof(Unique)+keybytes, &ubuf, &uoff, unique_pool);
-        ukey=(Unique*)(ubuf+uoff);
-        uoff += sizeof(Unique);
+        //checkbuffer(sizeof(Unique)+keybytes, &ubuf, &uoff, unique_pool);
+        ukey=(Unique*)(u->ubuf+u->uoff);
+        u->uoff += sizeof(Unique);
 
         // add to the list
         ukey->next = NULL;
         if(pre == NULL)
-          ulist[ibucket] = ukey;
+          u->ulist[ibucket] = ukey;
         else
           pre->next = ukey;
 
         // copy key
-        ukey->key = ubuf+uoff;
-        memcpy(ubuf+uoff, key, keybytes);
-        uoff += keybytes;
+        ukey->key = u->ubuf+u->uoff;
+        memcpy(u->ubuf+u->uoff, key, keybytes);
+        u->uoff += keybytes;
  
         ukey->keybytes=keybytes;
         ukey->nvalue=1;
         ukey->mvbytes=valuebytes;
                 
         if(!isfirst){
-          block=&blocks[nblock%BLOCK_COUNT];
-          block->next=NULL;
+          pset=&(u->sets)[(u->nset)%SET_COUNT];
+          pset->next=NULL;
 
-          ukey->blocks=block;             
+          ukey->mysets=pset;             
  
-          block->id=nblock++;
-          block->nvalue=1;
-          block->mvbytes=valuebytes;
-          block->soffset=NULL;
-          block->voffset=NULL;
-          block->blockid=-1;
+          pset->myid=u->nset;
+          u->nset++;
+          pset->nvalue=1;
+          pset->mvbytes=valuebytes;
+          pset->soffset=NULL;
+          pset->voffset=NULL;
+          pset->mv_block_id=-1;
 
-          if(nblock%BLOCK_COUNT==0){
-            blocks=(Block*)block_pool->addblock();
+          if((u->nset)%SET_COUNT==0){
+            u->sets=(Set*)u->set_pool->addblock();
           }
         }
 
-        nunique++;
+        u->nunique++;
       }
 
-      //int 
-
-
+      //printf("tmp kv offset=%d, kvsize=%d\n", p->tmp_kv_off, kvsize);
+      // Copy KV into KV pool
+      if(p->tmp_kv_off+kvsize>p->tmp_kv_pool->blocksize){
+        memset(p->tmp_kv+p->tmp_kv_off, 0, p->tmp_kv_pool->blocksize-p->tmp_kv_off);
+        p->tmp_kv=p->tmp_kv_pool->addblock();
+        p->tmp_kv_off=0;
+      }
+      memcpy(p->tmp_kv+p->tmp_kv_off, kvbuf_start, kvsize);
+      p->tmp_kv_off += kvsize;
+     
       if(isfirst)
-        block_id[nkey%KEY_COUNT]=nunique-1;
+        p->set_id[p->nkey%KEY_COUNT]=u->nunique-1;
       else
-        block_id[neky%KEY_COUNT]=block->id;
+        p->set_id[p->nkey%KEY_COUNT]=pset->myid;
 
-      nkey++;
-      if(nkey%KEY_COUNT==0){
-        block_id = (int*)block_id_pool->addblock();
+      p->nkey++;
+      if(p->nkey%KEY_COUNT==0){
+        p->set_id = (int*)p->set_id_pool->addblock();
       }
+    }// end while(kvbuf < kvbuf_end)
+    
+    kv->releaseblock(i);
+  } // scan kvs
 
-    } // scan kvs
-
+#if 0
 #if SAFE_CHECK
     if(mvbytes > tmpdata->getblocksize()){
       LOG_ERROR("The mvbytes %d is larger than the block size %d\n", mvbytes, tmpdata->getblocksize());
@@ -1181,13 +1173,15 @@ uint64_t MapReduce::convert(){
     double tt4=omp_get_wtime();
     if(tid==TID) st.inc_timer(tstage23, tt4-tt3);
 #endif
+#endif
 
-    block_id_pool->clear();
-    tkv->releaseblock(i);
-  }
+  //  block_id_pool->clear();
+  //  kv->releaseblock(i);
+  //}
 
-  if(blockid!=-1) tmpdata->releaseblock(blockid);
+  //if(blockid!=-1) tmpdata->releaseblock(blockid);
 
+#if 0
   delete block_id_pool;
 
 #pragma omp barrier
@@ -1200,24 +1194,39 @@ uint64_t MapReduce::convert(){
     delete tmp_kv_pool;
     delete tkv;
   }
+#endif
 
   LOG_PRINT(DBG_CVT, "%d[%d] Convert: thread %d stage 3 start\n", me, nprocs, tid);
 
+#if 1
 ///////////// Stage: 3
-  memset(ubuf+uoff, 0, unique_pool->getblocksize()-uoff);
-  if(isfirst)
-    unique2kmv();
-  else
-    merge(tmpdata, kmv, unique_pool);
-  
-  delete [] ulist;
-  delete unique_pool;
-  delete block_pool;
+  //printf("kmvbytes=%d\n", kmvbytes);
+  memset(u->ubuf+u->uoff, 0, u->unique_pool->blocksize-u->uoff);
+  //printf("isfirst=%d\n", isfirst);
+  if(isfirst){
+    unique2kmv(u, p, kmv);
+    delete p->set_id_pool;
+    delete p->tmp_kv_pool;
+    delete p;
+  }
+  else{
+    LOG_ERROR("%s", "Single block support!\n");
+    delete p->set_id_pool;
+    delete p->tmp_kv_pool;
+    delete p;
+    //merge(tmpdata, kmv, unique_pool);
+  }
+#endif 
+ 
+  delete [] u->ulist;
+  delete u->unique_pool;
+  delete u->set_pool;
+  delete u;
   delete tmpdata;
 
   LOG_PRINT(DBG_CVT, "%d[%d] Convert: thread %d convert end.\n", me, nprocs, tid);
 
-  nitems[tid]=nunique;
+  //nitems[tid]=nunique;
 } 
 
   //for(int i=0; i<kv->nblock; i++){
@@ -1589,6 +1598,7 @@ void MapReduce::getinputfiles(const char *filepath, int sharedflag, int recurse)
   }  
 }
 
+#if 0
 void MapReduce::merge(DataObject *tmpdata, KeyMultiValue *kmv, Spool *unique_pool){
   int kmvtype=kmv->getKMVtype();
   int blocksize=unique_pool->getblocksize();
@@ -1694,6 +1704,7 @@ void MapReduce::merge(DataObject *tmpdata, KeyMultiValue *kmv, Spool *unique_poo
   kmv->setblockdatasize(blockid, outoff);
   kmv->releaseblock(blockid);
 }
+#endif
 
 void MapReduce::kv2tkv(KeyValue *kv, KeyValue *tkv, KV_Block_info *block_info){
 
@@ -1810,13 +1821,115 @@ void MapReduce::kv2tkv(KeyValue *kv, KeyValue *tkv, KV_Block_info *block_info){
 
 }
 
+#if 0
+void MapReduce::unique2tmp_first(int nunique, DataObject *mv, Spool *unique_pool){
+  
+  int blockid = mv->addblock();
+  mv->acquireblock(blockid);
+
+  int  uidx=0;
+  char *ubuf=unique_pool->blocks[uidx++];
+  for(int i = 0; i < nunique; i++){
+    
+  } 
+
+  mv->releaseblock(blockid);
+
+}
+#endif
+
 void MapReduce::unique2tmp_first(){
 }
-
-void MapReduce::uniqe2tmp(){
+void MapReduce::unique2tmp(){
 }
 
-void MapReduce::unique2kmv(){
+void MapReduce::unique2kmv(UniqueList *u, Partition *p, KeyMultiValue *kmv){
+  //printf("unique2kmv start\n") ; 
+
+  int kmv_block_id=kmv->addblock();
+  kmv->acquireblock(kmv_block_id);
+  
+  char *kmv_buf=kmv->getblockbuffer(kmv_block_id);
+  int kmv_off=0;
+
+  char *key, *val;
+  int keybytes, valbytes, kvsize;
+  Spool *unique_pool=u->unique_pool;
+  for(int i=0; i<unique_pool->nblock; i++){
+    char *ubuf=unique_pool->blocks[i];
+    int uoff=0;
+    while(uoff < unique_pool->blocksize){
+      Unique *ukey = (Unique*)(ubuf+uoff);
+      if((unique_pool->blocksize-uoff < sizeof(Unique)) || (ukey->key==NULL))
+        break;
+      *(int*)(kmv_buf+kmv_off)=ukey->keybytes;
+      kmv_off+=sizeof(int);
+      memcpy(kmv_buf+kmv_off, ukey->key, ukey->keybytes);
+      kmv_off+=ukey->keybytes;
+      *(int*)(kmv_buf+kmv_off)=ukey->nvalue;
+      kmv_off+=sizeof(int);
+      ukey->soffset=(int*)(kmv_buf+kmv_off);
+      kmv_off+=ukey->nvalue*sizeof(int);
+      ukey->voffset=kmv_buf+kmv_off;
+      kmv_off+=ukey->mvbytes;
+      uoff+=sizeof(Unique)+ukey->keybytes;
+      
+      //printf("key=%s, nvalue=%d, mvbytes=%d\n", ukey->key, ukey->nvalue, ukey->mvbytes);
+     
+      ukey->nvalue=0;
+      ukey->mvbytes=0;
+
+      //printf("kmv offset=%d\n", kmv_off);
+    }
+  }
+
+  //printf("kmv_off=%d\n", kmv_off);
+  kmv->setblockdatasize(kmv_block_id, kmv_off);
+
+  Spool *tmp_kv_pool=p->tmp_kv_pool;
+  //printf("")
+  for(int i=0; i<tmp_kv_pool->nblock; i++){
+    char *kvbuf=tmp_kv_pool->blocks[i];
+    char *kvbuf_end=kvbuf+tmp_kv_pool->blocksize;
+    //int kvoff=0;
+    while(kvbuf<kvbuf_end){
+      //printf("kvbuf=%p, kvbuf_end=%p\n", kvbuf, kvbuf_end) ;     
+ 
+      if(kvbuf_end-kvbuf<twointlen) break;
+      char *kvbuf_start=kvbuf;
+      keybytes = *(int*)kvbuf;
+      valbytes = *(int*)(kvbuf+oneintlen);
+      //printf("keybytes=%d, valytes=%d\n", keybytes, valbytes);
+      
+      if(keybytes+valbytes<=0) break;
+
+      kvbuf += twointlen;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNK-1));
+      key = kvbuf;
+      kvbuf += keybytes;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNV-1));
+      val = kvbuf;
+      kvbuf += valbytes;
+      kvbuf = ROUNDUP(kvbuf, (ALIGNT-1));
+      kvsize = kvbuf-kvbuf_start;
+
+      //printf("key=%s, value=%s, kvsize=%d\n", key, val, kvsize);    
+ 
+      uint32_t hid = hashlittle(key, keybytes, 0);
+      // Find the key
+      int ibucket = hid % nbucket;
+      Unique *ukey, *pre;
+      int ret = findukey(u->ulist, ibucket, key, keybytes, &ukey, &pre);
+      ukey->soffset[ukey->nvalue]=valbytes;
+      memcpy(ukey->voffset+ukey->mvbytes, val, valbytes);
+      ukey->nvalue++;
+      ukey->mvbytes+=valbytes;
+
+      //printf("key=%s\n", ukey->key);
+    }
+  }
+
+  kmv->releaseblock(kmv_block_id);
 }
 
 // find the key in the unique list

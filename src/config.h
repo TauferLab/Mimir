@@ -19,7 +19,7 @@
 
 #define UNIQUE_SIZE         (32*1024)
 
-#define BLOCK_COUNT           1048576
+#define SET_COUNT           1048576
 #define KEY_COUNT           (1048576)
 
 // convert
