@@ -1,6 +1,29 @@
 #ifndef CONSTANT_H
 #define CONSTANT_H
 
+#define DEFINE_KV_VARS  \
+    char *key, *value;\
+    int keybytes, valuebytes, kvsize;\
+    char *kvbuf;
+
+#define GET_KV_VARS_TYPE0 \
+  {\
+    char *kvbuf_start=kvbuf;\
+    keybytes = *(int*)(kvbuf);\
+    valuebytes = *(int*)(kvbuf+oneintlen);\
+    kvbuf += twointlen;\
+    kvbuf = ROUNDUP(kvbuf, kalignm);\
+    key = kvbuf;\
+    kvbuf += keybytes;\
+    kvbuf = ROUNDUP(kvbuf, valignm);\
+    value = kvbuf;\
+    kvbuf += valuebytes;\
+    kvbuf = ROUNDUP(kvbuf, talignm);\
+    kvsize=kvbuf-kvbuf_start;\
+  }
+
+    
+
 extern int oneintlen;
 extern int twointlen;
 extern int threeintlen;

@@ -90,7 +90,7 @@ private:
   int acquirebuffer(int);
   void getfilename(int, std::string &);
 
-protected:
+public:
   DataType datatype;    // 0 for bytes, 1 for kv, 2 for kmv
 
   // information of block

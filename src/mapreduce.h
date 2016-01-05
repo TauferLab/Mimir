@@ -162,6 +162,7 @@ private:
     // Unique: unique item
     // UKeyBlock: 
 
+#if 0    
     struct KV_Block_info
     {
       int   *tkv_off;
@@ -170,6 +171,7 @@ private:
       Spool *off_pool;
       int   nkey;
     };
+#endif
 
     struct Set
     {
@@ -180,44 +182,45 @@ private:
       char     *voffset;
       int       s_off;
       int       v_off;
-      int       mv_block_id;
+      int       pid;        // Partition ID
       Set      *next;
     };
 
     struct Partition
     {
-      int    index;
-      int    nkey;
-      Spool *set_id_pool;
-      Spool *tmp_kv_pool;
-      int   *set_id;
-      char  *tmp_kv;
-      int    tmp_kv_off;
+      int     last_block;
+      int     last_offset;
+      int     next_set;
+      Partition *next;
     };
 
     struct Unique
     {
-      //char      *key;
+      char      *key;
       int        keybytes;
       int        nvalue;
       int        mvbytes;
       int       *soffset;
       char      *voffset;
+      //int        s_off;
+      //int        v_off;
       Set       *firstset;
       Set       *lastset;
+      int        flag;
       Unique    *next;
     };
 
     struct UniqueInfo
     {
       int        nunique;
-      Unique   **ulist;
+      int        nset;
+      Unique   **ubucket;
+      //Set      vim *sets;
       Spool     *unique_pool;
       Spool     *set_pool;
+      //Spool     *key2set_pool;
       //char      *ubuf;
       //int        uoff;
-      Set       *sets;
-      int        nset;
     };
 
     int thashmask, uhashmask;
@@ -227,14 +230,24 @@ private:
     int nbucket;
     int ukeyoffset;
 
+    MapReduce::Unique* findukey(Unique **, int, char *, int, Unique *&pre);
+
+    void unique2set(UniqueInfo *);
+    
+    void  kv2unique(int, KeyValue *, UniqueInfo *, Partition *);
+    void unique2mv(KeyValue *, UniqueInfo *, Partition *, DataObject *);
+    void mv2kmv(DataObject *, UniqueInfo *, KeyMultiValue *);
+    void unique2kmv(KeyValue *, UniqueInfo *, KeyMultiValue *);
+
+    uint64_t convert_small(KeyValue *, KeyMultiValue *);
+    uint64_t convert_median(KeyValue *, KeyMultiValue *);
+    uint64_t convert_large(KeyValue *, KeyMultiValue *);
+
     // check if a buffer is ok
     //void checkbuffer(int, char **, int *, Spool*);
-    MapReduce::Unique* findukey(Unique **, int, char *, int, Unique *&pre);
 
     //void  buildkvinfo(KeyValue *, KV_Block_info *);
     //void  kv2tkv(KeyValue *, KeyValue *, KV_Block_info *);
-
-    void  kv2unique();
 
     //void  unique2tmp_first();
     //void  unique2tmp();
