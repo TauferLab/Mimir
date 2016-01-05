@@ -166,6 +166,9 @@ private:
     {
       int   *tkv_off;
       int   *tkv_size;
+      Spool *hid_pool;
+      Spool *off_pool;
+      int   nkey;
     };
 
     struct Set
@@ -194,41 +197,50 @@ private:
 
     struct Unique
     {
-      char      *key;
+      //char      *key;
       int        keybytes;
       int        nvalue;
       int        mvbytes;
       int       *soffset;
       char      *voffset;
-      Set       *mysets;
+      Set       *firstset;
+      Set       *lastset;
       Unique    *next;
     };
 
-    struct UniqueList
+    struct UniqueInfo
     {
       int        nunique;
       Unique   **ulist;
       Spool     *unique_pool;
       Spool     *set_pool;
-      char      *ubuf;
-      int        uoff;
+      //char      *ubuf;
+      //int        uoff;
       Set       *sets;
       int        nset;
     };
 
+    int thashmask, uhashmask;
+    int kalign, valign, talign, ualign;
+    int kalignm, valignm, talignm, ualignm;
+
     int nbucket;
+    int ukeyoffset;
 
     // check if a buffer is ok
-    void checkbuffer(int, char **, int *, Spool*);
-    int findukey(Unique **, int, char *, int, Unique **, Unique **pre=NULL);
+    //void checkbuffer(int, char **, int *, Spool*);
+    MapReduce::Unique* findukey(Unique **, int, char *, int, Unique *&pre);
 
-    void  kv2tkv(KeyValue *, KeyValue *, KV_Block_info *);
+    //void  buildkvinfo(KeyValue *, KV_Block_info *);
+    //void  kv2tkv(KeyValue *, KeyValue *, KV_Block_info *);
 
-    void  unique2tmp_first();
-    void  unique2tmp();
+    void  kv2unique();
 
-    void  unique2kmv(UniqueList *, Partition *p, KeyMultiValue *);
-    void  merge(DataObject *, KeyMultiValue *, Spool *);
+    //void  unique2tmp_first();
+    //void  unique2tmp();
+
+    //void  unique2kmv(UniqueList *, Partition *p, KeyMultiValue *);
+    //void  merge(DataObject *, KeyMultiValue *, Spool *);
 
     //void preprocess(KeyValue *, KeyValue *tkv);
 };//class MapReduce

@@ -4,7 +4,7 @@
 // memory
 #define UNIT_SIZE               1024  // 1K
 
-#define BLOCK_SIZE         (64*1024)  // 16M 
+#define BLOCK_SIZE         (256*1024)  // 16M 
 
 #define LOCAL_BUF_SIZE             1  // 1K
 #define GLOBAL_BUF_SIZE         1024  // 1M
@@ -35,7 +35,7 @@
 // others
 #define MAXLINE                  2048
 
-#define GATHER_STAT                 0
+#define GATHER_STAT                 1
 #define SAFE_CHECK                  1
 
 #endif
