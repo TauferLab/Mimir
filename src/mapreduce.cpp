@@ -1027,7 +1027,7 @@ void  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, Partition *p){
   //printf("nunique=%d\n", u->nunique);
 }
 
-void MapReduce::unique2kmv(KeyValue *kv, UniqueInfo *u, KeyMultiValue *kmv){
+void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *kmv){
   DEFINE_KV_VARS; 
  
   int kmv_block_id=kmv->addblock();
@@ -1045,6 +1045,7 @@ void MapReduce::unique2kmv(KeyValue *kv, UniqueInfo *u, KeyMultiValue *kmv){
       Unique *ukey = (Unique*)(ubuf);
       if((ubuf_end-ubuf < sizeof(Unique)) || (ukey->key==NULL))
         break;
+
       *(int*)(kmv_buf+kmv_off)=ukey->keybytes;
       kmv_off+=sizeof(int);
       ubuf+=ukeyoffset;
@@ -1074,8 +1075,10 @@ void MapReduce::unique2kmv(KeyValue *kv, UniqueInfo *u, KeyMultiValue *kmv){
     char *kvbuf_end=kvbuf+datasize;
     while(kvbuf<kvbuf_end){
       GET_KV_VARS_TYPE0;
-      
+     
       uint32_t hid = hashlittle(key, keybytes, 0);
+      if(hid % tnum != tid) continue;
+
       // Find the key
       int ibucket = hid % nbucket;
       Unique *ukey, *pre;
@@ -1330,7 +1333,8 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
   
   // only one partition
   if(p->next==NULL){
-    unique2kmv(kv, u, kmv);
+    unique2kmv(tid, kv, u, kmv);
+#pragma omp barrier
     if(tid==0) delete kv;
   }
   // a lot of partition

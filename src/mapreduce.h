@@ -231,7 +231,7 @@ private:
     void  kv2unique(int, KeyValue *, UniqueInfo *, Partition *);
     void unique2mv(int, KeyValue *, UniqueInfo *, Partition *, DataObject *);
     void mv2kmv(DataObject *, UniqueInfo *, KeyMultiValue *);
-    void unique2kmv(KeyValue *, UniqueInfo *, KeyMultiValue *);
+    void unique2kmv(int, KeyValue *, UniqueInfo *, KeyMultiValue *);
 
     uint64_t convert_small(KeyValue *, KeyMultiValue *);
     uint64_t convert_median(KeyValue *, KeyMultiValue *);
