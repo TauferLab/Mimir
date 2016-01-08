@@ -887,9 +887,9 @@ void  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, Partition *p){
 
     while(kvbuf<kvbuf_end){
       GET_KV_VARS_TYPE0;
-      
+
       uint32_t hid = hashlittle(key, keybytes, 0);
-      if(hid%tnum != tid) continue;
+      if((uint32_t)hid%tnum != (uint32_t)tid) continue;
 
       // Find the key
       int ibucket = hid % nbucket;
@@ -1079,6 +1079,8 @@ void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *
       uint32_t hid = hashlittle(key, keybytes, 0);
       if(hid % tnum != tid) continue;
 
+      //printf("tid=%d, key=%s, value=%s\n", tid, key, value);
+
       // Find the key
       int ibucket = hid % nbucket;
       Unique *ukey, *pre;
@@ -1149,7 +1151,7 @@ void MapReduce::unique2mv(int tid, KeyValue *kv, UniqueInfo *u, Partition *p, Da
 
         uint32_t hid = hashlittle(key, keybytes, 0);
         int ibucket = hid % nbucket;
-        if(hid%tnum != tid) continue;
+        if((uint32_t)hid%tnum != (uint32_t)tid) continue;
 
         Unique *ukey, *pre;
         ukey = findukey(u->ubucket, ibucket, key, keybytes, pre);
@@ -1306,7 +1308,7 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
 
   LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) start.\n", me, nprocs);
 
-#pragma parallel omp
+#pragma omp parallel 
 {
   int tid = omp_get_thread_num();
   tinit(tid);
@@ -1326,6 +1328,7 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
   Partition *p = new Partition();
   p->next=NULL;
 
+  //printf("tid=%d\n", tid);
   // convert kv to unique
   kv2unique(tid, kv, u, p);
 
@@ -1547,7 +1550,7 @@ int tstage2=st.init_timer("Convert stage 2");
 #if 1
       // Get hash
       uint32_t hid = hashlittle(key, keybytes, 0);
-      if(hid%tnum != tid) continue;
+      if((uint32_t)hid%tnum != (uint32_t)tid) continue;
 #endif
 
       // Find the key
