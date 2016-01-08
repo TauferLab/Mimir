@@ -202,8 +202,6 @@ private:
       int        mvbytes;
       int       *soffset;
       char      *voffset;
-      //int        s_off;
-      //int        v_off;
       Set       *firstset;
       Set       *lastset;
       int        flag;
@@ -215,12 +213,8 @@ private:
       int        nunique;
       int        nset;
       Unique   **ubucket;
-      //Set      vim *sets;
       Spool     *unique_pool;
       Spool     *set_pool;
-      //Spool     *key2set_pool;
-      //char      *ubuf;
-      //int        uoff;
     };
 
     int thashmask, uhashmask;
@@ -235,7 +229,7 @@ private:
     void unique2set(UniqueInfo *);
     
     void  kv2unique(int, KeyValue *, UniqueInfo *, Partition *);
-    void unique2mv(KeyValue *, UniqueInfo *, Partition *, DataObject *);
+    void unique2mv(int, KeyValue *, UniqueInfo *, Partition *, DataObject *);
     void mv2kmv(DataObject *, UniqueInfo *, KeyMultiValue *);
     void unique2kmv(KeyValue *, UniqueInfo *, KeyMultiValue *);
 

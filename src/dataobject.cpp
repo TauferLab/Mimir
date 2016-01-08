@@ -218,7 +218,7 @@ int DataObject::addblock(){
   }
 
   if(blockid >= maxblock){
-    LOG_ERROR("%s", "Error: block count is larger than max number!\n");
+    LOG_ERROR("Error: block count is larger than max number %d!\n", maxblock);
     return -1;
   }
 
