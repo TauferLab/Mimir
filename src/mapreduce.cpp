@@ -864,9 +864,9 @@ void MapReduce::unique2set(UniqueInfo *u){
   } 
 }
 
-void  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, Partition *p){
-  DEFINE_KV_VARS;  
-
+int  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, Partition *p){
+  DEFINE_KV_VARS;
+  
   Partition *cur_par=p;
   int par_id=0, isfirst=1;
 
@@ -904,11 +904,10 @@ void  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, Partition *p){
       if(isfirst){
         kmvbytes+=mv_inc;
         if(!key_hit) kmvbytes+=(keybytes+2*sizeof(int));
-        if(kmvbytes > blocksize*UNIT_SIZE){
+        
+        if(kmvbytes > (blocksize*UNIT_SIZE)){
           unique2set(u);
-
           set=(Set*)u->set_pool->blocks[u->nset/SET_COUNT];
-
           isfirst=0;
         }
       }
@@ -1020,6 +1019,10 @@ void  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, Partition *p){
 
   memset(ubuf, 0, ubuf_end-ubuf);
 
+  //printf("kmvbytes=%d\n", kmvbytes);
+
+  return isfirst;
+
   //printf("partition=%d, blocksize=%d\n", par_id, blocksize);
 
   //printf("Partiton %d: last_block=%d, last_offset=%d, next_set=%d\n", par_id, cur_par->last_block, cur_par->last_offset, cur_par->next_set);
@@ -1065,6 +1068,13 @@ void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *
     }
   }
 
+  //printf("kmv offset=%d\n", kmv_off);
+#if SAFE_CHECK
+  if(kmv_off >= (blocksize*UNIT_SIZE)){
+    LOG_ERROR("KMV size %d is larger than a single block size %d!\n", kmv_off, blocksize);
+  }
+#endif
+
   kmv->setblockdatasize(kmv_block_id, kmv_off);
 
   // gain KVS
@@ -1077,7 +1087,7 @@ void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *
       GET_KV_VARS_TYPE0;
      
       uint32_t hid = hashlittle(key, keybytes, 0);
-      if(hid % tnum != tid) continue;
+      if((uint32_t)hid % tnum != (uint32_t)tid) continue;
 
       //printf("tid=%d, key=%s, value=%s\n", tid, key, value);
 
@@ -1330,12 +1340,12 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
 
   //printf("tid=%d\n", tid);
   // convert kv to unique
-  kv2unique(tid, kv, u, p);
+  int ret = kv2unique(tid, kv, u, p);
 
   if(tid==0) LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) kv2unique end.\n", me, nprocs);
   
   // only one partition
-  if(p->next==NULL){
+  if(ret){
     unique2kmv(tid, kv, u, kmv);
 #pragma omp barrier
     if(tid==0) delete kv;

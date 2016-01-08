@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 // memory
-#define UNIT_SIZE               2048  // 1K
+#define UNIT_SIZE                  4  // 1K
 
 #define BLOCK_SIZE                64  // 16M 
 

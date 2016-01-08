@@ -228,7 +228,7 @@ private:
 
     void unique2set(UniqueInfo *);
     
-    void  kv2unique(int, KeyValue *, UniqueInfo *, Partition *);
+    int  kv2unique(int, KeyValue *, UniqueInfo *, Partition *);
     void unique2mv(int, KeyValue *, UniqueInfo *, Partition *, DataObject *);
     void mv2kmv(DataObject *, UniqueInfo *, KeyMultiValue *);
     void unique2kmv(int, KeyValue *, UniqueInfo *, KeyMultiValue *);
