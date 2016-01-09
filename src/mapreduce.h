@@ -188,10 +188,12 @@ private:
 
     struct Partition
     {
-      int     last_block;
-      int     last_offset;
-      int     next_set;
-      Partition *next;
+      int     start_blockid;
+      int     start_offset;
+      int     end_blockid;
+      int     end_offset;
+      int     start_set;
+      int     end_set;
     };
 
     struct Unique
@@ -228,8 +230,8 @@ private:
 
     void unique2set(UniqueInfo *);
     
-    int  kv2unique(int, KeyValue *, UniqueInfo *, Partition *);
-    void unique2mv(int, KeyValue *, UniqueInfo *, Partition *, DataObject *);
+    int  kv2unique(int, KeyValue *, UniqueInfo *, DataObject *);
+    void unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *);
     void mv2kmv(DataObject *, UniqueInfo *, KeyMultiValue *);
     void unique2kmv(int, KeyValue *, UniqueInfo *, KeyMultiValue *);
 
