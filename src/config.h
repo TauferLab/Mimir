@@ -8,7 +8,7 @@
 
 #define LOCAL_BUF_SIZE            64  // 1K
 #define GLOBAL_BUF_SIZE           64  // 1M
-#define MAXMEM_SIZE     (4*1024*1024)  // 1G  
+#define MAXMEM_SIZE              256  // 1G  
 #define MAX_BLOCKS              1024  // 1024 blocks
 
 
@@ -29,7 +29,7 @@
 #define KV_TYPE                    0
 
 // out of core 
-#define OUT_OF_CORE                0
+#define OUT_OF_CORE                1
 #define TMP_PATH                  "."
 
 // others

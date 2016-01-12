@@ -51,10 +51,14 @@ DataObject::DataObject(
 
   id = DataObject::oid++;
 
+  omp_init_lock(&lock_t);
+
   LOG_PRINT(DBG_DATA, "DATA: DataObject create. (type=%d)\n", datatype);
  }
 
 DataObject::~DataObject(){
+  omp_destroy_lock(&lock_t);
+
   if(outofcore){
     for(int i = 0; i < nblock; i++){
       std::string filename;
@@ -88,6 +92,7 @@ void DataObject::getfilename(int blockid, std::string &fname){
   fname = str;
 }
 
+#if 0
 /*
  * find a buffer which can bu used
  */
@@ -125,6 +130,7 @@ int DataObject::acquirebuffer(int blockid){
           getfilename(blockid, filename);
           FILE *fp;
           if(blocks[blockid].datasize > 0){
+            //printf("Data Object %d: read from file %s to block %d\n", id, filename.c_str(), blockid);
             fp = fopen(filename.c_str(), "rb");
             if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
             size_t ret = fread(buffers[i].buf, blocksize, 1, fp);
@@ -151,6 +157,7 @@ int DataObject::acquirebuffer(int blockid){
 /* 
  * acquire a block according to the blockid
  */
+//#if 0
 int DataObject::acquireblock(int blockid){
   // if the block will not be flushed into disk
   if(!outofcore) return 0;
@@ -182,8 +189,64 @@ again:
   if(ret==1) return 0;
   if(ret==0) goto again;
 
+  printf("blockid=%d, nblock=%d\n", blockid, nblock);
+
   LOG_ERROR("%s", "Error: acquire block error!\n");
   return -1;
+}
+#endif
+
+
+int DataObject::acquirebuffer(int blockid){
+}
+
+int DataObject::acquireblock(int blockid){
+  if(!outofcore) return 0;
+
+  if(threadsafe) omp_set_lock(&lock_t);
+  int bufferid = blocks[blockid].bufferid;
+  if(bufferid == -1){
+    int i;
+    for(i = 0; i < nbuf; i++){
+      // the buffer is empty and the
+      if(buffers[i].ref == 0){
+        std::string filename;
+
+        int oldid = buffers[i].blockid;
+        if(oldid != -1){
+          getfilename(oldid, filename);
+          FILE *fp = fopen(filename.c_str(), "wb");
+          if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
+          fwrite(buffers[i].buf, blocksize, 1, fp);
+          fclose(fp);
+          blocks[oldid].bufferid = -1;
+        }
+
+        bufferid=i;
+        buffers[i].blockid = blockid;
+        buffers[i].ref     = 0;
+        blocks[blockid].bufferid=bufferid;
+
+        getfilename(blockid, filename);
+        FILE *fp;
+        if(blocks[blockid].datasize > 0){
+          fp = fopen(filename.c_str(), "rb");
+          if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
+          size_t ret = fread(buffers[i].buf, blocksize, 1, fp);
+        }
+        else{
+          fp = fopen(filename.c_str(), "wb");
+          if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
+        }
+        fclose(fp);
+        break;
+      }// end if
+    }// end for
+    if(i >= nbuf) LOG_ERROR("%s", "Cannot find an empty buffer!\n");
+  }
+  buffers[bufferid].ref++;
+  //omp_unset_lock(&lock_t);
+  if(threadsafe) omp_set_lock(&lock_t);
 }
 
 /*
@@ -215,12 +278,19 @@ int DataObject::addblock(){
   else{
     blockid = nblock;
     nblock++;
+    //printf("nblock=%d, maxblock=%d\n", nblock, maxblock);
+  }
+
+  if(id==2){
+    printf("addblock: blockid=%d, datatype=%d\n", blockid, datatype);
   }
 
   if(blockid >= maxblock){
     LOG_ERROR("Error: block count is larger than max number %d!\n", maxblock);
     return -1;
   }
+
+  //printf("blockid=%d, maxbuf=%d, outofcore=%d, threadsafe=%d\n", blockid, maxbuf, outofcore, threadsafe);
 
   // has enough buffer
   if(blockid < maxbuf){
@@ -348,6 +418,7 @@ int DataObject::addbytes(int blockid, char *buf, int len){
  */
 void DataObject::print(int type, FILE *fp, int format){
   int line = 10;
+  printf("nblock=%d\n", nblock);
   for(int i = 0; i < nblock; i++){
     acquireblock(i);
     fprintf(fp, "block %d, datasize=%d:", i, blocks[i].datasize);

@@ -125,7 +125,7 @@ int main(int narg, char **args)
 
   //mr->setGlobalbufsize(16);
   //mr->setBlocksize(64*1024);
-  mr->setOutofcore(0);
+  mr->setOutofcore(1);
   mr->setCommMode(0);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
@@ -139,7 +139,7 @@ int main(int narg, char **args)
   int nedges = mr->map(args[2],1,0,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
-  //mr->output();
+  mr->output();
 
   //printf("begin convert\n");
 
@@ -150,7 +150,7 @@ int main(int narg, char **args)
 
   //printf("end convert\n");
 
-  //mr->output();
+  mr->output();
 
   // initialize CSR structure
   g->rowstarts = new size_t[g->nlocalverts+1]; 

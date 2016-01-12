@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <omp.h>
 #include <string>
 
 namespace MAPREDUCE_NS {
@@ -97,8 +97,6 @@ public:
   struct Block{
     int       datasize;   // datasize in this block
     int       bufferid;   // buffer id
-    //int       infile;     // in the file
-    //int64_t   fileoff;    // file offset
   };
  
   // information of buffer
@@ -123,6 +121,8 @@ public:
   std::string filepath;
   //std::string filename;
   int outofcore;   // out of core
+
+  omp_lock_t lock_t;
 
   int threadsafe;  // multi-thread safe
 
