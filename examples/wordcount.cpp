@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 }
 
 void fileread(MapReduce *mr, const char *fname, void *ptr){
-  int tid = omp_get_thread_num();
+  //int tid = omp_get_thread_num();
 
   struct stat stbuf;
   int flag = stat(fname,&stbuf);
@@ -123,7 +123,7 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   char whitespace[20] = " \t\n\f\r\0";
   char *word = strtok_r(text,whitespace,&saveptr);
   while (word) {
-    char val[1]="";
+    //char val[1]="";
     mr->add(word,strlen(word)+1,NULL,0);
     //double t1 = omp_get_wtime();
     word = strtok_r(NULL,whitespace,&saveptr);

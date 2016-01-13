@@ -15,126 +15,80 @@
 
 using namespace MAPREDUCE_NS;
 
-// map local function
 void generate_octkey(MapReduce *, char *, void *);
-// map function
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
-// reduce function
 void sum(MapReduce *, char *, int, int, char *, int *, void *);
 
-double slope(double[], double[], int); //function inside generate_octkey
-void explore_level(int, int, MapReduce * ); //explore the int level of the tree
+double slope(double[], double[], int);
+void explore_level(int, int, MapReduce * );
 
-
-/* --------------------------------global vars-------------------------------------- */
-int me,nprocs; //for mpi process, differenciate diff processes when print debug info
-int digits=15; //width of the octkey, 15 default, set by main, used by map
-int thresh=50; //number of points within the octant to be considered dense, and to be further subdivide, set by main, used by reduce
-bool result=true; //save results to file, true= yes, set by main, used by map and reduce
-bool branch=false;//true branch down, false branch up; used by main and sum functions
-//char base_dir[] = "/home/bzhang/csd173/bzhang/mrmpi-20Jun11/mrmpi_clustering/scripts/";
-//char base_dir[] = "/home/zhang/mrmpi-20Jun11/mrmpi_clustering/";
-const char *base_dir;
-int level = 8; //level: explore this level of the oct-tree, used by main and gen_leveled_octkey
-//bool realdata=false; //use real dataset or synthetic dataset, true means using real, false means using synthetic, set by main, used by map generate octkey
-
-/*-------------------------------------------------------------------------*/
+int me,nprocs;
+int digits=15;
+int thresh=50;
 
 int main(int argc, char **argv)
 {
   int provided;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
+
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-  char *inpath = argv[1];
+  char *ipath = argv[1];
   thresh = atoi(argv[2]);
 
-  /*var initilization*/
-  int min_limit, max_limit; //level: explore this level of the oct-tree
+  int level;
+  int min_limit, max_limit;
   min_limit=0;
   max_limit=digits+1;
   level=floor((max_limit+min_limit)/2);
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-  printf("P%d, before map_local.\n",me);
-
-  mr->setKVtype(2, digits, 0);
   char whitespace[10] = " \t\r\n";
-  /*uint64_t nwords =*/ mr->map_local(inpath, 1, 1, whitespace, generate_octkey, NULL);
-  printf("P%d, after map_local.\n",me);
-  //mr->output(2);
+  mr->setKVtype(FixedKV, digits, 0);
+  mr->map_local(ipath, 1, 1, whitespace, generate_octkey, NULL);
 
-  /*map (at the end do the communication), so it has to pair with reduc,
-    map: take first 5 dig of the octkey, emilt octkey[0--4], 1
-    reduce: sum all the 1s*/
-
-#if 1
-  mr->setKVtype(0);
+  mr->setKVtype(GeneralKV);
   while ((min_limit+1) != max_limit){
-    printf("P%d, before map, leve %d.\n",me, level );
 
-    /*uint64_t nkeys =*/ mr->map(mr, gen_leveled_octkey, NULL);
-    printf("P%d, after map.\n",me);
-
-    //mr->output();
+    mr->map(mr, gen_leveled_octkey, NULL);
 
     mr->convert();
 
-    printf("P%d, before reduce.\n", me);
-
     uint64_t nkv = mr->reduce(sum, NULL);
 
-    printf("nkv=%ld\n", nkv);
-
-    printf("P%d, after reduce.\n", me);
-    if (nkv >0){
-       printf("P%d, nkv is %ld.\n",me, nkv);
+    if(nkv >0){
       min_limit=level;
-      level =  floor((max_limit+min_limit)/2);
+      level= floor((max_limit+min_limit)/2);
     }else{
-      printf("P%d, nkv is 0...\n", me);
       max_limit=level;
       level =  floor((max_limit+min_limit)/2);
     }
   }
-#endif
 
   delete mr;
 
   MPI_Finalize();	
-	
 }
 
-/*---------------function implementation-----------------------------*/
 void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsizes, void *ptr){
-  uint64_t sum = 0;
-  int offset = 0;
-  for(int i = 0; i < nval; i++){
-    sum += atoi(val+offset);
-    offset += valsizes[i];
-  }
-
-  if (sum >= (uint64_t)thresh){
-    char tmp[1024];
-    sprintf(tmp, "%ld", sum);
-    mr->add(key, keysize, tmp, strlen(tmp)+1);
-  }
+  int sum=nval;
+  if (sum >= thresh)
+    mr->add(key, keysize, (char*)&sum, (int)sizeof(int));
 }
 
 
 void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
-  char newval[2]="1";
-  mr->add(key, strlen(key)+1, newval, strlen(newval)+1);
+  mr->add(key, keysize, NULL, 0);
 }
 
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)
 {
-  double /*tmp=0,*/ range_up=10.0, range_down=-10.0; //the upper and down limit of the range of slopes
+  double range_up=10.0, range_down=-10.0;
   char octkey[digits];
   bool realdata = false;//the last one is the octkey
 
