@@ -220,9 +220,11 @@ private:
     };
 
     int thashmask, uhashmask;
-    int kalign, valign, talign, ualign;
-    int kalignm, valignm, talignm, ualignm;
+    //int kalign, valign, talign, ualign;
+    //int kalignm, valignm, talignm, ualignm;
 
+ 
+    int ualign, ualignm;
     int nbucket;
     int ukeyoffset;
 

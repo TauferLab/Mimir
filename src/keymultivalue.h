@@ -37,7 +37,7 @@ public:
 
 private:
   int kmvtype;       // only 0 is used
-  int ksize, vsize; 
+  //int ksize, vsize; 
 
 };
 

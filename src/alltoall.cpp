@@ -145,14 +145,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   //printf("send KV: %s, %s\n", key, val);
 
   int kvsize = 0;
-  kvsize = twointlen+ASIZE(keysize,ALIGNK)+ASIZE(valsize,ALIGNV);
-  kvsize = ASIZE(kvsize,ALIGNT);
-  //printf("kvsize=%d\n", kvsize);
-  //if(kvtype == 0) kvsize = keysize+valsize+twointlen;
-  //else if(kvtype == 1) kvsize = keysize+valsize;
-  //else if(kvtype == 2) kvsize = keysize+valsize;
-  //else if(kvtype == 3) kvsize = keysize;
-  //else LOG_ERROR("%s", "Error undefined kv type\n");
+  GET_KV_SIZE(kvtype, keysize, valsize, kvsize);
 
 #if SAFE_CHECK
   if(kvsize > lbufsize){
@@ -183,51 +176,10 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     int loff = local_offsets[tid][target];
     char *lbuf = local_buffers[tid]+target*lbufsize+loff;
 
-    //printf("loff=%d\n", loff);
-
     // local buffer has space
     if(loff + kvsize <= lbufsize){
-     //if(kvtype == 0){
-        char *lbuf_start=lbuf;
-        *(int*)(lbuf)=keysize;
-        *(int*)(lbuf+oneintlen)=valsize;
-        lbuf += twointlen;
-        lbuf=ROUNDUP(lbuf,(ALIGNK-1));
-        memcpy(lbuf, key, keysize);
-        lbuf+=keysize;
-        lbuf=ROUNDUP(lbuf,(ALIGNV-1));
-        memcpy(lbuf, val, valsize);
-        lbuf+=valsize;
-        lbuf=ROUNDUP(lbuf,(ALIGNT-1));
-        loff += (lbuf-lbuf_start);
-        //printf("%p->%p, loff=%d, kvsize=%d\n", lbuf_start, lbuf, loff, kvsize);
-        //loff += ASIZE(valsize,ALIGNV);
-        //loff += ASIZE() 
-        //loff += 
-#if 0
-      }else if(kvtype == 1){
-        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
-        loff += keysize;
-        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
-        loff += valsize;
-      }else if(kvtype == 2){
-#if SAFE_CHECK
-        if(ksize != keysize || vsize != valsize){
-          LOG_ERROR("Error: key (%d) or val (%d) size mismatch for KV type 2\n", keysize, valsize);
-        }
-#endif
-        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
-        loff += keysize;
-        memcpy(local_buffers[tid]+target*lbufsize+loff, val, valsize);
-        loff += valsize;
-      }else if(kvtype == 3){
-        memcpy(local_buffers[tid]+target*lbufsize+loff, key, keysize);
-        loff += keysize;
-      }else{
-        LOG_ERROR("%s", "Error undefined kv type\n");
-      }
-#endif
-      local_offsets[tid][target] = loff;
+      PUT_KV_VARS(kvtype,lbuf,key,keysize,val,valsize,kvsize);
+      local_offsets[tid][target]+=kvsize;
       break;
     // local buffer is full
     }else{

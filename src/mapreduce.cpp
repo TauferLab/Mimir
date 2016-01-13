@@ -40,10 +40,10 @@ MapReduce::MapReduce(MPI_Comm caller)
     MPI_Comm_rank(comm,&me);
     MPI_Comm_size(comm,&nprocs);
 
-    kalign = ALIGNK;
-    valign = ALIGNV;
-    talign = MAX(kalign, valign);
-    talign = MAX(talign, sizeof(int));
+    //kalign = ALIGNK;
+    //valign = ALIGNV;
+    //talign = MAX(kalign, valign);
+    //talign = MAX(talign, sizeof(int));
     ualign = sizeof(uint64_t);
 
 #pragma omp parallel
@@ -74,9 +74,9 @@ MapReduce::MapReduce(MPI_Comm caller)
     }
 }
 
-    kalignm = kalign-1;
-    valignm = valign-1;
-    talignm = talign-1;
+    //kalignm = kalign-1;
+    //valignm = valign-1;
+    //talignm = talign-1;
     ualignm = ualign-1;
 
     nbucket = pow(2, BUCKET_SIZE);
@@ -868,7 +868,10 @@ end:
 }
 
 int  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv){
-  DEFINE_KV_VARS;
+  //DEFINE_KV_VARS;
+  char *key, *value;
+  int keybytes, valuebytes, kvsize;
+  char *kvbuf;
   
   int isfirst=1, pid=0;
   int last_blockid=0, last_offset=0, last_set=0;
@@ -894,7 +897,7 @@ int  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv){
     int kvbuf_off=0;
 
     while(kvbuf<kvbuf_end){
-      GET_KV_VARS_TYPE0;
+      GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
 
       //printf("first: key=%s, value=%s\n", key, value);
 
@@ -1036,8 +1039,11 @@ int  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv){
 }
 
 void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *kmv){
-  DEFINE_KV_VARS; 
- 
+  //DEFINE_KV_VARS; 
+  char *key, *value;
+  int keybytes, valuebytes, kvsize;
+  char *kvbuf;
+
   int kmv_block_id=kmv->addblock();
   kmv->acquireblock(kmv_block_id);
   char *kmv_buf=kmv->getblockbuffer(kmv_block_id);
@@ -1096,7 +1102,8 @@ end:
     int datasize=kv->getblocktail(i);
     char *kvbuf_end=kvbuf+datasize;
     while(kvbuf<kvbuf_end){
-      GET_KV_VARS_TYPE0;
+      GET_KV_VARS(kv->kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
+
      
       uint32_t hid = hashlittle(key, keybytes, 0);
       if((uint32_t)hid % tnum != (uint32_t)tid) continue;
@@ -1119,8 +1126,11 @@ end:
 }
 
 void MapReduce::unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, DataObject *mv){
-  
-  DEFINE_KV_VARS;
+  char *key, *value;
+  int keybytes, valuebytes, kvsize;
+  char *kvbuf;
+
+  //DEFINE_KV_VARS;
 
   int mv_blockid=mv->addblock();
   //printf("mvblockid=%d\n", mv_blockid);
@@ -1162,7 +1172,7 @@ void MapReduce::unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, Da
     if(i==p->start_blockid) kvbuf += p->start_offset;
 
     while(kvbuf<kvbuf_end){
-      GET_KV_VARS_TYPE0;
+      GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize, kv);
 
       //printf("second: key=%s, value=%s\n", key, value);
 

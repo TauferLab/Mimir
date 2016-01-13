@@ -13,8 +13,17 @@ namespace MAPREDUCE_NS {
 enum DataType{ByteType, KVType, KMVType};
 
 class DataObject{
+
 public:
+  // Parameters
+  int ksize, vsize;
+
   int nblock;      // block count
+
+  void setKVsize(int _ksize, int _vsize){
+    ksize = _ksize;
+    vsize = _vsize;
+  }
 
   // interfaces  
   DataObject(DataType,
