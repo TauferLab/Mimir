@@ -5,6 +5,8 @@
 
 #include "log.h"
 
+#include "const.h"
+
 using namespace MAPREDUCE_NS;
 
 KeyMultiValue::KeyMultiValue(
@@ -37,57 +39,14 @@ int KeyMultiValue::getNextKMV(int blockid, int offset, char **key, int &keybytes
   int bufferid = blocks[blockid].bufferid;
   char *buf = buffers[bufferid].buf + offset;
 
-  if(kmvtype == 0){
-    keybytes = *(int*)buf;
-    buf += sizeof(int);
-    *key = buf;
-    buf += keybytes;
-    nvalue = *(int*)buf;
-    buf += sizeof(int);
-    *valuebytes = (int*)buf;
-    buf += nvalue*sizeof(int);
-    *values = buf;
-    offset += sizeof(int)+keybytes+sizeof(int)*(nvalue+1);
-
-    int *valsize = *valuebytes;
-    for(int i = 0; i < nvalue; i++) offset += valsize[i];
-  }else if(kmvtype == 1){
-    keybytes = strlen(buf)+1;
-    *key = buf;
-    buf += keybytes;
-    nvalue = *(int*)buf;
-    buf += sizeof(int);
-    *valuebytes = NULL;
-    *values = buf;
-    offset += sizeof(int)+keybytes;
-    for(int i=0; i<nvalue; i++){
-      int valuesize = strlen(buf)+1;
-      offset += valuesize;
-      buf += valuesize;
-    }
-  }else if(kmvtype == 2){
-    keybytes = ksize;
-    *key = buf;
-    buf += keybytes;
-    nvalue = *(int*)buf;
-    buf += sizeof(int);
-    *valuebytes = NULL;
-    *values = buf;
-    offset += (ksize+sizeof(int)+nvalue*vsize);
-  }else if(kmvtype == 3){
-    keybytes = strlen(buf)+1;
-    *key = buf;
-    buf += keybytes;
-    nvalue = *(int*)buf;
-    buf += sizeof(int);
-    *valuebytes = NULL;
-    *values = NULL;
-    offset += sizeof(int)+keybytes;
-  }
+  int mvbytes=0,kmvsize=0;
+  GET_KMV_VARS(kmvtype,buf,*key,keybytes,nvalue,*values,*valuebytes,mvbytes,kmvsize,this);
+  offset += kmvsize;
 
   return offset;
 }
 
+#if 0
 int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nval, int &valbytes, int *valuesizes){
   int kmvbytes = 0;
 
@@ -145,6 +104,7 @@ int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nv
   blocks[blockid].datasize = datasize;
   return 0;
 }
+#endif
 
 void KeyMultiValue::print(int type, FILE *fp, int format){
   char *key, *values;

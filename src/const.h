@@ -107,7 +107,7 @@
     memcpy(kvbuf, key, keybytes);\
     kvbuf += keybytes;\
     kvbuf = ROUNDUP(kvbuf, valignm);\
-    memcpy(kvbuf, key, keybytes);\
+    memcpy(kvbuf, value, valuebytes);\
     kvbuf += valuebytes;\
     kvbuf=ROUNDUP(kvbuf, talignm);\
   }else if(kvtype==3){\
@@ -116,6 +116,49 @@
     kvbuf = ROUNDUP(kvbuf, talignm);\
   }\
   kvsize=kvbuf-kvbuf_start;\
+}
+
+#define GET_KMV_VARS(kmvtype,kvbuf,key,keybytes,nvalue,values,valuebytes,mvbytes,kmvsize,data) \
+{\
+  char *kvbuf_start=kvbuf;\
+  if(kmvtype==0){\
+    keybytes=*(int*)kvbuf;\
+    kvbuf+=oneintlen;\
+    mvbytes=*(int*)kvbuf;\
+    kvbuf+=oneintlen;\
+    nvalue=*(int*)kvbuf;\
+    kvbuf+=oneintlen;\
+    valuebytes=(int*)kvbuf;\
+    kvbuf+=nvalue*oneintlen;\
+    key=kvbuf;\
+    kvbuf+=keybytes;\
+    values=kvbuf;\
+    kvbuf+=mvbytes;\
+  }else if(kmvtype==1 || kmvtype==2){\
+    keybytes=*(int*)kvbuf;\
+    kvbuf+=oneintlen;\
+    mvbytes=*(int*)kvbuf;\
+    kvbuf+=oneintlen;\
+    nvalue=*(int*)kvbuf;\
+    kvbuf+=oneintlen;\
+    valuebytes=NULL;\
+    key=kvbuf;\
+    kvbuf+=keybytes;\
+    values=kvbuf;\
+    kvbuf+=mvbytes;\
+  }else if(kmvtype==3){\
+    keybytes=*(int*)kvbuf;\
+    kvbuf+=oneintlen;\
+    mvbytes=0;\
+    kvbuf+=oneintlen;\
+    nvalue=*(int*)kvbuf;\
+    kvbuf+=oneintlen;\
+    valuebytes=NULL;\
+    key=kvbuf;\
+    kvbuf+=keybytes;\
+    values=NULL;\
+  }else LOG_ERROR("Undefined KV type %d!\n", kmvtype);\
+  kmvsize=kvbuf-kvbuf_start;\
 }
 
 extern int oneintlen;

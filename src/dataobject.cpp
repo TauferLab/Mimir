@@ -281,9 +281,9 @@ int DataObject::addblock(){
     //printf("nblock=%d, maxblock=%d\n", nblock, maxblock);
   }
 
-  if(id==2){
-    printf("addblock: blockid=%d, datatype=%d\n", blockid, datatype);
-  }
+  //if(id==2){
+  //  printf("addblock: blockid=%d, datatype=%d\n", blockid, datatype);
+  //}
 
   if(blockid >= maxblock){
     LOG_ERROR("Error: block count is larger than max number %d!\n", maxblock);

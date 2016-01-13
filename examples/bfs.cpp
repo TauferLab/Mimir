@@ -121,11 +121,11 @@ int main(int narg, char **args)
   // set hash function
   mr->sethash(mypartition_str);
 
-  //mr->setKVtype(StringKV);
+  mr->setKVtype(StringKV);
 
   //mr->setGlobalbufsize(16);
   //mr->setBlocksize(64*1024);
-  mr->setOutofcore(1);
+  //mr->setOutofcore(1);
   mr->setCommMode(0);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
@@ -222,7 +222,7 @@ int main(int narg, char **args)
     }
  
     //uint64_t nactives = 0;
-    //mr->setKVtype(FixedKV, ksize, ksize);
+    mr->setKVtype(FixedKV, ksize, ksize);
     int count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
 
@@ -241,17 +241,17 @@ int main(int narg, char **args)
       double t2 = MPI_Wtime();
 
       //printf("begin reduce:\n");
-      //mr->setKVtype(FixedKV, ksize, 0);
+      mr->setKVtype(FixedKV, ksize, 0);
       mr->reduce(shrink, &bfs_st);
 #else
       double t2 = MPI_Wtime();
-      //mr->setKVtype(2, ksize, 0);
+      mr->setKVtype(FixedKV, ksize, 0);
       mr->map_local(mr, shrink_mm, &bfs_st);
 #endif
 
       double t3 = MPI_Wtime();
       
-      //mr->setKVtype(FixedKV, ksize, ksize);
+      mr->setKVtype(FixedKV, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &bfs_st);
 
       //printf("actives=%d\n", nactives[level]);
