@@ -139,7 +139,7 @@ int main(int narg, char **args)
   int nedges = mr->map(args[2],1,0,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
-  mr->output();
+  //mr->output();
 
   //printf("begin convert\n");
 
@@ -150,7 +150,7 @@ int main(int narg, char **args)
 
   //printf("end convert\n");
 
-  mr->output();
+  //mr->output();
 
   // initialize CSR structure
   g->rowstarts = new size_t[g->nlocalverts+1]; 

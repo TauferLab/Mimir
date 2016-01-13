@@ -1,6 +1,7 @@
 CPP = mpic++
 CFLAGS = -fopenmp -std=c++11 -Wall -g -O1 -I../src
-LFLAGS = -fopenmp -L../src
+LFLAGS = -fopenmp -L ../src 
+ 
 USERLIBS = -lmrmpi
 all: wordcount bfs bfs_mm octree_move_lg
 

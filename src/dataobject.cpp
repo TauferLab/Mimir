@@ -246,7 +246,7 @@ int DataObject::acquireblock(int blockid){
   }
   buffers[bufferid].ref++;
   //omp_unset_lock(&lock_t);
-  if(threadsafe) omp_set_lock(&lock_t);
+  if(threadsafe) omp_unset_lock(&lock_t);
 }
 
 /*
