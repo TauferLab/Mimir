@@ -68,9 +68,6 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
   {
     int tid = omp_get_thread_num();
     local_buffers[tid] = (char*)malloc(size*lbufsize);
-
-    //printf("malloc: buffers[%d]=%p\n", tid, local_buffers[tid]);
-
     local_offsets[tid]   = (int*)malloc(size*sizeof(int));
     for(int i = 0; i < size; i++) local_offsets[tid][i] = 0;
   }

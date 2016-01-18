@@ -126,9 +126,9 @@ int main(int narg, char **args)
   //mr->setGlobalbufsize(16);
   //mr->setBlocksize(64*1024);
   //mr->setOutofcore(1);
-  mr->setCommMode(0);
+  mr->setCommMode(1);
 
-  if(me==0) fprintf(stdout, "make CSR graph start.\n");
+  if(me==0) { fprintf(stdout, "make CSR graph start.\n"); fflush(stdout);}
 
   // make graph
   MPI_Barrier(MPI_COMM_WORLD);
@@ -141,14 +141,14 @@ int main(int narg, char **args)
 
   //mr->output();
 
-  //printf("begin convert\n");
+  //printf("end map\n"); fflush(stdout);
 
   // convert edge list to kmv
   //printf("convert start.\n");fflush(stdout);
   mr->convert();
   //printf("convert end.\n");fflush(stdout);
 
-  //printf("end convert\n");
+  //printf("end convert\n"); fflush(stdout);
 
   //mr->output();
 
@@ -251,6 +251,7 @@ int main(int narg, char **args)
 
       double t3 = MPI_Wtime();
       
+      //printf("%d new communication\n", me);
       mr->setKVtype(FixedKV, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &bfs_st);
 

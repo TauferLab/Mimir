@@ -31,21 +31,22 @@ public:
 
 private:
   void exchange_kv();
+  void recv_data();
   void save_data(int);
 
-  int  *flags;
-  
+  int  *flags; 
   int  *ibuf;
 
-  char **buf;
-  int  **off;
+  char* *buf;
+  int   *off;
+
+  omp_lock_t *lock;
 
   MPI_Request **reqs;
 
+
   char *recv_buf;
   MPI_Request recv_req;
-
-  omp_lock_t *lock;
 };
 
 }

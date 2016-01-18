@@ -53,15 +53,7 @@ MapReduce::MapReduce(MPI_Comm caller)
     cpu_set_t mask;
     CPU_ZERO(&mask);
 
-    printf("%d\n", (tid+1)%tnum);
-
-    int coreid=(tid+1)%tnum;
-
-    //printf("coreid=%d", coreid);
-    if(tid==0) coreid=1;
-    else if(tid==1) coreid=2;
-    else if(tid==2) coreid=3;
-    else if(tid==3) coreid=0;
+    int coreid=me*6+tid;
     CPU_SET(coreid, &mask);
     sched_setaffinity(0, sizeof(mask), &mask);
 
@@ -69,7 +61,7 @@ MapReduce::MapReduce(MPI_Comm caller)
     sched_getaffinity(0, sizeof(mask), &mask); 
     for(int i=0; i<48; i++){
       if(CPU_ISSET(i, &mask)){
-        printf("tid=%d, cpu:%d\n", tid, i);
+        printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
       }
     }
 }

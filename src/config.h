@@ -2,12 +2,12 @@
 #define CONFIG_H
 
 // memory
-#define UNIT_SIZE                  1  // 1K
+#define UNIT_SIZE               1024  // 1K
 
-#define BLOCK_SIZE                64  // 16M 
+#define BLOCK_SIZE         (64*1024)  // 16M 
 
-#define LOCAL_BUF_SIZE            64  // 1K
-#define GLOBAL_BUF_SIZE           64  // 1M
+#define LOCAL_BUF_SIZE             1 // 1K
+#define GLOBAL_BUF_SIZE         1024  // 1M
 #define MAXMEM_SIZE     (2*1024*1024)  // 1G  
 #define MAX_BLOCKS              1024  // 1024 blocks
 
