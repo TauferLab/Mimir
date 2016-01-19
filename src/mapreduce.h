@@ -28,45 +28,45 @@ public:
     MapReduce(MPI_Comm);
     ~MapReduce();
 
-    void setKVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
+    void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
       kvtype = _kvtype;
       ksize = _ksize;
       vsize = _vsize;
     }
 
-    void setBlocksize(int _blocksize){
+    void set_blocksize(int _blocksize){
       blocksize = _blocksize;
     }
 
-    void setMaxblocks(int _nmaxblock){
+    void set_maxblocks(int _nmaxblock){
       nmaxblock = _nmaxblock;
     }
 
-    void setMaxmem(int _maxmemsize){
+    void set_maxmem(int _maxmemsize){
       maxmemsize = _maxmemsize;
     }
 
-    void setTmpfilePath(const char *_fpath){
+    void set_filepath(const char *_fpath){
       tmpfpath = std::string(_fpath);
     }
 
-    void setOutofcore(int _flag){
+    void set_outofcore(int _flag){
       outofcore = _flag;
     }
 
-    void setLocalbufsize(int _lbufsize){
+    void set_localbufsize(int _lbufsize){
       lbufsize = _lbufsize;
     }
  
-    void setGlobalbufsize(int _gbufsize){
+    void set_globalbufsize(int _gbufsize){
       gbufsize = _gbufsize;
     }
 
-    void setCommMode(int _commmode){
+    void set_commmode(int _commmode){
       commmode = _commmode;
     }
 
-    void sethash(int (*_myhash)(char *, int)){
+    void set_hash(int (*_myhash)(char *, int)){
       myhash = _myhash;
     }
 

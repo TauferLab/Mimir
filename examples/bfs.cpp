@@ -10,7 +10,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#define TEST_TIMES 10
+#define TEST_TIMES 1
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -119,14 +119,17 @@ int main(int narg, char **args)
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
   // set hash function
-  mr->sethash(mypartition_str);
+  mr->set_hash(mypartition_str);
+  mr->set_localbufsize(1);
+  mr->set_globalbufsize(1024);
+  mr->set_blocksize(64*1024);
+  mr->set_commmode(0);
 
-  mr->setKVtype(StringKV);
+  //mr->set_KVtype(StringKV);
 
   //mr->setGlobalbufsize(16);
   //mr->setBlocksize(64*1024);
   //mr->setOutofcore(1);
-  mr->setCommMode(1);
 
   if(me==0) { fprintf(stdout, "make CSR graph start.\n"); fflush(stdout);}
 
@@ -202,8 +205,8 @@ int main(int narg, char **args)
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  int ksize = (int)sizeof(int64_t);
-  mr->sethash(mypartition_int);
+  //int ksize = (int)sizeof(int64_t);
+  mr->set_hash(mypartition_int);
 
   int test_count = 0;
   for(int index=0; index < TEST_TIMES; index++){
@@ -222,7 +225,7 @@ int main(int narg, char **args)
     }
  
     //uint64_t nactives = 0;
-    mr->setKVtype(FixedKV, ksize, ksize);
+    //mr->set_KVtype(FixedKV, ksize, ksize);
     int count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
 
@@ -241,18 +244,18 @@ int main(int narg, char **args)
       double t2 = MPI_Wtime();
 
       //printf("begin reduce:\n");
-      mr->setKVtype(FixedKV, ksize, 0);
+      //mr->set_KVtype(FixedKV, ksize, 0);
       mr->reduce(shrink, &bfs_st);
 #else
       double t2 = MPI_Wtime();
-      mr->setKVtype(FixedKV, ksize, 0);
+      //mr->setKVtype(FixedKV, ksize, 0);
       mr->map_local(mr, shrink_mm, &bfs_st);
 #endif
 
       double t3 = MPI_Wtime();
       
       //printf("%d new communication\n", me);
-      mr->setKVtype(FixedKV, ksize, ksize);
+      //mr->set_KVtype(FixedKV, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &bfs_st);
 
       //printf("actives=%d\n", nactives[level]);
@@ -323,7 +326,7 @@ int main(int narg, char **args)
   delete [] g->rowstarts;
   delete [] g->columns;
 
-  mr->print_stat();
+  if(me==0) mr->print_stat();
 
   delete mr;
 

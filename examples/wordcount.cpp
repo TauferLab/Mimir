@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
   //mr->setBlocksize(64*1024);
-  mr->setKVtype(StringKeyOnly);
+  //mr->setKVtype(StringKeyOnly);
 
   for(int i = 0; i < TEST_TIMES; i++){
  

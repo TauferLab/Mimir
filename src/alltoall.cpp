@@ -37,15 +37,7 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
 
 #if GATHER_STAT
   tcomm = st.init_timer("exchange kv");
-  //pwait = st.init_timer("process wait");
-  //tsendkv = new int[tnum];
-  //thwait = new int[tnum];
-  //for(int i=0; i<tnum; i++){
-  //  tsendkv[i] = st.init_timer("send KV");
-  //}
-  //for(int i=0; i<tnum; i++){
-  //  thwait[i] = st.init_timer("thread wait");
-  //}
+  tsyn  = st.init_timer("syn time");
 #endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
@@ -186,7 +178,17 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
        // try to add the offset
       if(loff + off[target] <= gbufsize){
 
+#if GATHER_STAT
+        double tstart = omp_get_wtime();
+#endif
+
         int goff=fetch_and_add_with_max(&off[target], loff, gbufsize);
+
+#if GATHER_STAT
+        double tstop = omp_get_wtime();
+        st.inc_timer(tsyn, tstop-tstart);
+#endif
+
         if(goff + loff <= gbufsize){
           memcpy(buf+target*gbufsize+goff, local_buffers[tid]+target*lbufsize, loff);
           local_offsets[tid][target] = 0;
@@ -335,7 +337,7 @@ void Alltoall::wait(){
 
 void Alltoall::exchange_kv(){
 #if GATHER_STAT
-  double tstart = MPI_Wtime();
+  double tstart = omp_get_wtime();
 #endif
 
   int i;
@@ -376,7 +378,7 @@ void Alltoall::exchange_kv(){
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 
 #if GATHER_STAT
-  double tstop = MPI_Wtime();
+  double tstop = omp_get_wtime();
   st.inc_timer(tcomm, tstop-tstart);
 #endif
 
