@@ -53,8 +53,8 @@ MapReduce::MapReduce(MPI_Comm caller)
     cpu_set_t mask;
     CPU_ZERO(&mask);
 
-    int lrank=me%2;
-    int coreid=lrank*10+tid;
+    int lrank=me%PCS_PER_NODE;
+    int coreid=lrank*THS_PER_PROC+tid;
     
     //printf("P%d,T%d,coreid=%d\n", me, tid, coreid);
 
@@ -95,7 +95,7 @@ MapReduce::MapReduce(MPI_Comm caller)
   
     init();
 
-    fprintf(stdout, "Process count=%d, thread count=%d\n", nprocs, tnum);
+    //fprintf(stdout, "Process count=%d, thread count=%d\n", nprocs, tnum);
 
     LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: create. (thread number=%d)\n", me, nprocs, tnum);
 }
@@ -1447,7 +1447,7 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
   LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) start.\n", me, nprocs);
 
   uint64_t tmax_mem_bytes=0;
-#pragma omp parallel reduction(max:tmax_mem_bytes) 
+#pragma omp parallel reduction(+:tmax_mem_bytes) 
 {
   int tid = omp_get_thread_num();
   tinit(tid);
@@ -1749,8 +1749,7 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 }
 
 void MapReduce::show_stat(int verb, FILE *out){
-  printf("Send bytes=%ld, Recv bytes=%ld\n", send_bytes, recv_bytes);
-  printf("Max memory bytes=%ld\n", max_mem_bytes);
+  printf("Send bytes=%ld, Recv bytes=%ld, Max memory bytes=%ld\n", send_bytes, recv_bytes, max_mem_bytes);
 #if GATHER_STAT
   st.print(verb, out);
 #endif

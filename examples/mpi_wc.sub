@@ -1,7 +1,27 @@
 #!/bin/sh -l
 #FILENAME:  mpi_hello.sub
 
-module load devel
-cd $PBS_O_WORKDIR
+COMM=0
 
-mpiexec -n 40 ./wordcount /scratch/rice/g/gao381/wikipedia/wikipedia_50GB
+BLOCK_MIN=64
+BLOCK_MAX=256
+
+GBUF_MIN=1
+GBUF_MAX=32
+
+INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
+#INPUT_DIR=test.txt
+
+module load openmpi
+#cd $PBS_O_WORKDIR
+
+pwd
+
+for((i=$BLOCK_MIN; i<=$BLOCK_MAX; i*=2))
+do
+  for((j=$GBUF_MIN; j<=$GBUF_MAX; j*=2))
+  do
+    echo "$COMM $i $j"
+    OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j
+  done
+done

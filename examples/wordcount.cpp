@@ -40,11 +40,11 @@ int main(int argc, char *argv[])
   }
 
   if(argc > 2){
-    commode=atoi(argv[2]);
+    commmode=atoi(argv[2]);
   }else if(argc > 3){
-    blocksize=atoi(agrv[3]);
+    blocksize=atoi(argv[3]);
   }else if(argc > 4){
-    gbufsize=atoi(agrv[4]);
+    gbufsize=atoi(argv[4]);
   }else if(argc > 5){
     lbufsize=atoi(argv[5]);
   }
@@ -102,8 +102,7 @@ int main(int argc, char *argv[])
  
     if(me==0){
       mr->show_stat();
-      printf("%d nword=%ld, nunique=%ld, time=%g(map=%g, convert=%g, reduce=%g\n", i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3);
-      printf("io time=%lf, add time=%lf\n", io_t, add_t);
+      printf("%d nword=%ld, nunique=%ld, time=%g(map=%g, convert=%g, reduce=%g, io=%lf, add=%lf\n", i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
       io_t=add_t=0;
     }
   }
@@ -120,8 +119,7 @@ int main(int argc, char *argv[])
      if(wtime[i] < tmin) tmin=wtime[i];
     }
     tavg = tsum/TEST_TIMES;
-    fprintf("process count=%d\n", nprocs);
-    fprintf("average time=%g, max time=%g, min time=%g\n", tavg, tmax, tmin);
+    printf("average time=%g, max time=%g, min time=%g\n", tavg, tmax, tmin);
   }
 
 
