@@ -149,7 +149,7 @@
   }else if(kmvtype==3){\
     keybytes=*(int*)kvbuf;\
     kvbuf+=oneintlen;\
-    mvbytes=0;\
+    mvbytes=*(int*)kvbuf;\
     kvbuf+=oneintlen;\
     nvalue=*(int*)kvbuf;\
     kvbuf+=oneintlen;\

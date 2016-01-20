@@ -37,8 +37,17 @@ int main(int argc, char *argv[])
   if(me==0) fprintf(stdout, "wordcount test begin\n");
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
+
+  mr->set_localbufsize(16);
+  mr->set_globalbufsize(1024);
+  mr->set_blocksize(128*1024);
+  mr->set_maxmem(32*1024*1024);
+  mr->set_commmode(0);
+  mr->set_outofcore(1);
+
+  mr->set_KVtype(StringKeyOnly);
+
   //mr->setBlocksize(64*1024);
-  //mr->setKVtype(StringKeyOnly);
 
   for(int i = 0; i < TEST_TIMES; i++){
  
@@ -49,21 +58,23 @@ int main(int argc, char *argv[])
 
     double t1 = MPI_Wtime();
 
-    uint64_t nword = mr->map(argv[1], 0, 1, fileread, NULL);
+    //printf("begin map\n"); fflush(stdout);
+    uint64_t nword = mr->map(argv[1], 1, 1, fileread, NULL);
+    //printf("end map\n"); fflush(stdout);
 
     double t2 = MPI_Wtime();
 
     //mr->output();
 
-    //printf("begin convert\n");
+    //printf("begin convert\n"); fflush(stdout);
     uint64_t nunique = mr->convert();
-    //printf("end convert!\n");
+    //printf("end convert!\n"); fflush(stdout);
 
     double t3 = MPI_Wtime();
 
-    //printf("begin reduce\n");
+    //printf("begin reduce\n"); fflush(stdout);
     mr->reduce(countword, NULL);
-    //printf("end reduce\n");
+    //printf("end reduce\n"); fflush(stdout);
 
     //mr->output();
 
@@ -124,7 +135,10 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   char *word = strtok_r(text,whitespace,&saveptr);
   while (word) {
     //char val[1]="";
-    mr->add(word,strlen(word)+1,NULL,0);
+    //printf("word=%s\n", word);
+    int len=strlen(word)+1;
+    if(len <= 8192)
+      mr->add(word,len,NULL,0);
     //double t1 = omp_get_wtime();
     word = strtok_r(NULL,whitespace,&saveptr);
     //double t2 = omp_get_wtime();

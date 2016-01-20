@@ -26,6 +26,7 @@ enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
 class MapReduce {
 public:
     MapReduce(MPI_Comm);
+    MapReduce(const MapReduce &mr);
     ~MapReduce();
 
     void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){

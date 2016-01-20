@@ -13,6 +13,22 @@ using namespace MAPREDUCE_NS;
 
 int DataObject::oid = 0;
 
+void DataObject::addRef(DataObject *data){
+  if(data)
+    data->ref++;
+}
+
+void DataObject::subRef(DataObject *data){
+  if(data){
+    data->ref--;
+    if(data->ref==0){
+      //printf("data %d is deleted!\n", data->id); fflush(stdout);
+      delete data;
+    }
+  }
+}
+
+
 // FIXME: the memory size may exceed the range of one integer number?
 DataObject::DataObject(
   DataType _datatype,
@@ -48,6 +64,8 @@ DataObject::DataObject(
     buffers[i].blockid = -1;
     buffers[i].ref = 0;
   }
+
+  ref=0;
 
   id = DataObject::oid++;
 
@@ -291,6 +309,8 @@ int DataObject::addblock(){
   }
 
   //printf("blockid=%d, maxbuf=%d, outofcore=%d, threadsafe=%d\n", blockid, maxbuf, outofcore, threadsafe);
+
+  //printf("blockid=%d, maxbuf=%d\n", blockid, maxbuf);
 
   // has enough buffer
   if(blockid < maxbuf){

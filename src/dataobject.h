@@ -120,10 +120,10 @@ public:
   int     nbuf;
   int     maxbuf;
 
-  int nitem;       // item count
-  int blocksize;   // block size
-  int maxblock;    // max block
-  int maxmemsize;  // max memory size
+  int     nitem;       // item count
+  int     blocksize;   // block size
+  int     maxblock;    // max block
+  int64_t maxmemsize;  // max memory size
 
   // out of core file name
   int id;
@@ -135,8 +135,14 @@ public:
 
   int threadsafe;  // multi-thread safe
 
+  int ref;
+
 public:
   static int oid;    // data object id
+
+public:
+  static void addRef(DataObject *);
+  static void subRef(DataObject *);
 };
  
 }

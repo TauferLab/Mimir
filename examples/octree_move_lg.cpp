@@ -24,7 +24,9 @@ void explore_level(int, int, MapReduce * );
 
 int me,nprocs;
 int digits=15;
-int thresh=50;
+int level;
+
+int thresh=5;
 
 int main(int argc, char **argv)
 {
@@ -38,26 +40,32 @@ int main(int argc, char **argv)
   char *ipath = argv[1];
   thresh = atoi(argv[2]);
 
-  int level;
   int min_limit, max_limit;
   min_limit=0;
   max_limit=digits+1;
   level=floor((max_limit+min_limit)/2);
 
-  MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
+  MapReduce *datamr = new MapReduce(MPI_COMM_WORLD);
 
-  char whitespace[10] = " \t\r\n";
-  mr->setKVtype(FixedKV, digits, 0);
-  mr->map_local(ipath, 1, 1, whitespace, generate_octkey, NULL);
+  char whitespace[10] = "\n";
+  //mr->setKVtype(FixedKV, digits, 0);
 
-  mr->setKVtype(GeneralKV);
+  datamr->map_local(ipath, 1, 1, whitespace, generate_octkey, NULL);
+
+  MapReduce *mr=new MapReduce(MPI_COMM_WORLD);
+
+  //mr->setKVtype(GeneralKV);
   while ((min_limit+1) != max_limit){
 
-    mr->map(mr, gen_leveled_octkey, NULL);
+    //printf("min_limit=%d, max_limit=%d\n", min_limit, max_limit); fflush(stdout);
+
+    mr->map(datamr, gen_leveled_octkey, NULL);
 
     mr->convert();
 
     uint64_t nkv = mr->reduce(sum, NULL);
+
+    //printf("level=%d, nkv=%ld\n", level, nkv);
 
     if(nkv >0){
       min_limit=level;
@@ -69,11 +77,15 @@ int main(int argc, char **argv)
   }
 
   delete mr;
+  delete datamr;
+
+  printf("level=%d\n", level);
 
   MPI_Finalize();	
 }
 
 void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsizes, void *ptr){
+  //printf("keysize=%d, nval=%d\n", keysize, nval);
   int sum=nval;
   if (sum >= thresh)
     mr->add(key, keysize, (char*)&sum, (int)sizeof(int));
@@ -82,7 +94,7 @@ void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsiz
 
 void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
-  mr->add(key, keysize, NULL, 0);
+  mr->add(key, level, NULL, 0);
 }
 
 
@@ -91,6 +103,8 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
   double range_up=10.0, range_down=-10.0;
   char octkey[digits];
   bool realdata = false;//the last one is the octkey
+
+  //printf("word=%s\n", word); fflush(stdout);
 
   double coords[512];//hold x,y,z
   char ligand_id[256];
@@ -101,23 +115,22 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
   word2[word_len+1]='\0';
 
   int num_coor=0;
-  //char *token = strtok(word2, " ");
   char *saveptr;
   char *token = strtok_r(word2, " ", &saveptr);
-   //logf_map_t_of<<"Before while, token: |"<<token<<"|."<<std::endl;
   memcpy(ligand_id,token,strlen(token));
-  while (token != NULL)
-  {
-    //test_index += (strlen(token)+1);
-    //token = strtok(NULL, " ");
+  while (token != NULL){
     token = strtok_r(NULL, " ", &saveptr);
     if (token){
       coords[num_coor] = atof(token);
+      //printf("%d:%lf\n", num_coor, coords[num_coor]);
       num_coor++;
     }
   }
 	
   const int num_atoms = floor((num_coor-2)/3);
+
+  //printf("num_coor=%d, num_atoms=%d\n", num_coor, num_atoms);
+
   double x[num_atoms], y[num_atoms], z[num_atoms];
   /*x,y,z double arries store the cooridnates of ligands */
   for (int i=0; i!=(num_atoms); i++){
@@ -171,7 +184,8 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
     double realkey = coords[num_coor - 1];
     char tmp[100];
     sprintf(tmp, "%f", realkey);
-       mr->add(tmp, digits, NULL, 0);
+    //printf("octkey=%s\n", tmp);
+    mr->add(tmp, digits, NULL, 0);
   }else{
     mr->add(octkey, digits, NULL, 0);
   }
