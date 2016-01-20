@@ -53,8 +53,8 @@ MapReduce::MapReduce(MPI_Comm caller)
     cpu_set_t mask;
     CPU_ZERO(&mask);
 
-    int lrank=me%8;
-    int coreid=lrank*6+tid;
+    int lrank=me%2;
+    int coreid=lrank*10+tid;
     
     //printf("P%d,T%d,coreid=%d\n", me, tid, coreid);
 
@@ -63,11 +63,11 @@ MapReduce::MapReduce(MPI_Comm caller)
 
     CPU_ZERO(&mask);
     sched_getaffinity(0, sizeof(mask), &mask); 
-    for(int i=0; i<48; i++){
-      if(CPU_ISSET(i, &mask)){
+    //for(int i=0; i<48; i++){
+    //  if(CPU_ISSET(i, &mask)){
         //printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
-      }
-    }
+    //  }
+    //}
 }
 
     //kalignm = kalign-1;

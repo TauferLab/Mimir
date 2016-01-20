@@ -1,7 +1,7 @@
 CC = mpicc
-CPP = mpic++
+CPP = mpicxx
 CLINK = mpicc
-CPPLINK = mpic++
+CPPLINK = mpicxx
 DEBUG = -g
 CFLAGS = -fopenmp -std=c++11 $(DEBUG) -O2  -DDEBUG=0 -DFUSION
 LFLAGS = 

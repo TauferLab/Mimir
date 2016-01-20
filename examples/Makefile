@@ -1,4 +1,4 @@
-CPP = mpic++
+CPP = mpicxx
 CFLAGS = -fopenmp -std=c++11 -Wall -g -O1 -I../src
 LFLAGS = -fopenmp -L ../src 
  

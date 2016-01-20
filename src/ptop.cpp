@@ -86,6 +86,8 @@ int Ptop::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsiz
     reqs[i] = new MPI_Request[size];
 
   recv_buf = (char*)malloc(gbufsize);
+
+  return 0;
 }
 
 void Ptop::init(DataObject *_data){

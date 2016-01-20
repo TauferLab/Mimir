@@ -217,8 +217,8 @@ again:
 #endif
 
 
-int DataObject::acquirebuffer(int blockid){
-}
+//int DataObject::acquirebuffer(int blockid){
+//}
 
 int DataObject::acquireblock(int blockid){
   if(!outofcore) return 0;
@@ -267,6 +267,8 @@ int DataObject::acquireblock(int blockid){
   buffers[bufferid].ref++;
   //omp_unset_lock(&lock_t);
   if(threadsafe) omp_unset_lock(&lock_t);
+
+  return 0;
 }
 
 /*
@@ -378,6 +380,8 @@ int DataObject::addblock(char *data, int datasize){
   memcpy(buffers[bufferid].buf, data, datasize);
   blocks[blockid].datasize = datasize;
   releaseblock(blockid);
+
+  return 0;
 }
 
 /*

@@ -14,11 +14,16 @@ void countword(MapReduce *, char *, int, int, char *, int *, void*);
 
 int me, nprocs;
 
-#define TEST_TIMES 10
+#define TEST_TIMES 1
 double wtime[TEST_TIMES]; 
 
 double io_t = 0.0;
 double add_t = 0.0;
+
+int commmode=0;
+int blocksize=128;
+int gbufsize=32;
+int lbufsize=64;
 
 int main(int argc, char *argv[])
 {
@@ -29,20 +34,31 @@ int main(int argc, char *argv[])
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-  if(argc != 2){
+  if(argc < 2){
     if(me == 0) printf("Syntax: wordcount filepath\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
-  if(me==0) fprintf(stdout, "wordcount test begin\n");
+  if(argc > 2){
+    commode=atoi(argv[2]);
+  }else if(argc > 3){
+    blocksize=atoi(agrv[3]);
+  }else if(argc > 4){
+    gbufsize=atoi(agrv[4]);
+  }else if(argc > 5){
+    lbufsize=atoi(argv[5]);
+  }
+
+  //if(me==0) fprintf(stdout, "wordcount test begin\n");
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-  mr->set_localbufsize(64);
-  mr->set_globalbufsize(32*1024);
-  mr->set_blocksize(256*1024);
+  mr->set_localbufsize(lbufsize);
+  mr->set_globalbufsize(gbufsize*1024);
+  mr->set_blocksize(lbufsize*1024);
   mr->set_maxmem(32*1024*1024);
-  mr->set_commmode(0);
+  mr->set_commmode(commmode);
+
   mr->set_outofcore(0);
 
   mr->set_KVtype(StringKeyOnly);
@@ -94,7 +110,7 @@ int main(int argc, char *argv[])
 
   delete mr;
 
-  if(me==0) fprintf(stdout, "wordcount test end.\n");
+  //if(me==0) fprintf(stdout, "wordcount test end.\n");
 
   if(me==0){
     double tsum=wtime[0], tavg=0.0, tmax=wtime[0], tmin=wtime[0];
@@ -104,8 +120,8 @@ int main(int argc, char *argv[])
      if(wtime[i] < tmin) tmin=wtime[i];
     }
     tavg = tsum/TEST_TIMES;
-    printf("process count=%d\n", nprocs);
-    printf("average time=%g, max time=%g, min time=%g\n", tavg, tmax, tmin);
+    fprintf("process count=%d\n", nprocs);
+    fprintf("average time=%g, max time=%g, min time=%g\n", tavg, tmax, tmin);
   }
 
 
