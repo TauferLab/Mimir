@@ -1,0 +1,7 @@
+#!/bin/sh -l
+#FILENAME:  mpi_hello.sub
+
+module load devel
+cd $PBS_O_WORKDIR
+
+mpiexec -n 40 ./wordcount /scratch/rice/g/gao381/wikipedia/wikipedia_50GB
