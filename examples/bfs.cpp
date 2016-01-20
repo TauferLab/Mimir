@@ -73,6 +73,11 @@ int nactives[MAX_LEVEL];
 
 FILE *rf=NULL;
 
+int commmode=0;
+int blocksize=64;
+int gbufsize=32;
+int lbufsize=16;
+
 int main(int narg, char **args)
 {
   int provided;
@@ -114,16 +119,25 @@ int main(int narg, char **args)
   g->nlocalverts = g->nglobalverts / nprocs;
 
   //printf("");
+  if(narg > 3){
+    commmode=atoi(args[3]);
+  }else if(narg > 4){
+    blocksize=atoi(args[4]);
+  }else if(narg > 5){
+    gbufsize=atoi(args[5]);
+  }else if(narg > 6){
+    lbufsize=atoi(args[6]);
+  }
 
   // create mapreduce
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
   // set hash function
   mr->set_hash(mypartition_str);
-  mr->set_localbufsize(1);
-  mr->set_globalbufsize(1024);
-  mr->set_blocksize(64*1024);
-  mr->set_commmode(0);
+  mr->set_localbufsize(lbufsize);
+  mr->set_globalbufsize(gbufsize*1024);
+  mr->set_blocksize(blocksize*1024);
+  mr->set_commmode(commmode);
 
   //mr->set_KVtype(StringKV);
 
@@ -326,7 +340,7 @@ int main(int narg, char **args)
   delete [] g->rowstarts;
   delete [] g->columns;
 
-  if(me==0) mr->print_stat();
+  if(me==0) mr->show_stat();
 
   delete mr;
 
