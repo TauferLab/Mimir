@@ -13,6 +13,8 @@ Spool::Spool(int _blocksize,int _maxblocks){
   for(int i = 0; i < maxblocks; i++) blocks[i]=NULL;
 
   nblock = 0;
+
+  mem_bytes=0;
 }
 
 Spool::~Spool(){

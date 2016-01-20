@@ -53,7 +53,11 @@ MapReduce::MapReduce(MPI_Comm caller)
     cpu_set_t mask;
     CPU_ZERO(&mask);
 
-    int coreid=me*6+tid;
+    int lrank=me%8;
+    int coreid=lrank*6+tid;
+    
+    //printf("P%d,T%d,coreid=%d\n", me, tid, coreid);
+
     CPU_SET(coreid, &mask);
     sched_setaffinity(0, sizeof(mask), &mask);
 
@@ -61,7 +65,7 @@ MapReduce::MapReduce(MPI_Comm caller)
     sched_getaffinity(0, sizeof(mask), &mask); 
     for(int i=0; i<48; i++){
       if(CPU_ISSET(i, &mask)){
-        printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
+        //printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
       }
     }
 }
@@ -204,7 +208,12 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
 
   mode = NoneMode;
 
+  if(c->mem_bytes+data->mem_bytes>max_mem_bytes)
+    max_mem_bytes=(c->mem_bytes+data->mem_bytes);
+
   // destroy communicator
+  send_bytes+=c->send_bytes;
+  recv_bytes+=c->recv_bytes;
   delete c;
   c = NULL;
 
@@ -254,6 +263,9 @@ uint64_t MapReduce::map_local(void (*mymap)(MapReduce *, void *), void* ptr){
 }
 
   mode = NoneMode;
+
+  if(data->mem_bytes>max_mem_bytes)
+    max_mem_bytes=data->mem_bytes;
 
   uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
@@ -315,9 +327,15 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   struct stat stbuf;
 
-  int input_buffer_size=BLOCK_SIZE*UNIT_SIZE;
+  int input_buffer_size=blocksize*UNIT_SIZE;
 
   char *text = new char[input_buffer_size+1];
+
+#pragma omp parallel
+{
+      int tid = omp_get_thread_num();
+      tinit(tid);
+}
 
   int fcount = ifiles.size();
   for(int i = 0; i < fcount; i++){
@@ -345,7 +363,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 #pragma omp parallel
 {
       int tid = omp_get_thread_num();
-      tinit(tid);
+      //tinit(tid);
 
       int divisor = input_buffer_size / tnum;
       int remain  = input_buffer_size % tnum;
@@ -392,9 +410,21 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   delete []  text;
 
+#pragma omp parallel
+{
+  int tid = omp_get_thread_num();
+  c->twait(tid) ;     
+}
+   c->wait();
+
    mode = NoneMode;
 
+  if(c->mem_bytes+data->mem_bytes+input_buffer_size>max_mem_bytes)
+    max_mem_bytes=(c->mem_bytes+data->mem_bytes+input_buffer_size);
+
   // destroy communicator
+  send_bytes+=c->send_bytes;
+  recv_bytes+=c->recv_bytes;
   delete c;
   c = NULL;
 
@@ -441,7 +471,7 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 
   struct stat stbuf;
 
-  int input_buffer_size=BLOCK_SIZE*UNIT_SIZE;
+  int input_buffer_size=blocksize*UNIT_SIZE;
 
   char *text = new char[input_buffer_size+1];
 
@@ -527,6 +557,10 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 
   mode = NoneMode;
 
+  if(data->mem_bytes+input_buffer_size>max_mem_bytes)
+    max_mem_bytes=(data->mem_bytes+input_buffer_size);
+
+
   uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
@@ -607,7 +641,12 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   //st.inc_timer(tpar, t2-t1);
 #endif
 
+  if(c->mem_bytes+data->mem_bytes>max_mem_bytes)
+    max_mem_bytes=(c->mem_bytes+data->mem_bytes);
+
   // delete communicator
+  send_bytes+=c->send_bytes;
+  recv_bytes+=c->recv_bytes;
   delete c;
   c = NULL; 
 
@@ -678,6 +717,9 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 }
 
   mode = NoneMode;
+
+  if(data->mem_bytes>max_mem_bytes)
+    max_mem_bytes=(data->mem_bytes);
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local end.\n", me, nprocs);
 
@@ -776,10 +818,15 @@ uint64_t MapReduce::map(MapReduce *mr,
   // delete data object
   //delete inputkv;
   //printf("end delete\n");
+  if(c->mem_bytes+data->mem_bytes+this->data->mem_bytes>max_mem_bytes)
+    max_mem_bytes=(c->mem_bytes+data->mem_bytes+this->data->mem_bytes);
+
 
   DataObject::subRef(data);
 
   // delete communicator
+  send_bytes+=c->send_bytes;
+  recv_bytes+=c->recv_bytes;
   delete c;
   c = NULL;
  
@@ -862,6 +909,9 @@ uint64_t MapReduce::map_local(MapReduce *mr,
     inputkv->releaseblock(i);
   }
 }
+
+  if(data->mem_bytes+this->data->mem_bytes>max_mem_bytes)
+    max_mem_bytes=(data->mem_bytes+this->data->mem_bytes);
 
   //delete inputkv;
   DataObject::subRef(data);
@@ -1396,7 +1446,8 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
 
   LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) start.\n", me, nprocs);
 
-#pragma omp parallel 
+  uint64_t tmax_mem_bytes=0;
+#pragma omp parallel reduction(max:tmax_mem_bytes) 
 {
   int tid = omp_get_thread_num();
   tinit(tid);
@@ -1429,7 +1480,11 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
   if(isfirst) unique2kmv(tid, kv, u, kmv);
   else mv2kmv(mv, u, kmv);
 
+  tmax_mem_bytes=mv->mem_bytes+u->unique_pool->mem_bytes+u->set_pool->mem_bytes;
+
   delete mv;
+
+  nitems[tid] = u->nunique;
 
   delete [] u->ubucket;
   delete u->unique_pool;
@@ -1437,8 +1492,17 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
   delete u;
 }
 
+  if(kv->mem_bytes+kmv->mem_bytes+tmax_mem_bytes>max_mem_bytes)
+    max_mem_bytes=(kv->mem_bytes+kmv->mem_bytes+tmax_mem_bytes);
+
   //delete kv;
   DataObject::subRef(kv);
+
+  uint64_t nunique=0;
+  for(int i=0; i<tnum; i++)
+    nunique += nitems[i];
+
+  return nunique;
 
   LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) end.\n", me, nprocs);
 }
@@ -1482,7 +1546,7 @@ uint64_t MapReduce::convert(){
   //uint64_t count = 0, sum = 0; 
   //for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  uint32_t sum = 0;
+  uint64_t sum = 0;
   MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
 
   return sum;
@@ -1542,6 +1606,9 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
      kmv->releaseblock(i);
   }
 }
+
+  if(kv->mem_bytes+kmv->mem_bytes>max_mem_bytes)
+    max_mem_bytes=(kv->mem_bytes+kmv->mem_bytes);
 
   //delete kmv;
   //
@@ -1681,13 +1748,16 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   return;
 }
 
-void MapReduce::print_stat(int verb, FILE *out){
+void MapReduce::show_stat(int verb, FILE *out){
+  printf("Send bytes=%ld, Recv bytes=%ld\n", send_bytes, recv_bytes);
+  printf("Max memory bytes=%ld\n", max_mem_bytes);
 #if GATHER_STAT
   st.print(verb, out);
 #endif
 }
 
-void MapReduce::clear_stat(){
+void MapReduce::init_stat(){
+  send_bytes = recv_bytes = 0;
 #if GATHER_STAT
   st.clear();
 #endif
@@ -1726,6 +1796,9 @@ void MapReduce::init(){
   commmode=0;
   
   myhash = NULL;
+
+  send_bytes=recv_bytes=0;
+  max_mem_bytes=0;
 }
 
 // thread init

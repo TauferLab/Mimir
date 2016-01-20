@@ -71,7 +71,7 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
     local_offsets[tid]   = (int*)malloc(size*sizeof(int));
     for(int i = 0; i < size; i++) local_offsets[tid][i] = 0;
   }
-
+ 
   global_buffers = new char*[nbuf];
   global_offsets = new int*[nbuf];
 
@@ -92,7 +92,9 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
       LOG_ERROR("%s", "Error: communication buffer is overflow!\n");
     }
   }
- 
+
+  mem_bytes += tnum*size*lbufsize;
+  mem_bytes += nbuf*size*gbufsize;
   return 0;
 }
 
@@ -101,4 +103,7 @@ void Communicator::init(DataObject *_data){
   data = _data; 
 
   for(int i = 0; i < tnum; i++) blocks[i] = -1;
+
+  send_bytes = recv_bytes = 0;
+  mem_bytes = 0;
 }

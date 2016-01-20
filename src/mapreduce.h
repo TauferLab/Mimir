@@ -107,12 +107,16 @@ public:
     // interfaces in user-defined map and reduce functions
     void add(char *key, int keybytes, char *value, int valuebytes);
 
-    void clear_stat();
-    void print_stat(int verb=0, FILE *fp=stdout);
+    void init_stat();
+    void show_stat(int verb=0, FILE *fp=stdout);
 
     // output data into file
     // type: 0 for string, 1 for int, 2 for int64_t
     void output(int type=0, FILE *fp=stdout, int format=0);
+
+private:
+    uint64_t send_bytes, recv_bytes;
+    uint64_t max_mem_bytes;
 
 private:
     // configuable parameters

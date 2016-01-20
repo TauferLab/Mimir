@@ -27,7 +27,7 @@ public:
 
 private:
 #if GATHER_STAT
-  int tcomm, tsyn;
+  int tcomm, tsyn, tput;
   //int *tsendkv, *thwait;
 #endif
 

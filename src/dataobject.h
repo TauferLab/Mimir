@@ -138,6 +138,7 @@ public:
   int ref;
 
 public:
+  uint64_t mem_bytes;
   static int oid;    // data object id
 
 public:

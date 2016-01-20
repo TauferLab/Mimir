@@ -241,6 +241,7 @@ void Ptop::wait(){
     if(off[i] != 0){
       int ib=ibuf[i];
       //printf("%d send <%d,%d> last count=%d\n", rank, ib, i, off[i]); fflush(stdout);
+      send_bytes += off[i];
       MPI_Isend(buf[i], off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);
     }
   }
@@ -279,6 +280,8 @@ void Ptop::exchange_kv(){
     if(flags[i] != 0){
       int ib = ibuf[i];
       //printf("%d send <%d,%d> count=%d\n", rank, ib, i, off[i]); fflush(stdout);
+
+      send_bytes += off[i];
       MPI_Isend(buf[i], off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);
 
       ib=(ib+1)%nbuf;
@@ -300,6 +303,9 @@ void Ptop::exchange_kv(){
 }
 
 void Ptop::save_data(int recv_count){
+
+  recv_bytes += recv_count;
+
   if(blocks[0]==-1){
     blocks[0] = data->addblock();
   }

@@ -38,6 +38,7 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
 #if GATHER_STAT
   tcomm = st.init_timer("exchange kv");
   tsyn  = st.init_timer("syn time");
+  tput  = st.init_timer("put kvs");
 #endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
@@ -134,7 +135,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   }
 #endif
 
-  //printf("send KV: %s, %s\n", key, val);
+  //printf("send KV: %s\n", key);
 
   int kvsize = 0;
   GET_KV_SIZE(kvtype, keysize, valsize, kvsize);
@@ -170,7 +171,14 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 
     // local buffer has space
     if(loff + kvsize <= lbufsize){
+#if GATHER_STAT
+      //double t1 = omp_get_wtime();
+#endif
       PUT_KV_VARS(kvtype,lbuf,key,keysize,val,valsize,kvsize);
+#if GATHER_STAT
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(tput, t2-t1) ;     
+#endif
       local_offsets[tid][target]+=kvsize;
       break;
     // local buffer is full
@@ -179,14 +187,14 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       if(loff + off[target] <= gbufsize){
 
 #if GATHER_STAT
-        double tstart = omp_get_wtime();
+       double tstart = omp_get_wtime();
 #endif
 
         int goff=fetch_and_add_with_max(&off[target], loff, gbufsize);
 
 #if GATHER_STAT
-        double tstop = omp_get_wtime();
-        st.inc_timer(tsyn, tstop-tstart);
+       double tstop = omp_get_wtime();
+       st.inc_timer(tsyn, tstop-tstart);
 #endif
 
         if(goff + loff <= gbufsize){
@@ -343,6 +351,9 @@ void Alltoall::exchange_kv(){
   int i;
   int sendcount=0;
   for(i=0; i<size; i++) sendcount += off[i];
+
+  send_bytes += sendcount;
+
   // exchange send count
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
@@ -395,6 +406,9 @@ void Alltoall::save_data(int i){
   int offset=0;
   for(int k = 0; k < size; k++){
      if(recv_count[i][k] == 0) continue;
+
+     recv_bytes += recv_count[i][k];
+
      while(data->adddata(blocks[0], recv_buf[i]+offset, recv_count[i][k]) == -1){
        data->releaseblock(blocks[0]);
        blocks[0] = data->addblock();

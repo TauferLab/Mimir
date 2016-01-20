@@ -14,11 +14,11 @@ void countword(MapReduce *, char *, int, int, char *, int *, void*);
 
 int me, nprocs;
 
-#define TEST_TIMES 1
+#define TEST_TIMES 10
 double wtime[TEST_TIMES]; 
 
-//double io_t = 0.0;
-//double s = 0.0;
+double io_t = 0.0;
+double add_t = 0.0;
 
 int main(int argc, char *argv[])
 {
@@ -38,12 +38,12 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-  mr->set_localbufsize(16);
-  mr->set_globalbufsize(1024);
-  mr->set_blocksize(128*1024);
+  mr->set_localbufsize(64);
+  mr->set_globalbufsize(32*1024);
+  mr->set_blocksize(256*1024);
   mr->set_maxmem(32*1024*1024);
   mr->set_commmode(0);
-  mr->set_outofcore(1);
+  mr->set_outofcore(0);
 
   mr->set_KVtype(StringKeyOnly);
 
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 
   for(int i = 0; i < TEST_TIMES; i++){
  
-    mr->clear_stat();
+    mr->init_stat();
     //seek_t = 0.0;
   
     MPI_Barrier(MPI_COMM_WORLD);
@@ -83,11 +83,12 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
  
     wtime[i] = t4-t1;
-
-    if(me==0) mr->print_stat();
-
+ 
     if(me==0){
+      mr->show_stat();
       printf("%d nword=%ld, nunique=%ld, time=%g(map=%g, convert=%g, reduce=%g\n", i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3);
+      printf("io time=%lf, add time=%lf\n", io_t, add_t);
+      io_t=add_t=0;
     }
   }
 
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
 }
 
 void fileread(MapReduce *mr, const char *fname, void *ptr){
-  //int tid = omp_get_thread_num();
+  int tid = omp_get_thread_num();
 
   struct stat stbuf;
   int flag = stat(fname,&stbuf);
@@ -125,7 +126,10 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   FILE *fp = fopen(fname,"r");
   char *text = new char[filesize+1];
 
+  double tstart=omp_get_wtime();
   int nchar = fread(text,1,filesize,fp);
+  double tstop=omp_get_wtime();
+  if(tid==0) io_t += (tstop-tstart);
 
   text[nchar] = '\0';
   fclose(fp);
@@ -137,8 +141,11 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
     //char val[1]="";
     //printf("word=%s\n", word);
     int len=strlen(word)+1;
+    double t1 = omp_get_wtime();
     if(len <= 8192)
       mr->add(word,len,NULL,0);
+    double t2 = omp_get_wtime();
+    if(tid==0) add_t += (t2-t1);
     //double t1 = omp_get_wtime();
     word = strtok_r(NULL,whitespace,&saveptr);
     //double t2 = omp_get_wtime();

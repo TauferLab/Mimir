@@ -71,6 +71,8 @@ DataObject::DataObject(
 
   omp_init_lock(&lock_t);
 
+  mem_bytes=0;
+
   LOG_PRINT(DBG_DATA, "DATA: DataObject create. (type=%d)\n", datatype);
  }
 
@@ -317,6 +319,7 @@ int DataObject::addblock(){
     if(buffers[blockid].buf == NULL){
       //printf("blocksize=%d\n", blocksize);
       buffers[blockid].buf = (char*)malloc(blocksize);
+       mem_bytes += blocksize;
       //printf("block pass\n");
 #if SAFE_CHECK
      if(buffers[blockid].buf==NULL){

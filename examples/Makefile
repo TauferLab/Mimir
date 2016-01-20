@@ -3,10 +3,13 @@ CFLAGS = -fopenmp -std=c++11 -Wall -g -O1 -I../src
 LFLAGS = -fopenmp -L ../src 
  
 USERLIBS = -lmrmpi
-all: wordcount bfs bfs_mm octree_move_lg
+all: wordcount wordcount_m bfs bfs_mm octree_move_lg
 
 wordcount: wordcount.o
 	$(CPP) $(CFLAGS) $(LFLAGS) wordcount.o $(USERLIBS) -o wordcount 
+
+wordcount_m: wordcount_m.o
+	$(CPP) $(CFLAGS) $(LFLAGS) wordcount_m.o $(USERLIBS) -o wordcount_m
 
 bfs: bfs.o
 	$(CPP) $(CFLAGS) $(LFLAGS) bfs.o $(USERLIBS) -o bfs 

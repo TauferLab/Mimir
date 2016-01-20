@@ -18,6 +18,7 @@ public:
   char *addblock(){
     //printf("blocksize=%d\n", blocksize);
     blocks[nblock] = (char*)malloc(blocksize);
+    mem_bytes += blocksize;
 #if SAFE_CHECK
     if(blocks[nblock]==NULL){
       LOG_ERROR("%s", "Error: malloc memory for block error!\n");
@@ -50,6 +51,8 @@ public:
 
   char **blocks;
   int maxblocks;
+
+  uint64_t mem_bytes;
 };
 
 }

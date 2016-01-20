@@ -66,6 +66,10 @@ protected:
 
   char **global_buffers;  // global buffers
   int  **global_offsets;  // global offsets
+
+public:
+  uint64_t send_bytes, recv_bytes;
+  uint64_t mem_bytes;
 };
 
 }
