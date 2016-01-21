@@ -39,5 +39,6 @@
 
 #define GATHER_STAT                 1
 #define SAFE_CHECK                  1
+#define SHOW_BINDING                0
 
 #endif

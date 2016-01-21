@@ -102,7 +102,8 @@ int main(int argc, char *argv[])
  
     if(me==0){
       mr->show_stat();
-      printf("%d nword=%ld, nunique=%ld, time=%g(map=%g, convert=%g, reduce=%g, io=%lf, add=%lf\n", i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
+      printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
+      //printf("%d nword=%ld, nunique=%ld, time=%g(map=%g, convert=%g, reduce=%g, io=%lf, add=%lf\n", i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
       io_t=add_t=0;
     }
   }

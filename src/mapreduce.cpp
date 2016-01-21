@@ -68,6 +68,15 @@ MapReduce::MapReduce(MPI_Comm caller)
         //printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
     //  }
     //}
+
+#if SHOW_BINDING
+    for(int i=0; i<PCS_PER_NODE*THS_PER_PROC; i++){
+      if(CPU_ISSET(i, &mask)){
+        printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
+      }
+    }
+#endif
+
 }
 
     //kalignm = kalign-1;
@@ -1749,16 +1758,16 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 }
 
 void MapReduce::show_stat(int verb, FILE *out){
-  printf("Send bytes=%ld, Recv bytes=%ld, Max memory bytes=%ld\n", send_bytes, recv_bytes, max_mem_bytes);
+  //printf("Send bytes=%ld, Recv bytes=%ld, Max memory bytes=%ld\n", send_bytes, recv_bytes, max_mem_bytes);
 #if GATHER_STAT
-  st.print(verb, out);
+  //st.print(verb, out);
 #endif
 }
 
 void MapReduce::init_stat(){
   send_bytes = recv_bytes = 0;
 #if GATHER_STAT
-  st.clear();
+  //st.clear();
 #endif
 }
 
