@@ -4,6 +4,8 @@
 #include <mpi.h>
 #include "dataobject.h"
 
+#include "config.h"
+
 namespace MAPREDUCE_NS {
 
 class Communicator{
@@ -26,6 +28,12 @@ public:
 
   // main thread
   virtual void wait() = 0;
+
+public:
+#if GATHER_STAT
+  int tcomm, tsyn;
+  //int *tsendkv, *thwait;
+#endif
 
 protected:
   int fetch_and_add_with_max(int *counter, int adder, int maxnum){

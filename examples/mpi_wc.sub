@@ -1,16 +1,15 @@
 #!/bin/sh -l
 #FILENAME:  mpi_hello.sub
 
-COMM=0
+COMM=1
 
-BLOCK_MIN=128
+BLOCK_MIN=64
 BLOCK_MAX=512
 
 GBUF_MIN=4
 GBUF_MAX=32
 
-SCALE=25
-INPUT_DIR="/scratch/rice/g/gao381/graph/$SCALE.16"
+INPUT_DIR=/scratch/rice/g/gao381/wikipedia/wikipedia_50GB
 #INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
 
@@ -25,6 +24,6 @@ do
   do
     echo "$COMM $i $j"
     #OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j
-    OMP_NUM_THREADS=10 mpiexec -n 4 ./bfs $SCALE $INPUT_DIR $INPUT_DIR $COMM $i $j 
+    OMP_NUM_THREADS=10 mpiexec -n 4 ./wordcount $INPUT_DIR $COMM $i $j 
   done
 done

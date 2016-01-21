@@ -26,10 +26,6 @@ public:
   void wait();
 
 private:
-#if GATHER_STAT
-  int tcomm, tsyn, tput;
-  //int *tsendkv, *thwait;
-#endif
 
    // exchange kv buffer
   void exchange_kv();

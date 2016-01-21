@@ -10,6 +10,10 @@
 
 using namespace MAPREDUCE_NS;
 
+#if GATHER_STAT
+#include "stat.h"
+#endif
+
 #define CHECK_MPI_REQS \
 {\
   int flag;\
@@ -156,7 +160,14 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
         }
       }
 
+#if GATHER_STAT
+      double t1 = omp_get_wtime();
+#endif
       omp_set_lock(&lock[target]);
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(tsyn, t2-t1);
+#endif
       // try to add the offset
       if(loff + off[target] <= gbufsize){
         int goff=off[target];
@@ -277,6 +288,9 @@ void Ptop::wait(){
 }
 
 void Ptop::exchange_kv(){
+#if GATHER_STAT
+  double t1 = omp_get_wtime();
+#endif
   int i;
   for(i = 0; i  < size; i++){
     if(flags[i] != 0){
@@ -302,6 +316,10 @@ void Ptop::exchange_kv(){
       omp_unset_lock(&lock[i]);
     }
   }
+#if GATHER_STAT
+  double t2 = omp_get_wtime();
+  st.inc_timer(tcomm, t2-t1);
+#endif
 }
 
 void Ptop::save_data(int recv_count){

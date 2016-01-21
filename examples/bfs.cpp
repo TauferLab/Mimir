@@ -10,7 +10,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#define TEST_TIMES 1
+#define TEST_TIMES 10
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -136,8 +136,10 @@ int main(int narg, char **args)
   mr->set_hash(mypartition_str);
   mr->set_localbufsize(lbufsize);
   mr->set_globalbufsize(gbufsize*1024);
-  mr->set_blocksize(blocksize*1024);
+  mr->set_blocksize(blocksize*1024); 
+  mr->set_maxmemsize(32*1024*1024);
   mr->set_commmode(commmode);
+  mr->set_outofcore(0);
 
   //mr->set_KVtype(StringKV);
 

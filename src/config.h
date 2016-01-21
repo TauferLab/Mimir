@@ -19,10 +19,10 @@
 // LOCAL_BUF_SIZE <= GLOBAL_BUF_SIZE <= BLOCK_SIZE
 
 
-#define UNIQUE_SIZE         (32*1024)
+#define UNIQUE_SIZE         (128*1024)
 
-#define SET_COUNT           (1048576)
-#define KEY_COUNT           (1048576)
+#define SET_COUNT           (4194304)
+#define KEY_COUNT           (4194304)
 
 // convert
 #define BUCKET_SIZE               22

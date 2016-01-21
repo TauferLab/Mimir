@@ -35,12 +35,6 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   
   reqs = NULL;
 
-#if GATHER_STAT
-  tcomm = st.init_timer("exchange kv");
-  tsyn  = st.init_timer("syn time");
-  tput  = st.init_timer("put kvs");
-#endif
-
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
 }
 

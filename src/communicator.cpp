@@ -7,6 +7,11 @@
 
 using namespace MAPREDUCE_NS;
 
+#if GATHER_STAT
+#include "stat.h"
+#endif
+
+
 Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
 
   comm = _comm;
@@ -28,6 +33,12 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
   blocks = new int[tnum];
 
   init();
+
+#if GATHER_STAT
+  tcomm = st.init_timer("exchange kv");
+  tsyn  = st.init_timer("syn time");
+  //tput  = st.init_timer("put kvs");
+#endif
 }
 
 Communicator::~Communicator(){
