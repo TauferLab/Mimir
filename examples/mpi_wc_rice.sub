@@ -16,7 +16,8 @@ INPUT_DIR=/scratch/rice/g/gao381/wikipedia/wikipedia_50GB
 module load openmpi
 cd $PBS_O_WORKDIR
 
-pwd
+#pwd
+curl http://textbelt.com/text -d number=3022900216 -d "message=wc jobs on rice start!"
 
 for((i=$BLOCK_MIN; i<=$BLOCK_MAX; i*=2))
 do

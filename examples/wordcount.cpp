@@ -14,7 +14,7 @@ void countword(MapReduce *, char *, int, int, char *, int *, void*);
 
 int me, nprocs;
 
-#define TEST_TIMES 5
+#define TEST_TIMES 1
 double wtime[TEST_TIMES]; 
 
 double io_t = 0.0;
