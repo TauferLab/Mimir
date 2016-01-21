@@ -14,7 +14,7 @@ void countword(MapReduce *, char *, int, int, char *, int *, void*);
 
 int me, nprocs;
 
-#define TEST_TIMES 1
+#define TEST_TIMES 5
 double wtime[TEST_TIMES]; 
 
 double io_t = 0.0;
@@ -41,11 +41,14 @@ int main(int argc, char *argv[])
 
   if(argc > 2){
     commmode=atoi(argv[2]);
-  }else if(argc > 3){
+  }
+  if(argc > 3){
     blocksize=atoi(argv[3]);
-  }else if(argc > 4){
+  }
+  if(argc > 4){
     gbufsize=atoi(argv[4]);
-  }else if(argc > 5){
+  }
+  if(argc > 5){
     lbufsize=atoi(argv[5]);
   }
 
@@ -55,7 +58,7 @@ int main(int argc, char *argv[])
 
   mr->set_localbufsize(lbufsize);
   mr->set_globalbufsize(gbufsize*1024);
-  mr->set_blocksize(lbufsize*1024);
+  mr->set_blocksize(blocksize*1024);
   mr->set_maxmem(32*1024*1024);
   mr->set_commmode(commmode);
 
@@ -120,7 +123,7 @@ int main(int argc, char *argv[])
      if(wtime[i] < tmin) tmin=wtime[i];
     }
     tavg = tsum/TEST_TIMES;
-    printf("average time=%g, max time=%g, min time=%g\n", tavg, tmax, tmin);
+    //printf("average time=%g, max time=%g, min time=%g\n", tavg, tmax, tmin);
   }
 
 

@@ -10,7 +10,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#define TEST_TIMES 10
+#define TEST_TIMES 5
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -121,11 +121,14 @@ int main(int narg, char **args)
   //printf("");
   if(narg > 3){
     commmode=atoi(args[3]);
-  }else if(narg > 4){
+  }
+  if(narg > 4){
     blocksize=atoi(args[4]);
-  }else if(narg > 5){
+  }
+  if(narg > 5){
     gbufsize=atoi(args[5]);
-  }else if(narg > 6){
+  }
+  if(narg > 6){
     lbufsize=atoi(args[6]);
   }
 
@@ -137,7 +140,7 @@ int main(int narg, char **args)
   mr->set_localbufsize(lbufsize);
   mr->set_globalbufsize(gbufsize*1024);
   mr->set_blocksize(blocksize*1024); 
-  mr->set_maxmemsize(32*1024*1024);
+  mr->set_maxmem(32*1024*1024);
   mr->set_commmode(commmode);
   mr->set_outofcore(0);
 
@@ -226,8 +229,8 @@ int main(int narg, char **args)
 
   int test_count = 0;
   for(int index=0; index < TEST_TIMES; index++){
-    if(me==0)
-      fprintf(stdout, "Traversal %d start. (root=%ld)\n", index, visit_roots[index]);
+    //if(me==0)
+    //  fprintf(stdout, "Traversal %d start. (root=%ld)\n", index, visit_roots[index]);
 
     double map_t=0.0, convert_t=0.0, reduce_t=0.0;
     double start_t = MPI_Wtime();  
@@ -307,12 +310,14 @@ int main(int narg, char **args)
         //printf("k=%d, level=%d\n", k, level);
       }
       fprintf(rf, "\n");
-      fprintf(stdout, "Traversal %d end. (time=%g s %g %g %g)\n", index, stop_t-start_t, map_t, convert_t, reduce_t);
+      //fprintf(stdout, "Traversal %d end. (time=%g s %g %g %g)\n", index, stop_t-start_t, map_t, convert_t, reduce_t);
+       fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g\n", commmode, blocksize, gbufsize, lbufsize, index, stop_t-start_t, map_t, convert_t, reduce_t);
+
     }
   }
   MPI_Barrier(MPI_COMM_WORLD);
 
-  if(me==0) fprintf(stdout, "BFS traversal end.\n");
+  //if(me==0) fprintf(stdout, "BFS traversal end.\n");
 
   if(me==0){
     double avg_teps=0.0;
@@ -328,8 +333,8 @@ int main(int narg, char **args)
       if(teps[i] < min_teps) min_teps = teps[i];
     }
 
-    fprintf(stdout, "process count=%d, vertex count=%ld, edge count=%ld\n", nprocs, g->nglobalverts, g->nglobaledges);
-    fprintf(stdout, "Results: average=%g, max=%g, min=%g\n", avg_teps, max_teps, min_teps);
+    //fprintf(stdout, "process count=%d, vertex count=%ld, edge count=%ld\n", nprocs, g->nglobalverts, g->nglobaledges);
+    //fprintf(stdout, "Results: average=%g, max=%g, min=%g\n", avg_teps, max_teps, min_teps);
 
   }
 

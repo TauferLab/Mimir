@@ -11,15 +11,15 @@
 #define MAXMEM_SIZE     (4*1024*1024)  // 1G  
 #define MAX_BLOCKS              1024  // 1024 blocks
 
-#define PCS_PER_NODE            2
-#define THS_PER_PROC           10
+#define PCS_PER_NODE            8
+#define THS_PER_PROC            6
 
 //#define TMP_BLOCK_SIZE     BLOCK_SIZE // 128M
 // README
 // LOCAL_BUF_SIZE <= GLOBAL_BUF_SIZE <= BLOCK_SIZE
 
 
-#define UNIQUE_SIZE         (128*1024)
+//#define UNIQUE_SIZE         (128*1024)
 
 #define SET_COUNT           (4194304)
 #define KEY_COUNT           (4194304)

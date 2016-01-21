@@ -1464,7 +1464,7 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(UNIQUE_SIZE*UNIT_SIZE);
+  u->unique_pool=new Spool(blocksize*UNIT_SIZE);
   u->set_pool=new Spool((SET_COUNT)*sizeof(Set));
   u->nunique=0;
   u->nset=0;
