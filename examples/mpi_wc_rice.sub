@@ -3,11 +3,11 @@
 
 COMM=0
 
-BLOCK_MIN=128
-BLOCK_MAX=128
+BLOCK_MIN=64
+BLOCK_MAX=256
 
-GBUF_MIN=8
-GBUF_MAX=8
+GBUF_MIN=4
+GBUF_MAX=16
 
 INPUT_DIR=/scratch/rice/g/gao381/wikipedia/wikipedia_50GB
 #INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
