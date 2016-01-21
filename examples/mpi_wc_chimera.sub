@@ -25,3 +25,6 @@ do
     OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j
   done
 done
+
+curl http://textbelt.com/text -d number=3022900216 -d "message=wc jobs on chimera end!"
+

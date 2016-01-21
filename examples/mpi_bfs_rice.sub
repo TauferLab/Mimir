@@ -1,17 +1,17 @@
 #!/bin/sh -l
 #FILENAME:  mpi_hello.sub
 
-COMM=1
+COMM=0
 
-BLOCK_MIN=128
+BLOCK_MIN=64
 BLOCK_MAX=512
 
 GBUF_MIN=4
 GBUF_MAX=32
 
 SCALE=25
-#INPUT_DIR="/scratch/rice/g/gao381/graph/$SCALE.16"
-INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
+INPUT_DIR="/scratch/rice/g/gao381/graph/$SCALE.16"
+#INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
 
 module load openmpi
@@ -28,3 +28,6 @@ do
     OMP_NUM_THREADS=10 mpiexec -n 4 ./bfs $SCALE $INPUT_DIR $INPUT_DIR $COMM $i $j 
   done
 done
+
+curl http://textbelt.com/text -d number=3022900216 -d "message=BFS jobs on rice end!"
+
