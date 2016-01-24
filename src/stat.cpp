@@ -17,6 +17,10 @@ Stat::Stat(int _nmax){
   timers       = new double[nmax];
   timer_verb   = new int[nmax];
   ntimer       = 0;
+
+  for(int i=0; i<TIMER_NUM; i++)
+    timers[i]=0.0;
+  ntimer=TIMER_NUM;
 }
 
 Stat::~Stat(){
@@ -61,7 +65,7 @@ int Stat::init_timer(const char *name, int verb){
 }
 
 void Stat::inc_timer(int id, double inc){
-#pragma omp atomic
+//#pragma omp atomic
   timers[id] += inc;
 }
 
@@ -79,7 +83,11 @@ void Stat::print(int verb, FILE *out){
 }
 
 void Stat::clear(){
-  ncounter = ntimer = 0;
-  counter_str.clear();
-  timer_str.clear();
+  //ncounter = ntimer = 0;
+  //counter_str.clear();
+  //timer_str.clear();
+
+  for(int i=0; i<TIMER_NUM; i++)
+    timers[i]=0.0;
+
 }

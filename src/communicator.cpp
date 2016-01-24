@@ -35,14 +35,18 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
   init();
 
 #if GATHER_STAT
-  tcomm = st.init_timer("exchange kv");
-  tsyn  = st.init_timer("syn time");
+  //tcomm = st.init_timer("exchange kv");
+  //tsyn  = st.init_timer("syn time");
   //tput  = st.init_timer("put kvs");
 #endif
 }
 
 Communicator::~Communicator(){
 
+  if(!data){
+    for(int i=0; i<tnum; i++)
+      if(blocks[i] !=- 1) data->releaseblock(blocks[i]);
+  }
   delete [] blocks;
 
   for(int i = 0; i < tnum; i++){

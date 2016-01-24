@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 
   for(int i = 0; i < TEST_TIMES; i++){
  
-    mr->init_stat();
+    //mr->init_stat();
     //seek_t = 0.0;
   
     MPI_Barrier(MPI_COMM_WORLD);
@@ -104,8 +104,35 @@ int main(int argc, char *argv[])
     wtime[i] = t4-t1;
  
     if(me==0){
-      mr->show_stat();
-      printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
+      //mr->show_stat();
+      //printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
+      
+     if(commode==0)
+      printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g\n", \
+        commmode, blocksize, gbufsize, lbufsize, \
+        i, nword, nunique, \
+        wtime[i], t2-t1, t3-t2, t4-t3, \
+        io_t, add_t, \
+        mr->get_timer(TIMER_COMM), \
+        mr->get_timer(TIMER_ATOA),\
+        mr->get_timer(TIMER_IATOA),\
+        mr->get_timer(TIMER_WAIT),\
+        mr->get_timer(TIMER_REDUCE),\
+        mr->get_timer(TIMER_SYN));
+      else
+      printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g\n", \
+        commmode, blocksize, gbufsize, lbufsize, \
+        i, nword, nunique, \
+        wtime[i], t2-t1, t3-t2, t4-t3, \
+        io_t, add_t, \
+        mr->get_timer(TIMER_COMM), \
+        mr->get_timer(TIMER_ISEND),\
+        mr->get_timer(TIMER_CHECK),\
+        mr->get_timer(TIMER_LOCK),\
+        mr->get_timer(TIMER_SYN));
+
+
+      //printf("")
       //printf("%d nword=%ld, nunique=%ld, time=%g(map=%g, convert=%g, reduce=%g, io=%lf, add=%lf\n", i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
       io_t=add_t=0;
     }

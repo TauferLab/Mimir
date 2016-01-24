@@ -17,6 +17,17 @@
 
 #include "spool.h"
 
+#define TIMER_COMM    0
+#define TIMER_ATOA    1
+#define TIMER_IATOA   2
+#define TIMER_WAIT    3
+#define TIMER_REDUCE  4
+#define TIMER_ISEND   5
+#define TIMER_CHECK   6
+#define TIMER_LOCK    7
+#define TIMER_SYN     8
+#define TIMER_NUM     9
+
 namespace MAPREDUCE_NS {
 
 enum KVType{GeneralKV, StringKV, FixedKV, StringKeyOnly};
@@ -113,6 +124,8 @@ public:
     // output data into file
     // type: 0 for string, 1 for int, 2 for int64_t
     void output(int type=0, FILE *fp=stdout, int format=0);
+
+    double get_timer(int id);
 
 private:
     uint64_t send_bytes, recv_bytes;

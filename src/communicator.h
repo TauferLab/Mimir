@@ -31,7 +31,7 @@ public:
 
 public:
 #if GATHER_STAT
-  int tcomm, tsyn;
+  //int tcomm, tsyn;
   //int *tsendkv, *thwait;
 #endif
 

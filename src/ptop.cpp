@@ -14,6 +14,25 @@ using namespace MAPREDUCE_NS;
 #include "stat.h"
 #endif
 
+#define SAVE_DATA(recvbuf, recvcount) \
+{\
+  recv_bytes += recvcount;\
+  if(blocks[0]==-1){\
+    blocks[0] = data->addblock();\
+    data->acquireblock(blocks[0]);\
+  }\
+  int datasize=data->getblocktail(blocks[0]);\
+  if(datasize+recvcount>data->blocksize){\
+    data->releaseblock(blocks[0]);\
+    blocks[0] = data->addblock();\
+    data->acquireblock(blocks[0]);\
+    datasize=0;\
+  }\
+  char *databuf = data->getblockbuffer(blocks[0]);\
+  memcpy(databuf+datasize, recvbuf, recvcount);\
+  data->setblockdatasize(blocks[0], datasize+recvcount);\
+}
+
 #define CHECK_MPI_REQS \
 {\
   int flag;\
@@ -22,7 +41,7 @@ using namespace MAPREDUCE_NS;
   if(flag){\
     int count;\
     MPI_Get_count(&st, MPI_BYTE, &count);\
-    if(count>0) save_data(count);\
+    if(count>0) SAVE_DATA(recv_buf, count)\
     else pdone++;\
     MPI_Irecv(recv_buf, gbufsize, MPI_BYTE, MPI_ANY_SOURCE, 0, comm, &recv_req);\
   }\
@@ -34,6 +53,30 @@ using namespace MAPREDUCE_NS;
   }\
 }
 
+#define MAKE_PROGRESS \
+{\
+  int i;\
+  for(i=0;i<size;i++){\
+    if(flags[i] != 0){\
+      int ib = ibuf[i];\
+      send_bytes += off[i];\
+      if(i!=rank)\
+        MPI_Isend(buf[i], off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);\
+      else\
+        SAVE_DATA(buf[i],off[i])\
+      ib=(ib+1)%nbuf;\
+      while(reqs[ib][i] != MPI_REQUEST_NULL){\
+        CHECK_MPI_REQS;\
+      }\
+      omp_set_lock(&lock[i]);\
+      buf[i]   = global_buffers[ib]+i*gbufsize;\
+      off[i]   = 0;\
+      ibuf[i]  = ib;\
+      flags[i] = 0;\
+      omp_unset_lock(&lock[i]);\
+    }\
+  }\
+}
 
 Ptop::Ptop(MPI_Comm _comm, int _tnum) : Communicator(_comm, 1, _tnum){
 
@@ -130,8 +173,6 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
   int kvsize = 0;
   GET_KV_SIZE(kvtype, keysize, valsize, kvsize);
 
-  //printf("sendKV: %s,%s,kvsize=%d\n", key, val, kvsize); fflush(stdout);
-
 #if SAFE_CHECK
   if(kvsize > lbufsize){
     LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, lbufsize);
@@ -156,7 +197,14 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
         int flag;
         MPI_Is_thread_main(&flag);
         if(flag){
-          exchange_kv();
+#if GATHER_STAT
+          double t1 = omp_get_wtime();
+#endif
+          MAKE_PROGRESS;
+#if GATHER_STAT
+          double t2 = omp_get_wtime();
+          st.inc_timer(TIMER_COMM, t2-t1);
+#endif
         }
       }
 
@@ -166,7 +214,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
       omp_set_lock(&lock[target]);
 #if GATHER_STAT
       double t2 = omp_get_wtime();
-      st.inc_timer(tsyn, t2-t1);
+      if(tid==0) st.inc_timer(TIMER_SYN, t2-t1);
 #endif
       // try to add the offset
       if(loff + off[target] <= gbufsize){
@@ -182,11 +230,11 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
   }
 
   // do communication
-  int flag;
-  MPI_Is_thread_main(&flag);
-  if(flag){
-    exchange_kv();
-  }
+  //int flag;
+  //MPI_Is_thread_main(&flag);
+  //if(flag){
+  //  exchange_kv();
+  //}
 
   return 0;
 }
@@ -209,7 +257,15 @@ void Ptop::twait(int tid){
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){
-        exchange_kv();  
+        //MAKE_PROGRESS; 
+#if GATHER_STAT
+          double t1 = omp_get_wtime();
+#endif
+          MAKE_PROGRESS;
+#if GATHER_STAT
+          double t2 = omp_get_wtime();
+          st.inc_timer(TIMER_COMM, t2-t1);
+#endif
       }
     }
 
@@ -241,7 +297,17 @@ void Ptop::twait(int tid){
     int flag;
     MPI_Is_thread_main(&flag);
     if(flag){
-      exchange_kv();  
+      //exchange_kv();  
+      //MAKE_PROGRESS;
+#if GATHER_STAT
+          double t1 = omp_get_wtime();
+#endif
+          MAKE_PROGRESS;
+#if GATHER_STAT
+          double t2 = omp_get_wtime();
+          st.inc_timer(TIMER_COMM, t2-t1);
+#endif
+
     }
   }while(tdone < tnum);
 
@@ -255,7 +321,10 @@ void Ptop::wait(){
       int ib=ibuf[i];
       //printf("%d send <%d,%d> last count=%d\n", rank, ib, i, off[i]); fflush(stdout);
       send_bytes += off[i];
-      MPI_Isend(buf[i], off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);
+      if(i!=rank)
+        MPI_Isend(buf[i], off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);
+      else
+        SAVE_DATA((buf[i]), (off[i]))
     }
   }
 
@@ -266,12 +335,13 @@ void Ptop::wait(){
     while(reqs[ib][i] != MPI_REQUEST_NULL){
       CHECK_MPI_REQS;
     }
-    MPI_Isend(NULL, 0, MPI_BYTE, i, 0, comm, &reqs[ib][i]);
+    if(i!=rank)
+      MPI_Isend(NULL, 0, MPI_BYTE, i, 0, comm, &reqs[ib][i]);
   }
  
   do{
     CHECK_MPI_REQS;
-  }while(pdone<size);
+  }while(pdone<size-1);
 
   for(int i=0; i<nbuf; i++){
     for(int j=0; j<size; j++){
@@ -287,24 +357,44 @@ void Ptop::wait(){
   LOG_PRINT(DBG_COMM, "%d[%d] wait end\n", rank, size);
 }
 
+
+#if 0
 void Ptop::exchange_kv(){
 #if GATHER_STAT
-  double t1 = omp_get_wtime();
+  double tstart = omp_get_wtime();
 #endif
+#if GATHER_STAT
+      double t1 = omp_get_wtime();
+#endif
+
   int i;
   for(i = 0; i  < size; i++){
     if(flags[i] != 0){
       int ib = ibuf[i];
       //printf("%d send <%d,%d> count=%d\n", rank, ib, i, off[i]); fflush(stdout);
 
+#if GATHER_STAT
+      //double t1 = omp_get_wtime();
+#endif
       send_bytes += off[i];
       MPI_Isend(buf[i], off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);
+
+#if GATHER_STAT
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(TIMER_ISEND, t2-t1);;
+#endif
 
       ib=(ib+1)%nbuf;
 
       while(reqs[ib][i] != MPI_REQUEST_NULL){
         CHECK_MPI_REQS;
       }
+
+#if GATHER_STAT
+      //double t3 = omp_get_wtime();
+      //st.inc_timer(TIMER_CHECK, t3-t2);;
+#endif
+
 
       reqs[ib][i] = MPI_REQUEST_NULL;
 
@@ -314,14 +404,27 @@ void Ptop::exchange_kv(){
       ibuf[i]  = ib;
       flags[i] = 0;
       omp_unset_lock(&lock[i]);
+
+#if GATHER_STAT
+      //double t4 = omp_get_wtime();
+      //st.inc_timer(TIMER_LOCK, t4-t3);;
+#endif
     }
   }
+
 #if GATHER_STAT
-  double t2 = omp_get_wtime();
-  st.inc_timer(tcomm, t2-t1);
+    double t2 = omp_get_wtime();
+#endif
+
+#if GATHER_STAT
+  double tend = omp_get_wtime();
+    st.inc_timer(TIMER_ISEND, t2-t1);;
+  st.inc_timer(TIMER_COMM, tend-tstart);
 #endif
 }
+#endif
 
+#if 1
 void Ptop::save_data(int recv_count){
 
   recv_bytes += recv_count;
@@ -340,3 +443,4 @@ void Ptop::save_data(int recv_count){
 
   data->releaseblock(blocks[0]);
 }
+#endif

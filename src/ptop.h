@@ -30,8 +30,8 @@ public:
   void wait();
 
 private:
-  void exchange_kv();
-  void recv_data();
+  //void exchange_kv();
+  //void recv_data();
   void save_data(int);
 
   int  *flags; 

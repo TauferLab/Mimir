@@ -90,8 +90,8 @@ DataObject::~DataObject(){
   for(int i = 0; i < nbuf; i++){
     if(buffers[i].buf) free(buffers[i].buf);
   }
-  delete [] blocks;
   delete [] buffers;
+  delete [] blocks;
 
   LOG_PRINT(DBG_DATA, "DATA: DataObject destory. (type=%d)\n", datatype);
 }

@@ -188,7 +188,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 
 #if GATHER_STAT
        double tstop = omp_get_wtime();
-       st.inc_timer(tsyn, tstop-tstart);
+       if(tid==0) st.inc_timer(TIMER_SYN, tstop-tstart);
 #endif
 
         if(goff + loff <= gbufsize){
@@ -339,7 +339,7 @@ void Alltoall::wait(){
 
 void Alltoall::exchange_kv(){
 #if GATHER_STAT
-  double tstart = omp_get_wtime();
+  double t1 = omp_get_wtime();
 #endif
 
   int i;
@@ -360,8 +360,18 @@ void Alltoall::exchange_kv(){
     recvcounts[ibuf] += recv_count[ibuf][i];
   }
 
+#if GATHER_STAT
+  double t2 = omp_get_wtime();
+  st.inc_timer(TIMER_ATOA, t2-t1);
+#endif
+
   // exchange kv data
   MPI_Ialltoallv(buf, off, send_displs, MPI_BYTE, recv_buf[ibuf], recv_count[ibuf], recv_displs,MPI_BYTE, comm,  &reqs[ibuf]);
+
+#if GATHER_STAT
+  double t3 = omp_get_wtime();
+  st.inc_timer(TIMER_IATOA, t3-t2);
+#endif
 
   // wait data
   ibuf = (ibuf+1)%nbuf;
@@ -375,6 +385,11 @@ void Alltoall::exchange_kv(){
     if(recvcount > 0) save_data(ibuf);
   }
 
+#if GATHER_STAT
+  double t4 = omp_get_wtime();
+  st.inc_timer(TIMER_WAIT, t4-t3);
+#endif
+
   // switch buffer
   buf = global_buffers[ibuf];
   off = global_offsets[ibuf];
@@ -383,8 +398,9 @@ void Alltoall::exchange_kv(){
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 
 #if GATHER_STAT
-  double tstop = omp_get_wtime();
-  st.inc_timer(tcomm, tstop-tstart);
+  double t5 = omp_get_wtime();
+  st.inc_timer(TIMER_REDUCE, t5-t4);
+  st.inc_timer(TIMER_COMM, t5-t1);
 #endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%d, done count=%d)\n", rank, size, sendcount, pdone);

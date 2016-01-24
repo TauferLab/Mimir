@@ -1,16 +1,18 @@
 #!/bin/sh -l
 #FILENAME:  mpi_hello.sub
 
-COMM=0
+COMM=1
 
-BLOCK_MIN=256
-BLOCK_MAX=256
+BLOCK_MIN=512
+BLOCK_MAX=512
 
-GBUF_MIN=4
+GBUF_MIN=16
 GBUF_MAX=16
 
 INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
+
+TIMES=3
 
 module load openmpi
 #cd $PBS_O_WORKDIR
@@ -25,7 +27,11 @@ do
   for((j=$GBUF_MIN; j<=$GBUF_MAX; j*=2))
   do
     echo "$COMM $i $j"
-    OMP_NUM_THREADS=6 srun -N 1 -p all -w node03 -n 8 ./wordcount $INPUT_DIR $COMM $i $j >> wc.$COMM.txt
+    for((k=0; k<=$TIMES; k++))
+    do
+    #OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j >> wc.$COMM.txt
+      OMP_NUM_THREADS=6 srun -N 1 -p all -w node03 -n 8 ./wordcount $INPUT_DIR $COMM $i $j >> wc.$COMM.txt
+    done
   done
 done
 

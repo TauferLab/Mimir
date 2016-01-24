@@ -6,6 +6,21 @@
 #include <vector>
 #include <string>
 
+//#include "config.h"
+
+//#include "mapreduce.h"
+
+#define TIMER_COMM    0
+#define TIMER_ATOA    1
+#define TIMER_IATOA   2
+#define TIMER_WAIT    3
+#define TIMER_REDUCE  4
+#define TIMER_ISEND   5
+#define TIMER_CHECK   6
+#define TIMER_LOCK    7
+#define TIMER_SYN     8
+#define TIMER_NUM     9
+
 namespace MAPREDUCE_NS {
 
 class Stat{
@@ -25,7 +40,7 @@ public:
 
   void clear();
 
-private:
+public:
   int nmax;
 
   uint64_t *counters;

@@ -1712,17 +1712,14 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   if(mode == MapMode){
 
     // get target process
-    uint32_t hid = 0;
     int target = 0;
     if(myhash != NULL){
       target=myhash(key, keybytes);
-    }
-    else{
+    }else{
+      uint32_t hid = 0;
       hid = hashlittle(key, keybytes, nprocs);
       target = hid % (uint32_t)nprocs;
     }
-
-    //printf("target=%d\n", target);
 
     // send KV    
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
@@ -1730,11 +1727,7 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     nitems[tid]++;
  
     return;
-   }
-
-  // invoked in map_local or reduce function
-  if(mode == MapLocalMode || mode == ReduceMode){
-    
+   }else if(mode == MapLocalMode || mode == ReduceMode){
     // add KV into data object 
     KeyValue *kv = (KeyValue*)data;
 
@@ -1757,8 +1750,9 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   return;
 }
 
+//#if 0
 void MapReduce::show_stat(int verb, FILE *out){
-  //printf("Send bytes=%ld, Recv bytes=%ld, Max memory bytes=%ld\n", send_bytes, recv_bytes, max_mem_bytes);
+  printf("Send bytes=%ld, Recv bytes=%ld, Max memory bytes=%ld\n", send_bytes, recv_bytes, max_mem_bytes);
 #if GATHER_STAT
   //st.print(verb, out);
 #endif
@@ -1767,7 +1761,16 @@ void MapReduce::show_stat(int verb, FILE *out){
 void MapReduce::init_stat(){
   send_bytes = recv_bytes = 0;
 #if GATHER_STAT
-  //st.clear();
+  st.clear();
+#endif
+}
+//#endif
+
+double MapReduce::get_timer(int id){
+#if GATHER_STAT
+ return st.timers[id]; 
+#else 
+ return 0;
 #endif
 }
 

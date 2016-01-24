@@ -10,7 +10,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#define TEST_TIMES 5
+#define TEST_TIMES 1
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -74,8 +74,8 @@ int nactives[MAX_LEVEL];
 FILE *rf=NULL;
 
 int commmode=0;
-int blocksize=64;
-int gbufsize=32;
+int blocksize=32;
+int gbufsize=16;
 int lbufsize=16;
 
 int main(int narg, char **args)
@@ -220,7 +220,17 @@ int main(int narg, char **args)
   bfs_st.vis  = new unsigned long[bitmapsize];
   bfs_st.pred = new int64_t[g->nlocalverts];
 
-  if(me==0) fprintf(stdout, "BFS traversal start.\n");
+  if(me==0) {
+    fprintf(stdout, "BFS traversal start.\n");
+    mr->init_stat();
+        
+    //fprintf(stdout, "%g,%g,%g,%g,%g,\n", \
+           mr->get_timer(TIMER_COMM),\
+           mr->get_timer(TIMER_ISEND),\
+           mr->get_timer(TIMER_CHECK),\
+           mr->get_timer(TIMER_LOCK),\
+           mr->get_timer(TIMER_SYN));
+  }
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -311,8 +321,30 @@ int main(int narg, char **args)
       }
       fprintf(rf, "\n");
       //fprintf(stdout, "Traversal %d end. (time=%g s %g %g %g)\n", index, stop_t-start_t, map_t, convert_t, reduce_t);
-       fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g\n", commmode, blocksize, gbufsize, lbufsize, index, stop_t-start_t, map_t, convert_t, reduce_t);
-
+       //fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g\n", commmode, blocksize, gbufsize, lbufsize, index, stop_t-start_t, map_t, convert_t, reduce_t);
+#if 1
+       if(commmode==0)
+         fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
+           commmode, blocksize, gbufsize, lbufsize, \
+           index, stop_t-start_t, map_t, convert_t, reduce_t,\
+           mr->get_timer(TIMER_COMM),\
+           mr->get_timer(TIMER_ATOA),\
+           mr->get_timer(TIMER_IATOA),\
+           mr->get_timer(TIMER_WAIT),\
+           mr->get_timer(TIMER_REDUCE),\
+           mr->get_timer(TIMER_SYN));
+        else
+         fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
+           commmode, blocksize, gbufsize, lbufsize, \
+           index, stop_t-start_t, map_t, convert_t, reduce_t,\
+           mr->get_timer(TIMER_COMM),\
+           mr->get_timer(TIMER_ISEND),\
+           mr->get_timer(TIMER_CHECK),\
+           mr->get_timer(TIMER_LOCK),\
+           mr->get_timer(TIMER_SYN));
+      //mr->show_stat();
+      mr->init_stat();
+#endif
     }
   }
   MPI_Barrier(MPI_COMM_WORLD);
@@ -333,6 +365,9 @@ int main(int narg, char **args)
       if(teps[i] < min_teps) min_teps = teps[i];
     }
 
+    fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, 
+      avg_teps, max_teps, min_teps);
+
     //fprintf(stdout, "process count=%d, vertex count=%ld, edge count=%ld\n", nprocs, g->nglobalverts, g->nglobaledges);
     //fprintf(stdout, "Results: average=%g, max=%g, min=%g\n", avg_teps, max_teps, min_teps);
 
@@ -347,7 +382,7 @@ int main(int narg, char **args)
   delete [] g->rowstarts;
   delete [] g->columns;
 
-  if(me==0) mr->show_stat();
+  //if(me==0) mr->show_stat();
 
   delete mr;
 

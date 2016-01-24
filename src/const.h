@@ -9,6 +9,9 @@
 #define NIN(A,B) ((A) < (B)) ? (A) : (B)
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)
 
+#define CACHELINE_SIZE   64
+#define MEMPAGE_SIZE   4096
+
 #define ROUNDUP(A,B) (char *) (((uint64_t) A + B) & ~B);
 
 // general type
