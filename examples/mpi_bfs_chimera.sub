@@ -14,7 +14,7 @@ FACTOR=8
 INPUT_DIR="/usa/taogao/dataset/graph/$SCALE.$FACTOR"
 #INPUT_DIR=test.txt
 
-FILE=bfs_mm
+FILE=bfs
 
 module load openmpi
 #cd $PBS_O_WORKDIR

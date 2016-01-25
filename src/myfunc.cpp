@@ -1,7 +1,9 @@
 #include "myfunc.h"
 
 void *mymalloc(size_t alignment, size_t size){
-  void *ptr = aligned_alloc(alignment, size);
+  void *ptr;
+  //void *ptr = aligned_alloc(alignment, size);
+  posix_memalign(&ptr, alignment, size);
   return ptr;
 }
 
