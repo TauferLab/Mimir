@@ -168,6 +168,8 @@ extern int oneintlen;
 extern int twointlen;
 extern int threeintlen;
 
+extern int oneptrlen;
+
 extern int kalignm;
 extern int valignm;
 extern int talignm;

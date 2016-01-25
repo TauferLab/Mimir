@@ -10,7 +10,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#define TEST_TIMES 1
+#define TEST_TIMES 5
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)

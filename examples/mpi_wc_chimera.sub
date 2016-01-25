@@ -6,13 +6,13 @@ COMM=1
 BLOCK_MIN=512
 BLOCK_MAX=512
 
-GBUF_MIN=16
-GBUF_MAX=16
+GBUF_MIN=32
+GBUF_MAX=32
 
 INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
 
-TIMES=3
+TIMES=2
 
 module load openmpi
 #cd $PBS_O_WORKDIR

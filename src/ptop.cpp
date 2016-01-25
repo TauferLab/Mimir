@@ -8,6 +8,8 @@
 
 #include "const.h"
 
+#include "myfunc.h"
+
 using namespace MAPREDUCE_NS;
 
 #if GATHER_STAT
@@ -57,23 +59,23 @@ using namespace MAPREDUCE_NS;
 {\
   int i;\
   for(i=0;i<size;i++){\
-    if(flags[i] != 0){\
-      int ib = ibuf[i];\
-      send_bytes += off[i];\
+    if(*(int*)(GET_VAL(flags, i, oneintlen)) != 0){\
+      int ib = *(int*)GET_VAL(ibuf,i,oneintlen);\
+      send_bytes += *(int*)GET_VAL(off,i,oneintlen);\
       if(i!=rank)\
-        MPI_Isend(buf[i], off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);\
+        MPI_Isend(*(char**)GET_VAL(buf,i,oneptrlen), *(int*)GET_VAL(off,i,oneintlen), MPI_BYTE, i, 0, comm, &reqs[ib][i]);\
       else\
-        SAVE_DATA(buf[i],off[i])\
+        SAVE_DATA(*(char**)GET_VAL(buf,i,oneptrlen), *(int*)GET_VAL(off,i,oneintlen))\
       ib=(ib+1)%nbuf;\
       while(reqs[ib][i] != MPI_REQUEST_NULL){\
         CHECK_MPI_REQS;\
       }\
-      omp_set_lock(&lock[i]);\
-      buf[i]   = global_buffers[ib]+i*gbufsize;\
-      off[i]   = 0;\
-      ibuf[i]  = ib;\
-      flags[i] = 0;\
-      omp_unset_lock(&lock[i]);\
+      omp_set_lock((omp_lock_t*)GET_VAL(lock,i,onelocklen));\
+      *(char**)GET_VAL(buf,i,oneptrlen)   = global_buffers[ib]+i*gbufsize;\
+      *(int*)GET_VAL(off,i,oneintlen)   = 0;\
+      *(int*)GET_VAL(ibuf,i,oneintlen)=ib;\
+      *(int*)(GET_VAL(flags, i, oneintlen))=0;\
+      omp_unset_lock((omp_lock_t*)GET_VAL(lock,i,onelocklen));\
     }\
   }\
 }
@@ -92,6 +94,8 @@ Ptop::Ptop(MPI_Comm _comm, int _tnum) : Communicator(_comm, 1, _tnum){
   buf = NULL;
   off = NULL;
 
+  onelocklen=sizeof(omp_lock_t);
+
   lock = NULL;
 
   reqs = NULL;
@@ -101,15 +105,20 @@ Ptop::Ptop(MPI_Comm _comm, int _tnum) : Communicator(_comm, 1, _tnum){
 }
 
 Ptop::~Ptop(){
-  delete [] flags;
-  delete [] ibuf;
+  myfree(flags);
+  myfree(ibuf);
+  //delete [] flags;
+  //delete [] ibuf;
 
-  delete [] buf;
-  delete [] off;
+  myfree(buf);
+  myfree(off);
+  //delete [] buf;
+  //delete [] off;
 
   for(int i = 0; i < size; i++)
-    omp_destroy_lock(&lock[i]);
-  delete [] lock;
+    omp_destroy_lock((omp_lock_t*)GET_VAL(lock,i,onelocklen));
+  //delete [] lock;
+  myfree(lock);
 
   for(int i=0; i<nbuf; i++)
       delete [] reqs[i];
@@ -121,15 +130,20 @@ Ptop::~Ptop(){
 int Ptop::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
   Communicator::setup(_lbufsize, _gbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
-  flags = new int[size];
-  ibuf  = new int[size];
-  buf   = new char*[size];
-  off   = new int[size];
+  //flags = new int[size];
+  flags = (int*)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
+  ibuf  = (int*)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
+  //ibuf  = new int[size];
+ // buf   = new char*[size];
+  buf = (char**)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneptrlen));
+  off = (int*)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
+  //off   = new int[size];
 
-  lock  = new omp_lock_t[size];
+  //lock  = new omp_lock_t[size];
+  lock  = (omp_lock_t*)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(onelocklen));
 
   reqs = new MPI_Request*[nbuf];
-  for(int i=0; i<_nbuf; i++)
+  for(int i=0; i<nbuf; i++)
     reqs[i] = new MPI_Request[size];
 
   recv_buf = (char*)malloc(gbufsize);
@@ -142,13 +156,18 @@ void Ptop::init(DataObject *_data){
 
   for(int i=0; i < size; i++){
 
-    flags[i] = 0;
-    ibuf[i] = 0;
+    *(int*)GET_VAL(flags,i,oneintlen)=0;
+    *(int*)GET_VAL(ibuf,i,oneintlen)=0;
+    //flags[i] = 0;
+    //ibuf[i] = 0;
 
-    buf[i] = global_buffers[0]+gbufsize*i;
-    off[i] = 0;
+   // buf[i] = global_buffers[0]+gbufsize*i;
+   *(char**)GET_VAL(buf,i,oneptrlen)=global_buffers[0]+gbufsize*i;
+   *(int*)GET_VAL(off,i,oneintlen)=0;
+   //off[i] = 0;
 
-    omp_init_lock(&lock[i]);
+    //omp_init_lock(&lock[i]);
+    omp_init_lock((omp_lock_t*)GET_VAL(lock, i, onelocklen));
 
     for(int j=0; j<nbuf; j++)
       reqs[j][i] = MPI_REQUEST_NULL;
@@ -193,7 +212,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
     // local buffer is full
     }else{
       // make sure global buffer is ready
-      while(flags[target] != 0){
+      while(*(int*)GET_VAL(flags,target,oneintlen) != 0){
         int flag;
         MPI_Is_thread_main(&flag);
         if(flag){
@@ -211,21 +230,24 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
 #if GATHER_STAT
       double t1 = omp_get_wtime();
 #endif
-      omp_set_lock(&lock[target]);
+      //omp_set_lock(&lock[target]);
+      omp_set_lock((omp_lock_t*)GET_VAL(lock, target, onelocklen));
 #if GATHER_STAT
       double t2 = omp_get_wtime();
       if(tid==0) st.inc_timer(TIMER_SYN, t2-t1);
 #endif
       // try to add the offset
-      if(loff + off[target] <= gbufsize){
-        int goff=off[target];
-        memcpy(buf[target]+goff, local_buffers[tid]+target*lbufsize, loff);
-        off[target]+=loff;
+      if(loff + *(int*)GET_VAL(off,target,oneintlen) <= gbufsize){
+        int goff=*(int*)GET_VAL(off,target,oneintlen);
+        memcpy(*(char**)GET_VAL(buf,target,oneptrlen)+goff, local_buffers[tid]+target*lbufsize, loff);
+        *(int*)GET_VAL(off,target,oneintlen)+=loff;
         local_offsets[tid][target] = 0;
       }else{
-       flags[target]=1;
+       //flags[target]=1;
+       *(int*)GET_VAL(flags, target, oneintlen)=1;
       }
-      omp_unset_lock(&lock[target]);
+      //omp_unset_lock(&lock[target]);
+      omp_unset_lock((omp_lock_t*)GET_VAL(lock, target, onelocklen));
     }
   }
 
@@ -253,7 +275,7 @@ void Ptop::twait(int tid){
 
     //printf("thread %d i=%d begin\n", tid, i); fflush(stdout);
 
-    while(flags[i] != 0){
+    while(*(int*)GET_VAL(flags,i,oneintlen) != 0){
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){
@@ -272,19 +294,21 @@ void Ptop::twait(int tid){
     //printf("thread %d i=%d end\n", tid, i); fflush(stdout);
 
     int k=i;
-    omp_set_lock(&lock[k]);
-    int goff=off[i];
+    //omp_set_lock(&lock[k]);
+    omp_set_lock((omp_lock_t*)GET_VAL(lock, k, onelocklen));
+    int goff=*(int*)GET_VAL(off,i,oneintlen);
     if(goff+loff<=gbufsize){
       char *lbuf = local_buffers[tid]+i*lbufsize;
-      memcpy(buf[i]+goff, lbuf, loff);
+      memcpy(*(char**)GET_VAL(buf,i,oneptrlen)+goff, lbuf, loff);
       local_offsets[tid][i] = 0;
-      off[i]+=loff;
+      *(int*)GET_VAL(off,i,oneintlen)+=loff;
       i++;
     }else{
-      flags[i]=1;
+      //flags[i]=1;
+      *(int*)GET_VAL(flags, i, oneintlen)=1;
     }
-    omp_unset_lock(&lock[k]);
-
+    //omp_unset_lock(&lock[k]);
+    omp_unset_lock((omp_lock_t*)GET_VAL(lock, k, onelocklen));
     //printf("thread %d i=%d copy end\n", tid, i); fflush(stdout);
   }
 
@@ -317,21 +341,22 @@ void Ptop::wait(){
   LOG_PRINT(DBG_COMM, "%d[%d] wait start\n", rank, size);
 
   for(int i = 0; i < size; i++){
-    if(off[i] != 0){
-      int ib=ibuf[i];
+    if(*(int*)GET_VAL(off,i,oneintlen) != 0){
+      int ib=*(int*)GET_VAL(ibuf, i, oneintlen);
       //printf("%d send <%d,%d> last count=%d\n", rank, ib, i, off[i]); fflush(stdout);
-      send_bytes += off[i];
+      send_bytes += *(int*)GET_VAL(off,i,oneintlen);
       if(i!=rank)
-        MPI_Isend(buf[i], off[i], MPI_BYTE, i, 0, comm, &reqs[ib][i]);
+        MPI_Isend(*(char**)GET_VAL(buf,i,oneptrlen), *(int*)GET_VAL(off,i,oneintlen), MPI_BYTE, i, 0, comm, &reqs[ib][i]);
       else
-        SAVE_DATA((buf[i]), (off[i]))
+        SAVE_DATA(*(char**)GET_VAL(buf,i,oneptrlen), (*(int*)GET_VAL(off,i,oneintlen)))
     }
   }
 
   //printf("%d begin wait data end\n", rank); fflush(stdout);
 
   for(int i = 0; i < size; i++){
-    int ib=ibuf[i];
+    //int ib=ibuf[i];
+    int ib=*(int*)GET_VAL(ibuf, i, oneintlen);
     while(reqs[ib][i] != MPI_REQUEST_NULL){
       CHECK_MPI_REQS;
     }

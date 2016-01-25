@@ -7,6 +7,11 @@
 #include "dataobject.h"
 #include "communicator.h"
 
+#define ALIGNED_SIZE(typesize) \
+  ((typesize+CACHELINE_SIZE-1)/CACHELINE_SIZE*CACHELINE_SIZE)
+#define GET_VAL(startptr, index, typesize) \
+  (((char*)startptr)+(index*ALIGNED_SIZE(typesize)))
+
 namespace MAPREDUCE_NS {
 
 class Ptop : public Communicator{
@@ -39,8 +44,9 @@ private:
 
   char* *buf;
   int   *off;
-
   omp_lock_t *lock;
+
+  int onelocklen;
 
   MPI_Request **reqs;
 

@@ -4,6 +4,8 @@ int oneintlen = sizeof(int);
 int twointlen = 2*sizeof(int);
 int threeintlen = 3*sizeof(int);
 
+int oneptrlen = sizeof(char*);
+
 int kalign=ALIGNK;
 int valign=ALIGNV;
 int talign=MAX(kalign, valign);
