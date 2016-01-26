@@ -1,7 +1,7 @@
 #include "log.h"
 #include "memory.h"
 
-void *mem_align_malloc(size_t alignment, size_t size){
+void *mem_aligned_malloc(size_t alignment, size_t size){
   void *ptr=NULL;
   
   //void *ptr = aligned_alloc(alignment, size);
@@ -13,7 +13,7 @@ void *mem_align_malloc(size_t alignment, size_t size){
   return ptr;
 }
 
-void *mem_alignd_free(void *ptr){
+void *mem_aligned_free(void *ptr){
   free(ptr);
   return NULL;
 }
