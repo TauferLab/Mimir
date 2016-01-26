@@ -3,11 +3,13 @@
 
 COMM=0
 
-BLOCK_MIN=64
-BLOCK_MAX=256
+BLOCK_MIN=512
+BLOCK_MAX=512
 
-GBUF_MIN=4
-GBUF_MAX=16
+GBUF_MIN=32
+GBUF_MAX=32
+
+TIMES=5
 
 INPUT_DIR=/scratch/rice/g/gao381/wikipedia/wikipedia_50GB
 #INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
@@ -25,7 +27,25 @@ do
   do
     #echo "$COMM $i $j"
     #OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j
-    OMP_NUM_THREADS=10 mpiexec -n 4 ./wordcount $INPUT_DIR $COMM $i $j 
+    for((k=0; k<$TIMES; k++))
+    do
+      OMP_NUM_THREADS=10 mpiexec -n 4 ./wordcount $INPUT_DIR $COMM $i $j 
+    done
+  done
+done
+
+COMM=1
+
+for((i=$BLOCK_MIN; i<=$BLOCK_MAX; i*=2))
+do
+  for((j=$GBUF_MIN; j<=$GBUF_MAX; j*=2))
+  do
+    #echo "$COMM $i $j"
+    #OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j
+    for((k=0; k<$TIMES; k++))
+    do
+      OMP_NUM_THREADS=10 mpiexec -n 4 ./wordcount $INPUT_DIR $COMM $i $j 
+    done
   done
 done
 

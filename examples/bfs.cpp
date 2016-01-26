@@ -321,7 +321,7 @@ int main(int narg, char **args)
       }
       fprintf(rf, "\n");
       //fprintf(stdout, "Traversal %d end. (time=%g s %g %g %g)\n", index, stop_t-start_t, map_t, convert_t, reduce_t);
-       //fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g\n", commmode, blocksize, gbufsize, lbufsize, index, stop_t-start_t, map_t, convert_t, reduce_t);
+       fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g\n", commmode, blocksize, gbufsize, lbufsize, index, stop_t-start_t, map_t, convert_t, reduce_t);
 #if 1
        if(commmode==0)
          fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
