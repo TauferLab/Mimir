@@ -1,9 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <omp.h>
-#include "communicator.h"
+
 #include "log.h"
 #include "config.h"
+
+#include "const.h"
+
+#include "memory.h"
+
+#include "communicator.h"
+
 
 using namespace MAPREDUCE_NS;
 
@@ -51,13 +58,13 @@ Communicator::~Communicator(){
 
   for(int i = 0; i < tnum; i++){
     //printf("free: buffers[%d]=%p\n", i, local_buffers[i]);
-    if(local_buffers && local_buffers[i]) free(local_buffers[i]);
-    if(local_offsets && local_offsets[i]) free(local_offsets[i]);
+    if(local_buffers && local_buffers[i]) mem_aligned_free(local_buffers[i]);
+    if(local_offsets && local_offsets[i]) mem_aligned_free(local_offsets[i]);
   }
 
   for(int i = 0; i < nbuf; i++){
-    if(global_buffers && global_buffers[i]) free(global_buffers[i]);
-    if(global_offsets && global_offsets[i]) free(global_offsets[i]);
+    if(global_buffers && global_buffers[i]) mem_aligned_free(global_buffers[i]);
+    if(global_offsets && global_offsets[i]) mem_aligned_free(global_offsets[i]);
   }
 
   if(local_buffers) delete [] local_buffers;
@@ -82,8 +89,8 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
 #pragma omp parallel
   {
     int tid = omp_get_thread_num();
-    local_buffers[tid] = (char*)malloc(size*lbufsize);
-    local_offsets[tid]   = (int*)malloc(size*sizeof(int));
+    local_buffers[tid] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, size*lbufsize);
+    local_offsets[tid]   = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
     for(int i = 0; i < size; i++) local_offsets[tid][i] = 0;
   }
  
@@ -91,8 +98,8 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
   global_offsets = new int*[nbuf];
 
   for(int i = 0; i < nbuf; i++){
-    global_buffers[i] = (char*)malloc(size*gbufsize);
-    global_offsets[i] = (int*)malloc(size*sizeof(int));
+    global_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, size*gbufsize);
+    global_offsets[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
     for(int j = 0; j < size; j++) global_offsets[i][j] = 0;
   }
 

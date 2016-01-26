@@ -11,8 +11,8 @@
 #define MAXMEM_SIZE     (4*1024*1024)  // 1G  
 #define MAX_BLOCKS              1024  // 1024 blocks
 
-#define PCS_PER_NODE            2
-#define THS_PER_PROC           10
+#define PCS_PER_NODE              2
+#define THS_PER_PROC             10
 
 //#define TMP_BLOCK_SIZE     BLOCK_SIZE // 128M
 // README

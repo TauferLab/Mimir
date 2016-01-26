@@ -8,6 +8,10 @@
 #include "log.h"
 #include "config.h"
 
+#include "const.h"
+
+#include "memory.h"
+
 using namespace MAPREDUCE_NS;
 
 
@@ -88,7 +92,7 @@ DataObject::~DataObject(){
   }
 
   for(int i = 0; i < nbuf; i++){
-    if(buffers[i].buf) free(buffers[i].buf);
+    if(buffers[i].buf) mem_aligned_free(buffers[i].buf);
   }
   delete [] buffers;
   delete [] blocks;
@@ -320,7 +324,7 @@ int DataObject::addblock(){
   if(blockid < maxbuf){
     if(buffers[blockid].buf == NULL){
       //printf("blocksize=%d\n", blocksize);
-      buffers[blockid].buf = (char*)malloc(blocksize);
+      buffers[blockid].buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
        mem_bytes += blocksize;
       //printf("block pass\n");
 #if SAFE_CHECK

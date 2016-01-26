@@ -6,7 +6,10 @@
 #include <string.h>
 
 #include "log.h"
+#include "const.h"
 #include "config.h"
+
+#include "memory.h"
 
 namespace MAPREDUCE_NS {
 
@@ -17,7 +20,7 @@ public:
 
   char *addblock(){
     //printf("blocksize=%d\n", blocksize);
-    blocks[nblock] = (char*)malloc(blocksize);
+    blocks[nblock] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
     mem_bytes += blocksize;
 #if SAFE_CHECK
     if(blocks[nblock]==NULL){

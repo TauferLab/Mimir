@@ -3,6 +3,8 @@
 #include "spool.h"
 #include "log.h"
 
+#include "memory.h"
+
 using namespace MAPREDUCE_NS;
 
 Spool::Spool(int _blocksize,int _maxblocks){
@@ -19,7 +21,7 @@ Spool::Spool(int _blocksize,int _maxblocks){
 
 Spool::~Spool(){
   for(int i = 0; i < maxblocks; i++) {
-    if(blocks[i]) free(blocks[i]);
+    if(blocks[i]) mem_aligned_free(blocks[i]);
   }
   delete [] blocks;
 }

@@ -8,7 +8,7 @@
 
 #include "const.h"
 
-#include "myfunc.h"
+#include "memory.h"
 
 using namespace MAPREDUCE_NS;
 
@@ -105,20 +105,20 @@ Ptop::Ptop(MPI_Comm _comm, int _tnum) : Communicator(_comm, 1, _tnum){
 }
 
 Ptop::~Ptop(){
-  myfree(flags);
-  myfree(ibuf);
+  mem_aligned_free(flags);
+  mem_aligned_free(ibuf);
   //delete [] flags;
   //delete [] ibuf;
 
-  myfree(buf);
-  myfree(off);
+  mem_aligned_free(buf);
+  mem_aligned_free(off);
   //delete [] buf;
   //delete [] off;
 
   for(int i = 0; i < size; i++)
     omp_destroy_lock((omp_lock_t*)GET_VAL(lock,i,onelocklen));
   //delete [] lock;
-  myfree(lock);
+  mem_aligned_free(lock);
 
   for(int i=0; i<nbuf; i++)
       delete [] reqs[i];
@@ -131,22 +131,22 @@ int Ptop::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsiz
   Communicator::setup(_lbufsize, _gbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
   //flags = new int[size];
-  flags = (int*)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
-  ibuf  = (int*)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
+  flags = (int*)mem_aligned_malloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
+  ibuf  = (int*)mem_aligned_malloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
   //ibuf  = new int[size];
  // buf   = new char*[size];
-  buf = (char**)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneptrlen));
-  off = (int*)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
+  buf = (char**)mem_aligned_malloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneptrlen));
+  off = (int*)mem_aligned_malloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
   //off   = new int[size];
 
   //lock  = new omp_lock_t[size];
-  lock  = (omp_lock_t*)mymalloc(CACHELINE_SIZE, size*ALIGNED_SIZE(onelocklen));
+  lock  = (omp_lock_t*)mem_aligned_malloc(CACHELINE_SIZE, size*ALIGNED_SIZE(onelocklen));
 
   reqs = new MPI_Request*[nbuf];
   for(int i=0; i<nbuf; i++)
     reqs[i] = new MPI_Request[size];
 
-  recv_buf = (char*)malloc(gbufsize);
+  recv_buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, gbufsize);
 
   return 0;
 }
