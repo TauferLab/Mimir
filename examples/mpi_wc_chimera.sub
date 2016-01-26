@@ -9,6 +9,9 @@ BLOCK_MAX=512
 GBUF_MIN=32
 GBUF_MAX=32
 
+LBUF_MIN=16
+LBUF_MAX=128
+
 INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
 
@@ -26,11 +29,14 @@ for((i=$BLOCK_MIN; i<=$BLOCK_MAX; i*=2))
 do
   for((j=$GBUF_MIN; j<=$GBUF_MAX; j*=2))
   do
-    echo "$COMM $i $j"
-    for((k=0; k<=$TIMES; k++))
+    echo "$COMM $i $j $k"
+    for((ii=$LBUF_MIN; ii<=$LBUF_MAX; ii*=2))
     do
-    #OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j >> wc.$COMM.txt
-      OMP_NUM_THREADS=6 srun -N 1 -p all -w node03 -n 8 ./wordcount $INPUT_DIR $COMM $i $j >> wc.$COMM.txt
+      for((k=0; k<$TIMES; k++))
+      do
+      #OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j >> wc.$COMM.txt
+        OMP_NUM_THREADS=6 srun -N 1 -p all -w node03 -n 8 ./wordcount $INPUT_DIR $COMM $i $j $ii  >> wc.$COMM.txt
+      done
     done
   done
 done

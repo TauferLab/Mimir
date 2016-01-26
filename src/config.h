@@ -37,7 +37,8 @@
 // others
 #define MAXLINE                  2048
 
-#define GATHER_STAT                 1
+#define GATHER_STAT                 0
 #define SAFE_CHECK                  0
 #define SHOW_BINDING                0
+
 #endif
