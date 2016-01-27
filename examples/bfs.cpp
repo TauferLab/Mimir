@@ -157,9 +157,13 @@ int main(int narg, char **args)
 
   //printf("begin map\n");
 
+  double g_t1=MPI_Wtime();
+
   // read edge list
   int nedges = mr->map(args[2],1,0,fileread,&bfs_st);
   g->nglobaledges = nedges;
+
+  double g_t2=MPI_Wtime();
 
   //mr->output();
 
@@ -168,6 +172,9 @@ int main(int narg, char **args)
   // convert edge list to kmv
   //printf("convert start.\n");fflush(stdout);
   mr->convert();
+
+  double g_t3=MPI_Wtime();
+
   //printf("convert end.\n");fflush(stdout);
 
   //printf("end convert\n"); fflush(stdout);
@@ -194,17 +201,24 @@ int main(int narg, char **args)
   
   g->columns   = new int64_t[g->nlocaledges];
 
+  double g_t4=MPI_Wtime();
+
  // mr->output();
 
   // begin to make CSR graph
   mr->reduce(makegraph,&bfs_st);
+
+  double g_t5=MPI_Wtime();
 
   //printf("end reduce"); 
   //fflush(stdout);
 
   delete [] g->rowinserts;
 
-  if(me==0) fprintf(stdout, "make CSR graph end.\n");
+  if(me==0) {
+    fprintf(stdout, "make CSR graph end.\n");
+    fprintf(stdout, "%g,%g,%g,%g,%g,", g_t5-g_t1, g_t2-g_t1, g_t3-g_t2, g_t4-g_t3,g_t5-g_t4);
+  }
 
   int64_t *visit_roots = new int64_t[TEST_TIMES];
 
@@ -222,6 +236,7 @@ int main(int narg, char **args)
   // create structure
   bfs_st.vis  = new unsigned long[bitmapsize];
   bfs_st.pred = new int64_t[g->nlocalverts];
+
 
   if(me==0) {
     fprintf(stdout, "BFS traversal start.\n");
