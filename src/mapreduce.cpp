@@ -40,44 +40,7 @@ MapReduce::MapReduce(MPI_Comm caller)
     MPI_Comm_rank(comm,&me);
     MPI_Comm_size(comm,&nprocs);
 
-    //kalign = ALIGNK;
-    //valign = ALIGNV;
-    //talign = MAX(kalign, valign);
-    //talign = MAX(talign, sizeof(int));
     ualign = sizeof(uint64_t);
-
-#pragma omp parallel
-{
-    tnum = omp_get_num_threads();
-    int tid = omp_get_thread_num();
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-
-    int lrank=me%PCS_PER_NODE;
-    int coreid=lrank*THS_PER_PROC+tid;
-    
-    //printf("P%d,T%d,coreid=%d\n", me, tid, coreid);
-
-    CPU_SET(coreid, &mask);
-    sched_setaffinity(0, sizeof(mask), &mask);
-
-    CPU_ZERO(&mask);
-    sched_getaffinity(0, sizeof(mask), &mask); 
-    //for(int i=0; i<48; i++){
-    //  if(CPU_ISSET(i, &mask)){
-        //printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
-    //  }
-    //}
-
-#if SHOW_BINDING
-    for(int i=0; i<PCS_PER_NODE*THS_PER_PROC; i++){
-      if(CPU_ISSET(i, &mask)){
-        printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
-      }
-    }
-#endif
-
-}
 
     //kalignm = kalign-1;
     //valignm = valign-1;
@@ -102,7 +65,8 @@ MapReduce::MapReduce(MPI_Comm caller)
 
     mode = NoneMode;
   
-    init();
+    get_default_values();
+    bind_threads();
 
     //fprintf(stdout, "Process count=%d, thread count=%d\n", nprocs, tnum);
 
@@ -623,8 +587,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   mode = MapMode;
 
 #if GATHER_STAT
-  //int tpar=st.init_timer("map parallel");
-  //double t1 = MPI_Wtime();
+  double t1 = MPI_Wtime();
 #endif
 
   //printf("begin parallel\n");
@@ -639,15 +602,26 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   for(int i = 0; i < fcount; i++){
     mymap(this, ifiles[i].c_str(), ptr);
   }
+#if GATHER_STAT
+  double t1 = omp_get_wtime();
+#endif
   c->twait(tid);
+#if GATHER_STAT
+  double t2 = omp_get_wtime();
+  if(tid==0) st.inc_timer(TIMER_MAP_TWAIT);
+#endif
 }
+  
+#if GATHER_STAT
+  double t2= MPI_Wtime();
+  st.inc_timer(TIMER_MAP_PARALLEL, t2-t1);
+#endif
+
   c->wait();
 
-  //printf("end parallel\n");
-
 #if GATHER_STAT
-  //double t2 = MPI_Wtime();
-  //st.inc_timer(tpar, t2-t1);
+  double t3= MPI_Wtime();
+  st.inc_timer(TIMER_MAP_WAIT, t3-t2);
 #endif
 
   if(c->mem_bytes+data->mem_bytes>max_mem_bytes)
@@ -788,6 +762,10 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   //printf("begin parallel\n");
 
+#if GATHER_STAT
+  double t1 = MPI_Wtime();
+#endif
+
   KeyValue *inputkv = (KeyValue*)data;
 #pragma omp parallel
 {
@@ -816,12 +794,32 @@ uint64_t MapReduce::map(MapReduce *mr,
     inputkv->releaseblock(i);
   }
 
+#if GATHER_STAT
+  double t1= MPI_Wtime();
+#endif
+
   c->twait(tid);
+
+#if GATHER_STAT
+  double t2= MPI_Wtime();
+  if(tid==0) st.inc_timer(TIMER_MAP_TWAIT, t2-t1);
+#endif
+
 }
+
+#if GATHER_STAT
+  double t2= MPI_Wtime();
+  st.inc_timer(TIMER_MAP_PARALLEL, t2-t1);
+#endif
+
   //printf("end parallel\n");
 
   c->wait();
 
+#if  GATHER_STAT
+  double t3 = MPI_Wtime();
+  st.inc_timer(TIMER_MAP_WAIT, t3-t2);
+#endif
 
   //printf("begin delete\n");
   // delete data object
@@ -989,7 +987,7 @@ void MapReduce::unique2set(UniqueInfo *u){
 
       ubuf += ukeyoffset;
       ubuf += ukey->keybytes;
-      ubuf = ROUNDUP(ubuf, ualignm);
+      //ubuf = ROUNDUP(ubuf, ualignm);
 
     }// end while
   }
@@ -1073,7 +1071,9 @@ int  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv){
         p.end_offset=kvbuf_off;
         p.start_set=last_set;
         p.end_set=u->nset;
+
         unique2mv(tid, kv, &p, u, mv);
+
         last_blockid=p.end_blockid;
         last_offset=p.end_offset;
         last_set=p.end_set;
@@ -1107,7 +1107,7 @@ int  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv){
         ukey->key = ubuf;
         memcpy(ubuf, key, keybytes);
         ubuf += keybytes;
-        ubuf = ROUNDUP(ubuf, ualignm);
+        //ubuf = ROUNDUP(ubuf, ualignm);
  
         ukey->keybytes=keybytes;
         ukey->nvalue=1;
@@ -1219,7 +1219,7 @@ void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *
       kmv_off+=ukey->mvbytes;
 
       ubuf+=ukey->keybytes;
-      ubuf=ROUNDUP(ubuf, ualignm);
+      //ubuf=ROUNDUP(ubuf, ualignm);
            
       ukey->nvalue=0;
       ukey->mvbytes=0;
@@ -1442,7 +1442,7 @@ void MapReduce::mv2kmv(DataObject *mv, UniqueInfo *u, KeyMultiValue *kmv){
 
       ubuf += ukeyoffset;
       ubuf += ukey->keybytes;
-      ubuf = ROUNDUP(ubuf, ualignm);
+      //ubuf = ROUNDUP(ubuf, ualignm);
     }
   }// End for
 
@@ -1792,7 +1792,37 @@ void MapReduce::output(int type, FILE* fp, int format){
 /*****************************************************************************/
 
 // process init
-void MapReduce::init(){
+void MapReduce::get_default_values(){
+  bind_thread=0;
+  procs_per_node=0;
+  thrs_per_proc=0;  
+  show_binding=0;
+
+  char *env = getenv(ENV_BIND_THREADS);
+  if(env){
+    bind_thread=atoi(env);
+    if(bind_thread == 1){
+      env = getenv(ENV_PROCS_PER_NODE);
+      if(env){
+        procs_per_node=atoi(env);
+      }
+      env = getenv(ENV_THRS_PER_PROC);
+      if(env){
+        thrs_per_proc=atoi(env);
+      }
+      if(procs_per_node <=0 || thrs_per_proc <=0 )
+        bind_thread = 0;
+    }else bind_thread = 0;
+  }
+  env = getenv(ENV_SHOW_BINGDING);
+  if(env){
+    show_binding = atoi(env);
+    if(show_binding != 1) show_binding=0;
+  }
+
+  //printf("bind_thread=%d, show_binging=%d, procs_per_node=%d, thrs_per_proc=%d\n", bind_thread, show_binding, procs_per_node, thrs_per_proc); fflush(stdout);
+
+
   blocksize = BLOCK_SIZE;
   nmaxblock = MAX_BLOCKS;
   maxmemsize = MAXMEM_SIZE;
@@ -1810,6 +1840,45 @@ void MapReduce::init(){
 
   send_bytes=recv_bytes=0;
   max_mem_bytes=0;
+
+#pragma omp parallel
+{
+  tnum = omp_get_num_threads();
+}
+}
+
+void MapReduce::bind_threads(){
+
+#pragma omp parallel
+{
+  int tid = omp_get_thread_num();
+
+  cpu_set_t mask;
+
+  if(bind_thread){
+    CPU_ZERO(&mask);
+
+    int lrank=me%procs_per_node;
+    int coreid=lrank*thrs_per_proc+tid;
+
+    CPU_SET(coreid, &mask);
+    sched_setaffinity(0, sizeof(mask), &mask);
+  }
+
+  if(show_binding){
+    printf("Process count=%d, thread count=%d\n", nprocs, tnum);   
+
+    CPU_ZERO(&mask);
+
+    sched_getaffinity(0, sizeof(mask), &mask);
+    for(int i=0; i<PCS_PER_NODE*THS_PER_PROC; i++){
+      if(CPU_ISSET(i, &mask)){
+        printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
+      }
+    }
+  }
+}
+ 
 }
 
 // thread init

@@ -10,6 +10,7 @@
 
 //#include "mapreduce.h"
 
+#if 0
 #define TIMER_COMM    0
 #define TIMER_ATOA    1
 #define TIMER_IATOA   2
@@ -20,6 +21,8 @@
 #define TIMER_LOCK    7
 #define TIMER_SYN     8
 #define TIMER_NUM     9
+
+#endif
 
 namespace MAPREDUCE_NS {
 

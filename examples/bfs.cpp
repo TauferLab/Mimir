@@ -199,6 +199,9 @@ int main(int narg, char **args)
   // begin to make CSR graph
   mr->reduce(makegraph,&bfs_st);
 
+  //printf("end reduce"); 
+  //fflush(stdout);
+
   delete [] g->rowinserts;
 
   if(me==0) fprintf(stdout, "make CSR graph end.\n");
@@ -222,7 +225,6 @@ int main(int narg, char **args)
 
   if(me==0) {
     fprintf(stdout, "BFS traversal start.\n");
-    mr->init_stat();
         
     //fprintf(stdout, "%g,%g,%g,%g,%g,\n", \
            mr->get_timer(TIMER_COMM),\
@@ -241,6 +243,8 @@ int main(int narg, char **args)
   for(int index=0; index < TEST_TIMES; index++){
     //if(me==0)
     //  fprintf(stdout, "Traversal %d start. (root=%ld)\n", index, visit_roots[index]);
+
+    mr->init_stat();
 
     double map_t=0.0, convert_t=0.0, reduce_t=0.0;
     double start_t = MPI_Wtime();  
@@ -287,7 +291,7 @@ int main(int narg, char **args)
       //mr->set_KVtype(FixedKV, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &bfs_st);
 
-      //printf("actives=%d\n", nactives[level]);
+      //printf("actives=%d\n", nactives[level]); fflush(stdout);
 
       double t4 = MPI_Wtime();
 
@@ -321,20 +325,26 @@ int main(int narg, char **args)
       }
       fprintf(rf, "\n");
       //fprintf(stdout, "Traversal %d end. (time=%g s %g %g %g)\n", index, stop_t-start_t, map_t, convert_t, reduce_t);
-       fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g\n", commmode, blocksize, gbufsize, lbufsize, index, stop_t-start_t, map_t, convert_t, reduce_t);
+       //fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g\n", commmode, blocksize, gbufsize, lbufsize, index, stop_t-start_t, map_t, convert_t, reduce_t);
 #if 1
-       if(commmode==0)
-         fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
-           commmode, blocksize, gbufsize, lbufsize, \
-           index, stop_t-start_t, map_t, convert_t, reduce_t,\
-           mr->get_timer(TIMER_COMM),\
-           mr->get_timer(TIMER_ATOA),\
-           mr->get_timer(TIMER_IATOA),\
-           mr->get_timer(TIMER_WAIT),\
-           mr->get_timer(TIMER_REDUCE),\
-           mr->get_timer(TIMER_SYN));
-        else
-         fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
+       if(commmode==0){
+         double tpar = mr->get_timer(TIMER_MAP_PARALLEL);
+         double twait = mr->get_timer(TIMER_MAP_TWAIT);
+         double tsendkv = mr->get_timer(TIMER_MAP_SENDKV);
+         double tserial = mr->get_timer(TIMER_MAP_SERIAL);
+         fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
+           lbufsize, gbufsize, blocksize, \
+           index, stop_t-start_t, map_t, reduce_t,\
+           tpar,\
+           mr->get_timer(TIMER_MAP_WAIT),\
+           tpar-twait-tsendkv,\
+           tsendkv-tserial,\
+           tserial,\
+           twait,\
+           (g->nglobaledges)/(stop_t-start_t));
+        }
+        //else
+         //fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
            commmode, blocksize, gbufsize, lbufsize, \
            index, stop_t-start_t, map_t, convert_t, reduce_t,\
            mr->get_timer(TIMER_COMM),\
@@ -343,9 +353,10 @@ int main(int narg, char **args)
            mr->get_timer(TIMER_LOCK),\
            mr->get_timer(TIMER_SYN));
       //mr->show_stat();
-      mr->init_stat();
 #endif
     }
+
+    mr->init_stat();
   }
   MPI_Barrier(MPI_COMM_WORLD);
 

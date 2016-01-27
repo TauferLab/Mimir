@@ -6,12 +6,12 @@ int threeintlen = 3*sizeof(int);
 
 int oneptrlen = sizeof(char*);
 
-int kalign=ALIGNK;
-int valign=ALIGNV;
-int talign=MAX(kalign, valign);
+//int kalign=ALIGNK;
+//int valign=ALIGNV;
+//int talign=MAX(kalign, valign);
 
 
-int kalignm=kalign-1;
-int valignm=valign-1;
-int talignm=talign-1;
+//int kalignm=kalign-1;
+//int valignm=valign-1;
+//int talignm=talign-1;
 

@@ -16,25 +16,6 @@ using namespace MAPREDUCE_NS;
 #include "stat.h"
 #endif
 
-#define SAVE_DATA(recvbuf, recvcount) \
-{\
-  recv_bytes += recvcount;\
-  if(blocks[0]==-1){\
-    blocks[0] = data->addblock();\
-    data->acquireblock(blocks[0]);\
-  }\
-  int datasize=data->getblocktail(blocks[0]);\
-  if(datasize+recvcount>data->blocksize){\
-    data->releaseblock(blocks[0]);\
-    blocks[0] = data->addblock();\
-    data->acquireblock(blocks[0]);\
-    datasize=0;\
-  }\
-  char *databuf = data->getblockbuffer(blocks[0]);\
-  memcpy(databuf+datasize, recvbuf, recvcount);\
-  data->setblockdatasize(blocks[0], datasize+recvcount);\
-}
-
 #define CHECK_MPI_REQS \
 {\
   int flag;\
@@ -222,19 +203,19 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
           MAKE_PROGRESS;
 #if GATHER_STAT
           double t2 = omp_get_wtime();
-          st.inc_timer(TIMER_COMM, t2-t1);
+          st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
         }
       }
 
 #if GATHER_STAT
-      double t1 = omp_get_wtime();
+      //double t1 = omp_get_wtime();
 #endif
       //omp_set_lock(&lock[target]);
       omp_set_lock((omp_lock_t*)GET_VAL(lock, target, onelocklen));
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      if(tid==0) st.inc_timer(TIMER_SYN, t2-t1);
+      //double t2 = omp_get_wtime();
+      //if(tid==0) st.inc_timer(TIMER_SYN, t2-t1);
 #endif
       // try to add the offset
       if(loff + *(int*)GET_VAL(off,target,oneintlen) <= gbufsize){
@@ -286,7 +267,7 @@ void Ptop::twait(int tid){
           MAKE_PROGRESS;
 #if GATHER_STAT
           double t2 = omp_get_wtime();
-          st.inc_timer(TIMER_COMM, t2-t1);
+          st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
       }
     }
@@ -329,7 +310,7 @@ void Ptop::twait(int tid){
           MAKE_PROGRESS;
 #if GATHER_STAT
           double t2 = omp_get_wtime();
-          st.inc_timer(TIMER_COMM, t2-t1);
+          st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
 
     }

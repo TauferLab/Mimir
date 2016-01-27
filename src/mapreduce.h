@@ -17,16 +17,7 @@
 
 #include "spool.h"
 
-#define TIMER_COMM    0
-#define TIMER_ATOA    1
-#define TIMER_IATOA   2
-#define TIMER_WAIT    3
-#define TIMER_REDUCE  4
-#define TIMER_ISEND   5
-#define TIMER_CHECK   6
-#define TIMER_LOCK    7
-#define TIMER_SYN     8
-#define TIMER_NUM     9
+#include "config.h"
 
 namespace MAPREDUCE_NS {
 
@@ -132,17 +123,24 @@ private:
     uint64_t max_mem_bytes;
 
 private:
+
+    // parameters for binding threads
+    int bind_thread;
+    int show_binding;
+    int procs_per_node;
+    int thrs_per_proc;
+
     // configuable parameters
     int kvtype, ksize, vsize;
-    int blocksize;
     int nmaxblock;
     int maxmemsize;
     int outofcore;
 
-    int commmode;
+    int commmode;  
  
-    int lbufsize;
-    int gbufsize;
+    int lbufsize;  // KB
+    int gbufsize;  // MB
+    int blocksize; // MB
 
     std::string tmpfpath;
     int (*myhash)(char *, int);
@@ -168,7 +166,11 @@ private:
     std::vector<std::string> ifiles;
 
     // private functions
-    void init();
+    //void init();
+
+    void get_default_values();
+    void bind_threads();
+
     void tinit(int); // thread initialize
     void disinputfiles(const char *, int, int);
     void getinputfiles(const char *, int, int);
@@ -255,20 +257,6 @@ private:
     uint64_t convert_small(KeyValue *, KeyMultiValue *);
     uint64_t convert_median(KeyValue *, KeyMultiValue *);
     uint64_t convert_large(KeyValue *, KeyMultiValue *);
-
-    // check if a buffer is ok
-    //void checkbuffer(int, char **, int *, Spool*);
-
-    //void  buildkvinfo(KeyValue *, KV_Block_info *);
-    //void  kv2tkv(KeyValue *, KeyValue *, KV_Block_info *);
-
-    //void  unique2tmp_first();
-    //void  unique2tmp();
-
-    //void  unique2kmv(UniqueList *, Partition *p, KeyMultiValue *);
-    //void  merge(DataObject *, KeyMultiValue *, Spool *);
-
-    //void preprocess(KeyValue *, KeyValue *tkv);
 };//class MapReduce
 
 

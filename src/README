@@ -1,0 +1,10 @@
+environment variables
+-------------------------
+MTMR_BIND_THREADS=0,1
+MTMR_SHOW_BINDING=
+MTMR_NODE_PROCS=
+MTMR_PROC_THRS=
+
+# MTMR_THRS_BUF=
+# MTMR_SEND_BUF=
+# MTMR_DATA_BUF=

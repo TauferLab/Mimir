@@ -14,6 +14,15 @@ using namespace MAPREDUCE_NS;
 #include "stat.h"
 #endif
 
+#define SAVE_ALL_DATA(ii) \
+{\
+  int offset=0;\
+  for(int k=0;k<size;k++){\
+    SAVE_DATA(recv_buf[ii]+offset, recv_count[ii][k])\
+    offset += recv_count[ii][k];\
+  }\
+}
+
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   int provided;
   MPI_Query_thread(&provided);
@@ -119,6 +128,9 @@ void Alltoall::init(DataObject *_data){
  *   valsize: value size
  */
 int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){
+#if GATHER_STAT
+  double tstart = omp_get_wtime();
+#endif
 #if SAFE_CHECK 
   if(target < 0 || target >= size){
     LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
@@ -150,6 +162,9 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   while(1){
     // need communication
     if(switchflag != 0){
+#if GATHER_STAT
+      double t1 = omp_get_wtime();
+#endif
 #pragma omp barrier
       int flag;
       MPI_Is_thread_main(&flag);
@@ -158,6 +173,10 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
        switchflag = 0;
       }
 #pragma omp barrier
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      if(tid==0) st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
+#endif
     }
 
     int loff = local_offsets[tid][target];
@@ -181,14 +200,14 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       if(loff + off[target] <= gbufsize){
 
 #if GATHER_STAT
-       double tstart = omp_get_wtime();
+       //double tstart = omp_get_wtime();
 #endif
 
         int goff=fetch_and_add_with_max(&off[target], loff, gbufsize);
 
 #if GATHER_STAT
-       double tstop = omp_get_wtime();
-       if(tid==0) st.inc_timer(TIMER_SYN, tstop-tstart);
+       //double tstop = omp_get_wtime();
+       //if(tid==0) st.inc_timer(TIMER_SYN, tstop-tstart);
 #endif
 
         if(goff + loff <= gbufsize){
@@ -209,8 +228,8 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   }
 
 #if GATHER_STAT
-  //double t2 = omp_get_wtime();
-  //st.inc_timer(tsendkv[tid], t2-t1);    
+  double tstop = omp_get_wtime();
+  if(tid==0) st.inc_timer(TIMER_MAP_SENDKV, tstop-tstart);
 #endif
 
   return 0;
@@ -325,7 +344,10 @@ void Alltoall::wait(){
        int recvcount = recvcounts[i];
 
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);      
-       if(recvcount > 0) save_data(i);
+       if(recvcount > 0) {
+         SAVE_ALL_DATA(i);
+         //save_data(i);
+       }
      }
    }
 
@@ -339,7 +361,7 @@ void Alltoall::wait(){
 
 void Alltoall::exchange_kv(){
 #if GATHER_STAT
-  double t1 = omp_get_wtime();
+  //double t1 = omp_get_wtime();
 #endif
 
   int i;
@@ -361,16 +383,16 @@ void Alltoall::exchange_kv(){
   }
 
 #if GATHER_STAT
-  double t2 = omp_get_wtime();
-  st.inc_timer(TIMER_ATOA, t2-t1);
+  //double t2 = omp_get_wtime();
+  //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
 
   // exchange kv data
   MPI_Ialltoallv(buf, off, send_displs, MPI_BYTE, recv_buf[ibuf], recv_count[ibuf], recv_displs,MPI_BYTE, comm,  &reqs[ibuf]);
 
 #if GATHER_STAT
-  double t3 = omp_get_wtime();
-  st.inc_timer(TIMER_IATOA, t3-t2);
+  //double t3 = omp_get_wtime();
+  //st.inc_timer(TIMER_IATOA, t3-t2);
 #endif
 
   // wait data
@@ -382,12 +404,15 @@ void Alltoall::exchange_kv(){
     int recvcount = recvcounts[ibuf];
 
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);
-    if(recvcount > 0) save_data(ibuf);
+    if(recvcount > 0) {
+     SAVE_ALL_DATA(ibuf);
+      //save_data(ibuf);
+    }
   }
 
 #if GATHER_STAT
-  double t4 = omp_get_wtime();
-  st.inc_timer(TIMER_WAIT, t4-t3);
+  //double t4 = omp_get_wtime();
+  //st.inc_timer(TIMER_WAIT, t4-t3);
 #endif
 
   // switch buffer
@@ -398,14 +423,15 @@ void Alltoall::exchange_kv(){
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 
 #if GATHER_STAT
-  double t5 = omp_get_wtime();
-  st.inc_timer(TIMER_REDUCE, t5-t4);
-  st.inc_timer(TIMER_COMM, t5-t1);
+  //double t5 = omp_get_wtime();
+  //st.inc_timer(TIMER_REDUCE, t5-t4);
+  //st.inc_timer(TIMER_MAP_SERIAL, t5-t1);
 #endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%d, done count=%d)\n", rank, size, sendcount, pdone);
 }
 
+#if 1
 void Alltoall::save_data(int i){
   if(blocks[0] == -1){
     blocks[0] = data->addblock();
@@ -430,4 +456,4 @@ void Alltoall::save_data(int i){
 
   data->releaseblock(blocks[0]);
 }
-
+#endif
