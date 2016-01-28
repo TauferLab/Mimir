@@ -17,6 +17,8 @@ FACTOR=16
 INPUT_DIR="/usa/taogao/dataset/graph/$SCALE.$FACTOR"
 #INPUT_DIR=test.txt
 
+NODELIST=node04
+
 FILE=bfs_mm
 
 module load openmpi
@@ -33,7 +35,7 @@ do
   for((j=$GBUF_MIN; j<=$GBUF_MAX; j*=2))
   do
     echo "$COMM $i $j"
-    MTMR_BIND_THREADS=1 MTMR_NODE_PROCS=8 MTMR_PROC_THRS=6 MTMR_SHOW_BINDING=1 OMP_NUM_THREADS=6 srun -N 1 -p all -w node06 -n 8 ./$FILE $SCALE $INPUT_DIR $COMM $i $j >> $FILE.$COMM.txt
+    MTMR_BIND_THREADS=1 MTMR_NODE_PROCS=8 MTMR_PROC_THRS=6 MTMR_SHOW_BINDING=1 OMP_NUM_THREADS=6 srun -N 1 -p all -w $NODELIST -n 8 ./$FILE $SCALE $INPUT_DIR $COMM $i $j >> $FILE.$COMM.txt
   done
 done
 
