@@ -10,6 +10,12 @@
 
 using namespace MAPREDUCE_NS;
 
+int commmode=0;
+int blocksize=32;
+int gbufsize=16;
+int lbufsize=16;
+
+
 #define TEST_TIMES 5
 
 #define BYTE_BITS 8
@@ -72,11 +78,6 @@ double wtime[TEST_TIMES], teps[TEST_TIMES];
 int nactives[MAX_LEVEL];
 
 FILE *rf=NULL;
-
-int commmode=0;
-int blocksize=32;
-int gbufsize=16;
-int lbufsize=16;
 
 int main(int narg, char **args)
 {
@@ -223,12 +224,12 @@ int main(int narg, char **args)
     double twait=mr->get_timer(TIMER_MAP_TWAIT);
     double tkv2u=mr->get_timer(TIMER_REDUCE_KV2U);
     double lcvt=mr->get_timer(TIMER_REDUCE_LCVT);
-    fprintf(stdout, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g\n", \
+    fprintf(stdout, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
       g_t5-g_t1, g_t2-g_t1, g_t3-g_t2, g_t4-g_t3,g_t5-g_t4, \
       tpar, mr->get_timer(TIMER_MAP_WAIT),
       tpar-tsendkv-twait, tsendkv-tserial, tserial, twait,
       mr->get_timer(TIMER_MAP_LOCK),
-      tkv2u, lcvt, mr->get_timer(TIMER_REDUCE_MERGE));
+      tkv2u-lcvt, lcvt, mr->get_timer(TIMER_REDUCE_MERGE));
   }
 
   int64_t *visit_roots = new int64_t[TEST_TIMES];
@@ -358,7 +359,7 @@ int main(int narg, char **args)
          double twait = mr->get_timer(TIMER_MAP_TWAIT);
          double tsendkv = mr->get_timer(TIMER_MAP_SENDKV);
          double tserial = mr->get_timer(TIMER_MAP_SERIAL);
-         fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
+         fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
            lbufsize, gbufsize, blocksize, \
            index, stop_t-start_t, map_t, reduce_t,\
            tpar,\
@@ -367,6 +368,7 @@ int main(int narg, char **args)
            tsendkv-tserial,\
            tserial,\
            twait,\
+           mr->get_timer(TIMER_MAP_LOCK),\
            (g->nglobaledges)/(stop_t-start_t));
         }
         //else
