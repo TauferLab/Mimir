@@ -118,6 +118,52 @@ public:
 
     double get_timer(int id);
 
+    struct Set
+    {
+      int       myid;
+      int       nvalue;
+      int       mvbytes;
+      int      *soffset;
+      char     *voffset;
+      int       s_off;
+      int       v_off;
+      int       pid;        // Partition ID
+      Set      *next;
+    };
+
+    struct Partition
+    {
+      int     start_blockid;
+      int     start_offset;
+      int     end_blockid;
+      int     end_offset;
+      int     start_set;
+      int     end_set;
+    };
+
+    struct Unique
+    {
+      char      *key;
+      int        keybytes;
+      int        nvalue;
+      int        mvbytes;
+      int       *soffset;
+      char      *voffset;
+      Set       *firstset;
+      Set       *lastset;
+      int        flag;
+      Unique    *next;
+    };
+
+    struct UniqueInfo
+    {
+      int        nunique;
+      int        nset;
+      Unique   **ubucket;
+      Spool     *unique_pool;
+      Spool     *set_pool;
+    };
+
 private:
     uint64_t send_bytes, recv_bytes;
     uint64_t max_mem_bytes;
@@ -193,51 +239,6 @@ private:
     };
 #endif
 
-    struct Set
-    {
-      int       myid;
-      int       nvalue;
-      int       mvbytes;
-      int      *soffset;
-      char     *voffset;
-      int       s_off;
-      int       v_off;
-      int       pid;        // Partition ID
-      Set      *next;
-    };
-
-    struct Partition
-    {
-      int     start_blockid;
-      int     start_offset;
-      int     end_blockid;
-      int     end_offset;
-      int     start_set;
-      int     end_set;
-    };
-
-    struct Unique
-    {
-      char      *key;
-      int        keybytes;
-      int        nvalue;
-      int        mvbytes;
-      int       *soffset;
-      char      *voffset;
-      Set       *firstset;
-      Set       *lastset;
-      int        flag;
-      Unique    *next;
-    };
-
-    struct UniqueInfo
-    {
-      int        nunique;
-      int        nset;
-      Unique   **ubucket;
-      Spool     *unique_pool;
-      Spool     *set_pool;
-    };
 
     int thashmask, uhashmask;
  
@@ -258,6 +259,21 @@ private:
     uint64_t convert_median(KeyValue *, KeyMultiValue *);
     uint64_t convert_large(KeyValue *, KeyMultiValue *);
 };//class MapReduce
+
+class MultiValueIterator{
+public:
+  MultiValueIterator(const char *);
+  MultiValueIterator(MapReduce::Unique *);
+  ~MultiValueIterator();
+  int Done();
+  void Next();
+  const char *getValue();
+  int getValueSize();
+private:
+  int isdone;
+  char *value;
+  int valuebytes;
+};
 
 
 }//namespace
