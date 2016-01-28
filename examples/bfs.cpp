@@ -217,7 +217,18 @@ int main(int narg, char **args)
 
   if(me==0) {
     fprintf(stdout, "make CSR graph end.\n");
-    fprintf(stdout, "%g,%g,%g,%g,%g,", g_t5-g_t1, g_t2-g_t1, g_t3-g_t2, g_t4-g_t3,g_t5-g_t4);
+    double tpar=mr->get_timer(TIMER_MAP_PARALLEL);
+    double tsendkv=mr->get_timer(TIMER_MAP_SENDKV);
+    double tserial=mr->get_timer(TIMER_MAP_SERIAL);
+    double twait=mr->get_timer(TIMER_MAP_TWAIT);
+    double tkv2u=mr->get_timer(TIMER_REDUCE_KV2U);
+    double lcvt=mr->get_timer(TIMER_REDUCE_LCVT);
+    fprintf(stdout, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g\n", \
+      g_t5-g_t1, g_t2-g_t1, g_t3-g_t2, g_t4-g_t3,g_t5-g_t4, \
+      tpar, mr->get_timer(TIMER_MAP_WAIT),
+      tpar-tsendkv-twait, tsendkv-tserial, tserial, twait,
+      mr->get_timer(TIMER_MAP_LOCK),
+      tkv2u, lcvt, mr->get_timer(TIMER_REDUCE_MERGE));
   }
 
   int64_t *visit_roots = new int64_t[TEST_TIMES];

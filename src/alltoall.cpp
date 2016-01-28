@@ -184,14 +184,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 
     // local buffer has space
     if(loff + kvsize <= lbufsize){
-#if GATHER_STAT
-      //double t1 = omp_get_wtime();
-#endif
       PUT_KV_VARS(kvtype,lbuf,key,keysize,val,valsize,kvsize);
-#if GATHER_STAT
-      //double t2 = omp_get_wtime();
-      //st.inc_timer(tput, t2-t1) ;     
-#endif
       local_offsets[tid][target]+=kvsize;
       break;
     // local buffer is full
@@ -200,14 +193,14 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       if(loff + off[target] <= gbufsize){
 
 #if GATHER_STAT
-       //double tstart = omp_get_wtime();
+       double tstart = omp_get_wtime();
 #endif
 
         int goff=fetch_and_add_with_max(&off[target], loff, gbufsize);
 
 #if GATHER_STAT
-       //double tstop = omp_get_wtime();
-       //if(tid==0) st.inc_timer(TIMER_SYN, tstop-tstart);
+       double tstop = omp_get_wtime();
+       if(tid==0) st.inc_timer(TIMER_MAP_LOCK, tstop-tstart);
 #endif
 
         if(goff + loff <= gbufsize){

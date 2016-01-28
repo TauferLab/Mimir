@@ -1072,7 +1072,16 @@ int  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv){
         p.start_set=last_set;
         p.end_set=u->nset;
 
+#if GATHER_STAT
+        double t1 = omp_get_wtime();
+#endif
+
         unique2mv(tid, kv, &p, u, mv);
+
+#if GATHER_STAT
+        double t2 = omp_get_wtime();
+        if(tid==0) st.inc_timer(TIMER_REDUCE_LCVT, t2-t1);
+#endif
 
         last_blockid=p.end_blockid;
         last_offset=p.end_offset;
@@ -1480,7 +1489,14 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
              tmpfpath.c_str(),
              0);
 
+#if GATHER_STAT
+  double t1 = omp_get_wtime();
+#endif
   int isfirst = kv2unique(tid, kv, u, mv);
+#if GATHER_STAT
+  double t2 = omp_get_wtime();
+  if(tid==0) st.inc_timer(TIMER_REDUCE_KV2U, t2-t1);
+#endif
 
   LOG_PRINT(DBG_CVT, "%d KV2Unique end:first=%d\n", tid, isfirst);
 
@@ -1488,6 +1504,11 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
 
   if(isfirst) unique2kmv(tid, kv, u, kmv);
   else mv2kmv(mv, u, kmv);
+
+#if GATHER_STAT
+  double t3 = omp_get_wtime();
+  if(tid==0) st.inc_timer(TIMER_REDUCE_MERGE, t3-t2);
+#endif
 
   tmax_mem_bytes=mv->mem_bytes+u->unique_pool->mem_bytes+u->set_pool->mem_bytes;
 

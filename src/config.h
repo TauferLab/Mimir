@@ -44,7 +44,13 @@
 #define TIMER_MAP_SENDKV                    2
 #define TIMER_MAP_SERIAL                    3
 #define TIMER_MAP_TWAIT                     4
-#define TIMER_NUM                           5
+#define TIMER_MAP_LOCK                      5
+
+#define TIMER_REDUCE_KV2U                   6
+#define TIMER_REDUCE_LCVT                   7
+#define TIMER_REDUCE_MERGE                  8
+
+#define TIMER_NUM                           9
 
 //#define TIMER_COMM    0
 //#define TIMER_ATOA    1
