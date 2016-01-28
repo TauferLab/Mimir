@@ -21,7 +21,7 @@ double io_t = 0.0;
 double add_t = 0.0;
 
 int commmode=0;
-int blocksize=128;
+int blocksize=512;
 int gbufsize=32;
 int lbufsize=64;
 
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 
   mr->set_outofcore(0);
 
-  mr->set_KVtype(StringKeyOnly);
+  //mr->set_KVtype(StringKeyOnly);
 
   //mr->setBlocksize(64*1024);
 
@@ -105,9 +105,23 @@ int main(int argc, char *argv[])
  
     if(me==0){
       //mr->show_stat();
-      printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
- 
-#if 1 
+      //printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
+
+
+      double tpar=mr->get_timer(TIMER_MAP_PARALLEL);
+      double tsendkv=mr->get_timer(TIMER_MAP_SENDKV);
+      double tserial=mr->get_timer(TIMER_MAP_SERIAL);
+      double twait=mr->get_timer(TIMER_MAP_TWAIT);
+      double tkv2u=mr->get_timer(TIMER_REDUCE_KV2U);
+      double lcvt=mr->get_timer(TIMER_REDUCE_LCVT);
+      fprintf(stdout, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
+        wtime[i], t2-t1, t3-t2, t4-t3, \
+        tpar, mr->get_timer(TIMER_MAP_WAIT),
+        tpar-tsendkv-twait, tsendkv-tserial, tserial, twait,
+        mr->get_timer(TIMER_MAP_LOCK),
+        tkv2u-lcvt, lcvt, mr->get_timer(TIMER_REDUCE_MERGE));
+
+#if 0 
      if(commmode==0)
       printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g\n", \
         commmode, blocksize, gbufsize, lbufsize, \
