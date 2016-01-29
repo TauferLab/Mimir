@@ -9,15 +9,15 @@ BLOCK_MAX=512
 GBUF_MIN=16
 GBUF_MAX=16
 
-SCALE=20
+SCALE=27
 INPUT_DIR="/scratch/rice/g/gao381/graph/$SCALE.16"
 #INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
 
-NPROCS=4
+NPROCS=16
 THRS=8
 
-module load openmpi
+module load impi
 cd $PBS_O_WORKDIR
 
 #export PBS_QUEUE=debug

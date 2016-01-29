@@ -592,16 +592,23 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   //printf("begin parallel\n");
 
-#pragma omp parallel
+  int fp=0;
+  int fcount = ifiles.size();
+
+#pragma omp parallel shared(fp) shared(fcount)
 {
   int tid = omp_get_thread_num();
   tinit(tid);
-  
-  int fcount = ifiles.size();
-#pragma omp for nowait
-  for(int i = 0; i < fcount; i++){
-    mymap(this, ifiles[i].c_str(), ptr);
+
+  int i;
+  while((i=__sync_fetch_and_add(&fp,1))<fcount){
+    mymap(this,ifiles[i].c_str(), ptr);
   }
+
+//#pragma omp for nowait
+//  for(int i = 0; i < fcount; i++){
+//    mymap(this, ifiles[i].c_str(), ptr);
+//  }
 #if GATHER_STAT
   double t1 = omp_get_wtime();
 #endif

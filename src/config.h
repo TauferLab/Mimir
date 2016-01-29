@@ -52,6 +52,9 @@
 
 #define TIMER_NUM                           9
 
+//#define COUNTER_FILE
+//#define COUNTER_NUM                         
+
 //#define TIMER_COMM    0
 //#define TIMER_ATOA    1
 //#define TIMER_IATOA   2

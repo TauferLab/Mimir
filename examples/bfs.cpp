@@ -449,7 +449,7 @@ int mypartition_int(char *key, int keybytes){
 
 void fileread(MapReduce *mr, const char *fname, void *ptr){
   //int tid = omp_get_thread_num();
-  //printf("%d input file=%s\n", tid, fname);
+  //printf("P%dT%d input file=%s\n", me, tid, fname);
 
   bfs_state *st = (bfs_state*)ptr;
   csr_graph *g = &(st->g);
