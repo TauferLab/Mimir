@@ -3,8 +3,8 @@
 
 COMM=0
 
-BLOCK_MIN=32
-BLOCK_MAX=32
+BLOCK_MIN=512
+BLOCK_MAX=512
 
 GBUF_MIN=16
 GBUF_MAX=16
@@ -13,6 +13,9 @@ SCALE=20
 INPUT_DIR="/scratch/rice/g/gao381/graph/$SCALE.16"
 #INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
+
+NPROCS=4
+THRS=8
 
 module load openmpi
 cd $PBS_O_WORKDIR
@@ -29,7 +32,7 @@ do
   do
     echo "$COMM $i $j"
     #OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j
-    MTMR_BIND_THREADS=1 MTMR_NODE_PROCS=2 MTMR_PROC_THRS=10 MTMR_SHOW_BINDING=1 MP_NUM_THREADS=10 mpiexec -n 4 ./bfs_mm $SCALE $INPUT_DIR $COMM $i $j
+    MTMR_BIND_THREADS=1 MTMR_NODE_PROCS=2 MTMR_PROC_THRS=10 MTMR_SHOW_BINDING=1 OMP_NUM_THREADS=$THRS mpiexec -n $NPROCS ./bfs_mm $SCALE $INPUT_DIR $COMM $i $j
   done
 done
 

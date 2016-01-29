@@ -1,5 +1,5 @@
 CPP = mpicxx
-CFLAGS = -fopenmp -std=c++11 -Wall -g -O1 -I../src
+CFLAGS = -fopenmp -Wall -g -O1 -I../src
 LFLAGS = -fopenmp -L ../src 
  
 USERLIBS = -lmrmpi

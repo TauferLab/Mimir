@@ -3,7 +3,7 @@ CPP = mpicxx
 CLINK = mpicc
 CPPLINK = mpicxx
 DEBUG = -g
-CFLAGS = -fopenmp -std=c++11 $(DEBUG) -O2  -DDEBUG=0 -DFUSION
+CFLAGS = -fopenmp $(DEBUG) -O2  -DDEBUG=0 -DFUSION
 LFLAGS = 
 ARCHIEVE = ar
 AFLAGS =  -rcv
