@@ -16,7 +16,7 @@ int gbufsize=16;
 int lbufsize=16;
 
 
-#define TEST_TIMES 5
+#define TEST_TIMES 10
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -75,7 +75,7 @@ int me, nprocs;
 double wtime[TEST_TIMES], teps[TEST_TIMES];
 
 #define MAX_LEVEL 10
-int nactives[MAX_LEVEL];
+uint64_t nactives[MAX_LEVEL];
 
 FILE *rf=NULL;
 
@@ -161,7 +161,7 @@ int main(int narg, char **args)
   double g_t1=MPI_Wtime();
 
   // read edge list
-  int nedges = mr->map(args[2],1,0,fileread,&bfs_st);
+  uint64_t nedges = mr->map(args[2],1,0,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
   double g_t2=MPI_Wtime();
@@ -264,6 +264,7 @@ int main(int narg, char **args)
   MPI_Barrier(MPI_COMM_WORLD);
 
   //int ksize = (int)sizeof(int64_t);
+  mr->set_blocksize(32*1024); 
   mr->set_hash(mypartition_int);
 
   int test_count = 0;
@@ -286,7 +287,7 @@ int main(int narg, char **args)
  
     //uint64_t nactives = 0;
     //mr->set_KVtype(FixedKV, ksize, ksize);
-    int count = mr->map(rootvisit, &bfs_st);
+    uint64_t count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
 
     int level = 0;
@@ -407,7 +408,7 @@ int main(int narg, char **args)
     fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, 
       avg_teps, max_teps, min_teps);
 
-    //fprintf(stdout, "process count=%d, vertex count=%ld, edge count=%ld\n", nprocs, g->nglobalverts, g->nglobaledges);
+    fprintf(stdout, "process count=%d, vertex count=%ld, edge count=%ld\n", nprocs, g->nglobalverts, g->nglobaledges);
     //fprintf(stdout, "Results: average=%g, max=%g, min=%g\n", avg_teps, max_teps, min_teps);
 
   }

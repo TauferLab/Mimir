@@ -9,12 +9,12 @@ BLOCK_MAX=512
 GBUF_MIN=16
 GBUF_MAX=16
 
-SCALE=27
-INPUT_DIR="/scratch/rice/g/gao381/graph/$SCALE.16"
+SCALE=30
+INPUT_DIR="/scratch/rice/g/gao381/graph500/$SCALE.16"
 #INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
 
-NPROCS=16
+NPROCS=128
 THRS=8
 
 module load impi

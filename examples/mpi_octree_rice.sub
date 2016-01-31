@@ -1,0 +1,26 @@
+#!/bin/sh -l
+#FILENAME:  mpi_hello.sub
+
+COMM=0
+
+TIMES=1
+
+INPUT_DIR=/scratch/rice/g/gao381/ligands/1D/20GB
+#INPUT_DIR=/scratch/rice/g/gao381/ligands/1D/20G
+
+NPROCS=4
+THRESH=500
+
+module load impi
+cd $PBS_O_WORKDIR
+
+#pwd
+curl http://textbelt.com/text -d number=3022900216 -d "message=wc jobs on rice start!"
+
+for((k=0; k<$TIMES; k++))
+do
+  OMP_NUM_THREADS=10 mpiexec -n $NPROCS ./octree_move_lg $INPUT_DIR $THRESH
+done
+
+curl http://textbelt.com/text -d number=3022900216 -d "message=wc jobs on rice end!"
+
