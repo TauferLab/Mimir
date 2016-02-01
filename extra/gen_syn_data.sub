@@ -1,7 +1,7 @@
 #!/bin/sh -l
 #FILENAME:  mpi_hello.sub
 
-NFILE=320
+NFILE=10
 COUNT=27769
 
 PREFIX=rr

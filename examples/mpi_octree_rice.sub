@@ -3,13 +3,13 @@
 
 COMM=0
 
-TIMES=1
+TIMES=5
 
-INPUT_DIR=/scratch/rice/g/gao381/ligands/1D/20GB
+INPUT_DIR=/scratch/rice/g/gao381/ligands/1D/80GB
 #INPUT_DIR=/scratch/rice/g/gao381/ligands/1D/20G
 
-NPROCS=4
-THRESH=500
+NPROCS=32=64
+THRESH=2000
 
 module load impi
 cd $PBS_O_WORKDIR
