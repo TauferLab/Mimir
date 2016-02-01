@@ -74,7 +74,7 @@ def gen_key_from_coord(b0, b1, b2,range_min,range_max,num_digit):
 num_digit=15
 range_min=-4
 range_max=4
-stdiv=0.5
+stdiv=0.01
 
 ###################generate keys for each node (file)###############
 

@@ -15,6 +15,7 @@
 
 using namespace MAPREDUCE_NS;
 
+void thread_generate_octkey(MapReduce *, const char *, void *);
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
 void sum(MapReduce *, char *, int, int, char *, int *, void *);
@@ -27,6 +28,9 @@ int digits=15;
 int level;
 
 int thresh=5;
+
+double local_usertime=0.0, local_addtime=0.0;
+double wall_time=0.0, gen_time=0.0, search_time=0.0, tmap=0.0, tconvert=0.0, treduce=0.0;
 
 int main(int argc, char **argv)
 {
@@ -47,25 +51,50 @@ int main(int argc, char **argv)
 
   MapReduce *datamr = new MapReduce(MPI_COMM_WORLD);
 
-  char whitespace[10] = "\n";
-  //mr->setKVtype(FixedKV, digits, 0);
+  datamr->set_localbufsize(16);
+  datamr->set_globalbufsize(16*1024);
+  datamr->set_blocksize(512*1024);
+  datamr->set_maxmem(32*1024*1024);
+  datamr->set_commmode(0);
+  datamr->set_outofcore(0);
 
-  datamr->map_local(ipath, 1, 1, whitespace, generate_octkey, NULL);
+  double t1 = MPI_Wtime();
+
+  datamr->map_local(ipath, 1, 1, thread_generate_octkey, NULL);
+
+  //char whitespace[10] = "\n";
+  //datamr->map_local(ipath, 1, 1, whitespace, generate_octkey, NULL);
+
+  local_usertime=datamr->get_timer(TIMER_MAP_PARALLEL)-datamr->get_timer(TIMER_MAP_ADD);
+  local_addtime=datamr->get_timer(TIMER_MAP_ADD);
+
+  double t2 = MPI_Wtime();
 
   MapReduce *mr=new MapReduce(MPI_COMM_WORLD);
 
-  //mr->setKVtype(GeneralKV);
+  mr->init_stat();
+
+  mr->set_localbufsize(16);
+  mr->set_globalbufsize(16*1024);
+  mr->set_blocksize(512*1024);
+  mr->set_maxmem(32*1024*1024);
+  mr->set_commmode(0);
+  mr->set_outofcore(0);
+
   while ((min_limit+1) != max_limit){
 
-    //printf("min_limit=%d, max_limit=%d\n", min_limit, max_limit); fflush(stdout);
-
+    double t1 = MPI_Wtime();    
     mr->map(datamr, gen_leveled_octkey, NULL);
+
+    double t2 = MPI_Wtime();
 
     mr->convert();
 
+    double t3 = MPI_Wtime();
+
     uint64_t nkv = mr->reduce(sum, NULL);
 
-    //printf("level=%d, nkv=%ld\n", level, nkv);
+    double t4 = MPI_Wtime();
 
     if(nkv >0){
       min_limit=level;
@@ -74,18 +103,45 @@ int main(int argc, char **argv)
       max_limit=level;
       level =  floor((max_limit+min_limit)/2);
     }
+
+    tmap += t2-t1;
+    tconvert += t3-t2;
+    treduce += t4-t3;
+  }
+
+  double t3 = MPI_Wtime();
+
+  wall_time=t3-t1;
+  gen_time=t2-t1;
+  search_time=t3-t2;
+
+  if(me==0) {
+    double tpar=mr->get_timer(TIMER_MAP_PARALLEL);
+    double tsendkv=mr->get_timer(TIMER_MAP_SENDKV);
+    double tserial=mr->get_timer(TIMER_MAP_SERIAL);
+    double twait=mr->get_timer(TIMER_MAP_TWAIT);
+    double tkv2u=mr->get_timer(TIMER_REDUCE_KV2U);
+    double lcvt=mr->get_timer(TIMER_REDUCE_LCVT);
+
+    printf("%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", 
+        wall_time, 
+        gen_time, local_usertime, local_addtime,
+        search_time, tmap, tconvert, treduce,
+        tpar, mr->get_timer(TIMER_MAP_WAIT),
+        tpar-tsendkv-twait, tsendkv-tserial, tserial, twait,
+        mr->get_timer(TIMER_MAP_LOCK),
+        tkv2u-lcvt, lcvt, mr->get_timer(TIMER_REDUCE_MERGE));
   }
 
   delete mr;
   delete datamr;
 
-  printf("level=%d\n", level);
+  if(me==0) printf("level=%d\n", level);
 
   MPI_Finalize();	
 }
 
 void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsizes, void *ptr){
-  //printf("keysize=%d, nval=%d\n", keysize, nval);
   int sum=nval;
   if (sum >= thresh)
     mr->add(key, keysize, (char*)&sum, (int)sizeof(int));
@@ -97,14 +153,38 @@ void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int va
   mr->add(key, level, NULL, 0);
 }
 
+void thread_generate_octkey(MapReduce *mr, const char *fname, void *ptr){
+  struct stat stbuf;
+  int flag = stat(fname,&stbuf);
+  if (flag < 0) {
+    printf("ERROR: Could not query file size\n");
+    MPI_Abort(MPI_COMM_WORLD,1);
+  }
+  int filesize = stbuf.st_size;
+
+  FILE *fp = fopen(fname,"r");
+  char *text = new char[filesize+1];
+
+  int nchar = fread(text,1,filesize,fp);
+  text[nchar] = '\0';
+  fclose(fp);
+
+  char *saveptr = NULL;
+  char whitespace[20] = "\n";
+  char *word = strtok_r(text,whitespace,&saveptr);
+  while (word) {
+    generate_octkey(mr, word, ptr);
+    word = strtok_r(NULL,whitespace,&saveptr);
+  }
+
+  delete [] text;
+}
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)
 {
   double range_up=10.0, range_down=-10.0;
   char octkey[digits];
-  bool realdata = false;//the last one is the octkey
-
-  //printf("word=%s\n", word); fflush(stdout);
+  bool realdata = false;
 
   double coords[512];//hold x,y,z
   char ligand_id[256];
@@ -128,8 +208,6 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
   }
 	
   const int num_atoms = floor((num_coor-2)/3);
-
-  //printf("num_coor=%d, num_atoms=%d\n", num_coor, num_atoms);
 
   double x[num_atoms], y[num_atoms], z[num_atoms];
   /*x,y,z double arries store the cooridnates of ligands */

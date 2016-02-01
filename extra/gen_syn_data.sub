@@ -1,0 +1,17 @@
+#!/bin/sh -l
+#FILENAME:  mpi_hello.sub
+
+NFILE=10
+COUNT=27769
+
+PREFIX=rr
+
+cd $PBS_O_WORKDIR
+
+#curl http://textbelt.com/text -d number=3022900216 -d "message=ligand generate jobs on rice start!"
+
+python gen_key_point_rr.py $PREFIX. $NFILE 1 0 0 0 $COUNT normal 
+./gen_syn_data.sh one_ligand.txt 0 $NFILE ./ $PREFIX
+
+#curl http://textbelt.com/text -d number=3022900216 -d "message=ligand generate jobs on rice end!"
+`

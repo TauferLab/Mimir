@@ -592,16 +592,23 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   //printf("begin parallel\n");
 
-#pragma omp parallel
+  int fp=0;
+  int fcount = ifiles.size();
+
+#pragma omp parallel shared(fp) shared(fcount)
 {
   int tid = omp_get_thread_num();
   tinit(tid);
-  
-  int fcount = ifiles.size();
-#pragma omp for nowait
-  for(int i = 0; i < fcount; i++){
-    mymap(this, ifiles[i].c_str(), ptr);
+
+  int i;
+  while((i=__sync_fetch_and_add(&fp,1))<fcount){
+    mymap(this,ifiles[i].c_str(), ptr);
   }
+
+//#pragma omp for nowait
+//  for(int i = 0; i < fcount; i++){
+//    mymap(this, ifiles[i].c_str(), ptr);
+//  }
 #if GATHER_STAT
   double t1 = omp_get_wtime();
 #endif
@@ -686,6 +693,10 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
 
   mode = MapLocalMode;
 
+#if GATHER_STAT
+  double t1 = MPI_Wtime();
+#endif
+
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
@@ -698,6 +709,11 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
     mymap(this, ifiles[i].c_str(), ptr);
   }
 }
+
+#if GATHER_STAT
+  double t2= MPI_Wtime();
+  st.inc_timer(TIMER_MAP_PARALLEL, t2-t1);
+#endif
 
   mode = NoneMode;
 
@@ -1749,6 +1765,11 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
  
     return;
    }else if(mode == MapLocalMode || mode == ReduceMode){
+
+#if GATHER_STAT
+    double t1 = omp_get_wtime();
+#endif
+
     // add KV into data object 
     KeyValue *kv = (KeyValue*)data;
 
@@ -1766,6 +1787,12 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 
     kv->releaseblock(blocks[tid]);
     nitems[tid]++;
+
+#if GATHER_STAT
+    double t2 = omp_get_wtime();
+    if(tid==0) st.inc_timer(TIMER_MAP_ADD, t2-t1);
+#endif
+
   }
 
   return;

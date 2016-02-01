@@ -3,19 +3,22 @@
 
 COMM=0
 
-BLOCK_MIN=512
-BLOCK_MAX=512
+BLOCK_MIN=1024
+BLOCK_MAX=1024
 
 GBUF_MIN=32
 GBUF_MAX=32
 
 TIMES=5
 
-INPUT_DIR=/scratch/rice/g/gao381/wikipedia/wikipedia_50GB
+#INPUT_DIR=./wordcount.cpp
+INPUT_DIR=/scratch/rice/g/gao381/wikipedia/wikipedia_128GB
 #INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
 
-module load openmpi
+NPROCS=16
+
+module load impi
 cd $PBS_O_WORKDIR
 
 #pwd
@@ -29,7 +32,7 @@ do
     #OMP_NUM_THREADS=6 srun -N 1 -p all -w node02 -n 8 ./wordcount $INPUT_DIR $COMM $i $j
     for((k=0; k<$TIMES; k++))
     do
-      OMP_NUM_THREADS=10 mpiexec -n 4 ./wordcount $INPUT_DIR $COMM $i $j 
+      OMP_NUM_THREADS=10 mpiexec -n $NPROCS ./wordcount $INPUT_DIR $COMM $i $j 
     done
   done
 done

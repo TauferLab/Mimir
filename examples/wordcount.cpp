@@ -194,7 +194,7 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   fclose(fp);
 
   char *saveptr = NULL;
-  char whitespace[20] = " \t\n\f\r\0";
+  char whitespace[20] = " \n";
   char *word = strtok_r(text,whitespace,&saveptr);
   while (word) {
     //char val[1]="";
