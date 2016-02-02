@@ -10,7 +10,8 @@
 using namespace MAPREDUCE_NS;
 
 void fileread(MapReduce *, const char *, void *);
-void countword(MapReduce *, char *, int, int, char *, int *, void*);
+//void countword(MapReduce *, char *, int, int, char *, int *, void*);
+void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 
 int me, nprocs;
 
@@ -214,11 +215,19 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   delete [] text;
 }
 
+void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
+  char count[100];
+  sprintf(count, "%d", iter->getSize());
+  mr->add(key, keysize, count, strlen(count)+1);
+}
+
+#if 0
 void countword(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsizes, void *ptr){
   char count[100];
   sprintf(count, "%d", nval);
   mr->add(key, keysize, count, strlen(count)+1);
 }
+#endif
 
 //char * mystrtok(char *text, ){
 //}

@@ -31,7 +31,8 @@ int mypartition_int(char *, int);
 // read file to edges
 void fileread(MapReduce *, const char *, void *);
 // construct graph struct
-void makegraph(MapReduce *, char *, int, int, char *, int *, void *);
+void makegraph(MapReduce *, char *, int,  MultiValueIterator *, void*);
+//void makegraph(MapReduce *, char *, int, int, char *, int *, void *);
 // count local edge number
 void countedge(char *, int, int, char *, int *, void* ptr);
 // expand root vertex
@@ -39,7 +40,8 @@ void rootvisit(MapReduce *, void *);
 // expand vertex
 void expand(MapReduce *, char *, int, char *, int, void *);
 // shrink vertex
-void shrink(MapReduce *, char *, int, int, char *, int *,void *);
+void shrink(MapReduce *, char *, int,  MultiValueIterator *, void*);
+//void shrink(MapReduce *, char *, int, int, char *, int *,void *);
 void shrink_mm(MapReduce *, char *, int, char *, int,void *);
 
 // CSR graph
@@ -348,7 +350,7 @@ int main(int narg, char **args)
 
       for(int k=0; k<level; k++){
         //printf("nactives[%d]=%d\n", k, nactives[k]);
-        fprintf(rf, "%d\n", nactives[k]);
+        fprintf(rf, "%ld\n", nactives[k]);
         //printf("k=%d, level=%d\n", k, level);
       }
       fprintf(rf, "\n");
@@ -516,7 +518,9 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   delete [] text;
 }
 
-void makegraph(MapReduce *mr, char *key, int keybytes, int nvalues,char *multivalue,  int *valuebytes, void *ptr){
+void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
+//}
+//void makegraph(MapReduce *mr, char *key, int keybytes, int nvalues,char *multivalue,  int *valuebytes, void *ptr){
  // printf("key=%s, multivalue=%s\n", key, multivalue);
 
   // get graph strcuture
@@ -524,8 +528,8 @@ void makegraph(MapReduce *mr, char *key, int keybytes, int nvalues,char *multiva
   csr_graph *g = &(st->g);
 
   int64_t v0, v0_local, v1;
-  char *value;
-  int offset=0;
+  const char *value;
+  //int offset=0;
 
   v0 = atoi(key)-1;
   v0_local = v0 % (g->nlocalverts);  
@@ -533,14 +537,16 @@ void makegraph(MapReduce *mr, char *key, int keybytes, int nvalues,char *multiva
   //printf("key=%s\n", key);
 
   // different threads handle different vertex
-  for(int i = 0; i < nvalues;i++){
-    value = multivalue+offset;
+  for(iter->Begin(); !iter->Done(); iter->Next()){
+  //for(int i = 0; i < nvalues;i++){
+    value=iter->getValue();
+    //value = multivalue+offset;
     //printf("value=%s\n", value);
     v1 = atoi(value)-1;
     g->columns[g->rowstarts[v0_local]+g->rowinserts[v0_local]] = v1;
     g->rowinserts[v0_local]++;
     //offset += valuebytes[i];
-    offset += strlen(value)+1;
+    //offset += iter->getValueSize();
   }
 }
 
@@ -590,14 +596,16 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
   }
 }
 
-void shrink(MapReduce *mr, char *key, int keybytes, int nvaluse, char *multivalue, int *valuebytes,void *ptr){
+void shrink(MapReduce *mr, char *key, int keybytes,  MultiValueIterator *iter, void* ptr){
   bfs_state *st = (bfs_state*)ptr;
   csr_graph *g = &(st->g);
 
   int64_t v = *(int64_t*)key;
   int64_t v_local = v % (g->nlocalverts);
 
-  int64_t v0 = *(int64_t*)multivalue;
+  iter->Begin();
+
+  int64_t v0 = *(int64_t*)iter->getValue();
  
   if(!TEST_VISITED(v_local, st->vis)){  
     if(SET_VISITED(v_local, st->vis)==0){

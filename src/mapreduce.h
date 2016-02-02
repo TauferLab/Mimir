@@ -25,6 +25,8 @@ enum KVType{GeneralKV, StringKV, FixedKV, StringKeyOnly};
 
 enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
 
+class MultiValueIterator;
+
 class MapReduce {
 public:
     MapReduce(MPI_Comm);
@@ -96,13 +98,12 @@ public:
     uint64_t map_local(MapReduce *,
       void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *);
 
-    uint64_t reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
-       int *, void*), void* );
+    uint64_t reduce(void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* );
 
     // convert KV object to KMV object
     //   input must be KV obejct
     //   output must be KMV object
-    uint64_t convert();
+    //uint64_t convert();
 
     uint64_t scan(void (myscan)(char *, int, int, char *, int *,void *), void *);
 
@@ -252,29 +253,133 @@ private:
     
     int  kv2unique(int, KeyValue *, UniqueInfo *, DataObject *);
     void unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *);
-    void mv2kmv(DataObject *, UniqueInfo *, KeyMultiValue *);
-    void unique2kmv(int, KeyValue *, UniqueInfo *, KeyMultiValue *);
+    void mv2kmv(DataObject *,UniqueInfo *,
+      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
+    void unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
+      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
 
-    uint64_t convert_small(KeyValue *, KeyMultiValue *);
-    uint64_t convert_median(KeyValue *, KeyMultiValue *);
-    uint64_t convert_large(KeyValue *, KeyMultiValue *);
+    uint64_t convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+    uint64_t convert_median(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*));
+    uint64_t convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*));
 };//class MapReduce
 
 class MultiValueIterator{
 public:
-  MultiValueIterator(const char *);
-  MultiValueIterator(MapReduce::Unique *);
-  ~MultiValueIterator();
-  int Done();
-  void Next();
-  const char *getValue();
-  int getValueSize();
+  MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize){
+    nvalue=_nvalue;
+    valuebytes=_valuebytes;
+    values=_values;
+    kvtype=_kvtype;
+    vsize=_vsize;
+    
+    mode=0;
+  }
+
+  MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv){
+    ukey=_ukey;
+    mv=_mv;
+    pset=NULL;
+
+    nvalue=ukey->nvalue;
+
+    mode=1;
+
+    //if(pset->firstset==NULL){
+    //  mode=0;
+    //}
+  }
+
+  ~MultiValueIterator(){
+  }
+
+  int Done(){
+    return isdone;
+  }
+
+  void Begin(){
+    ivalue=0;
+    value_start=0;
+    if(ivalue >= nvalue) isdone=1;
+    else{
+      if(mode==1){
+         pset=ukey->firstset;
+
+         mv->acquireblock(pset->pid);
+         char *tmpbuf = mv->getblockbuffer(pset->pid);
+         pset->soffset = (int*)(tmpbuf + pset->s_off);
+         pset->voffset = tmpbuf + pset->v_off;
+         
+         valuebytes=pset->soffset;
+         values=pset->voffset;
+
+         value_end=pset->nvalue;
+      }
+      value=values;
+      if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
+      else if(kvtype==1) valuesize=strlen(value)+1;
+      else if(kvtype==2) valuesize=vsize;
+    }
+  }
+
+  void Next(){
+    ivalue++;
+    if(ivalue >= nvalue) {
+      isdone=1;
+      if(mode==1 && pset){
+         mv->releaseblock(pset->pid);
+      }
+    }else{
+      if(mode==1 && ivalue >=value_end){
+        value_start += pset->nvalue;
+        mv->releaseblock(pset->pid);
+        pset=pset->next;
+
+        mv->acquireblock(pset->pid);
+        char *tmpbuf = mv->getblockbuffer(pset->pid);
+        pset->soffset = (int*)(tmpbuf + pset->s_off);
+        pset->voffset = tmpbuf + pset->v_off;
+        valuebytes=pset->soffset;
+        values=pset->voffset;
+        value_end+=pset->nvalue;
+      }
+      value+=valuesize;
+      if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
+      else if(kvtype==1) valuesize=strlen(value)+1;
+      else if(kvtype==2) valuesize=vsize;
+    }
+  }
+
+  const char *getValue(){
+    return value;
+  }
+
+  int getValueSize(){
+    return valuesize;
+  }
+
+  int getSize(){
+    return nvalue;
+  }
+
 private:
+  int mode,kvtype,vsize;
+
+  int  nvalue;
+  int *valuebytes;
+  char *values;
+
+  int ivalue;
+  int value_start;
+  int value_end;
+
+  DataObject *mv;
+  MapReduce::Unique *ukey;
+  MapReduce::Set *pset;
+
   int isdone;
   char *value;
-  int valuebytes;
+  int valuesize;
 };
-
 
 }//namespace
 

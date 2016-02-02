@@ -28,6 +28,8 @@
 
 #include "const.h"
 
+#include "hash.h"
+
 using namespace MAPREDUCE_NS;
 
 #if GATHER_STAT
@@ -1195,7 +1197,8 @@ int  MapReduce::kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv){
   return isfirst;
 }
 
-void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *kmv){
+void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,  
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *ptr){
   //printf("unique2kmv\n"); fflush(stdout);
   
   //DEFINE_KV_VARS; 
@@ -1203,10 +1206,10 @@ void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *
   int keybytes, valuebytes, kvsize;
   char *kvbuf;
 
-  int kmv_block_id=kmv->addblock();
-  kmv->acquireblock(kmv_block_id);
-  char *kmv_buf=kmv->getblockbuffer(kmv_block_id);
-  int kmv_off=0;
+  int mv_block_id=mv->addblock();
+  mv->acquireblock(mv_block_id);
+  char *mv_buf=mv->getblockbuffer(mv_block_id);
+  int mv_off=0;
 
   int nunique=0;
 
@@ -1224,24 +1227,24 @@ void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u, KeyMultiValue *
       nunique++;
       if(nunique>u->nunique) goto end;
 
-      *(int*)(kmv_buf+kmv_off)=ukey->keybytes;
-      kmv_off+=sizeof(int);
-      *(int*)(kmv_buf+kmv_off)=ukey->mvbytes;
-      kmv_off+=sizeof(int);
-      *(int*)(kmv_buf+kmv_off)=ukey->nvalue;
-      kmv_off+=sizeof(int);
+      *(int*)(mv_buf+mv_off)=ukey->keybytes;
+      mv_off+=sizeof(int);
+      *(int*)(mv_buf+mv_off)=ukey->mvbytes;
+      mv_off+=sizeof(int);
+      *(int*)(mv_buf+mv_off)=ukey->nvalue;
+      mv_off+=sizeof(int);
      
       if(kv->kvtype==GeneralKV){
-        ukey->soffset=(int*)(kmv_buf+kmv_off);
-        kmv_off+=ukey->nvalue*sizeof(int);
+        ukey->soffset=(int*)(mv_buf+mv_off);
+        mv_off+=ukey->nvalue*sizeof(int);
       }
 
       ubuf+=ukeyoffset;
-      memcpy(kmv_buf+kmv_off, ubuf, ukey->keybytes);
-      kmv_off+=ukey->keybytes;
+      memcpy(mv_buf+mv_off, ubuf, ukey->keybytes);
+      mv_off+=ukey->keybytes;
 
-      ukey->voffset=kmv_buf+kmv_off;
-      kmv_off+=ukey->mvbytes;
+      ukey->voffset=mv_buf+mv_off;
+      mv_off+=ukey->mvbytes;
 
       ubuf+=ukey->keybytes;
       //ubuf=ROUNDUP(ubuf, ualignm);
@@ -1255,12 +1258,12 @@ end:
 
   //printf("kmv offset=%d\n", kmv_off);
 #if SAFE_CHECK
-  if(kmv_off > (blocksize*UNIT_SIZE)){
-    LOG_ERROR("KMV size %d is larger than a single block size %d!\n", kmv_off, blocksize);
+  if(mv_off > (blocksize*UNIT_SIZE)){
+    LOG_ERROR("KMV size %d is larger than a single block size %d!\n", mv_off, blocksize);
   }
 #endif
 
-  kmv->setblockdatasize(kmv_block_id, kmv_off);
+  mv->setblockdatasize(mv_block_id, mv_off);
 
   // gain KVS
   for(int i=0; i<kv->nblock; i++){
@@ -1293,7 +1296,23 @@ end:
     kv->releaseblock(i);
   }
 
-  kmv->releaseblock(kmv_block_id);
+  char *values;
+  int nvalue, mvbytes, kmvsize, *valuesizes;
+
+  int datasize=mv->getblocktail(mv_block_id);
+  int offset=0;
+  while(offset < datasize){
+    
+    GET_KMV_VARS(kv->kvtype, mv_buf, key, keybytes, nvalue, values, valuesizes, mvbytes, kmvsize, kv);
+    
+    MultiValueIterator *iter = new MultiValueIterator(nvalue,valuesizes,values,kv->kvtype,kv->vsize);
+    myreduce(this, key, keybytes, iter, ptr);
+    delete iter;
+
+    offset += kmvsize;
+  }
+
+  mv->releaseblock(mv_block_id);
 }
 
 void MapReduce::unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, DataObject *mv){
@@ -1377,18 +1396,19 @@ void MapReduce::unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, Da
   mv->releaseblock(mv_blockid);
 }
 
-void MapReduce::mv2kmv(DataObject *mv, UniqueInfo *u, KeyMultiValue *kmv){
+void MapReduce::mv2kmv(DataObject *mv,UniqueInfo *u,
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* ptr){
 
   int nunique=0;
   char *ubuf, *kmvbuf=NULL;
   int uoff=0, kmvoff=0;
   char *ubuf_end;
   
-  int kmv_blockid = kmv->addblock();
-  kmv->acquireblock(kmv_blockid);
+  //int kmv_blockid = kmv->addblock();
+  //kmv->acquireblock(kmv_blockid);
   
-  kmvbuf = kmv->getblockbuffer(kmv_blockid);
-  kmvoff = 0;
+  //kmvbuf = kmv->getblockbuffer(kmv_blockid);
+  //kmvoff = 0;
 
   for(int i=0; i < u->unique_pool->nblock; i++){
     ubuf = u->unique_pool->blocks[i];
@@ -1403,24 +1423,29 @@ void MapReduce::mv2kmv(DataObject *mv, UniqueInfo *u, KeyMultiValue *kmv){
       nunique++;
       if(nunique > u->nunique) goto end;
 
-      int kmvsize=threeintlen+ukey->keybytes+ukey->mvbytes;
-      if(kmv->kmvtype==GeneralKV) kmvsize += (ukey->nvalue)*oneintlen;
+      MultiValueIterator *iter = new MultiValueIterator(ukey, mv);
+      
+      myreduce(this, ukey->key, ukey->keybytes, iter, ptr);
+
+      //int kmvsize=threeintlen+ukey->keybytes+ukey->mvbytes;
+      //if(kmv->kmvtype==GeneralKV) kmvsize += (ukey->nvalue)*oneintlen;
 
 #if SAFE_CHECK
-      if(kmvsize > kmv->getblocksize()){
-        LOG_ERROR("Error: KMV size (key=%s, nvalue=%d) %d is larger than block size %d\n", ukey->key, ukey->nvalue, kmvsize, kmv->getblocksize());
-      }
+      //if(kmvsize > kmv->getblocksize()){
+      //  LOG_ERROR("Error: KMV size (key=%s, nvalue=%d) %d is larger than block size %d\n", ukey->key, ukey->nvalue, kmvsize, kmv->getblocksize());
+      //}
 #endif
 
-      if(kmvoff+kmvsize>kmv->blocksize){
-        kmv->setblockdatasize(kmv_blockid, kmvoff);
-        kmv->releaseblock(kmv_blockid);
-        kmv_blockid=kmv->addblock();
-        kmv->acquireblock(kmv_blockid);
-        kmvbuf=kmv->getblockbuffer(kmv_blockid);
-        kmvoff=0;
-      }
+      //if(kmvoff+kmvsize>kmv->blocksize){
+      //  kmv->setblockdatasize(kmv_blockid, kmvoff);
+      //  kmv->releaseblock(kmv_blockid);
+      //  kmv_blockid=kmv->addblock();
+      //  kmv->acquireblock(kmv_blockid);
+      //  kmvbuf=kmv->getblockbuffer(kmv_blockid);
+      //  kmvoff=0;
+      //}
  
+#if 0
       *(int*)(kmvbuf+kmvoff)=ukey->keybytes;
       kmvoff+=sizeof(int);
       *(int*)(kmvbuf+kmvoff)=ukey->mvbytes;
@@ -1468,15 +1493,18 @@ void MapReduce::mv2kmv(DataObject *mv, UniqueInfo *u, KeyMultiValue *kmv){
       ubuf += ukeyoffset;
       ubuf += ukey->keybytes;
       //ubuf = ROUNDUP(ubuf, ualignm);
+#endif
     }
   }// End for
 
 end:
-  kmv->setblockdatasize(kmv_blockid, kmvoff);
-  kmv->releaseblock(kmv_blockid);
+  ;
+  //kmv->setblockdatasize(kmv_blockid, kmvoff);
+  //kmv->releaseblock(kmv_blockid);
 }
 
-uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
+uint64_t MapReduce::convert_small(KeyValue *kv, 
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* ptr){
 
   LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) start.\n", me, nprocs);
 
@@ -1518,8 +1546,8 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
 
   //mv->print();
 
-  if(isfirst) unique2kmv(tid, kv, u, kmv);
-  else mv2kmv(mv, u, kmv);
+  if(isfirst) unique2kmv(tid, kv, u, mv, myreduce, ptr);
+  else mv2kmv(mv, u, myreduce, ptr);
 
 #if GATHER_STAT
   double t3 = omp_get_wtime();
@@ -1538,8 +1566,8 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
   delete u;
 }
 
-  if(kv->mem_bytes+kmv->mem_bytes+tmax_mem_bytes>max_mem_bytes)
-    max_mem_bytes=(kv->mem_bytes+kmv->mem_bytes+tmax_mem_bytes);
+  if(kv->mem_bytes+data->mem_bytes+tmax_mem_bytes>max_mem_bytes)
+    max_mem_bytes=(kv->mem_bytes+data->mem_bytes+tmax_mem_bytes);
 
   //delete kv;
   DataObject::subRef(kv);
@@ -1557,7 +1585,8 @@ uint64_t MapReduce::convert_small(KeyValue *kv, KeyMultiValue *kmv){
  * convert: convert KMV to KV
  *   return: local kmvs count
  */
-uint64_t MapReduce::convert(){
+uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), void* ptr){
+//uint64_t MapReduce::convert(){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert start.\n", me, nprocs);
 
@@ -1568,29 +1597,44 @@ uint64_t MapReduce::convert(){
   }
 #endif
 
+  // create new data object
+  KeyValue *outkv = new KeyValue(kvtype, 
+                      blocksize, 
+                      nmaxblock, 
+                      maxmemsize, 
+                      outofcore, 
+                      tmpfpath);
+  outkv->setKVsize(ksize, vsize);
+  data=outkv;
+  DataObject::addRef(outkv);
+
+  mode = ReduceMode;
+
   KeyValue *kv = (KeyValue*)data;
   int kvtype=kv->getKVtype();
 
   // Create KMV Object
-  KeyMultiValue *kmv = new KeyMultiValue(kvtype,
-                             blocksize, 
-                             nmaxblock, 
-                             maxmemsize,
-                             outofcore, 
-                             tmpfpath);
-  kmv->setKVsize(ksize, vsize);
+  //KeyMultiValue *kmv = new KeyMultiValue(kvtype,
+  //                           blocksize, 
+  //                           nmaxblock, 
+  //                           maxmemsize,
+  //                           outofcore, 
+  //                           tmpfpath);
+  //kmv->setKVsize(ksize, vsize);
 
-  uint64_t count = convert_small(kv, kmv);
+  uint64_t count = convert_small(kv, myreduce, ptr);
 
   //delete kv;
-  data = kmv;
+  //data = kmv;
 
-  DataObject::addRef(data);
+  DataObject::subRef(kv);
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert end.\n", me, nprocs);
 
   //uint64_t count = 0, sum = 0; 
   //for(int i = 0; i < tnum; i++) count += nitems[i];
+
+  mode = NoneMode;
 
   uint64_t sum = 0;
   MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
@@ -1598,6 +1642,7 @@ uint64_t MapReduce::convert(){
   return sum;
 }
 
+#if 0
 /*
  * reduce:
  * argument:
@@ -1606,8 +1651,7 @@ uint64_t MapReduce::convert(){
  * return:
  *  local KV count
  */
-uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *, 
-    int *, void*), void* ptr){
+uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), void* ptr){
   if(!data || data->getDatatype() != KMVType){
     LOG_ERROR("%s", "Error: the input of reduce function must be KMV object!\n");
     return -1;
@@ -1636,18 +1680,32 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
   int tid = omp_get_thread_num();
   tinit(tid);
 
-  char *key, *values;
-  int keybytes, nvalue, *valuebytes;
-
 #pragma omp for nowait
   for(int i = 0; i < kmv->nblock; i++){
+
+     char *key, *values;
+     int keybytes, nvalue, mvbytes, kmvsize, *valuebytes;
      int offset = 0;
+
      kmv->acquireblock(i);
-     offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
-     while(offset != -1){
+     char *kmvbuf=kmv->getblockbuffer(i);
+     int datasize=kmv->getblocktail(i);
+     
+     //offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+     while(offset < datasize){
        //printf("keybytes=%d, valuebytes=%d\n", keybytes, nvalue);
-       myreduce(this, key, keybytes, nvalue, values, valuebytes, ptr);        
-       offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+
+       GET_KMV_VARS(kmv->kmvtype, kmvbuf, key, keybytes, nvalue, values, valuebytes, mvbytes, kmvsize, data);
+
+
+       MultiValueIterator *iter = new MultiValueIterator(nvalue,valuebytes,values,kmv->kmvtype,kmv->ksize,kmv->vsize);
+       
+       myreduce(this, key, keybytes, iter, ptr);
+
+       delete iter;
+
+       //offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+       offset += kmvsize;
      }
      kmv->releaseblock(i);
   }
@@ -1670,6 +1728,7 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, int, char *
 
   return count;
 }
+#endif
 
 /*
  * scan: (KMV object as input)
@@ -2461,3 +2520,4 @@ void MapReduce::checkbuffer(int bytes, char **buf, int *off, Spool *pool){
   }
 }
 #endif
+

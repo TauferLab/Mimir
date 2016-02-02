@@ -18,7 +18,8 @@ using namespace MAPREDUCE_NS;
 void thread_generate_octkey(MapReduce *, const char *, void *);
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
-void sum(MapReduce *, char *, int, int, char *, int *, void *);
+//void sum(MapReduce *, char *, int, int, char *, int *, void *);
+void sum(MapReduce *, char *, int,  MultiValueIterator *, void*);
 
 double slope(double[], double[], int);
 void explore_level(int, int, MapReduce * );
@@ -141,9 +142,11 @@ int main(int argc, char **argv)
   MPI_Finalize();	
 }
 
-void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsizes, void *ptr){
-  int sum=nval;
-  if (sum >= thresh)
+
+void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
+//void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsizes, void *ptr){
+  //int sum=nval;
+  if (iter->getSize() >= thresh)
     mr->add(key, keysize, (char*)&sum, (int)sizeof(int));
 }
 
