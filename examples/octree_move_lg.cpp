@@ -89,7 +89,7 @@ int main(int argc, char **argv)
 
     double t2 = MPI_Wtime();
 
-    mr->convert();
+    //mr->convert();
 
     double t3 = MPI_Wtime();
 
@@ -145,8 +145,8 @@ int main(int argc, char **argv)
 
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
 //void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsizes, void *ptr){
-  //int sum=nval;
-  if (iter->getSize() >= thresh)
+  int sum=iter->getCount();
+  if (sum >= thresh)
     mr->add(key, keysize, (char*)&sum, (int)sizeof(int));
 }
 

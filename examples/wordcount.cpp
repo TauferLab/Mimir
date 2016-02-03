@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     //mr->output();
 
     //printf("begin convert\n"); fflush(stdout);
-    uint64_t nunique = mr->convert();
+    //uint64_t nunique = mr->convert();
     //printf("end convert!\n"); fflush(stdout);
 
     double t3 = MPI_Wtime();
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
     mr->reduce(countword, NULL);
     //printf("end reduce\n"); fflush(stdout);
 
-    //mr->output();
+    mr->output();
 
     double t4 = MPI_Wtime();
 
@@ -217,7 +217,7 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
   char count[100];
-  sprintf(count, "%d", iter->getSize());
+  sprintf(count, "%d", iter->getCount());
   mr->add(key, keysize, count, strlen(count)+1);
 }
 

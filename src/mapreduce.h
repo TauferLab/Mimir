@@ -76,36 +76,36 @@ public:
     }
 
     // map and reduce interfaces
-    uint64_t map(void (*mymap)(MapReduce *, void *), void *);
-    uint64_t map_local(void (*mymap)(MapReduce *, void *), void*);
+    uint64_t map(void (*mymap)(MapReduce *, void *), void *ptr=NULL);
+    uint64_t map_local(void (*mymap)(MapReduce *, void *), void*ptr=NULL);
 
     uint64_t map(char *, int, int, char *, 
-      void (*mymap) (MapReduce *, char *, void *), void *);
+      void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL);
 
     uint64_t map_local(char *, int, int, char *, 
-      void (*mymap) (MapReduce *, char *, void *), void *);
+      void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL);
 
     uint64_t map(char *, int, int, 
-      void (*mymap) (MapReduce *, const char *, void *), void *);
+      void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL);
 
     uint64_t map_local(char *, int, int, 
-      void (*mymap) (MapReduce *, const char *, void *), void *);
+      void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL);
 
 
     uint64_t map(MapReduce *, 
-      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *);
+      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *ptr=NULL);
 
     uint64_t map_local(MapReduce *,
-      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *);
+      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void * ptr=NULL);
 
-    uint64_t reduce(void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* );
+    uint64_t reduce(void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress=0, void* ptr=NULL);
 
     // convert KV object to KMV object
     //   input must be KV obejct
     //   output must be KMV object
     //uint64_t convert();
 
-    uint64_t scan(void (myscan)(char *, int, int, char *, int *,void *), void *);
+    void scan(void (myscan)(char *, int, char *, int ,void *), void * ptr=NULL);
 
     // interfaces in user-defined map and reduce functions
     void add(char *key, int keybytes, char *value, int valuebytes);
@@ -165,7 +165,17 @@ public:
       Spool     *set_pool;
     };
 
+    uint64_t get_global_count(){
+      return total_kv_count;
+    }
+    
+    uint64_t get_local_count(){
+      return local_kv_count;
+    }
+
 private:
+    uint64_t total_kv_count, local_kv_count;
+
     uint64_t send_bytes, recv_bytes;
     uint64_t max_mem_bytes;
 
@@ -273,6 +283,8 @@ public:
     vsize=_vsize;
     
     mode=0;
+
+    Begin();
   }
 
   MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv){
@@ -284,9 +296,7 @@ public:
 
     mode=1;
 
-    //if(pset->firstset==NULL){
-    //  mode=0;
-    //}
+    Begin();
   }
 
   ~MultiValueIterator(){
@@ -299,6 +309,7 @@ public:
   void Begin(){
     ivalue=0;
     value_start=0;
+    isdone=0;
     if(ivalue >= nvalue) isdone=1;
     else{
       if(mode==1){
@@ -353,11 +364,11 @@ public:
     return value;
   }
 
-  int getValueSize(){
+  int getSize(){
     return valuesize;
   }
 
-  int getSize(){
+  int getCount(){
     return nvalue;
   }
 

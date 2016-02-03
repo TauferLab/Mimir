@@ -174,7 +174,7 @@ int main(int narg, char **args)
 
   // convert edge list to kmv
   //printf("convert start.\n");fflush(stdout);
-  mr->convert();
+  //mr->convert();
 
   double g_t3=MPI_Wtime();
 
@@ -300,7 +300,7 @@ int main(int narg, char **args)
 
       //printf("before convert:\n");
       //mr->output(2);
-      mr->convert();
+      //mr->convert();
       //printf("after convert:\n");
       //mr->output(2);
 
@@ -603,7 +603,7 @@ void shrink(MapReduce *mr, char *key, int keybytes,  MultiValueIterator *iter, v
   int64_t v = *(int64_t*)key;
   int64_t v_local = v % (g->nlocalverts);
 
-  iter->Begin();
+  //iter->Begin();
 
   int64_t v0 = *(int64_t*)iter->getValue();
  

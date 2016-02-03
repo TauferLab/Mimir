@@ -42,6 +42,8 @@ MapReduce::MapReduce(MPI_Comm caller)
     MPI_Comm_rank(comm,&me);
     MPI_Comm_size(comm,&nprocs);
 
+    get_default_values();
+
     ualign = sizeof(uint64_t);
 
     //kalignm = kalign-1;
@@ -67,7 +69,6 @@ MapReduce::MapReduce(MPI_Comm caller)
 
     mode = NoneMode;
   
-    get_default_values();
     bind_threads();
 
     //fprintf(stdout, "Process count=%d, thread count=%d\n", nprocs, tnum);
@@ -1213,6 +1214,8 @@ void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,
 
   int nunique=0;
 
+  //printf("nunique=%d\n", u->nunique);
+
   // Set the offset
   Spool *unique_pool=u->unique_pool;
   for(int i=0; i<unique_pool->nblock; i++){
@@ -1226,6 +1229,8 @@ void MapReduce::unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,
 
       nunique++;
       if(nunique>u->nunique) goto end;
+
+      //printf("%s\n", ukey->key); fflush(stdout);
 
       *(int*)(mv_buf+mv_off)=ukey->keybytes;
       mv_off+=sizeof(int);
@@ -1263,6 +1268,8 @@ end:
   }
 #endif
 
+  //printf("mv_off=%d\n", mv_off);
+
   mv->setblockdatasize(mv_block_id, mv_off);
 
   // gain KVS
@@ -1296,14 +1303,23 @@ end:
     kv->releaseblock(i);
   }
 
+  //printf("here!\n"); fflush(stdout);
+
   char *values;
   int nvalue, mvbytes, kmvsize, *valuesizes;
 
   int datasize=mv->getblocktail(mv_block_id);
   int offset=0;
+
+  //printf("offset=%d, datasize=%d\n", offset, datasize);
+
   while(offset < datasize){
+
+    //printf("offset=%d, datasize=%d\n", offset, datasize); fflush(stdout);
     
     GET_KMV_VARS(kv->kvtype, mv_buf, key, keybytes, nvalue, values, valuesizes, mvbytes, kmvsize, kv);
+
+    //printf("key=%s, nvalue=%d\n", key, nvalue); fflush(stdout);
     
     MultiValueIterator *iter = new MultiValueIterator(nvalue,valuesizes,values,kv->kvtype,kv->vsize);
     myreduce(this, key, keybytes, iter, ptr);
@@ -1546,6 +1562,8 @@ uint64_t MapReduce::convert_small(KeyValue *kv,
 
   //mv->print();
 
+  //printf("isfirst=%d\n", isfirst);
+
   if(isfirst) unique2kmv(tid, kv, u, mv, myreduce, ptr);
   else mv2kmv(mv, u, myreduce, ptr);
 
@@ -1585,7 +1603,7 @@ uint64_t MapReduce::convert_small(KeyValue *kv,
  * convert: convert KMV to KV
  *   return: local kmvs count
  */
-uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), void* ptr){
+uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), int compress, void* ptr){
 //uint64_t MapReduce::convert(){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert start.\n", me, nprocs);
@@ -1596,6 +1614,9 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
     return -1;
   }
 #endif
+
+  KeyValue *kv = (KeyValue*)data;
+  int kvtype=kv->getKVtype();
 
   // create new data object
   KeyValue *outkv = new KeyValue(kvtype, 
@@ -1609,9 +1630,6 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
   DataObject::addRef(outkv);
 
   mode = ReduceMode;
-
-  KeyValue *kv = (KeyValue*)data;
-  int kvtype=kv->getKVtype();
 
   // Create KMV Object
   //KeyMultiValue *kmv = new KeyMultiValue(kvtype,
@@ -1739,48 +1757,73 @@ uint64_t MapReduce::reduce(void (myreduce)(MapReduce *, char *, int, MultiValueI
  *  local KMV count
  */
 // FIXME: should I provide multi-thread scan function?
-uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), void * ptr){
+void MapReduce::scan(void (myscan)(char *, int, char *, int ,void *), void * ptr){
 
-  if(!data || data->getDatatype() != KMVType){
+  if(!data || data->getDatatype() != KVType){
     LOG_ERROR("%s", "Error: the input of scan (KMV) must be KMV object!\n");
   }
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan start.\n", me, nprocs);  
 
-  KeyMultiValue *kmv = (KeyMultiValue*)data;
+  KeyValue *kv = (KeyValue*)data;
 
-  char *key, *values;
-  int keybytes, nvalue, *valuebytes;
+#pragma omp parallel for
+  for(int i = 0; i < kv->nblock; i++){
 
-  int tid = omp_get_thread_num();
-  tinit(tid);  
+     char *key, *value;
+     int keybytes, valuebytes, kvsize;
 
-  for(int i = 0; i < kmv->nblock; i++){
-    int offset = 0;
-    
-    kmv->acquireblock(i);
-    
-    offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+     kv->acquireblock(i);
+     char *kvbuf=kv->getblockbuffer(i);
+     int datasize=kv->getblocktail(i);
+     
+     //offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+     int offset=0;
+     while(offset < datasize){
+       //printf("keybytes=%d, valuebytes=%d\n", keybytes, nvalue);
 
-    while(offset != -1){
-      myscan(key, keybytes, nvalue, values, valuebytes, ptr);
+       GET_KV_VARS(kv->kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
 
-      nitems[tid]++;
-
-      offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
-    }
-
-    kmv->releaseblock(i);
+       myscan(key, keybytes, value, valuebytes, ptr);
+       
+       offset += kvsize;
+     }
+     kv->releaseblock(i);
   }
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan end.\n", me, nprocs);
+}
+
+
+
+  //int tid = omp_get_thread_num();
+  //tinit(tid);  
+
+  //for(int i = 0; i < kmv->nblock; i++){
+  //  int offset = 0;
+    
+  //  kmv->acquireblock(i);
+    
+ //   offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+
+ //   while(offset != -1){
+ //     myscan(key, keybytes, nvalue, values, valuebytes, ptr);
+
+ //     nitems[tid]++;
+
+ //     offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
+ //   }
+
+ //   kmv->releaseblock(i);
+ // }
+
 
   // sum KV count
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
+  //uint64_t count = 0; 
+  //for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  return count;
-}
+  //return count;
+//}
 
 /*
  * add a KV (invoked in user-defined map or reduce functions) 
@@ -1791,6 +1834,8 @@ uint64_t MapReduce::scan(void (myscan)(char *, int, int, char *, int *,void *), 
  *   valuebytes: valuesize
  */
 void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
+
+  //printf("add: key=%s, value=%s\n", key, value); fflush(stdout);
 
 #if SAFE_CHECK
   if(!data || data->getDatatype() != KVType){
