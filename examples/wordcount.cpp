@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
     double t3 = MPI_Wtime();
 
     //printf("begin reduce\n"); fflush(stdout);
-    mr->reduce(countword, NULL);
+    mr->reduce(countword, 0, NULL);
     //printf("end reduce\n"); fflush(stdout);
 
     mr->output();

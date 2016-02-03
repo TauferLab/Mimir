@@ -232,6 +232,8 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
     }
   }
 
+  inc_counter(target); 
+
   // do communication
   //int flag;
   //MPI_Is_thread_main(&flag);

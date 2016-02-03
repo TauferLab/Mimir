@@ -34,7 +34,7 @@ void fileread(MapReduce *, const char *, void *);
 void makegraph(MapReduce *, char *, int,  MultiValueIterator *, void*);
 //void makegraph(MapReduce *, char *, int, int, char *, int *, void *);
 // count local edge number
-void countedge(char *, int, int, char *, int *, void* ptr);
+void countedge(char *, int, char *, int , void* ptr);
 // expand root vertex
 void rootvisit(MapReduce *, void *);
 // expand vertex
@@ -209,7 +209,7 @@ int main(int narg, char **args)
  // mr->output();
 
   // begin to make CSR graph
-  mr->reduce(makegraph,&bfs_st);
+  mr->reduce(makegraph,0,&bfs_st);
 
   double g_t5=MPI_Wtime();
 
@@ -308,7 +308,7 @@ int main(int narg, char **args)
 
       //printf("begin reduce:\n");
       //mr->set_KVtype(FixedKV, ksize, 0);
-      mr->reduce(shrink, &bfs_st);
+      mr->reduce(shrink, 0, &bfs_st);
 #else
       double t2 = MPI_Wtime();
       //mr->setKVtype(FixedKV, ksize, 0);
@@ -550,16 +550,19 @@ void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   }
 }
 
-void countedge(char *key, int keybytes, int nval, char *multivalue, int *valuebyte, void* ptr){
+void countedge(char *key, int keybytes, char *value, int valuebyte, void* ptr){
   bfs_state *st = (bfs_state*)ptr;
   csr_graph *g = &(st->g);
 
   //printf("countedge, key=%s, n=%d\n", key, nvalues);
 
-  g->nlocaledges += nval;
+#pragma omp atomic
+  g->nlocaledges++;
 
   int64_t v0 = atoi(key)-1;
-  g->rowstarts[v0%(g->nlocalverts)+1] = nval;
+
+#pragma omp atomic
+  g->rowstarts[v0%(g->nlocalverts)+1]++;
 }
 
 void rootvisit(MapReduce *mr, void *ptr){

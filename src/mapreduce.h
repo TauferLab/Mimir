@@ -165,16 +165,16 @@ public:
       Spool     *set_pool;
     };
 
-    uint64_t get_global_count(){
-      return total_kv_count;
+    uint64_t get_global_KVs(){
+      return global_kvs_count;
     }
     
-    uint64_t get_local_count(){
-      return local_kv_count;
+    uint64_t get_local_KVs(){
+      return local_kvs_count;
     }
 
 private:
-    uint64_t total_kv_count, local_kv_count;
+    uint64_t global_kvs_count, local_kvs_count;
 
     uint64_t send_bytes, recv_bytes;
     uint64_t max_mem_bytes;

@@ -220,6 +220,8 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     }
   }
 
+  inc_counter(target); 
+
 #if GATHER_STAT
   double tstop = omp_get_wtime();
   if(tid==0) st.inc_timer(TIMER_MAP_SENDKV, tstop-tstart);

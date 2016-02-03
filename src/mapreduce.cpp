@@ -181,6 +181,7 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
 }
   // wait all processes done
   c->wait();
+  local_kvs_count=c->get_recv_KVs();
 
   mode = NoneMode;
 
@@ -194,12 +195,12 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
   c = NULL;
 
   // sum kv count
-  uint64_t sum = 0, count = 0; 
+  uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
 
-  return sum;
+  return global_kvs_count;
 }
 
 /*
@@ -246,7 +247,10 @@ uint64_t MapReduce::map_local(void (*mymap)(MapReduce *, void *), void* ptr){
   uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  return count;
+  local_kvs_count=count;
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+  return global_kvs_count;
 }
 
 
@@ -392,6 +396,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   c->twait(tid) ;     
 }
    c->wait();
+   local_kvs_count=c->get_recv_KVs();
 
    mode = NoneMode;
 
@@ -405,12 +410,12 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   c = NULL;
 
   // sum kv count
-  uint64_t sum = 0, count = 0; 
+  uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
 
-  return sum;
+  return global_kvs_count;
 }
 
 /*
@@ -540,7 +545,10 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
   uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  return count;
+  local_kvs_count=count;
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+  return global_kvs_count;
 }
 
 /*
@@ -628,6 +636,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 #endif
 
   c->wait();
+  local_kvs_count=c->get_recv_KVs();
 
 #if GATHER_STAT
   double t3= MPI_Wtime();
@@ -646,14 +655,14 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   mode = NoneMode;
 
   // sum KV count
-  uint64_t sum = 0, count = 0; 
+  uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum);
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, global_kvs_count);
 
-  return sum;
+  return global_kvs_count;
 }
 
 /*
@@ -729,7 +738,12 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
   uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  return count;
+  local_kvs_count=count;
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+  return global_kvs_count;
+
+//  return count;
 }
 
 /*
@@ -834,6 +848,7 @@ uint64_t MapReduce::map(MapReduce *mr,
   //printf("end parallel\n");
 
   c->wait();
+  local_kvs_count=c->get_recv_KVs();
 
 #if  GATHER_STAT
   double t3 = MPI_Wtime();
@@ -859,14 +874,14 @@ uint64_t MapReduce::map(MapReduce *mr,
   mode= NoneMode;
 
   // sum KV count
-  uint64_t sum = 0, count = 0; 
+  uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, sum); 
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, global_kvs_count); 
 
-  return sum;
+  return global_kvs_count;
 }
 
 /*
@@ -949,7 +964,12 @@ uint64_t MapReduce::map_local(MapReduce *mr,
   uint64_t count = 0; 
   for(int i = 0; i < tnum; i++) count += nitems[i];
 
-  return count;
+  local_kvs_count=count;
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+  return global_kvs_count;
+
+  //return count;
 }
 
 // find the key in the unique list
@@ -1654,10 +1674,11 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
 
   mode = NoneMode;
 
-  uint64_t sum = 0;
-  MPI_Allreduce(&count, &sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+  //uint64_t sum = 0;
+  local_kvs_count=count;
+  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
 
-  return sum;
+  return global_kvs_count;
 }
 
 #if 0
@@ -1865,7 +1886,7 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     // send KV    
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
 
-    nitems[tid]++;
+    //nitems[tid]++;
  
     return;
    }else if(mode == MapLocalMode || mode == ReduceMode){

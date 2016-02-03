@@ -93,7 +93,7 @@ int main(int argc, char **argv)
 
     double t3 = MPI_Wtime();
 
-    uint64_t nkv = mr->reduce(sum, NULL);
+    uint64_t nkv = mr->reduce(sum);
 
     double t4 = MPI_Wtime();
 
