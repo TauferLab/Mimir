@@ -210,11 +210,12 @@ private:
     OpMode mode;      // -1 for nothing, 0 for map, 1 for map_local, 2 for reduce;
     
     // thread private data
-    int *blocks;      // current block id for each threads, used in map and reduce
     uint64_t *nitems;
 
     // data object
-    DataObject *data;
+    DataObject  *data;
+    int *blocks;      // current block id for each threads, used in map and reduce
+    //DataObject* *tkv;
 
     // the communicator for map
     Communicator *c;
@@ -261,16 +262,18 @@ private:
 
     void unique2set(UniqueInfo *);
     
-    int  kv2unique(int, KeyValue *, UniqueInfo *, DataObject *);
-    void unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *);
+    int  kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
+      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *,
+      int shared=1, int compress=0);
+    void unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
     void mv2kmv(DataObject *,UniqueInfo *,
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
     void unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
-      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
 
-    uint64_t convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
-    uint64_t convert_median(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*));
-    uint64_t convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*));
+    uint64_t convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress, void*);
+    uint64_t convert_median(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress, void*);
+    uint64_t convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress, void*);
 };//class MapReduce
 
 class MultiValueIterator{

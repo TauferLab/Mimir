@@ -345,6 +345,7 @@ int DataObject::addblock(){
       
     blocks[blockid].datasize = 0;
     blocks[blockid].bufferid = blockid;
+    blocks[blockid].threadid = omp_get_thread_num();
     //blocks[blockid].infile = 0;
     //blocks[blockid].fileoff = 0;
 
@@ -354,6 +355,7 @@ int DataObject::addblock(){
     if(outofcore){
       blocks[blockid].datasize = 0;
       blocks[blockid].bufferid = -1;
+      blocks[blockid].threadid = omp_get_thread_num();
       //blocks[blockid].infile = 0;
       //blocks[blockid].fileoff = 0;
 
@@ -372,6 +374,7 @@ int DataObject::addblock(){
  * return block id if success, otherwise return -1;
  * can be used in multi-thread environment
  */
+#if 0
 int DataObject::addblock(char *data, int datasize){
   if(datasize > blocksize){
     LOG_ERROR("Error in DataObejct::addblock: the data size exceeds one block size.(datasize=%d, blocksize=%d)\n", datasize, blocksize);
@@ -387,11 +390,13 @@ int DataObject::addblock(char *data, int datasize){
 
   return 0;
 }
+#endif
 
 /*
  * add data into the block with blockid
  *  return 0 if success, -1 is failed
  */
+#if 0
 int DataObject::adddata(int blockid, char *data, int datasize){
   if(datasize > blocksize){
     LOG_ERROR("Error: data size is larger than block size. (data size=%d, block size=%d)\n", datasize, blocksize);
@@ -409,6 +414,7 @@ int DataObject::adddata(int blockid, char *data, int datasize){
 
   return 0;
 }
+#endif
 
 /*
  * get pointer of bytes

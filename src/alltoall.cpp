@@ -426,7 +426,7 @@ void Alltoall::exchange_kv(){
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%d, done count=%d)\n", rank, size, sendcount, pdone);
 }
 
-#if 1
+#if 0
 void Alltoall::save_data(int i){
   if(blocks[0] == -1){
     blocks[0] = data->addblock();

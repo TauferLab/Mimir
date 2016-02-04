@@ -43,11 +43,12 @@ public:
 
   // add an empty block
   int addblock();
+  //int addblock(int);
   // add an block with data
-  int addblock(char *, int);
+  //int addblock(char *, int);
   
   // add data into a block
-  int adddata(int, char *, int);
+  //int adddata(int, char *, int);
 
 
   int getblockspace(int blockid){
@@ -67,6 +68,10 @@ public:
 
   int getblocktail(int blockid){
     return blocks[blockid].datasize;
+  }
+
+  int getthreadid(int blockid){
+    return blocks[blockid].threadid;
   }
 
   int getblocksize(){
@@ -107,6 +112,7 @@ public:
   struct Block{
     int       datasize;   // datasize in this block
     int       bufferid;   // buffer id
+    int       threadid;   // thread id
   };
  
   // information of buffer

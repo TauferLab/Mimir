@@ -432,7 +432,7 @@ void Ptop::exchange_kv(){
 }
 #endif
 
-#if 1
+#if 0
 void Ptop::save_data(int recv_count){
 
   recv_bytes += recv_count;
