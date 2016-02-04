@@ -258,22 +258,33 @@ private:
     int nbucket;
     int ukeyoffset;
 
-    MapReduce::Unique* findukey(Unique **, int, char *, int, Unique *&pre);
-
-    void unique2set(UniqueInfo *);
+    MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre);
+    void _unique2set(UniqueInfo *);
     
-    int  kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
+    int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *,
       int shared=1, int compress=0);
-    void unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
-    void mv2kmv(DataObject *,UniqueInfo *,
-      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
-    void unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
+
+    void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
+    void _unique2kmv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, 
+      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
+    void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
 
-    uint64_t convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress, void*);
-    uint64_t convert_median(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress, void*);
-    uint64_t convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress, void*);
+    void _mv2kmv(DataObject *,UniqueInfo *,
+      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
+
+
+    uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int);
+    uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int);
+    uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int);
+
+    uint64_t _get_kv_count(){
+      local_kvs_count=0;
+      for(int i=0; i<tnum; i++) local_kvs_count=nitems[i];
+      MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+      return  global_kvs_count;
+    }
 };//class MapReduce
 
 class MultiValueIterator{
