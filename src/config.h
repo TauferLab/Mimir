@@ -14,11 +14,11 @@
 #define PCS_PER_NODE              2
 #define THS_PER_PROC             10
 
-#define SET_COUNT           (4194304)
+//#define SET_COUNT                16
 //#define KEY_COUNT           (4194304)
 
 // convert
-#define BUCKET_SIZE               22
+#define BUCKET_SIZE               4
 
 // type 
 #define KV_TYPE                    0

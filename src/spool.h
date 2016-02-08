@@ -21,10 +21,13 @@ public:
 
   char *addblock(){
     
-    printf("blocksize=%d\n", blocksize); fflush(stdout);
+    //printf("blocksize=%d\n", blocksize); fflush(stdout);
     
     blocks[nblock] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
     mem_bytes += blocksize;
+
+    //printf("blocksize=%d\n", blocksize); fflush(stdout);
+
 #if SAFE_CHECK
     if(blocks[nblock]==NULL){
       LOG_ERROR("%s", "Error: malloc memory for block error!\n");

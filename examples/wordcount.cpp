@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
 
     double t2 = MPI_Wtime();
 
-    mr->output();
+    //mr->output();
 
     //printf("begin convert\n"); fflush(stdout);
     //uint64_t nunique = mr->convert();
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
     mr->reduce(countword, 0, NULL);
     //printf("end reduce\n"); fflush(stdout);
 
-    mr->output();
+    //mr->output();
 
     double t4 = MPI_Wtime();
 
@@ -110,13 +110,13 @@ int main(int argc, char *argv[])
       //mr->show_stat();
       //printf("%d,%d,%d,%d,%d,%ld,%ld,%g,%g,%g,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, i, nword, nunique, wtime[i], t2-t1, t3-t2, t4-t3, io_t, add_t);
 
-
       double tpar=mr->get_timer(TIMER_MAP_PARALLEL);
       double tsendkv=mr->get_timer(TIMER_MAP_SENDKV);
       double tserial=mr->get_timer(TIMER_MAP_SERIAL);
       double twait=mr->get_timer(TIMER_MAP_TWAIT);
       double tkv2u=mr->get_timer(TIMER_REDUCE_KV2U);
       double lcvt=mr->get_timer(TIMER_REDUCE_LCVT);
+
       fprintf(stdout, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
         wtime[i], t2-t1, t3-t2, t4-t3, \
         tpar, mr->get_timer(TIMER_MAP_WAIT),

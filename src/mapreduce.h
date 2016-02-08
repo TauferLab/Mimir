@@ -255,7 +255,7 @@ private:
     int thashmask, uhashmask;
  
     int ualign, ualignm;
-    int nbucket;
+    int nbucket, nset;
     int ukeyoffset;
 
     MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre);
