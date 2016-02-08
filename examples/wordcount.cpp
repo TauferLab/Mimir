@@ -57,11 +57,13 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
+#if 0
   mr->set_localbufsize(lbufsize);
   mr->set_globalbufsize(gbufsize*1024);
   mr->set_blocksize(blocksize*1024);
   mr->set_maxmem(32*1024*1024);
   mr->set_commmode(commmode);
+#endif
 
   mr->set_outofcore(0);
 
@@ -84,7 +86,7 @@ int main(int argc, char *argv[])
 
     double t2 = MPI_Wtime();
 
-    //mr->output();
+    mr->output();
 
     //printf("begin convert\n"); fflush(stdout);
     //uint64_t nunique = mr->convert();

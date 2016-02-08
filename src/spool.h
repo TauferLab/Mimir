@@ -20,7 +20,9 @@ public:
   ~Spool();
 
   char *addblock(){
-    //printf("blocksize=%d\n", blocksize);
+    
+    printf("blocksize=%d\n", blocksize); fflush(stdout);
+    
     blocks[nblock] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
     mem_bytes += blocksize;
 #if SAFE_CHECK
