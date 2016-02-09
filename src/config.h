@@ -2,7 +2,7 @@
 #define MTMR_CONFIG_H
 
 // memory
-#define UNIT_SIZE                 32  // 1K
+#define UNIT_SIZE               1024  // 1K
 
 #define BLOCK_SIZE                 1  // 16M 
 
@@ -53,5 +53,7 @@
 #define TIMER_MAP_ADD                       9
 
 #define TIMER_NUM                          10
+
+
 
 #endif

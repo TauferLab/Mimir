@@ -2110,11 +2110,17 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 }
 
 //#if 0
-void MapReduce::show_stat(int verb, FILE *out){
-  printf("Send bytes=%ld, Recv bytes=%ld, Max memory bytes=%ld\n", send_bytes, recv_bytes, max_mem_bytes);
-#if GATHER_STAT
-  //st.print(verb, out);
-#endif
+void MapReduce::show_stat(FILE *out){
+  double tpar=st.timers[TIMER_MAP_PARALLEL];
+  double tsendkv=st.timers[TIMER_MAP_SENDKV];
+  double tserial=st.timers[TIMER_MAP_SERIAL];
+  double twait=st.timers[TIMER_MAP_TWAIT];
+  double tkv2u=st.timers[TIMER_REDUCE_KV2U];
+  double lcvt=st.timers[TIMER_REDUCE_LCVT];
+
+  fprintf(out, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
+    tpar, st.timers[TIMER_MAP_WAIT], tpar-tsendkv-twait, tsendkv-tserial, tserial, twait,
+        st.timers[TIMER_MAP_LOCK],tkv2u-lcvt, lcvt, st.timers[TIMER_REDUCE_MERGE]);
 }
 
 void MapReduce::init_stat(){

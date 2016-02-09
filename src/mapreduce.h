@@ -111,7 +111,7 @@ public:
     void add(char *key, int keybytes, char *value, int valuebytes);
 
     void init_stat();
-    void show_stat(int verb=0, FILE *fp=stdout);
+    void show_stat(FILE *fp=stdout);
 
     // output data into file
     // type: 0 for string, 1 for int, 2 for int64_t
