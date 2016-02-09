@@ -602,8 +602,6 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   double t1 = MPI_Wtime();
 #endif
 
-  //printf("begin parallel\n");
-
   int fp=0;
   int fcount = ifiles.size();
 
@@ -612,28 +610,31 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   int tid = omp_get_thread_num();
   tinit(tid);
 
+#if GATHER_STAT
+  double t1 = omp_get_wtime();
+#endif
+
   int i;
   while((i=__sync_fetch_and_add(&fp,1))<fcount){
     mymap(this,ifiles[i].c_str(), ptr);
   }
 
-//#pragma omp for nowait
-//  for(int i = 0; i < fcount; i++){
-//    mymap(this, ifiles[i].c_str(), ptr);
-//  }
-#if GATHER_STAT
-  double t1 = omp_get_wtime();
-#endif
-  c->twait(tid);
 #if GATHER_STAT
   double t2 = omp_get_wtime();
-  if(tid==0) st.inc_timer(TIMER_MAP_TWAIT);
+  st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
+#endif
+
+  c->twait(tid);
+
+#if GATHER_STAT
+  double t3 = omp_get_wtime();
+  st.inc_timer(tid, TIMER_MAP_TWAIT, t3-t2);
 #endif
 }
   
 #if GATHER_STAT
   double t2= MPI_Wtime();
-  st.inc_timer(TIMER_MAP_PARALLEL, t2-t1);
+  st.inc_timer(0, TIMER_MAP_PARALLEL, t2-t1);
 #endif
 
   c->wait();
@@ -641,7 +642,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
 #if GATHER_STAT
   double t3= MPI_Wtime();
-  st.inc_timer(TIMER_MAP_WAIT, t3-t2);
+  st.inc_timer(0, TIMER_MAP_WAIT, t3-t2);
 #endif
 
   if(c->mem_bytes+data->mem_bytes>max_mem_bytes)
@@ -1211,7 +1212,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
 #if GATHER_STAT
         double t2 = omp_get_wtime();
-        if(tid==0) st.inc_timer(TIMER_REDUCE_LCVT, t2-t1);
+        //if(tid==0) st.inc_timer(TIMER_REDUCE_LCVT, t2-t1);
 #endif
 
         last_blockid=p.end_blockid;
@@ -1822,7 +1823,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
   int isfirst = _kv2unique(tid, kv, u, mv, myreduce, ptr, 1, compress);
 #if GATHER_STAT
   double t2 = omp_get_wtime();
-  if(tid==0) st.inc_timer(TIMER_REDUCE_KV2U, t2-t1);
+  //if(tid==0) st.inc_timer(TIMER_REDUCE_KV2U, t2-t1);
 #endif
 
   LOG_PRINT(DBG_CVT, "%d KV2Unique end:first=%d\n", tid, isfirst);
@@ -1836,7 +1837,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
 #if GATHER_STAT
   double t3 = omp_get_wtime();
-  if(tid==0) st.inc_timer(TIMER_REDUCE_MERGE, t3-t2);
+  //if(tid==0) st.inc_timer(TIMER_REDUCE_MERGE, t3-t2);
 #endif
 
   tmax_mem_bytes=mv->mem_bytes+u->unique_pool->mem_bytes+u->set_pool->mem_bytes;
@@ -2059,6 +2060,10 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
   // invoked in map function
   if(mode == MapMode){
 
+#if GATHER_STAT
+    double t1 = omp_get_wtime();
+#endif
+
     // get target process
     int target = 0;
     if(myhash != NULL){
@@ -2071,6 +2076,11 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 
     // send KV    
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
+
+#if GATHER_STAT
+   double t2 = omp_get_wtime();
+   st.inc_timer(tid, TIMER_MAP_SENDKV, t2-t1);
+#endif
 
     //nitems[tid]++;
  
@@ -2101,7 +2111,7 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 
 #if GATHER_STAT
     double t2 = omp_get_wtime();
-    if(tid==0) st.inc_timer(TIMER_MAP_ADD, t2-t1);
+    //if(tid==0) st.inc_timer(TIMER_MAP_ADD, t2-t1);
 #endif
 
   }
@@ -2110,27 +2120,31 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 }
 
 //#if 0
-void MapReduce::show_stat(FILE *out){
-  double tpar=st.timers[TIMER_MAP_PARALLEL];
-  double tsendkv=st.timers[TIMER_MAP_SENDKV];
-  double tserial=st.timers[TIMER_MAP_SERIAL];
-  double twait=st.timers[TIMER_MAP_TWAIT];
-  double tkv2u=st.timers[TIMER_REDUCE_KV2U];
-  double lcvt=st.timers[TIMER_REDUCE_LCVT];
+void MapReduce::show_stat(int verb, FILE *out){
+//  double tpar=st.timers[TIMER_MAP_PARALLEL];
+//  double tsendkv=st.timers[TIMER_MAP_SENDKV];
+//  double tserial=st.timers[TIMER_MAP_SERIAL];
+//  double twait=st.timers[TIMER_MAP_TWAIT];
+//  double tkv2u=st.timers[TIMER_REDUCE_KV2U];
+//  double lcvt=st.timers[TIMER_REDUCE_LCVT];
 
-  fprintf(out, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
+//  fprintf(out, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
     tpar, st.timers[TIMER_MAP_WAIT], tpar-tsendkv-twait, tsendkv-tserial, tserial, twait,
-        st.timers[TIMER_MAP_LOCK],tkv2u-lcvt, lcvt, st.timers[TIMER_REDUCE_MERGE]);
+//        st.timers[TIMER_MAP_LOCK],tkv2u-lcvt, lcvt, st.timers[TIMER_REDUCE_MERGE]);
+#if GATHER_STAT  
+  st.print(verb, out);
+#endif
 }
 
 void MapReduce::init_stat(){
-  send_bytes = recv_bytes = 0;
+  //send_bytes = recv_bytes = 0;
 #if GATHER_STAT
   st.clear();
 #endif
 }
 //#endif
 
+#if 0
 double MapReduce::get_timer(int id){
 #if GATHER_STAT
  return st.timers[id]; 
@@ -2138,6 +2152,7 @@ double MapReduce::get_timer(int id){
  return 0;
 #endif
 }
+#endif
 
 /*
  * Output data in this object

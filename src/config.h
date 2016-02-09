@@ -18,7 +18,7 @@
 //#define KEY_COUNT           (4194304)
 
 // convert
-#define BUCKET_SIZE               4
+#define BUCKET_SIZE               22
 
 // type 
 #define KV_TYPE                    0
@@ -39,21 +39,25 @@
 #define ENV_PROCS_PER_NODE     "MTMR_NODE_PROCS"
 #define ENV_THRS_PER_PROC      "MTMR_PROC_THRS"
 
+
 #define TIMER_MAP_PARALLEL                  0
 #define TIMER_MAP_WAIT                      1
-#define TIMER_MAP_SENDKV                    2
-#define TIMER_MAP_SERIAL                    3
+#define TIMER_MAP_USER                      2
+#define TIMER_MAP_SENDKV                    3
 #define TIMER_MAP_TWAIT                     4
+#define TIMER_MAP_COMM                      3
 #define TIMER_MAP_LOCK                      5
+#define TIMER_NUM                           6
 
-#define TIMER_REDUCE_KV2U                   6
-#define TIMER_REDUCE_LCVT                   7
-#define TIMER_REDUCE_MERGE                  8
-
-#define TIMER_MAP_ADD                       9
-
-#define TIMER_NUM                          10
+//#define TIMER_REDUCE_KV2U                   6
+//#define TIMER_REDUCE_LCVT                   7
+//#define TIMER_REDUCE_MERGE                  8
+//#define TIMER_MAP_ADD                       9
 
 
+//#define COUNTER_COMM_SEND                   0
+//#define COUNTER_MAP_RESULTS                 1
+
+#define COUNTER_NUM                         0
 
 #endif

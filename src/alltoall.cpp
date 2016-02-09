@@ -128,9 +128,6 @@ void Alltoall::init(DataObject *_data){
  *   valsize: value size
  */
 int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){
-#if GATHER_STAT
-  double tstart = omp_get_wtime();
-#endif
 #if SAFE_CHECK 
   if(target < 0 || target >= size){
     LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
@@ -175,7 +172,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 #pragma omp barrier
 #if GATHER_STAT
       double t2 = omp_get_wtime();
-      if(tid==0) st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
+      st.inc_timer(tid, TIMER_MAP_COMM, t2-t1);
 #endif
     }
 
@@ -200,7 +197,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 
 #if GATHER_STAT
        double tstop = omp_get_wtime();
-       if(tid==0) st.inc_timer(TIMER_MAP_LOCK, tstop-tstart);
+       st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
 #endif
 
         if(goff + loff <= gbufsize){
@@ -221,11 +218,6 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   }
 
   inc_counter(target); 
-
-#if GATHER_STAT
-  double tstop = omp_get_wtime();
-  if(tid==0) st.inc_timer(TIMER_MAP_SENDKV, tstop-tstart);
-#endif
 
   return 0;
 }

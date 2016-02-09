@@ -127,6 +127,6 @@ void output(const char *filename, MapReduce *mr){
    sprintf(tmp, "%s.%d", filename, me);
    FILE *fp = fopen(tmp, "w");
    fprintf(fp, "%ld,%ld,%g,%g,%g,\n", nword, nunique, t3-t1, t2-t1, t3-t2);
-   mr->show_stat(fp);
+   mr->show_stat(0, fp);
    fclose(fp);
 }

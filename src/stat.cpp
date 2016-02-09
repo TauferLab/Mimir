@@ -1,93 +1,69 @@
 #include "stat.h"
 #include "config.h"
 
+#include <omp.h>
+
 using namespace MAPREDUCE_NS;
 
 #if GATHER_STAT
-Stat st;
+Stat st(TIMER_NUM, COUNTER_NUM);
 #endif
 
-Stat::Stat(int _nmax){
-  nmax = _nmax;
+Stat::Stat(int _ntimer, int _ncounter){
 
-  counters     = new uint64_t[nmax];
-  counter_verb = new int[nmax];
-  ncounter     = 0;
+#pragma omp parallel
+{
+  //int tid = omp_get_thread_num();
+  tnum = omp_get_num_threads();
+}
+ 
+  //tnum = _tnum;
+  ntimer = _ntimer;
+  ncounter = _ncounter;
 
-  timers       = new double[nmax];
-  timer_verb   = new int[nmax];
-  ntimer       = 0;
+  counters     = new uint64_t*[tnum];
+  timers       = new double*[tnum];
 
-  for(int i=0; i<TIMER_NUM; i++)
-    timers[i]=0.0;
-  ntimer=TIMER_NUM;
+  for(int i=0; i<tnum; i++){
+    timers[i] = new double[ntimer];
+    counters[i] = new uint64_t[ncounter] ;
+  }
 }
 
 Stat::~Stat(){
+  for(int i=0; i<tnum; i++){
+    delete [] timers[i];
+    delete [] counters[i];
+  }
+
   delete [] counters;
-  delete [] counter_verb;
   delete [] timers;
-  delete [] timer_verb;
 }
 
-// multi-thread safe
-int Stat::init_counter(const char *name, int verb){
-  int id = __sync_fetch_and_add(&ncounter, 1);
-
-  counters[id] = 0;
-  counter_verb[id] = verb;
-  counter_str.push_back(std::string(name));
-
-  return id;
+void Stat::inc_counter(int tid, int id, uint64_t inc){
+  counters[tid][id]+=inc;
 }
 
-void Stat::inc_counter(int id, int inc){
-#pragma omp atomic
-  counters[id]+=inc;
-}
-
-void Stat::print_counters(int verb, FILE *out){
-  //fprintf(out, "Total Countes: %d\n", ncounter);
-  for(int i=0; i<ncounter; i++){
-    if(verb>=counter_verb[i])
-      fprintf(out, "Counter %d %s=%ld\n", i, counter_str[i].c_str(), counters[i]);
-  }
-}
-
-int Stat::init_timer(const char *name, int verb){
-  int id = __sync_fetch_and_add(&ntimer, 1);
-
-  timers[id] = 0.0;
-  timer_verb[id] = verb;
-  timer_str.push_back(std::string(name));
-
-  return id;
-}
-
-void Stat::inc_timer(int id, double inc){
-//#pragma omp atomic
-  timers[id] += inc;
-}
-
-void Stat::print_timers(int verb, FILE *out){
-  //fprintf(out, "Total Timers: %d\n", ntimer);
-  for(int i=0; i<ntimer; i++){
-    if(verb>=timer_verb[i])
-      fprintf(out, "Timer %d %s=%g\n", i, timer_str[i].c_str(), timers[i]);
-  }
+void Stat::inc_timer(int tid, int id, double inc){
+  timers[tid][id] += inc;
 }
 
 void Stat::print(int verb, FILE *out){
-  print_counters(verb, out);
-  print_timers(verb, out);
+  for(int i=0; i<tnum; i++){
+    fprintf(out, "%d,", i);
+    for(int j=0;j<ncounter; j++)
+      fprintf(out, "%lu,", counters[i][j]);
+    for(int j=0;j<ntimer;j++)
+      fprintf(out, "%g,", timers[i][j]);
+    fprintf(out, "\n");
+  }
 }
 
 void Stat::clear(){
-  //ncounter = ntimer = 0;
-  //counter_str.clear();
-  //timer_str.clear();
-
-  for(int i=0; i<TIMER_NUM; i++)
-    timers[i]=0.0;
-
+  for(int i=0; i<tnum; i++){
+    for(int j=0; j<ntimer; j++)
+      timers[i][j]=0.0;
+    for(int j=0; j<ncounter; j++)
+      counters[i][j]=0;
+  }
 }

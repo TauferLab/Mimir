@@ -203,7 +203,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
           MAKE_PROGRESS;
 #if GATHER_STAT
           double t2 = omp_get_wtime();
-          st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
+          //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
         }
       }
@@ -269,7 +269,7 @@ void Ptop::twait(int tid){
           MAKE_PROGRESS;
 #if GATHER_STAT
           double t2 = omp_get_wtime();
-          st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
+          //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
       }
     }
@@ -312,7 +312,7 @@ void Ptop::twait(int tid){
           MAKE_PROGRESS;
 #if GATHER_STAT
           double t2 = omp_get_wtime();
-          st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
+          //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
 
     }
