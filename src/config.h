@@ -47,22 +47,13 @@
 #define TIMER_MAP_TWAIT                     4
 #define TIMER_MAP_COMM                      3
 #define TIMER_MAP_LOCK                      5
-
 #define TIMER_REDUCE_CVT                    6
 #define TIMER_REDUCE_KV2U                   7
-#define TIMER_REDUCE_MERGE                  8
-#define TIMER_REDUCE_LCVT                   9
-
-#define TIMER_NUM                          10
-
-//#define TIMER_REDUCE_KV2U                   6
-//#define TIMER_REDUCE_LCVT                   7
-//#define TIMER_REDUCE_MERGE                  8
-//#define TIMER_MAP_ADD                       9
-
-
-//#define COUNTER_COMM_SEND                   0
-//#define COUNTER_MAP_RESULTS                 1
+#define TIMER_REDUCE_U2KMV                  8
+#define TIMER_REDUCE_MERGE                  9
+#define TIMER_REDUCE_LCVT                  10
+#define TIMER_REDUCE_USER                  11
+#define TIMER_NUM                          12
 
 #define COUNTER_FILE_COUNT                  0
 #define COUNTER_KV_NUMS                     1
@@ -73,6 +64,7 @@
 #define COUNTER_UNIQUE_BYTES                6
 #define COUNTER_SET_BYTES                   7
 #define COUNTER_MV_BYTES                    8
-#define COUNTER_NUM                         9
+#define COUNTER_RESULT_BYTES                9
+#define COUNTER_NUM                        10
 
 #endif

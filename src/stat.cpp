@@ -13,11 +13,9 @@ Stat::Stat(int _ntimer, int _ncounter){
 
 #pragma omp parallel
 {
-  //int tid = omp_get_thread_num();
   tnum = omp_get_num_threads();
 }
  
-  //tnum = _tnum;
   ntimer = _ntimer;
   ncounter = _ncounter;
 
@@ -28,6 +26,8 @@ Stat::Stat(int _ntimer, int _ncounter){
     timers[i] = new double[ntimer];
     counters[i] = new uint64_t[ncounter] ;
   }
+
+  clear();
 }
 
 Stat::~Stat(){

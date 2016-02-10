@@ -661,6 +661,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   // sum KV count
   //uint64_t count = 0; 
+  local_kvs_count=0;
   for(int i = 0; i < tnum; i++) local_kvs_count += nitems[i];
 
   MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
@@ -994,7 +995,7 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
 #endif
 
 #if GATHER_STAT
-  st.inc_timer(0, COUNTER_BLOCK_BYTES, (data->nblock)*(data->blocksize));
+  st.inc_counter(0, COUNTER_BLOCK_BYTES, (data->nblock)*(data->blocksize));
 #endif
   
   KeyValue *kv = (KeyValue*)data;
@@ -1040,6 +1041,9 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
   //delete kv;
   //data = kmv;
 
+#if GATHER_STAT
+  st.inc_counter(0, COUNTER_RESULT_BYTES, (data->nblock)*(data->blocksize));
+#endif
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert end.\n", me, nprocs);
 
@@ -1461,10 +1465,18 @@ end:
     GET_KMV_VARS(kv->kvtype, mv_buf, key, keybytes, nvalue, values, valuesizes, mvbytes, kmvsize, kv);
 
     //printf("key=%s, nvalue=%d\n", key, nvalue); fflush(stdout);
-    
+#if GATHER_STAT
+    double t1 = omp_get_wtime();
+#endif   
+ 
     MultiValueIterator *iter = new MultiValueIterator(nvalue,valuesizes,values,kv->kvtype,kv->vsize);
     myreduce(this, key, keybytes, iter, ptr);
     delete iter;
+
+#if GATHER_STAT
+    double t2 = omp_get_wtime();
+    st.inc_timer(tid, TIMER_REDUCE_USER, t2-t1);
+#endif
 
     offset += kmvsize;
   }
@@ -1680,10 +1692,19 @@ end:
     GET_KMV_VARS(kv->kvtype, mv_buf, key, keybytes, nvalue, values, valuesizes, mvbytes, kmvsize, kv);
 
     //printf("key=%s, nvalue=%d\n", key, nvalue); fflush(stdout);
-    
+
+#if GATHER_STAT
+    double t1 = omp_get_wtime();
+#endif    
+
     MultiValueIterator *iter = new MultiValueIterator(nvalue,valuesizes,values,kv->kvtype,kv->vsize);
     myreduce(this, key, keybytes, iter, ptr);
     delete iter;
+
+#if GATHER_STAT
+    double t2 = omp_get_wtime();
+    st.inc_timer(tid, TIMER_REDUCE_USER, t2-t1);
+#endif
 
     offset += kmvsize;
   }
@@ -1719,14 +1740,18 @@ void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u,
       nunique++;
       if(nunique > u->nunique) goto end;
 
-      MultiValueIterator *iter = new MultiValueIterator(ukey, mv);
+#if GATHER_STAT
+     double t1 = omp_get_wtime();
+#endif
 
-      //printf("key=%s\n", ukey->key); fflush(stdout);
-      
+      MultiValueIterator *iter = new MultiValueIterator(ukey, mv);     
       myreduce(this, ukey->key, ukey->keybytes, iter, ptr);
+      delete iter;
 
-      //int kmvsize=threeintlen+ukey->keybytes+ukey->mvbytes;
-      //if(kmv->kmvtype==GeneralKV) kmvsize += (ukey->nvalue)*oneintlen;
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(omp_get_thread_num(), TIMER_REDUCE_USER, t2-t1);
+#endif
 
 #if SAFE_CHECK
       //if(kmvsize > kmv->getblocksize()){
@@ -1834,7 +1859,9 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 #if GATHER_STAT
   double t1 = omp_get_wtime();
 #endif
+
   int isfirst = _kv2unique(tid, kv, u, mv, myreduce, ptr, 1, compress);
+
 #if GATHER_STAT
   double t2 = omp_get_wtime();
   st.inc_timer(tid, TIMER_REDUCE_KV2U, t2-t1);
@@ -1846,17 +1873,19 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   LOG_PRINT(DBG_CVT, "%d KV2Unique end:first=%d\n", tid, isfirst);
 
-  //mv->print();
-
-  //printf("isfirst=%d\n", isfirst);
-
-  if(isfirst) _unique2kmv(tid, kv, u, mv, myreduce, ptr);
-  else if(!compress) _mv2kmv(mv, u, myreduce, ptr);
-
+  if(isfirst){
+    _unique2kmv(tid, kv, u, mv, myreduce, ptr);
 #if GATHER_STAT
-  double t3 = omp_get_wtime();
-  st.inc_timer(tid, TIMER_REDUCE_MERGE, t3-t2);
+    double t3 = omp_get_wtime();
+    st.inc_timer(tid, TIMER_REDUCE_U2KMV, t3-t2);
 #endif
+  }else if(!compress){
+    _mv2kmv(mv, u, myreduce, ptr);
+#if GATHER_STAT
+    double t3 = omp_get_wtime();
+    st.inc_timer(tid, TIMER_REDUCE_MERGE, t3-t2);
+#endif
+  }
 
   tmax_mem_bytes=mv->mem_bytes+u->unique_pool->mem_bytes+u->set_pool->mem_bytes;
 

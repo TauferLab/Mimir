@@ -264,9 +264,18 @@ void Alltoall::twait(int tid){
       continue;
     }
 
+#if GATHER_STAT
+    double tstart = omp_get_wtime();
+#endif
+
     // try to flush local buffer into global bufer
     char *lbuf = local_buffers[tid]+i*lbufsize;
     int goff=fetch_and_add_with_max(&off[i], loff, gbufsize);
+
+#if GATHER_STAT
+    double tstop = omp_get_wtime();
+    st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
+#endif
 
      // copy data to global buffer
      if(goff+loff<=gbufsize){
@@ -325,13 +334,16 @@ void Alltoall::wait(){
    // wait all pending communication
    for(int i = 0; i < nbuf; i++){
      if(reqs[i] != MPI_REQUEST_NULL){
-       MPI_Status st;
-       MPI_Wait(&reqs[i], &st);
+       MPI_Status mpi_st;
+       MPI_Wait(&reqs[i], &mpi_st);
        reqs[i] = MPI_REQUEST_NULL;
        int recvcount = recvcounts[i];
 
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);      
        if(recvcount > 0) {
+#if GATHER_STAT
+         st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
+#endif    
          SAVE_ALL_DATA(i);
          //save_data(i);
        }

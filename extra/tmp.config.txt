@@ -1,4 +1,4 @@
-num_words:1000000
+num_words:100000
 
 num_lines:524288
 
