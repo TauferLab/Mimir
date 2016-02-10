@@ -616,6 +616,9 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   int i;
   while((i=__sync_fetch_and_add(&fp,1))<fcount){
+#if GATHER_STAT
+    st.inc_counter(tid, COUNTER_FILE_COUNT, 1);
+#endif  
     mymap(this,ifiles[i].c_str(), ptr);
   }
 
@@ -657,12 +660,12 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   mode = NoneMode;
 
   // sum KV count
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
+  //uint64_t count = 0; 
+  for(int i = 0; i < tnum; i++) local_kvs_count += nitems[i];
 
-  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+  MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, global_kvs_count);
+  //LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, global_kvs_count);
 
   return global_kvs_count;
 }
@@ -990,6 +993,10 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
   }
 #endif
 
+#if GATHER_STAT
+  st.inc_timer(0, COUNTER_BLOCK_BYTES, (data->nblock)*(data->blocksize));
+#endif
+  
   KeyValue *kv = (KeyValue*)data;
   int kvtype=kv->getKVtype();
 
@@ -1006,7 +1013,14 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
   mode = ReduceMode;
 
   if(!compress){
+#if GATHER_STAT
+    double t1 = MPI_Wtime();
+#endif
     local_kvs_count = _convert_small(kv, myreduce, ptr, 0);
+#if GATHER_STAT
+    double t2 = MPI_Wtime();
+    st.inc_timer(0, TIMER_REDUCE_CVT, t2-t1);
+#endif
     DataObject::subRef(kv);
   }else{
     _convert_small(kv, myreduce, ptr, 1);
@@ -1195,12 +1209,16 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
         LOG_PRINT(DBG_CVT, "%d[%d] T%d Partition %d\n", me, nprocs, tid, pid);
 
+        if(!compress){
 #if GATHER_STAT
-        double t1 = omp_get_wtime();
+          double t1 = omp_get_wtime();
 #endif
-
-        if(!compress)
           _unique2mv(tid, kv, &p, u, mv);
+#if GATHER_STAT
+          double t2 = omp_get_wtime();
+          st.inc_timer(tid, TIMER_REDUCE_LCVT, t2-t1);
+#endif
+        }
         else{
           _unique2kmv(tid, kv, &p, u, mv, myreduce, ptr, shared);
           mv->clear();
@@ -1210,10 +1228,6 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
           u->set_pool->clear();
         }
 
-#if GATHER_STAT
-        double t2 = omp_get_wtime();
-        //if(tid==0) st.inc_timer(TIMER_REDUCE_LCVT, t2-t1);
-#endif
 
         last_blockid=p.end_blockid;
         last_offset=p.end_offset;
@@ -1823,7 +1837,11 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
   int isfirst = _kv2unique(tid, kv, u, mv, myreduce, ptr, 1, compress);
 #if GATHER_STAT
   double t2 = omp_get_wtime();
-  //if(tid==0) st.inc_timer(TIMER_REDUCE_KV2U, t2-t1);
+  st.inc_timer(tid, TIMER_REDUCE_KV2U, t2-t1);
+  st.inc_counter(tid, COUNTER_BUCKET_BYTES, nbucket*sizeof(Unique*));
+  st.inc_counter(tid, COUNTER_UNIQUE_BYTES, (u->unique_pool->nblock)*(u->unique_pool->blocksize));
+  st.inc_counter(tid, COUNTER_SET_BYTES, (u->set_pool->nblock)*(u->set_pool->blocksize));
+  st.inc_counter(tid, COUNTER_MV_BYTES, (mv->nblock)*(mv->blocksize));
 #endif
 
   LOG_PRINT(DBG_CVT, "%d KV2Unique end:first=%d\n", tid, isfirst);
@@ -1837,7 +1855,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
 #if GATHER_STAT
   double t3 = omp_get_wtime();
-  //if(tid==0) st.inc_timer(TIMER_REDUCE_MERGE, t3-t2);
+  st.inc_timer(tid, TIMER_REDUCE_MERGE, t3-t2);
 #endif
 
   tmax_mem_bytes=mv->mem_bytes+u->unique_pool->mem_bytes+u->set_pool->mem_bytes;
@@ -2080,9 +2098,10 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
 #if GATHER_STAT
    double t2 = omp_get_wtime();
    st.inc_timer(tid, TIMER_MAP_SENDKV, t2-t1);
+   st.inc_counter(tid, COUNTER_KV_NUMS, 1);
 #endif
 
-    //nitems[tid]++;
+    nitems[tid]++;
  
     return;
    }else if(mode == MapLocalMode || mode == ReduceMode){

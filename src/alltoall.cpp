@@ -370,8 +370,7 @@ void Alltoall::exchange_kv(){
   }
 
 #if GATHER_STAT
-  //double t2 = omp_get_wtime();
-  //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
+  st.inc_counter(0, COUNTER_SEND_BYTES, sendcount);
 #endif
 
   // exchange kv data
@@ -385,15 +384,17 @@ void Alltoall::exchange_kv(){
   // wait data
   ibuf = (ibuf+1)%nbuf;
   if(reqs[ibuf] != MPI_REQUEST_NULL) {
-    MPI_Status st;
-    MPI_Wait(&reqs[ibuf], &st);
+    MPI_Status mpi_st;
+    MPI_Wait(&reqs[ibuf], &mpi_st);
     reqs[ibuf] = MPI_REQUEST_NULL;
     int recvcount = recvcounts[ibuf];
 
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);
     if(recvcount > 0) {
-     SAVE_ALL_DATA(ibuf);
-      //save_data(ibuf);
+#if GATHER_STAT
+      st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
+#endif    
+      SAVE_ALL_DATA(ibuf);
     }
   }
 

@@ -3,20 +3,20 @@
 
 COMM=0
 
-BLOCK_MIN=1
-BLOCK_MAX=1
+BLOCK_MIN=64
+BLOCK_MAX=64
 
 GBUF_MIN=32
 GBUF_MAX=32
 
 TIMES=1
 
-INPUT_DIR=../extra/100words.txt
-#INPUT_DIR=/scratch/rice/g/gao381/wikipedia/wikipedia_32GB
+#INPUT_DIR=../extra/100words.txt
+INPUT_DIR=/scratch/rice/g/gao381/wikipedia/wikipedia_32GB
 #INPUT_DIR=/usa/taogao/dataset/wikipedia/wikipedia_50GB
 #INPUT_DIR=test.txt
 
-NPROCS=2
+NPROCS=4
 
 module load impi
 cd $PBS_O_WORKDIR
