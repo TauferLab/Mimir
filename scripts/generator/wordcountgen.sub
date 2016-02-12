@@ -1,0 +1,17 @@
+#!/bin/sh -l
+
+DATAHOME=/scratch/rice/g/gao381
+INPUTDIR=words/20GB
+FULLNAME=512M.0.txt
+
+FULLNAME=$DATAHOME/$INPUTDIR/$FULLNAME
+
+cd $PBS_O_WORKDIR
+module load python/2.7.2
+
+python wordcountgen.py tmp.config.txt > $FULLNAME
+
+for((i=1;i<40;i++))
+do
+  cp $FULLNAME $DATAHOME/$INPUTDIR/512M.$i.txt
+done

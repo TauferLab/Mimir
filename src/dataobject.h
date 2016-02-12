@@ -51,7 +51,7 @@ public:
   //int adddata(int, char *, int);
 
 
-  int getblockspace(int blockid){
+  uint64_t getblockspace(int blockid){
     return (blocksize - blocks[blockid].datasize);
   }
 
@@ -74,7 +74,7 @@ public:
     return blocks[blockid].threadid;
   }
 
-  int getblocksize(){
+  uint64_t getblocksize(){
     return blocksize;
   }
   
@@ -110,7 +110,7 @@ public:
 
   // information of block
   struct Block{
-    int       datasize;   // datasize in this block
+    uint64_t       datasize;   // datasize in this block
     int       bufferid;   // buffer id
     int       threadid;   // thread id
   };
@@ -127,10 +127,11 @@ public:
   int     nbuf;
   int     maxbuf;
 
-  int     nitem;       // item count
-  int     blocksize;   // block size
-  int     maxblock;    // max block
-  int64_t maxmemsize;  // max memory size
+  int     nitem;        // item count
+  int     maxblock;     // max block
+
+  uint64_t blocksize;   // block size
+  uint64_t maxmemsize;  // max memory size
 
   // out of core file name
   int id;

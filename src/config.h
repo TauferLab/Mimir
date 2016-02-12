@@ -1,6 +1,9 @@
 #ifndef MTMR_CONFIG_H
 #define MTMR_CONFIG_H
 
+#define UINT_1K_SIZE            1024
+#define UNIT_1M_SIZE     (1024*1024)
+
 // memory
 #define UNIT_SIZE               1024  // 1K
 
@@ -45,15 +48,15 @@
 #define TIMER_MAP_USER                      2
 #define TIMER_MAP_SENDKV                    3
 #define TIMER_MAP_TWAIT                     4
-#define TIMER_MAP_COMM                      3
-#define TIMER_MAP_LOCK                      5
-#define TIMER_REDUCE_CVT                    6
-#define TIMER_REDUCE_KV2U                   7
-#define TIMER_REDUCE_U2KMV                  8
-#define TIMER_REDUCE_MERGE                  9
-#define TIMER_REDUCE_LCVT                  10
-#define TIMER_REDUCE_USER                  11
-#define TIMER_NUM                          12
+#define TIMER_MAP_COMM                      5
+#define TIMER_MAP_LOCK                      6
+#define TIMER_REDUCE_CVT                    7
+#define TIMER_REDUCE_KV2U                   8
+#define TIMER_REDUCE_U2KMV                  9
+#define TIMER_REDUCE_MERGE                 10
+#define TIMER_REDUCE_LCVT                  11
+#define TIMER_REDUCE_USER                  12
+#define TIMER_NUM                          13
 
 #define COUNTER_FILE_COUNT                  0
 #define COUNTER_KV_NUMS                     1

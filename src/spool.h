@@ -56,7 +56,7 @@ public:
 
 public:
   int nblock;
-  int blocksize;
+  uint64_t blocksize;
 
   char **blocks;
   int maxblocks;

@@ -1891,6 +1891,8 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   delete mv;
 
+  //printf("T%d: %ld\n", tid, u->nunique);
+
   nitems[tid] = u->nunique;
 
   delete [] u->ubucket;
@@ -1908,6 +1910,8 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
   uint64_t nunique=0;
   for(int i=0; i<tnum; i++)
     nunique += nitems[i];
+
+  //printf("nunique=%d, tnum=%d\n", nunique, tnum);
 
   return nunique;
 

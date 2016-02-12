@@ -281,7 +281,7 @@ private:
 
     uint64_t _get_kv_count(){
       local_kvs_count=0;
-      for(int i=0; i<tnum; i++) local_kvs_count=nitems[i];
+      for(int i=0; i<tnum; i++) local_kvs_count+=nitems[i];
       MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
       return  global_kvs_count;
     }
