@@ -73,7 +73,7 @@ DataObject::DataObject(
 
   id = DataObject::oid++;
 
-  printf("CreateObject: id=%d, type=%d\n", id, datatype);
+  //printf("CreateObject: id=%d, type=%d\n", id, datatype);
 
   omp_init_lock(&lock_t);
 

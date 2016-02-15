@@ -1140,12 +1140,12 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
   char *ubuf=u->unique_pool->addblock();
   char *ubuf_end=ubuf+u->unique_pool->blocksize;
 
-  printf("ubuf_end-ubuf: %ld\n", ubuf_end-ubuf);
+  //printf("ubuf_end-ubuf: %ld\n", ubuf_end-ubuf);
   //printf("") 
 
   Set *sets=NULL, *pset = NULL;
 
-  printf("nblock=%d\n", kv->nblock);
+  //printf("nblock=%d\n", kv->nblock);
 
   // scan all KVs
   for(int i=0; i<kv->nblock; i++){
@@ -1220,7 +1220,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 #endif
           _unique2mv(tid, kv, &p, u, mv);
 
-          printf("mv nblock=%d\n", mv->nblock);
+          //printf("mv nblock=%d\n", mv->nblock);
 
 #if GATHER_STAT
           double t2 = omp_get_wtime();
@@ -1256,7 +1256,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
         //printf("ubuf_end-ubuf: %ld\n", ubuf_end-ubuf);
 
         if(ubuf_end-ubuf<ukeyoffset+keybytes){
-          printf("add a new unique buffer! ubuf_end-ubuf=%ld\n", ubuf_end-ubuf); fflush(stdout);
+          //printf("add a new unique buffer! ubuf_end-ubuf=%ld\n", ubuf_end-ubuf); fflush(stdout);
           memset(ubuf, 0, ubuf_end-ubuf);
           ubuf=u->unique_pool->addblock();
           ubuf_end=ubuf+u->unique_pool->blocksize;
@@ -1325,7 +1325,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
     }// end while
 
-    printf("i=%d, nset=%d, mv nblock=%d\n", i, u->nset, mv->nblock);
+    //printf("i=%d, nset=%d, mv nblock=%d\n", i, u->nset, mv->nblock);
 
     kv->releaseblock(i);
   }// end For
@@ -1339,7 +1339,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
     p.start_set=last_set;
     p.end_set=u->nset;
 
-    printf("last partition! mv block=%d\n", mv->nblock); fflush(stdout);
+    //printf("last partition! mv block=%d\n", mv->nblock); fflush(stdout);
 
     if(!compress)
       _unique2mv(tid, kv, &p, u, mv);
@@ -1363,6 +1363,7 @@ void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,
   //DEFINE_KV_VARS; 
   char *key, *value;
   int keybytes, valuebytes, kvsize;
+ 
   char *kvbuf;
 
   int mv_block_id=mv->addblock();
@@ -1504,7 +1505,7 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
 
   //DEFINE_KV_VARS;
 
-  printf("unique2mv: addblock, [%d,%d]->[%d,%d]  mv=%d\n", p->start_blockid, p->start_offset, p->end_blockid, p->end_offset, mv->nblock);
+  //printf("unique2mv: addblock, [%d,%d]->[%d,%d]  mv=%d\n", p->start_blockid, p->start_offset, p->end_blockid, p->end_offset, mv->nblock);
 
   int mv_blockid=mv->addblock();
   //printf("mvblockid=%d\n", mv_blockid);
@@ -1862,7 +1863,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
-  printf("nmaxblock=%d\n", nmaxblock);
+  //printf("nmaxblock=%d\n", nmaxblock);
 
   DataObject *mv = NULL;
   mv = new DataObject(ByteType, 
