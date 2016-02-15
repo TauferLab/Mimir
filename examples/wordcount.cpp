@@ -17,9 +17,9 @@ void output(const char *filename, MapReduce *mr);
 int me, nprocs;
 
 int commmode=0;
-int blocksize=512;
-int gbufsize=32;
-int lbufsize=16;
+int blocksize=1;
+int gbufsize=1;
+int lbufsize=1;
 
 uint64_t nword, nunique;
 double t1, t2, t3;

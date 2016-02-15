@@ -20,21 +20,23 @@ public:
   ~Spool();
 
   char *addblock(){
-    
-    //printf("blocksize=%d\n", blocksize); fflush(stdout);
-    
-    blocks[nblock] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
+    char *buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
     mem_bytes += blocksize;
 
-    //printf("blocksize=%d\n", blocksize); fflush(stdout);
-
 #if SAFE_CHECK
-    if(blocks[nblock]==NULL){
+    if(buf==NULL){
       LOG_ERROR("%s", "Error: malloc memory for block error!\n");
     }
 #endif
-    //printf("create block %d: %p\n",nblock, blocks[nblock]); fflush(stdout);
-    return blocks[nblock++];
+
+    blocks[nblock] = buf;
+    nblock++;
+
+    if(nblock >= maxblocks){
+      LOG_ERROR("Error: spool buffer is larger than the max blocks %d\n", maxblocks);
+    }
+
+    return buf;
   }
 
   int getblocksize(){

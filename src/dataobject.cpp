@@ -73,6 +73,8 @@ DataObject::DataObject(
 
   id = DataObject::oid++;
 
+  printf("CreateObject: id=%d, type=%d\n", id, datatype);
+
   omp_init_lock(&lock_t);
 
   mem_bytes=0;
@@ -312,7 +314,8 @@ int DataObject::addblock(){
   //}
 
   if(blockid >= maxblock){
-    LOG_ERROR("Error: block count is larger than max number %d!\n", maxblock);
+    int tid = omp_get_thread_num();
+    LOG_ERROR("Error: block count is larger than max number %d, id=%d, tid=%d!\n", maxblock, id, tid);
     return -1;
   }
 
@@ -336,7 +339,7 @@ int DataObject::addblock(){
     }
     
     if(!buffers[blockid].buf){
-      LOG_ERROR("Error: malloc memory for data object failed (block count=%d, block size=%d)!\n", nblock, blocksize);
+      LOG_ERROR("Error: malloc memory for data object failed (block count=%d, block size=%ld)!\n", nblock, blocksize);
       return -1;
     }
 
@@ -440,7 +443,7 @@ int DataObject::addbytes(int blockid, char *buf, int len){
   char *blockbuf = buffers[bufferid].buf;
 
   if(len + blocks[blockid].datasize > blocksize){
-    LOG_ERROR("Error: added data (%d) is larger than block size (blockid=%d, tail=%d, blocksize=%d)!\n", len, blockid, blocks[blockid].datasize, blocksize);
+    LOG_ERROR("Error: added data (%d) is larger than block size (blockid=%d, tail=%ld, blocksize=%ld)!\n", len, blockid, blocks[blockid].datasize, blocksize);
     return -1;
   }
 
@@ -458,7 +461,7 @@ void DataObject::print(int type, FILE *fp, int format){
   printf("nblock=%d\n", nblock);
   for(int i = 0; i < nblock; i++){
     acquireblock(i);
-    fprintf(fp, "block %d, datasize=%d:", i, blocks[i].datasize);
+    fprintf(fp, "block %d, datasize=%ld:", i, blocks[i].datasize);
     for(int j=0; j < blocks[i].datasize; j++){
       if(j % line == 0) fprintf(fp, "\n");
       int bufferid = blocks[i].bufferid;
