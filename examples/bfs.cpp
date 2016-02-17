@@ -11,8 +11,8 @@
 using namespace MAPREDUCE_NS;
 
 int commmode=0;
-int blocksize=64;
-int gbufsize=32;
+int blocksize=1;
+int gbufsize=1;
 int lbufsize=16;
 
 
@@ -136,12 +136,14 @@ int main(int narg, char **args)
   // set hash function
   mr->set_hash(mypartition_str);
 
+#if 0
   mr->set_localbufsize(lbufsize);
   mr->set_globalbufsize(gbufsize*1024);
   mr->set_blocksize(blocksize*1024); 
   mr->set_maxmem(32*1024*1024);
   mr->set_commmode(commmode);
   mr->set_outofcore(0);
+#endif
 
   if(me==0) { fprintf(stdout, "make CSR graph start.\n"); fflush(stdout);}
 
@@ -156,23 +158,7 @@ int main(int narg, char **args)
   uint64_t nedges = mr->map(args[2],1,0,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
-  double g_t2=MPI_Wtime();
-
-  //mr->output();
-
-  //printf("end map\n"); fflush(stdout);
-
-  // convert edge list to kmv
-  //printf("convert start.\n");fflush(stdout);
-  //mr->convert();
-
-  double g_t3=MPI_Wtime();
-
-  //printf("convert end.\n");fflush(stdout);
-
-  //printf("end convert\n"); fflush(stdout);
-
-  //mr->output();
+  mr->output();
 
   // initialize CSR structure
   g->rowstarts = new size_t[g->nlocalverts+1]; 
@@ -196,35 +182,12 @@ int main(int narg, char **args)
 
   double g_t4=MPI_Wtime();
 
- // mr->output();
-
   // begin to make CSR graph
   mr->reduce(makegraph,0,&bfs_st);
 
   double g_t5=MPI_Wtime();
 
-  //printf("end reduce"); 
-  //fflush(stdout);
-
   delete [] g->rowinserts;
-
-#if 0
-  if(me==0) {
-    fprintf(stdout, "make CSR graph end.\n");
-    double tpar=mr->get_timer(TIMER_MAP_PARALLEL);
-    double tsendkv=mr->get_timer(TIMER_MAP_SENDKV);
-    double tserial=mr->get_timer(TIMER_MAP_SERIAL);
-    double twait=mr->get_timer(TIMER_MAP_TWAIT);
-    double tkv2u=mr->get_timer(TIMER_REDUCE_KV2U);
-    double lcvt=mr->get_timer(TIMER_REDUCE_LCVT);
-    fprintf(stdout, "%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
-      g_t5-g_t1, g_t2-g_t1, g_t3-g_t2, g_t4-g_t3,g_t5-g_t4, \
-      tpar, mr->get_timer(TIMER_MAP_WAIT),
-      tpar-tsendkv-twait, tsendkv-tserial, tserial, twait,
-      mr->get_timer(TIMER_MAP_LOCK),
-      tkv2u-lcvt, lcvt, mr->get_timer(TIMER_REDUCE_MERGE));
-  }
-#endif
 
   int64_t *visit_roots = new int64_t[TEST_TIMES];
 
@@ -234,7 +197,7 @@ int main(int narg, char **args)
   }
 
   // print graph
-  //printgraph(g);
+  printgraph(g);
 
   // begin do traversal
   int bitmapsize = (g->nlocalverts + LONG_BITS - 1) / LONG_BITS;
@@ -245,20 +208,13 @@ int main(int narg, char **args)
 
 
   if(me==0) {
-    fprintf(stdout, "BFS traversal start.\n");
-        
-    //fprintf(stdout, "%g,%g,%g,%g,%g,\n", \
-           mr->get_timer(TIMER_COMM),\
-           mr->get_timer(TIMER_ISEND),\
-           mr->get_timer(TIMER_CHECK),\
-           mr->get_timer(TIMER_LOCK),\
-           mr->get_timer(TIMER_SYN));
+    fprintf(stdout, "BFS traversal start.\n");        
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
 
   //int ksize = (int)sizeof(int64_t);
-  mr->set_blocksize(32*1024); 
+  //mr->set_blocksize(32*1024); 
   mr->set_hash(mypartition_int);
 
   int test_count = 0;
@@ -284,45 +240,32 @@ int main(int narg, char **args)
     uint64_t count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
 
+    mr->output(2);
+
     int level = 0;
     do{
       double t1 = MPI_Wtime();
 
 #ifndef BFS_MM
-
-      //printf("before convert:\n");
-      //mr->output(2);
-      //mr->convert();
-      //printf("after convert:\n");
-      //mr->output(2);
-
       double t2 = MPI_Wtime();
-
-      //printf("begin reduce:\n");
-      //mr->set_KVtype(FixedKV, ksize, 0);
+      mr->output(2);
       mr->reduce(shrink, 0, &bfs_st);
 #else
       double t2 = MPI_Wtime();
-      //mr->setKVtype(FixedKV, ksize, 0);
       mr->map_local(mr, shrink_mm, &bfs_st);
 #endif
 
       double t3 = MPI_Wtime();
       
-      //printf("%d new communication\n", me);
-      //mr->set_KVtype(FixedKV, ksize, ksize);
       nactives[level] = mr->map(mr, expand, &bfs_st);
 
-      //printf("actives=%d\n", nactives[level]); fflush(stdout);
+      printf("actives=%d\n", nactives[level]); fflush(stdout);
 
       double t4 = MPI_Wtime();
 
       map_t += (t4-t3);
       convert_t += (t2-t1);
       reduce_t += (t3-t2);
-
-      //printf("map:\n");
-      //mr->output(2);
 
       level++;
     }while(nactives[level-1]);
@@ -443,9 +386,6 @@ int mypartition_int(char *key, int keybytes){
 }
 
 void fileread(MapReduce *mr, const char *fname, void *ptr){
-  //int tid = omp_get_thread_num();
-  //printf("P%dT%d input file=%s\n", me, tid, fname);
-
   bfs_state *st = (bfs_state*)ptr;
   csr_graph *g = &(st->g);
 
@@ -470,9 +410,10 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   int linesize;
 
   while(line && line[0]!='\0'){
-    // replace '\n' with '\0'
+
     char *p = strchr(line, '\n');
     if(p) p[0]='\0';
+
     // get line size
     linesize = strlen(line)+1;
 
@@ -495,12 +436,13 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
       exit(1);
     }
 
+    printf("%s,%s\n", v0, v1);
+
     if(strcmp(v0, v1) == 0){
       line += linesize;
       continue;
     }
 
-    //printf("%s,%s,%s\n", v0, v1, val);
     mr->add(v0, strlen(v0)+1, v1, strlen(v1)+1);
     mr->add(v1, strlen(v1)+1, v0, strlen(v0)+1);    
 
@@ -511,34 +453,28 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
 }
 
 void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
-//}
-//void makegraph(MapReduce *mr, char *key, int keybytes, int nvalues,char *multivalue,  int *valuebytes, void *ptr){
- // printf("key=%s, multivalue=%s\n", key, multivalue);
-
   // get graph strcuture
   bfs_state *st = (bfs_state*)ptr;
   csr_graph *g = &(st->g);
 
   int64_t v0, v0_local, v1;
   const char *value;
-  //int offset=0;
 
   v0 = atoi(key)-1;
   v0_local = v0 % (g->nlocalverts);  
 
-  //printf("key=%s\n", key);
+  //printf("count=%d\n", iter->getCount());
 
   // different threads handle different vertex
   for(iter->Begin(); !iter->Done(); iter->Next()){
-  //for(int i = 0; i < nvalues;i++){
+
     value=iter->getValue();
-    //value = multivalue+offset;
-    //printf("value=%s\n", value);
+
+    printf("key=%s, value=%s\n", key, value);
+
     v1 = atoi(value)-1;
     g->columns[g->rowstarts[v0_local]+g->rowinserts[v0_local]] = v1;
     g->rowinserts[v0_local]++;
-    //offset += valuebytes[i];
-    //offset += iter->getValueSize();
   }
 }
 
@@ -601,7 +537,7 @@ void shrink(MapReduce *mr, char *key, int keybytes,  MultiValueIterator *iter, v
   //iter->Begin();
 
   int64_t v0 = *(int64_t*)iter->getValue();
- 
+
   if(!TEST_VISITED(v_local, st->vis)){  
     if(SET_VISITED(v_local, st->vis)==0){
       //printf("key=%s, keybytes=%d\n", key, keybytes);

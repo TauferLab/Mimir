@@ -271,7 +271,7 @@ private:
     void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
 
-    void _mv2kmv(DataObject *,UniqueInfo *,
+    void _mv2kmv(DataObject *,UniqueInfo *,int,
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
 
 
@@ -301,14 +301,18 @@ public:
     Begin();
   }
 
-  MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv){
-    ukey=_ukey;
+  MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv, int _kvtype){
     mv=_mv;
-    pset=NULL;
+    ukey=_ukey;
 
     nvalue=ukey->nvalue;
+    kvtype=_kvtype;
+    vsize=mv->vsize;
+    pset=NULL;
 
     mode=1;
+
+    //printf("haha!"); fflush(stdout);
 
     Begin();
   }
@@ -329,11 +333,13 @@ public:
       if(mode==1){
          pset=ukey->firstset;
 
+         //printf("set: pid=%d, nvale=%d, s_off=%d, v_off=%d\n", pset->pid, pset->nvalue, pset->s_off, pset->v_off);
+
          mv->acquireblock(pset->pid);
          char *tmpbuf = mv->getblockbuffer(pset->pid);
          pset->soffset = (int*)(tmpbuf + pset->s_off);
-         pset->voffset = tmpbuf + pset->v_off;
-         
+         pset->voffset = tmpbuf + pset->v_off;        
+ 
          valuebytes=pset->soffset;
          values=pset->voffset;
 
@@ -343,11 +349,14 @@ public:
       if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
       else if(kvtype==1) valuesize=strlen(value)+1;
       else if(kvtype==2) valuesize=vsize;
-    }
+   }
   }
 
   void Next(){
     ivalue++;
+
+    //printf("ivalue=%d, nvalue=%d, value_end=%d\n", ivalue, nvalue, value_end);
+
     if(ivalue >= nvalue) {
       isdone=1;
       if(mode==1 && pset){
@@ -359,15 +368,21 @@ public:
         mv->releaseblock(pset->pid);
         pset=pset->next;
 
+        //printf("set: pid=%d, nvale=%d, s_off=%d, v_off=%d\n", pset->pid, pset->nvalue, pset->s_off, pset->v_off);
+
         mv->acquireblock(pset->pid);
         char *tmpbuf = mv->getblockbuffer(pset->pid);
         pset->soffset = (int*)(tmpbuf + pset->s_off);
         pset->voffset = tmpbuf + pset->v_off;
+
         valuebytes=pset->soffset;
         values=pset->voffset;
+
+        value=values;
         value_end+=pset->nvalue;
+      }else{
+        value+=valuesize;
       }
-      value+=valuesize;
       if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
       else if(kvtype==1) valuesize=strlen(value)+1;
       else if(kvtype==2) valuesize=vsize;
