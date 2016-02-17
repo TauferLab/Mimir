@@ -247,6 +247,9 @@ void Alltoall::twait(int tid){
     
     // check communication
     if(switchflag != 0){
+#if GATHER_STAT
+      double t1 = omp_get_wtime();
+#endif
 #pragma omp barrier
       int flag;
       MPI_Is_thread_main(&flag);
@@ -255,6 +258,10 @@ void Alltoall::twait(int tid){
         switchflag=0;
       }
 #pragma omp barrier
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMM, t2-t1);
+#endif
     }
     
     int   loff = local_offsets[tid][i];
@@ -297,6 +304,9 @@ void Alltoall::twait(int tid){
   // wait other threads
   do{
     if(switchflag != 0){
+#if GATHER_STAT
+      double t1 = omp_get_wtime();
+#endif
 #pragma omp barrier
       int flag;
       MPI_Is_thread_main(&flag);
@@ -305,6 +315,10 @@ void Alltoall::twait(int tid){
         switchflag=0;
       }
 #pragma omp barrier
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMM, t2-t1);
+#endif
     }
   }while(tdone < tnum);
 

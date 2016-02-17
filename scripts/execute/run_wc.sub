@@ -2,13 +2,15 @@
 
 DATAHOME=/scratch/rice/g/gao381
 
-NPROCS=64
-INPUT=words/320GB
+NPROCS=4
+INPUT=words/20GB
+#INPUT=wikipedia/wikipedia_50GB
 NTHRS=10
-NOTIFY=1
+NOTIFY=0
 COMPILE=0
+TIMES=1
 
 cd $PBS_O_WORKDIR
 
-./run_mpi.sh $NPROCS $NTHRS $NOTIFY $COMPILE wordcount $DATAHOME/$INPUT
+./run_mpi.sh $NPROCS $NTHRS $NOTIFY $COMPILE $TIMES wordcount $DATAHOME/$INPUT
 

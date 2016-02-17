@@ -21,7 +21,7 @@
 //#define KEY_COUNT           (4194304)
 
 // convert
-#define BUCKET_SIZE               12
+#define BUCKET_SIZE               22
 
 // type 
 #define KV_TYPE                    0

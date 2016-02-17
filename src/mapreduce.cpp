@@ -2316,19 +2316,20 @@ void MapReduce::bind_threads(){
   }
 
   if(show_binding){
-    printf("Process count=%d, thread count=%d\n", nprocs, tnum);   
-
     CPU_ZERO(&mask);
 
     sched_getaffinity(0, sizeof(mask), &mask);
-    for(int i=0; i<PCS_PER_NODE*THS_PER_PROC; i++){
+    for(int i=0; i<PCS_PER_NODE*THS_PER_PROC*2; i++){
       if(CPU_ISSET(i, &mask)){
         printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
       }
     }
   }
 }
- 
+
+  if(show_binding){
+    printf("Process count=%d, thread count=%d\n", nprocs, tnum);   
+  }
 }
 
 // thread init

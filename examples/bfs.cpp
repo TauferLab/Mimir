@@ -11,12 +11,12 @@
 using namespace MAPREDUCE_NS;
 
 int commmode=0;
-int blocksize=32;
-int gbufsize=16;
+int blocksize=64;
+int gbufsize=32;
 int lbufsize=16;
 
 
-#define TEST_TIMES 10
+#define TEST_TIMES 1
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -98,11 +98,6 @@ int main(int narg, char **args)
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
-  // create log file
-  //char logfile[10];
-  //sprintf(logfile, "log.%d.%d", me, nprocs);
-  //FILE *fp = fopen(logfile, "w");
-
   // set vertex count
   csr_graph *g = &bfs_st.g;
   g->lg_nglobalverts = atoi(args[1]);
@@ -140,18 +135,13 @@ int main(int narg, char **args)
 
   // set hash function
   mr->set_hash(mypartition_str);
+
   mr->set_localbufsize(lbufsize);
   mr->set_globalbufsize(gbufsize*1024);
   mr->set_blocksize(blocksize*1024); 
   mr->set_maxmem(32*1024*1024);
   mr->set_commmode(commmode);
   mr->set_outofcore(0);
-
-  //mr->set_KVtype(StringKV);
-
-  //mr->setGlobalbufsize(16);
-  //mr->setBlocksize(64*1024);
-  //mr->setOutofcore(1);
 
   if(me==0) { fprintf(stdout, "make CSR graph start.\n"); fflush(stdout);}
 
@@ -430,9 +420,9 @@ int main(int narg, char **args)
 
   delete mr;
 
-  if(me==0){
-    fclose(rf);
-  }
+  //if(me==0){
+  //  fclose(rf);
+  //}
 
   // close log file
   //fclose(fp);

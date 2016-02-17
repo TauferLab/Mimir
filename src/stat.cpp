@@ -50,11 +50,11 @@ void Stat::inc_timer(int tid, int id, double inc){
 
 void Stat::print(int verb, FILE *out){
   for(int i=0; i<tnum; i++){
-    fprintf(out, "%d,", i);
+    fprintf(out, "%d", i);
     for(int j=0;j<ncounter; j++)
-      fprintf(out, "%lu,", counters[i][j]);
+      fprintf(out, ",%lu", counters[i][j]);
     for(int j=0;j<ntimer;j++)
-      fprintf(out, "%g,", timers[i][j]);
+      fprintf(out, ",%g", timers[i][j]);
     fprintf(out, "\n");
   }
 }

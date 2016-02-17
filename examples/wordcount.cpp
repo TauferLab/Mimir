@@ -17,9 +17,9 @@ void output(const char *filename, MapReduce *mr);
 int me, nprocs;
 
 int commmode=0;
-int blocksize=1;
-int gbufsize=1;
-int lbufsize=1;
+int blocksize=512;
+int gbufsize=32;
+int lbufsize=16;
 
 uint64_t nword, nunique;
 double t1, t2, t3;
@@ -123,10 +123,15 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 }
 
 void output(const char *filename, MapReduce *mr){
-   char tmp[1000];
-   sprintf(tmp, "%s.%d.%d.%d.%d.%d.%d.csv", filename, lbufsize, gbufsize, blocksize, commmode, me, nprocs);
-   FILE *fp = fopen(tmp, "w");
-   fprintf(fp, "%ld,%ld,%g,%g,%g,\n", nword, nunique, t3-t1, t2-t1, t3-t2);
-   mr->show_stat(0, fp);
-   fclose(fp);
+  char tmp[1000];
+  
+  sprintf(tmp, "%s.%d.%d.%d.%d.P.%d.%d.csv", filename, lbufsize, gbufsize, blocksize, commmode, nprocs, me);
+  FILE *fp = fopen(tmp, "a+");
+  fprintf(fp, "%ld,%ld,%g,%g,%g\n", nword, nunique, t3-t1, t2-t1, t3-t2);
+  fclose(fp);
+
+  sprintf(tmp, "%s.%d.%d.%d.%d.T.%d.%d.csv", filename, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
+  fp = fopen(tmp, "a+");
+  mr->show_stat(0, fp);
+  fclose(fp);
 }
