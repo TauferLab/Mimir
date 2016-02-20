@@ -263,7 +263,7 @@ private:
     
     int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *,
-      int shared=1, int compress=0);
+      int shared=1);
 
     void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
     void _unique2kmv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, 
@@ -275,9 +275,9 @@ private:
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
 
 
-    uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int);
-    uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int);
-    uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int);
+    uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+    uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+    uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
 
     uint64_t _get_kv_count(){
       local_kvs_count=0;

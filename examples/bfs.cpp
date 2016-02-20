@@ -158,7 +158,7 @@ int main(int narg, char **args)
   uint64_t nedges = mr->map(args[2],1,0,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
-  mr->output();
+  //mr->output();
 
   // initialize CSR structure
   g->rowstarts = new size_t[g->nlocalverts+1]; 
@@ -183,7 +183,7 @@ int main(int narg, char **args)
   double g_t4=MPI_Wtime();
 
   // begin to make CSR graph
-  mr->reduce(makegraph,0,&bfs_st);
+  mr->reduce(makegraph, 1, &bfs_st);
 
   double g_t5=MPI_Wtime();
 
@@ -240,7 +240,7 @@ int main(int narg, char **args)
     uint64_t count = mr->map(rootvisit, &bfs_st);
     if(count == 0) continue;
 
-    mr->output(2);
+    //mr->output(2);
 
     int level = 0;
     do{
@@ -248,7 +248,7 @@ int main(int narg, char **args)
 
 #ifndef BFS_MM
       double t2 = MPI_Wtime();
-      mr->output(2);
+      //mr->output(2);
       mr->reduce(shrink, 0, &bfs_st);
 #else
       double t2 = MPI_Wtime();
@@ -436,7 +436,7 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
       exit(1);
     }
 
-    printf("%s,%s\n", v0, v1);
+    //printf("%s,%s\n", v0, v1);
 
     if(strcmp(v0, v1) == 0){
       line += linesize;

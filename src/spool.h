@@ -49,7 +49,6 @@ public:
 
   void clear(){
     for(int i=0; i<nblock;i++){
-      //printf("delete block %d: %p\n", i, blocks[i]); fflush(stdout);
       free(blocks[i]);
       blocks[i]=NULL;
     }
