@@ -251,13 +251,13 @@ private:
     };
 #endif
 
-
     int thashmask, uhashmask;
  
     int ualign, ualignm;
     int nbucket, nset;
     int ukeyoffset;
 
+    // funcstion used in reduce
     MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre);
     void _unique2set(UniqueInfo *);
     
@@ -265,19 +265,22 @@ private:
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *,
       int shared=1);
 
+    
     void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
-    void _unique2kmv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, 
-      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
     void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
 
     void _mv2kmv(DataObject *,UniqueInfo *,int,
       void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
 
-
     uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
     uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
     uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+
+    //uint64_t _kv2unique_block(char *, UniqueInfo *);
+    //uint64_t _unique2kmv_block(char *, UniqueInfo *, char *);
+    
+    uint64_t _convert_compress(KeyValue *, void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), void*);
 
     uint64_t _get_kv_count(){
       local_kvs_count=0;

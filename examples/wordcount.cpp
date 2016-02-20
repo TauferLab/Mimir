@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#if 1
+#if 0
   mr->set_localbufsize(lbufsize);
   mr->set_globalbufsize(gbufsize*1024);
   mr->set_blocksize(blocksize*1024);
@@ -71,11 +71,13 @@ int main(int argc, char *argv[])
 
   t2 = MPI_Wtime();
 
-  nunique = mr->reduce(countword, 0, NULL);
+  nunique = mr->reduce(countword, 1, NULL);
   
   t3 = MPI_Wtime();
 
   MPI_Barrier(MPI_COMM_WORLD);
+
+  mr->output();
 
   output("wc", mr);
  
@@ -103,13 +105,14 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   text[nchar] = '\0';
   fclose(fp);
 
+  char one[10]={"1"};
   char *saveptr = NULL;
   char whitespace[20] = " \n";
   char *word = strtok_r(text,whitespace,&saveptr);
   while (word) {
     int len=strlen(word)+1;
     if(len <= 8192)
-      mr->add(word,len,NULL,0);
+      mr->add(word,len,one,2);
     word = strtok_r(NULL,whitespace,&saveptr);
   }
 
@@ -117,9 +120,18 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
 }
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
-  char count[100];
-  sprintf(count, "%d", iter->getCount());
-  mr->add(key, keysize, count, strlen(count)+1);
+  uint64_t count=0;
+  
+  for(iter->Begin(); !iter->Done(); iter->Next()){
+    count+=atoi(iter->getValue());
+  }
+  
+  char count_str[100];
+  sprintf(count_str, "%lu", count);
+
+  printf("add: key=%s,count_str=%s\n", key, count_str);
+
+  mr->add(key, keysize, count_str, strlen(count_str)+1);
 }
 
 void output(const char *filename, MapReduce *mr){
