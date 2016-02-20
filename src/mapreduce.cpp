@@ -141,7 +141,7 @@ MapReduce::~MapReduce()
  * return:
  *   global KV count
  */
-uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
+uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr, int _comm){
 
   // create data object
   DataObject::subRef(data);
@@ -156,15 +156,18 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
   DataObject::addRef(data);
   kv->setKVsize(ksize,vsize);
 
-  // create communicator
-  if(commmode==0)
-    c = new Alltoall(comm, tnum);
-  else if(commmode==1)
-    c = new Ptop(comm, tnum);
-  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-  c->init(kv);
-
-  mode = MapMode;
+  if(_comm){
+    // create communicator
+    if(commmode==0)
+      c = new Alltoall(comm, tnum);
+    else if(commmode==1)
+      c = new Ptop(comm, tnum);
+    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+    c->init(kv);
+    mode = MapMode;
+  }else{
+    mode = MapLocalMode;
+  }
 
   // begin traversal
 #pragma omp parallel
@@ -178,82 +181,19 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr){
     mymap(this, ptr);
   
   // wait all threads quit
-  c->twait(tid);
+  if(_comm) c->twait(tid);
 }
   // wait all processes done
-  c->wait();
-  local_kvs_count=c->get_recv_KVs();
+  if(_comm){
+    c->wait();
+    delete c;
+    c = NULL;
+  }
 
   mode = NoneMode;
 
-  if(c->mem_bytes+data->mem_bytes>max_mem_bytes)
-    max_mem_bytes=(c->mem_bytes+data->mem_bytes);
-
-  // destroy communicator
-  send_bytes+=c->send_bytes;
-  recv_bytes+=c->recv_bytes;
-  delete c;
-  c = NULL;
-
-  // sum kv count
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
-
-  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  return global_kvs_count;
+  return _get_kv_count();
 }
-
-/*
- * map_local: (no input) 
- * arguments:
- *   mymap: user defined map function
- *   ptr:   user defined pointer
- * return:
- *   local KV count
- */
-uint64_t MapReduce::map_local(void (*mymap)(MapReduce *, void *), void* ptr){
-  // create data object
-  //if(data) delete data;
-  
-  DataObject::subRef(data);
-
-  KeyValue *kv = new KeyValue(kvtype, 
-                              blocksize, 
-                              nmaxblock, 
-                              maxmemsize, 
-                              outofcore, 
-                              tmpfpath);
-  data=kv;
-  DataObject::addRef(data);
-  kv->setKVsize(ksize, vsize);
-
-  mode = MapLocalMode;
-
-
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-  tinit(tid);
-  // FIXME: should invoke mymap in each thread?
-  if(tid == 0)
-    mymap(this, ptr);
-}
-
-  mode = NoneMode;
-
-  if(data->mem_bytes>max_mem_bytes)
-    max_mem_bytes=data->mem_bytes;
-
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
-
-  local_kvs_count=count;
-  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  return global_kvs_count;
-}
-
 
 /*
  * map: (files as input, main thread reads files)
@@ -268,7 +208,9 @@ uint64_t MapReduce::map_local(void (*mymap)(MapReduce *, void *), void* ptr){
  *  global KV count
  */
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
-    char *whitespace, void (*mymap) (MapReduce *, char *, void *), void *ptr){
+    char *whitespace, void (*mymap) (MapReduce *, char *, void *), void *ptr, int _comm){
+
+  printf("map begin"); fflush(stdout);
 
   //LOG_ERROR("%s", "map (files as input, main thread reads files) has been implemented!\n");
   // create data object
@@ -288,15 +230,19 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   // create communicator
   //c = new Alltoall(comm, tnum);
-  if(commmode==0)
-    c = new Alltoall(comm, tnum);
-  else if(commmode==1)
-    c = new Ptop(comm, tnum);
+  if(_comm){
+    if(commmode==0)
+      c = new Alltoall(comm, tnum);
+    else if(commmode==1)
+      c = new Ptop(comm, tnum);
 
-  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-  c->init(kv);
+    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+    c->init(kv);
 
-  mode = MapMode;
+    mode = MapMode;
+  }else{
+    mode = MapLocalMode;
+  }
 
   if(strlen(whitespace) == 0){
     LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
@@ -394,162 +340,17 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
-  c->twait(tid) ;     
+  if(_comm) c->twait(tid) ;     
 }
+ if(_comm){
    c->wait();
-   local_kvs_count=c->get_recv_KVs();
+   delete c;
+   c = NULL;
+ }
 
-   mode = NoneMode;
+ mode = NoneMode;
 
-  if(c->mem_bytes+data->mem_bytes+input_buffer_size>max_mem_bytes)
-    max_mem_bytes=(c->mem_bytes+data->mem_bytes+input_buffer_size);
-
-  // destroy communicator
-  send_bytes+=c->send_bytes;
-  recv_bytes+=c->recv_bytes;
-  delete c;
-  c = NULL;
-
-  // sum kv count
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
-
-  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  return global_kvs_count;
-}
-
-/*
- * map_local: (files as input, main thread reads files)
- */
-// TODO: finish it!!!
-uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
-    char *whitespace, void (*mymap)(MapReduce *, char *, void *), void *ptr){
-
-  if(strlen(whitespace) == 0){
-    LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
-  }
-
-  // create data object
-  //if(data) delete data;
-  //
-  DataObject::subRef(data);
-
-  ifiles.clear();
-
-  KeyValue *kv = new KeyValue(kvtype, 
-                              blocksize, 
-                              nmaxblock, 
-                              maxmemsize, 
-                              outofcore, 
-                              tmpfpath);
-  data=kv;
-  DataObject::addRef(data);
-  kv->setKVsize(ksize, vsize);
-  
-  // TODO: Finish it!!!!
-  // distribute input files
-  disinputfiles(filepath, sharedflag, recurse);
-
-  struct stat stbuf;
-
-  int input_buffer_size=blocksize*UNIT_SIZE;
-
-  char *text = new char[input_buffer_size+1];
-
-  mode = MapLocalMode;
-
-  int fcount = ifiles.size();
-  for(int i = 0; i < fcount; i++){
-    //std::cout << me << ":" << ifiles[i] << std::endl;
-    int flag = stat(ifiles[i].c_str(), &stbuf);
-    if( flag < 0){
-      LOG_ERROR("Error: could not query file size of %s\n", ifiles[i].c_str());
-    }
-
-    FILE *fp = fopen(ifiles[i].c_str(), "r");
-    int fsize = stbuf.st_size;
-    int foff = 0, boff = 0;
-    while(fsize > 0){
-      // set file pointer
-      fseek(fp, foff, SEEK_SET);
-
-      // read a block
-      int readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
-      text[boff+readsize+1] = '\0';
-
-      //printf("input_buffer_size=%d, boff=%d, read size=%d\n", input_buffer_size, boff, readsize);
-
-      // the last block
-      //if(boff+readsize < input_buffer_size) 
-      boff = 0;
-      while(!strchr(whitespace, text[input_buffer_size-boff])) boff++;
-
-#pragma omp parallel
-{
-      int tid = omp_get_thread_num();
-      tinit(tid);
-
-      int divisor = input_buffer_size / tnum;
-      int remain  = input_buffer_size % tnum;
-
-      int tstart = tid * divisor;
-      if(tid < remain) tstart += tid;
-      else tstart += remain;
-
-      int tend = tstart + divisor;
-      if(tid < remain) tend += 1;
-
-      if(tid == tnum-1) tend -= boff;
-
-      // start by the first none whitespace char
-      int i;
-      for(i = tstart; i < tend; i++){
-        if(!strchr(whitespace, text[i])) break;
-      }
-      tstart = i;
-      
-      // end by the first whitespace char
-      for(i = tend; i < input_buffer_size; i++){
-        if(strchr(whitespace, text[i])) break;
-      }
-      tend = i;
-      text[tend] = '\0';
-
-      //printf("tstart=%d\n", tstart);
-      char *saveptr = NULL;
-      char *word = strtok_r(text+tstart, whitespace, &saveptr);
-      while(word){
-        //printf("word=%s\n", word);
-        mymap(this, word, ptr);
-        word = strtok_r(NULL,whitespace,&saveptr);
-      }
-}
-
-      foff += readsize;
-      fsize -= readsize;
-      
-      for(int i =0; i < boff; i++) text[i] = text[input_buffer_size-boff+i];
-    }
-    
-    fclose(fp);
-  }
-
-  delete []  text;
-
-  mode = NoneMode;
-
-  if(data->mem_bytes+input_buffer_size>max_mem_bytes)
-    max_mem_bytes=(data->mem_bytes+input_buffer_size);
-
-
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
-
-  local_kvs_count=count;
-  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  return global_kvs_count;
+ return _get_kv_count();
 }
 
 /*
@@ -564,7 +365,7 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
  *  global KV count
  */
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
-  void (*mymap) (MapReduce *, const char *, void *), void *ptr){
+  void (*mymap) (MapReduce *, const char *, void *), void *ptr, int _comm){
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (File name to mymap)\n", me, nprocs);
   // create new data object
   //if(data) delete data;
@@ -586,21 +387,28 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   kv->setKVsize(ksize, vsize);
 
-
+  printf("_comm=%d\n", _comm); fflush(stdout);
+ 
   // create communicator
   //c = new Alltoall(comm, tnum);
-  if(commmode==0)
-    c = new Alltoall(comm, tnum);
-  else if(commmode==1)
-    c = new Ptop(comm, tnum);
-  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-  c->init(data);
+  if(_comm){
+    if(commmode==0)
+      c = new Alltoall(comm, tnum);
+    else if(commmode==1)
+      c = new Ptop(comm, tnum);
+    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+    c->init(data);
 
-  mode = MapMode;
+    mode = MapMode;
+  }else{
+    mode = MapLocalMode;
+  }
 
 #if GATHER_STAT
   double t1 = MPI_Wtime();
 #endif
+
+  printf("begin search\n"); fflush(stdout);
 
   int fp=0;
   int fcount = ifiles.size();
@@ -627,7 +435,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
 #endif
 
-  c->twait(tid);
+  if(_comm) c->twait(tid);
 
 #if GATHER_STAT
   double t3 = omp_get_wtime();
@@ -640,116 +448,23 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   st.inc_timer(0, TIMER_MAP_PARALLEL, t2-t1);
 #endif
 
-  c->wait();
-  local_kvs_count=c->get_recv_KVs();
+  printf("here!\n"); fflush(stdout);
+
+  if(_comm){
+    c->wait();
+    delete c;
+    c = NULL; 
+  }
+  //local_kvs_count=c->get_recv_KVs();
 
 #if GATHER_STAT
   double t3= MPI_Wtime();
   st.inc_timer(0, TIMER_MAP_WAIT, t3-t2);
 #endif
 
-  if(c->mem_bytes+data->mem_bytes>max_mem_bytes)
-    max_mem_bytes=(c->mem_bytes+data->mem_bytes);
-
-  // delete communicator
-  send_bytes+=c->send_bytes;
-  recv_bytes+=c->recv_bytes;
-  delete c;
-  c = NULL; 
-
   mode = NoneMode;
 
-  // sum KV count
-  //uint64_t count = 0; 
-  local_kvs_count=0;
-  for(int i = 0; i < tnum; i++) local_kvs_count += nitems[i];
-
-  MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  //LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, global_kvs_count);
-
-  return global_kvs_count;
-}
-
-/*
- * map_local: (files as input, user-defined map reads files)
- * argument:
- *  filepath:   input file path
- *  sharedflag: 0 for local file system, 1 for global file system
- *  recurse:    1 for resucse
- *  mymap:      user-defined map
- *  ptr:        user-defined pointer
- * return:
- *  local KV count
- */
-uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse, 
-  void (*mymap) (MapReduce *, const char *, void *), void *ptr){
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local start. (File name to mymap)\n", me, nprocs);
-
-  // create data object
-  //if(data) delete data;
-
-  DataObject::subRef(data);
-
-  ifiles.clear();
-
-  KeyValue *kv = new KeyValue(kvtype, 
-                              blocksize, 
-                              nmaxblock, 
-                              maxmemsize, 
-                              outofcore, 
-                              tmpfpath);
-  data = kv;
-
-  DataObject::addRef(data);
-
-  kv->setKVsize(ksize, vsize);
-
-  // distribute input file list
-  disinputfiles(filepath, sharedflag, recurse);
-
-  mode = MapLocalMode;
-
-#if GATHER_STAT
-  double t1 = MPI_Wtime();
-#endif
-
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-  tinit(tid);
-
-  int fcount = ifiles.size();
-#pragma omp for
-  for(int i = 0; i < fcount; i++){
-    //std::cout << ifiles[i] << std::endl;
-    mymap(this, ifiles[i].c_str(), ptr);
-  }
-}
-
-#if GATHER_STAT
-  double t2= MPI_Wtime();
-  st.inc_timer(0, TIMER_MAP_PARALLEL, t2-t1);
-#endif
-
-  mode = NoneMode;
-
-  if(data->mem_bytes>max_mem_bytes)
-    max_mem_bytes=(data->mem_bytes);
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local end.\n", me, nprocs);
-
-  // sum KV count
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
-
-  local_kvs_count=count;
-  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  return global_kvs_count;
-
-//  return count;
+  return _get_kv_count();
 }
 
 /*
@@ -762,7 +477,7 @@ uint64_t MapReduce::map_local(char *filepath, int sharedflag, int recurse,
  *  global KV count
  */
 uint64_t MapReduce::map(MapReduce *mr, 
-    void (*mymap)(MapReduce *, char *, int, char *, int, void*), void *ptr){
+    void (*mymap)(MapReduce *, char *, int, char *, int, void*), void *ptr, int _comm){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", me, nprocs);
 
@@ -789,15 +504,17 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   // create communicator
   //c = new Alltoall(comm, tnum);
-  if(commmode==0)
-    c = new Alltoall(comm, tnum);
-  else if(commmode==1)
-    c = new Ptop(comm, tnum);
-
-  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-  c->init(kv);
-
-  mode = MapMode;
+  if(_comm){
+    if(commmode==0)
+      c = new Alltoall(comm, tnum);
+    else if(commmode==1)
+      c = new Ptop(comm, tnum);
+    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+    c->init(kv);
+    mode = MapMode;
+  }else{
+    mode = MapLocalMode;
+  }
 
   //printf("begin parallel\n");
 
@@ -837,7 +554,7 @@ uint64_t MapReduce::map(MapReduce *mr,
   double t1= MPI_Wtime();
 #endif
 
-  c->twait(tid);
+  if(_comm) c->twait(tid);
 
 #if GATHER_STAT
   double t2= MPI_Wtime();
@@ -853,129 +570,22 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   //printf("end parallel\n");
 
-  c->wait();
-  local_kvs_count=c->get_recv_KVs();
+  if(_comm){
+    c->wait();
+    delete c;
+    c = NULL;
+  }
 
 #if  GATHER_STAT
   double t3 = MPI_Wtime();
   st.inc_timer(0, TIMER_MAP_WAIT, t3-t2);
 #endif
 
-  //printf("begin delete\n");
-  // delete data object
-  //delete inputkv;
-  //printf("end delete\n");
-  if(c->mem_bytes+data->mem_bytes+this->data->mem_bytes>max_mem_bytes)
-    max_mem_bytes=(c->mem_bytes+data->mem_bytes+this->data->mem_bytes);
-
-
   DataObject::subRef(data);
 
-  // delete communicator
-  send_bytes+=c->send_bytes;
-  recv_bytes+=c->recv_bytes;
-  delete c;
-  c = NULL;
- 
   mode= NoneMode;
 
-  // sum KV count
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
-
-  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end (output count: local=%ld, global=%ld).\n", me, nprocs, count, global_kvs_count); 
-
-  return global_kvs_count;
-}
-
-/*
- * map_local: (KV object as input)
- * argument:
- *  mr:     input mapreduce object
- *  mymap:  user-defined map
- *  ptr:    user-defined pointer
- * return:
- *  local KV count
- */
-uint64_t MapReduce::map_local(MapReduce *mr, 
-    void (*mymap)(MapReduce *, char *, int, char *, int, void *), void *ptr){
-
-  LOG_PRINT(DBG_GEN, "%s", "MapReduce: map local start. (KV as input)\n");
-
-  DataObject::addRef(mr->data);
-  DataObject::subRef(data);
-
-  // save original data object
-  DataObject *data = mr->data;
-  if(!data || data->getDatatype() != KVType){
-    LOG_ERROR("%s","Error in map_local: input object of map must be KV object\n");
-    return -1;
-  }
-
-  // create new data object
-  KeyValue *kv = new KeyValue(kvtype, 
-                              blocksize, 
-                              nmaxblock, 
-                              maxmemsize, 
-                              outofcore, 
-                              tmpfpath);
-  this->data = kv;
-
-  DataObject::addRef(this->data);
-
-  kv->setKVsize(ksize, vsize);
-
-  mode = MapLocalMode;
-
-  KeyValue *inputkv = (KeyValue*)data;
-
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-  tinit(tid);
-  
-  char *key, *value;
-  int keybytes, valuebytes;
-
-#pragma omp for nowait
-  for(int i = 0; i < inputkv->nblock; i++){
-    int offset = 0;
-
-    inputkv->acquireblock(i);
-
-    offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
-  
-    while(offset != -1){
-      mymap(this, key, keybytes, value, valuebytes, ptr);
-
-      offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
-    }
-    
-    inputkv->releaseblock(i);
-  }
-}
-
-  if(data->mem_bytes+this->data->mem_bytes>max_mem_bytes)
-    max_mem_bytes=(data->mem_bytes+this->data->mem_bytes);
-
-  //delete inputkv;
-  DataObject::subRef(data);
-
-  mode = NoneMode;
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map local end.\n", me, nprocs);
-
-  uint64_t count = 0; 
-  for(int i = 0; i < tnum; i++) count += nitems[i];
-
-  local_kvs_count=count;
-  MPI_Allreduce(&count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-
-  return global_kvs_count;
-
-  //return count;
+  return _get_kv_count();
 }
 
 /*

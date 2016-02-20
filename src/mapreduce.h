@@ -76,27 +76,27 @@ public:
     }
 
     // map and reduce interfaces
-    uint64_t map(void (*mymap)(MapReduce *, void *), void *ptr=NULL);
-    uint64_t map_local(void (*mymap)(MapReduce *, void *), void*ptr=NULL);
+    uint64_t map(void (*mymap)(MapReduce *, void *), void *ptr=NULL, int comm=1);
+    //uint64_t map_local(void (*mymap)(MapReduce *, void *), void*ptr=NULL);
 
     uint64_t map(char *, int, int, char *, 
-      void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL);
+      void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
 
-    uint64_t map_local(char *, int, int, char *, 
-      void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL);
+    //uint64_t map_local(char *, int, int, char *, 
+    //  void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL);
 
     uint64_t map(char *, int, int, 
-      void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL);
+      void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL, int comm=1);
 
-    uint64_t map_local(char *, int, int, 
-      void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL);
+    //uint64_t map_local(char *, int, int, 
+    //  void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL);
 
 
     uint64_t map(MapReduce *, 
-      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *ptr=NULL);
+      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *ptr=NULL, int comm=1);
 
-    uint64_t map_local(MapReduce *,
-      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void * ptr=NULL);
+    //uint64_t map_local(MapReduce *,
+    //  void (*mymap) (MapReduce *, char *, int, char *, int, void *), void * ptr=NULL);
 
     uint64_t reduce(void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress=0, void* ptr=NULL);
 

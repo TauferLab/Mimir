@@ -30,8 +30,12 @@ int main(int argc, char *argv[])
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
 
+  printf("test!\n");
+
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
+  printf("here!\n");
 
   if(argc < 2){
     if(me == 0) printf("Syntax: wordcount filepath\n");
@@ -68,6 +72,8 @@ int main(int argc, char *argv[])
   t1 = MPI_Wtime();
 
   nword = mr->map(argv[1], 1, 1, fileread, NULL);
+
+  printf("map end!\n"); fflush(stdout);
 
   t2 = MPI_Wtime();
 
