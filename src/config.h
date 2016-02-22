@@ -1,11 +1,11 @@
 #ifndef MTMR_CONFIG_H
 #define MTMR_CONFIG_H
 
-#define UINT_1K_SIZE           1024
+#define UINT_1K_SIZE            1024
 #define UNIT_1M_SIZE     (1024*1024)
 
 // memory
-#define UNIT_SIZE                  1  // 1K
+#define UNIT_SIZE               1024  // 1K
 
 #define BLOCK_SIZE                64  // 16M 
 

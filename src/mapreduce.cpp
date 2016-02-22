@@ -210,7 +210,7 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr, int _comm
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
     char *whitespace, void (*mymap) (MapReduce *, char *, void *), void *ptr, int _comm){
 
-  printf("map begin"); fflush(stdout);
+  //printf("map begin"); fflush(stdout);
 
   //LOG_ERROR("%s", "map (files as input, main thread reads files) has been implemented!\n");
   // create data object
@@ -387,7 +387,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   kv->setKVsize(ksize, vsize);
 
-  printf("_comm=%d\n", _comm); fflush(stdout);
+  //printf("_comm=%d\n", _comm); fflush(stdout);
  
   // create communicator
   //c = new Alltoall(comm, tnum);
@@ -408,7 +408,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   double t1 = MPI_Wtime();
 #endif
 
-  printf("begin search\n"); fflush(stdout);
+  //printf("begin search\n"); fflush(stdout);
 
   int fp=0;
   int fcount = ifiles.size();
@@ -448,7 +448,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   st.inc_timer(0, TIMER_MAP_PARALLEL, t2-t1);
 #endif
 
-  printf("here!\n"); fflush(stdout);
+  //printf("here!\n"); fflush(stdout);
 
   if(_comm){
     c->wait();
@@ -635,14 +635,14 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
     DataObject::subRef(kv);
   }else{
 
-    printf("first convert begin\n"); fflush(stdout);
+    //printf("first convert begin\n"); fflush(stdout);
 
     _convert_compress(kv, myreduce, ptr);
     DataObject::subRef(kv);
     KeyValue *tmpkv=outkv;
     //outkv->print();
 #if 1
-    printf("second convert begin\n"); fflush(stdout);
+    //printf("second convert begin\n"); fflush(stdout);
     outkv = new KeyValue(kvtype, 
                   blocksize, 
                   nmaxblock, 
@@ -1389,9 +1389,9 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
   int keybytes, valuebytes, kvsize;
   char *kvbuf;
 
-  printf("block=%d\n", kv->nblock);
+  //printf("block=%d\n", kv->nblock);
 
-//#pragma omp for
+#pragma omp for
   for(int i=0; i<kv->nblock; i++){
     u->unique_pool->clear();
     u->nunique=0;
@@ -1410,12 +1410,12 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
     //int blocksize=
     int kvbuf_off=0;
 
-    printf("block %d start\n", i); fflush(stdout);
+    //printf("block %d start\n", i); fflush(stdout);
 
     while(kvbuf<kvbuf_end){
       GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
 
-      printf("key=%s, value=%s\n", key, value); 
+      //printf("key=%s, value=%s\n", key, value); 
     
       uint32_t hid = hashlittle(key, keybytes, 0);
       int ibucket = hid % nbucket;
@@ -1586,7 +1586,7 @@ out:
 
   //LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) end.\n", me, nprocs);
 
-  printf("convert compresss end\n"); fflush(stdout);
+  //printf("convert compresss end\n"); fflush(stdout);
 
   return 0;
 }

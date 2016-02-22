@@ -30,12 +30,12 @@ int main(int argc, char *argv[])
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
 
-  printf("test!\n");
+  //printf("test!\n");
 
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-  printf("here!\n");
+  //printf("here!\n");
 
   if(argc < 2){
     if(me == 0) printf("Syntax: wordcount filepath\n");
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#if 0
+#if 1
   mr->set_localbufsize(lbufsize);
   mr->set_globalbufsize(gbufsize*1024);
   mr->set_blocksize(blocksize*1024);
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 
   nword = mr->map(argv[1], 1, 1, fileread, NULL);
 
-  printf("map end!\n"); fflush(stdout);
+  //printf("map end!\n"); fflush(stdout);
 
   t2 = MPI_Wtime();
 
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  mr->output();
+  //mr->output();
 
   output("wc", mr);
  
@@ -135,7 +135,7 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   char count_str[100];
   sprintf(count_str, "%lu", count);
 
-  printf("add: key=%s,count_str=%s\n", key, count_str);
+  //printf("add: key=%s,count_str=%s\n", key, count_str);
 
   mr->add(key, keysize, count_str, strlen(count_str)+1);
 }
