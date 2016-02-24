@@ -81,7 +81,7 @@ void KeyValue::print(int type, FILE *fp, int format){
   for(int i = 0; i < nblock; i++){
     int offset = 0;
 
-    acquireblock(i);
+    acquire_block(i);
 
     offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
 
@@ -102,7 +102,7 @@ void KeyValue::print(int type, FILE *fp, int format){
       offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
     }
 
-    releaseblock(i);
+    release_block(i);
 
   }
 }

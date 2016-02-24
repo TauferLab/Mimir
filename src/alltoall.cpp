@@ -484,10 +484,10 @@ void Alltoall::exchange_kv(){
 #if 0
 void Alltoall::save_data(int i){
   if(blocks[0] == -1){
-    blocks[0] = data->addblock();
+    blocks[0] = data->add_block();
   }
 
-  data->acquireblock(blocks[0]);
+  data->acquire_block(blocks[0]);
 
   int offset=0;
   for(int k = 0; k < size; k++){
@@ -496,14 +496,14 @@ void Alltoall::save_data(int i){
      recv_bytes += recv_count[i][k];
 
      while(data->adddata(blocks[0], recv_buf[i]+offset, recv_count[i][k]) == -1){
-       data->releaseblock(blocks[0]);
-       blocks[0] = data->addblock();
-       data->acquireblock(blocks[0]);
+       data->release_block(blocks[0]);
+       blocks[0] = data->add_block();
+       data->acquire_block(blocks[0]);
      }
 
      offset += recv_count[i][k];
   }
 
-  data->releaseblock(blocks[0]);
+  data->release_block(blocks[0]);
 }
 #endif

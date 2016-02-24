@@ -14,19 +14,8 @@ namespace MAPREDUCE_NS {
 enum DataType{ByteType, KVType, KMVType};
 
 class DataObject{
-
 public:
-  // Parameters
-  int ksize, vsize;
-
-  int nblock;      // block count
-
-  void setKVsize(int _ksize, int _vsize){
-    ksize = _ksize;
-    vsize = _vsize;
-  }
-
-  // interfaces  
+  /**** Create and Destory DataObject****/
   DataObject(DataType,
     int blocksize=1, 
     int maxblock=4, 
@@ -37,56 +26,35 @@ public:
 
   virtual ~DataObject();
 
-  // acquire and release a block
-  int  acquireblock(int);
-  void releaseblock(int);
-
-  // add an empty block
-  int addblock();
-  //int addblock(int);
-  // add an block with data
-  //int addblock(char *, int);
-  
-  // add data into a block
-  //int adddata(int, char *, int);
-
-
-  uint64_t getblockspace(int blockid){
-    return (blocksize - blocks[blockid].datasize);
-  }
-
+  /**** Core Interfaces ****/
+  int  acquire_block(int);
+  void release_block(int);
+  int add_block();
   void clear(){
     if(outofcore){
       for(int i = 0; i < nblock; i++){
         std::string filename;
-        getfilename(i, filename);
+        _get_filename(i, filename);
         remove(filename.c_str());
       }
     }
     nblock=0;
   }
 
-  int getblocktail(int blockid){
+  virtual void print(int type = 0, FILE *fp=stdout, int format=0); 
+
+  /**** Set and Get Information ****/
+  void setKVsize(int _ksize, int _vsize){
+    ksize = _ksize;
+    vsize = _vsize;
+  }
+
+  uint64_t getfreespace(int blockid){
+    return (blocksize - blocks[blockid].datasize);
+  }
+
+  int getdatasize(int blockid){
     return blocks[blockid].datasize;
-  }
-
-  int getthreadid(int blockid){
-    return blocks[blockid].threadid;
-  }
-
-  uint64_t getblocksize(){
-    return blocksize;
-  }
-  
-  // get bytes from a block
-  int getbytes(int, int, char **);
-
-  // add bytes to a block
-  int addbytes(int, char *, int);
-
-  // get data type
-  DataType getDatatype(){
-    return datatype;
   }
 
   char *getblockbuffer(int blockid){
@@ -98,58 +66,43 @@ public:
     blocks[blockid].datasize = datasize;
   }
 
-  // print out the bytes data
-  virtual void print(int type = 0, FILE *fp=stdout, int format=0);
- 
-private:
-  int acquirebuffer(int);
-  void getfilename(int, std::string &);
-
-public:
   DataType datatype;    // 0 for bytes, 1 for kv, 2 for kmv
+  int ksize, vsize;
+  int nblock;
+  uint64_t blocksize;   // block size
+  uint64_t maxmemsize;  // max memory size
 
-  // information of block
+protected:
+  void _get_filename(int, std::string &);
+
+  // Internal state
+  int     id;
+  int     nbuf;
+  int     maxbuf;
+  int     nitem;        // item count
+  int     maxblock;     // max block
+  std::string filepath;
+  int outofcore, threadsafe, ref;
+  omp_lock_t lock_t;
+
+  // Internal Structure
   struct Block{
-    uint64_t       datasize;   // datasize in this block
-    int       bufferid;   // buffer id
-    int       threadid;   // thread id
+    uint64_t  datasize;   
+    int       bufferid; 
   };
  
-  // information of buffer
   struct Buffer{
-    char *buf;        // buffer pointer
-    int blockid;      // block id
-    int  ref;         // uses reference
+    char    *buf; 
+    int threadid;
+    int  blockid; 
+    int      ref;
   };
 
   Block  *blocks;
   Buffer *buffers;
-  int     nbuf;
-  int     maxbuf;
-
-  int     nitem;        // item count
-  int     maxblock;     // max block
-
-  uint64_t blocksize;   // block size
-  uint64_t maxmemsize;  // max memory size
-
-  // out of core file name
-  int id;
-  std::string filepath;
-  //std::string filename;
-  int outofcore;   // out of core
-
-  omp_lock_t lock_t;
-
-  int threadsafe;  // multi-thread safe
-
-  int ref;
 
 public:
-  uint64_t mem_bytes;
-  static int oid;    // data object id
-
-public:
+  static int object_id;
   static void addRef(DataObject *);
   static void subRef(DataObject *);
 };

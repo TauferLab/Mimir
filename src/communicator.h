@@ -9,14 +9,14 @@
 #define SAVE_DATA(recvbuf, recvcount) \
 {\
   if(blocks[0]==-1){\
-    blocks[0] = data->addblock();\
-    data->acquireblock(blocks[0]);\
+    blocks[0] = data->add_block();\
+    data->acquire_block(blocks[0]);\
   }\
-  int datasize=data->getblocktail(blocks[0]);\
+  int datasize=data->getfreespace(blocks[0]);\
   if(datasize+recvcount>data->blocksize){\
-    data->releaseblock(blocks[0]);\
-    blocks[0] = data->addblock();\
-    data->acquireblock(blocks[0]);\
+    data->release_block(blocks[0]);\
+    blocks[0] = data->add_block();\
+    data->acquire_block(blocks[0]);\
     datasize=0;\
   }\
   char *databuf = data->getblockbuffer(blocks[0]);\

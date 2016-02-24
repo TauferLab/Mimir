@@ -278,7 +278,7 @@ public:
     else{
       if(mode==1){
          pset=ukey->firstset;
-         mv->acquireblock(pset->pid);
+         mv->acquire_block(pset->pid);
          char *tmpbuf = mv->getblockbuffer(pset->pid);
          pset->soffset = (int*)(tmpbuf + pset->s_off);
          pset->voffset = tmpbuf + pset->v_off;        
@@ -300,14 +300,14 @@ public:
     if(ivalue >= nvalue) {
       isdone=1;
       if(mode==1 && pset){
-         mv->releaseblock(pset->pid);
+         mv->release_block(pset->pid);
       }
     }else{
       if(mode==1 && ivalue >=value_end){
         value_start += pset->nvalue;
-        mv->releaseblock(pset->pid);
+        mv->release_block(pset->pid);
         pset=pset->next;
-        mv->acquireblock(pset->pid);
+        mv->acquire_block(pset->pid);
         char *tmpbuf = mv->getblockbuffer(pset->pid);
         pset->soffset = (int*)(tmpbuf + pset->s_off);
         pset->voffset = tmpbuf + pset->v_off;

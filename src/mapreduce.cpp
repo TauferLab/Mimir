@@ -491,10 +491,10 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   // save original data object
   DataObject *data = mr->data;
-  if(!data || data->getDatatype() != KVType){
-    LOG_ERROR("%s","Error in map_local: input object of map must be KV object\n");
-    return -1;
-  }
+  //if(!data || data->getDatatype() != KVType){
+  //  LOG_ERROR("%s","Error in map_local: input object of map must be KV object\n");
+  //  return -1;
+  //}
 
   // create new data object
   KeyValue *kv = new KeyValue(kvtype, 
@@ -542,7 +542,7 @@ uint64_t MapReduce::map(MapReduce *mr,
   for(i = 0; i < inputkv->nblock; i++){
     int offset = 0;
 
-    inputkv->acquireblock(i);
+    inputkv->acquire_block(i);
 
     offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
   
@@ -553,7 +553,7 @@ uint64_t MapReduce::map(MapReduce *mr,
       offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
     }
    
-    inputkv->releaseblock(i);
+    inputkv->release_block(i);
   }
 
 #if GATHER_STAT
@@ -694,9 +694,9 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
 void MapReduce::scan(void (myscan)(char *, int, char *, int ,void *), void * ptr){
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan begin\n", me, nprocs);
 
-  if(!data || data->getDatatype() != KVType){
-    LOG_ERROR("%s", "Error: the input of scan (KMV) must be KMV object!\n");
-  }
+  //if(!data || data->getDatatype() != KVType){
+  //  LOG_ERROR("%s", "Error: the input of scan (KMV) must be KMV object!\n");
+  //}
 
   KeyValue *kv = (KeyValue*)data;
 
@@ -706,9 +706,9 @@ void MapReduce::scan(void (myscan)(char *, int, char *, int ,void *), void * ptr
      char *key, *value;
      int keybytes, valuebytes, kvsize;
 
-     kv->acquireblock(i);
+     kv->acquire_block(i);
      char *kvbuf=kv->getblockbuffer(i);
-     int datasize=kv->getblocktail(i);
+     int datasize=kv->getfreespace(i);
      
      //offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
      int offset=0;
@@ -721,7 +721,7 @@ void MapReduce::scan(void (myscan)(char *, int, char *, int ,void *), void * ptr
        
        offset += kvsize;
      }
-     kv->releaseblock(i);
+     kv->release_block(i);
   }
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan end.\n", me, nprocs);
@@ -752,7 +752,7 @@ MapReduce::Unique* MapReduce::_findukey(Unique **unique_list, int ibucket, char 
 
 void MapReduce::_unique2set(UniqueInfo *u){
 
-  Set *set=(Set*)u->set_pool->addblock();
+  Set *set=(Set*)u->set_pool->add_block();
 
   int nunique=0;
 
@@ -785,7 +785,7 @@ void MapReduce::_unique2set(UniqueInfo *u){
       ukey->lastset=pset;
       
       if(u->nset%nset==0)
-        set = (Set*)u->set_pool->addblock();
+        set = (Set*)u->set_pool->add_block();
 
       ubuf += ukeyoffset;
       ubuf += ukey->keybytes;
@@ -812,7 +812,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
   int kmvbytes=0, mvbytes=0;
 
-  char *ubuf=u->unique_pool->addblock();
+  char *ubuf=u->unique_pool->add_block();
   char *ubuf_end=ubuf+u->unique_pool->blocksize;
 
   Set *sets=NULL, *pset = NULL;
@@ -820,10 +820,10 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
   // scan all KVs
   for(int i=0; i<kv->nblock; i++){
 
-    kv->acquireblock(i);
+    kv->acquire_block(i);
 
     kvbuf=kv->getblockbuffer(i);
-    char *kvbuf_end=kvbuf+kv->getblocktail(i);
+    char *kvbuf_end=kvbuf+kv->getfreespace(i);
     int kvbuf_off=0;
 
     while(kvbuf<kvbuf_end){
@@ -901,7 +901,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
         if(ubuf_end-ubuf<ukeyoffset+keybytes){
           //printf("add a new unique buffer! ubuf_end-ubuf=%ld\n", ubuf_end-ubuf); fflush(stdout);
           memset(ubuf, 0, ubuf_end-ubuf);
-          ubuf=u->unique_pool->addblock();
+          ubuf=u->unique_pool->add_block();
           ubuf_end=ubuf+u->unique_pool->blocksize;
         }
 
@@ -953,7 +953,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
           u->nset++;
           if(u->nset%nset==0){
-            sets=(Set*)u->set_pool->addblock();
+            sets=(Set*)u->set_pool->add_block();
           }
         }else{
           pset=ukey->lastset;
@@ -970,7 +970,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
     //printf("i=%d, nset=%d, mv nblock=%d\n", i, u->nset, mv->nblock);
 
-    kv->releaseblock(i);
+    kv->release_block(i);
   }// end For
 
   if(!isfirst && kv->nblock>0){
@@ -978,7 +978,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
     p.start_blockid=last_blockid;
     p.start_offset=last_offset;
     p.end_blockid=kv->nblock-1;
-    p.end_offset=kv->getblocktail(kv->nblock-1);
+    p.end_offset=kv->getfreespace(kv->nblock-1);
     p.start_set=last_set;
     p.end_set=u->nset;
 
@@ -998,8 +998,8 @@ void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,
  
   char *kvbuf;
 
-  int mv_block_id=mv->addblock();
-  mv->acquireblock(mv_block_id);
+  int mv_block_id=mv->add_block();
+  mv->acquire_block(mv_block_id);
   char *mv_buf=mv->getblockbuffer(mv_block_id);
   int mv_off=0;
 
@@ -1062,9 +1062,9 @@ end:
 
   // gain KVS
   for(int i=0; i<kv->nblock; i++){
-    kv->acquireblock(i);
+    kv->acquire_block(i);
     char *kvbuf=kv->getblockbuffer(i);
-    int datasize=kv->getblocktail(i);
+    int datasize=kv->getfreespace(i);
     char *kvbuf_end=kvbuf+datasize;
     while(kvbuf<kvbuf_end){
       GET_KV_VARS(kv->kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
@@ -1089,7 +1089,7 @@ end:
       memcpy(ukey->voffset+ukey->mvbytes, value, valuebytes);
       ukey->mvbytes+=valuebytes;
     }
-    kv->releaseblock(i);
+    kv->release_block(i);
   }
 
   //printf("here!\n"); fflush(stdout);
@@ -1097,7 +1097,7 @@ end:
   char *values;
   int nvalue, mvbytes, kmvsize, *valuesizes;
 
-  int datasize=mv->getblocktail(mv_block_id);
+  int datasize=mv->getfreespace(mv_block_id);
   int offset=0;
 
   //printf("offset=%d, datasize=%d\n", offset, datasize);
@@ -1125,7 +1125,7 @@ end:
     offset += kmvsize;
   }
 
-  mv->releaseblock(mv_block_id);
+  mv->release_block(mv_block_id);
 }
 
 void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, DataObject *mv, int shared){
@@ -1135,11 +1135,11 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
 
   //DEFINE_KV_VARS;
 
-  //printf("unique2mv: addblock, [%d,%d]->[%d,%d]  mv=%d\n", p->start_blockid, p->start_offset, p->end_blockid, p->end_offset, mv->nblock);
+  //printf("unique2mv: add_block, [%d,%d]->[%d,%d]  mv=%d\n", p->start_blockid, p->start_offset, p->end_blockid, p->end_offset, mv->nblock);
 
-  int mv_blockid=mv->addblock();
+  int mv_blockid=mv->add_block();
   //printf("mvblockid=%d\n", mv_blockid);
-  mv->acquireblock(mv_blockid);
+  mv->acquire_block(mv_blockid);
 
   char *mvbuf = mv->getblockbuffer(mv_blockid);
   int mvbuf_off=0;
@@ -1169,11 +1169,11 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
   mv->setblockdatasize(mv_blockid, mvbuf_off);
 
   for(int i=p->start_blockid; i<=p->end_blockid; i++){
-    kv->acquireblock(i);
+    kv->acquire_block(i);
     char *kvbuf=kv->getblockbuffer(i);
     char *kvbuf_end=kvbuf;
     if(i<p->end_blockid)
-      kvbuf_end+=kv->getblocktail(i);
+      kvbuf_end+=kv->getfreespace(i);
     else
       kvbuf_end+=p->end_offset;
     if(i==p->start_blockid) kvbuf += p->start_offset;
@@ -1205,10 +1205,10 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
 
     }// end while(kvbuf<kvbuf_end)
 
-    kv->releaseblock(i);
+    kv->release_block(i);
   }
 
-  mv->releaseblock(mv_blockid);
+  mv->release_block(mv_blockid);
 }
 
 void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype, 
@@ -1265,9 +1265,9 @@ void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype,
 
       //if(kmvoff+kmvsize>kmv->blocksize){
       //  kmv->setblockdatasize(kmv_blockid, kmvoff);
-      //  kmv->releaseblock(kmv_blockid);
-      //  kmv_blockid=kmv->addblock();
-      //  kmv->acquireblock(kmv_blockid);
+      //  kmv->release_block(kmv_blockid);
+      //  kmv_blockid=kmv->add_block();
+      //  kmv->acquire_block(kmv_blockid);
       //  kmvbuf=kmv->getblockbuffer(kmv_blockid);
       //  kmvoff=0;
       //}
@@ -1297,7 +1297,7 @@ void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype,
       // copy block information
       Set *pset = ukey->firstset;
       while(pset){
-        mv->acquireblock(pset->pid);
+        mv->acquire_block(pset->pid);
 
         char *tmpbuf = mv->getblockbuffer(pset->pid);
 
@@ -1312,7 +1312,7 @@ void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype,
         memcpy(ukey->voffset+ukey->mvbytes, pset->voffset, pset->mvbytes);
         ukey->mvbytes += pset->mvbytes;
 
-        mv->releaseblock(pset->pid);
+        mv->release_block(pset->pid);
 
         pset=pset->next;
       };
@@ -1327,7 +1327,7 @@ void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype,
 end:
   ;
   //kmv->setblockdatasize(kmv_blockid, kmvoff);
-  //kmv->releaseblock(kmv_blockid);
+  //kmv->release_block(kmv_blockid);
 }
 
 uint64_t MapReduce::_convert_small(KeyValue *kv, 
@@ -1391,7 +1391,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 #endif
   }
 
-  tmax_mem_bytes=mv->mem_bytes+u->unique_pool->mem_bytes+u->set_pool->mem_bytes;
+  //tmax_mem_bytes=mv->mem_bytes+u->unique_pool->mem_bytes+u->set_pool->mem_bytes;
 
   delete mv;
 
@@ -1464,13 +1464,13 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
     memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
     // build unique structure
-    kv->acquireblock(i);
+    kv->acquire_block(i);
 
-    char *ubuf=u->unique_pool->addblock();
+    char *ubuf=u->unique_pool->add_block();
     char *ubuf_end=ubuf+u->unique_pool->blocksize;
 
     kvbuf=kv->getblockbuffer(i);
-    int datasize=kv->getblocktail(i);
+    int datasize=kv->getfreespace(i);
     char *kvbuf_end=kvbuf+datasize;
     //int blocksize=
     int kvbuf_off=0;
@@ -1496,7 +1496,7 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
       }else{
         if(ubuf_end-ubuf<ukeyoffset+keybytes){
           memset(ubuf, 0, ubuf_end-ubuf);
-          ubuf=u->unique_pool->addblock();
+          ubuf=u->unique_pool->add_block();
           ubuf_end=ubuf+u->unique_pool->blocksize;
         }
 
@@ -1591,7 +1591,7 @@ out:
       ukey->mvbytes+=valuebytes;
     }
 
-    kv->releaseblock(i);
+    kv->release_block(i);
 
 #if GATHER_STAT
     double t3=omp_get_wtime();
@@ -1687,18 +1687,18 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     KeyValue *kv = (KeyValue*)data;
 
     if(blocks[tid] == -1){
-      blocks[tid] = kv->addblock();
+      blocks[tid] = kv->add_block();
     }
 
-    kv->acquireblock(blocks[tid]);
+    kv->acquire_block(blocks[tid]);
 
     while(kv->addKV(blocks[tid], key, keybytes, value, valuebytes) == -1){
-      kv->releaseblock(blocks[tid]);
-      blocks[tid] = kv->addblock();
-      kv->acquireblock(blocks[tid]);
+      kv->release_block(blocks[tid]);
+      blocks[tid] = kv->add_block();
+      kv->acquire_block(blocks[tid]);
     }
 
-    kv->releaseblock(blocks[tid]);
+    kv->release_block(blocks[tid]);
     nitems[tid]++;
   }
   return;

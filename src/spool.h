@@ -19,7 +19,7 @@ public:
   Spool(int,int _maxblocks=1024);
   ~Spool();
 
-  char *addblock(){
+  char *add_block(){
     char *buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
     mem_bytes += blocksize;
 

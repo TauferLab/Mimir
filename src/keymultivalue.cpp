@@ -115,7 +115,7 @@ void KeyMultiValue::print(int type, FILE *fp, int format){
   for(int i = 0; i < nblock; i++){
     int offset = 0;
 
-    acquireblock(i);
+    acquire_block(i);
 
     offset = getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
 
@@ -159,7 +159,7 @@ void KeyMultiValue::print(int type, FILE *fp, int format){
       offset = getNextKMV(i, offset, &key, keybytes, nvalue,  &values, &valuebytes);
     }
 
-    releaseblock(i);
+    release_block(i);
 
   }
 

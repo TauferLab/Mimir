@@ -58,7 +58,7 @@ Communicator::~Communicator(){
 
   if(!data){
     for(int i=0; i<tnum; i++)
-      if(blocks[i] !=- 1) data->releaseblock(blocks[i]);
+      if(blocks[i] !=- 1) data->release_block(blocks[i]);
   }
   delete [] blocks;
 
