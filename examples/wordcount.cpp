@@ -6,8 +6,11 @@
 #include <omp.h>
 
 #include "mapreduce.h"
+#include "config.h"
 
 using namespace MAPREDUCE_NS;
+
+#include "stat.h"
 
 void fileread(MapReduce *, const char *, void *);
 void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
@@ -71,6 +74,9 @@ int main(int argc, char *argv[])
 
   t1 = MPI_Wtime();
 
+  //char filename[2048+1];
+  //sprintf(filename, "%s/512M.%d.txt", argv[1], me);
+ 
   nword = mr->map(argv[1], 1, 1, fileread, NULL);
 
   //printf("map end!\n"); fflush(stdout);
@@ -85,7 +91,7 @@ int main(int argc, char *argv[])
 
   //mr->output();
 
-  output("wc", mr);
+  output("mtmr.wc", mr);
  
   delete mr;
 
@@ -93,7 +99,10 @@ int main(int argc, char *argv[])
 }
 
 void fileread(MapReduce *mr, const char *fname, void *ptr){
-  //int tid = omp_get_thread_num();
+  int tid = omp_get_thread_num();
+  //
+
+  //printf("me=%d, filename=%s\n", me, fname);
 
   struct stat stbuf;
   int flag = stat(fname,&stbuf);
@@ -106,7 +115,16 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   FILE *fp = fopen(fname,"r");
   char *text = new char[filesize+1];
 
+#if GATHER_STAT
+  double t1 = omp_get_wtime();
+#endif
+
   int nchar = fread(text,1,filesize,fp);
+
+#if GATHER_STAT
+  double t2 = omp_get_wtime();
+  st.inc_timer(tid, TIMER_MAP_IO, t2-t1);
+#endif
 
   text[nchar] = '\0';
   fclose(fp);
@@ -123,6 +141,11 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   }
 
   delete [] text;
+
+#if GATHER_STAT
+  double t3 = omp_get_wtime();
+  st.inc_timer(tid, TIMER_MAP_SEEK, t3-t2);
+#endif
 }
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
@@ -143,12 +166,12 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 void output(const char *filename, MapReduce *mr){
   char tmp[1000];
   
-  sprintf(tmp, "%s.%d.%d.%d.%d.P.%d.%d.csv", filename, lbufsize, gbufsize, blocksize, commmode, nprocs, me);
+  sprintf(tmp, "/scratch/rice/g/gao381/results/mtmr-mpi/wc/%s.%d.%d.%d.%d.P.%d.%d.csv", filename, lbufsize, gbufsize, blocksize, commmode, nprocs, me);
   FILE *fp = fopen(tmp, "a+");
   fprintf(fp, "%ld,%ld,%g,%g,%g\n", nword, nunique, t3-t1, t2-t1, t3-t2);
   fclose(fp);
 
-  sprintf(tmp, "%s.%d.%d.%d.%d.T.%d.%d.csv", filename, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
+  sprintf(tmp, "/scratch/rice/g/gao381/results/mtmr-mpi/wc/%s.%d.%d.%d.%d.T.%d.%d.csv", filename, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
   fp = fopen(tmp, "a+");
   mr->show_stat(0, fp);
   fclose(fp);

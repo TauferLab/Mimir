@@ -114,6 +114,8 @@ MapReduce::MapReduce(const MapReduce &mr){
   c=NULL;
 
   ifiles.clear();
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: copy\n", me, nprocs);
 }
 
 
@@ -142,6 +144,7 @@ MapReduce::~MapReduce()
  *   global KV count
  */
 uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr, int _comm){
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (no input)\n", me, nprocs);
 
   // create data object
   DataObject::subRef(data);
@@ -192,6 +195,8 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr, int _comm
 
   mode = NoneMode;
 
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (no input)\n", me, nprocs);
+
   return _get_kv_count();
 }
 
@@ -209,6 +214,8 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr, int _comm
  */
 uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse, 
     char *whitespace, void (*mymap) (MapReduce *, char *, void *), void *ptr, int _comm){
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (main thread read file)\n", me, nprocs);
 
   //printf("map begin"); fflush(stdout);
 
@@ -350,6 +357,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
  mode = NoneMode;
 
+ LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (main thread read file)\n", me, nprocs);
+
  return _get_kv_count();
 }
 
@@ -463,6 +472,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 #endif
 
   mode = NoneMode;
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (File name to mymap)\n", me, nprocs);
 
   return _get_kv_count();
 }
@@ -585,6 +596,8 @@ uint64_t MapReduce::map(MapReduce *mr,
 
   mode= NoneMode;
 
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (KV as input)\n", me, nprocs);
+
   return _get_kv_count();
 }
 
@@ -595,7 +608,7 @@ uint64_t MapReduce::map(MapReduce *mr,
 uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), int compress, void* ptr){
 //uint64_t MapReduce::convert(){
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert start.\n", me, nprocs);
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce start.\n", me, nprocs);
 
 #if SAFE_CHECK
   if(!data || data->getDatatype() != KVType){
@@ -636,10 +649,19 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
   }else{
 
     //printf("first convert begin\n"); fflush(stdout);
-
+#if GATHER_STAT
+    double t1 = MPI_Wtime();
+#endif
     _convert_compress(kv, myreduce, ptr);
     DataObject::subRef(kv);
     KeyValue *tmpkv=outkv;
+
+#if GATHER_STAT
+    double t2 = MPI_Wtime();
+    st.inc_counter(0, COUNTER_COMPRESS_RESULTS, (data->nblock)*(data->blocksize));
+    st.inc_timer(0, TIMER_REDUCE_STAGE1, t2-t1);
+#endif
+
     //outkv->print();
 #if 1
     //printf("second convert begin\n"); fflush(stdout);
@@ -653,9 +675,15 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
     data=outkv;
     local_kvs_count = _convert_small(tmpkv, myreduce, ptr);
     DataObject::subRef(tmpkv);
+
+#endif
+#if GATHER_STAT
+    double t3 = MPI_Wtime();
+    st.inc_timer(0, TIMER_REDUCE_STAGE2, t3-t2);
+#endif
+
     //printf("second convert end\n"); fflush(stdout);
     //outkv->print();
-#endif
   }
 
   //delete kv;
@@ -665,11 +693,11 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
   st.inc_counter(0, COUNTER_RESULT_BYTES, (data->nblock)*(data->blocksize));
 #endif
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: convert end.\n", me, nprocs);
-
   DataObject::addRef(data);
 
   mode = NoneMode;
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce end.\n", me, nprocs);
 
   return _get_kv_count(); 
 }
@@ -1370,11 +1398,17 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 uint64_t MapReduce::_convert_compress(KeyValue *kv, 
   void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* ptr){
 
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: compress begin\n", me, nprocs);
+
 #pragma omp parallel 
 {
   int tid = omp_get_thread_num();
   tinit(tid);
- 
+
+#if GATHER_STAT
+  double t1 = omp_get_wtime();
+#endif
+
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
@@ -1393,6 +1427,12 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
 
 #pragma omp for
   for(int i=0; i<kv->nblock; i++){
+
+#if GATHER_STAT
+    double t1 = omp_get_wtime();
+    st.inc_counter(tid, COUNTER_COMPRESS_BYTES, kv->blocksize);
+#endif
+ 
     u->unique_pool->clear();
     u->nunique=0;
     kmv_off=0;
@@ -1412,8 +1452,11 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
 
     //printf("block %d start\n", i); fflush(stdout);
 
+    int kv_count=0;
     while(kvbuf<kvbuf_end){
       GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
+
+      kv_count++;
 
       //printf("key=%s, value=%s\n", key, value); 
     
@@ -1454,6 +1497,12 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
         u->nunique++;
       }// end else if
     }
+
+#if GATHER_STAT
+    double t2=omp_get_wtime();
+    st.inc_counter(tid, COUNTER_COMPRESS_KVS, kv_count);
+    st.inc_timer(tid, TIMER_COMPRESS_SCAN, t2-t1);
+#endif
 
     //printf("block %d unique2kmv start!\n", i); fflush(stdout);
 
@@ -1521,6 +1570,11 @@ out:
 
     kv->releaseblock(i);
 
+#if GATHER_STAT
+    double t3=omp_get_wtime();
+    st.inc_timer(tid, TIMER_COMPRESS_GATHER, t3-t2);
+#endif
+
     char *values;
     int nvalue, mvbytes, kmvsize, *valuesizes;
 
@@ -1536,21 +1590,27 @@ out:
     while(offset < datasize){   
       GET_KMV_VARS(kv->kvtype, mv_buf, key, keybytes, nvalue, values, valuesizes, mvbytes, kmvsize, kv);
 
-#if GATHER_STAT
-      double t1 = omp_get_wtime();
-#endif   
+//#if GATHER_STAT
+//      double t1 = omp_get_wtime();
+//#endif   
  
       MultiValueIterator *iter = new MultiValueIterator(nvalue,valuesizes,values,kv->kvtype,kv->vsize);
       myreduce(this, key, keybytes, iter, ptr);
       delete iter;
 
-#if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_REDUCE_USER, t2-t1);
-#endif
+//#if GATHER_STAT
+//      double t2 = omp_get_wtime();
+//      st.inc_timer(tid, TIMER_REDUCE_USER, t2-t1);
+//#endif
 
       offset += kmvsize;
     }
+
+#if GATHER_STAT
+    double t4=omp_get_wtime();
+    st.inc_timer(tid, TIMER_COMPRESS_REDUCE, t4-t3);
+#endif
+
 
     //kv->print();
 
@@ -1569,24 +1629,16 @@ out:
   delete u->set_pool;
   delete u;
 
+#if GATHER_STAT
+  double t2 = omp_get_wtime();
+  st.inc_counter(tid, COUNTER_COMPRESS_OUTKVS, nitems[tid]);
+  st.inc_timer(tid, TIMER_COMPRESS_TOTAL, t2-t1);
+#endif
+
   //printf("haha!\n"); fflush(stdout);
 }
 
-  //if(kv->mem_bytes+data->mem_bytes+tmax_mem_bytes>max_mem_bytes)
-  //  max_mem_bytes=(kv->mem_bytes+data->mem_bytes+tmax_mem_bytes);
-
-  //delete kv;
-  //DataObject::subRef(kv);
-
-  //uint64_t nunique=0;
-  //for(int i=0; i<tnum; i++)
-  //  nunique += nitems[i];
-
-  //printf("nunique=%d, tnum=%d\n", nunique, tnum);
-
-  //LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) end.\n", me, nprocs);
-
-  //printf("convert compresss end\n"); fflush(stdout);
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: compress end\n", me, nprocs);
 
   return 0;
 }
@@ -1601,12 +1653,11 @@ out:
  */
 // FIXME: should I provide multi-thread scan function?
 void MapReduce::scan(void (myscan)(char *, int, char *, int ,void *), void * ptr){
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan begin\n", me, nprocs);
 
   if(!data || data->getDatatype() != KVType){
     LOG_ERROR("%s", "Error: the input of scan (KMV) must be KMV object!\n");
   }
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan start.\n", me, nprocs);  
 
   KeyValue *kv = (KeyValue*)data;
 
@@ -1723,9 +1774,9 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     return;
    }else if(mode == MapLocalMode || mode == ReduceMode){
 
-#if GATHER_STAT
-    double t1 = omp_get_wtime();
-#endif
+//#if GATHER_STAT
+//    double t1 = omp_get_wtime();
+//#endif
 
     // add KV into data object 
     KeyValue *kv = (KeyValue*)data;
@@ -1745,10 +1796,10 @@ void MapReduce::add(char *key, int keybytes, char *value, int valuebytes){
     kv->releaseblock(blocks[tid]);
     nitems[tid]++;
 
-#if GATHER_STAT
-    double t2 = omp_get_wtime();
+//#if GATHER_STAT
+//    double t2 = omp_get_wtime();
     //if(tid==0) st.inc_timer(TIMER_MAP_ADD, t2-t1);
-#endif
+//#endif
 
   }
 

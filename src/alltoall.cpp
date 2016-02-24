@@ -163,6 +163,10 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       double t1 = omp_get_wtime();
 #endif
 #pragma omp barrier
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
+#endif      
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){
@@ -171,8 +175,8 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       }
 #pragma omp barrier
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMM, t2-t1);
+      double t3 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
 #endif
     }
 
@@ -251,6 +255,10 @@ void Alltoall::twait(int tid){
       double t1 = omp_get_wtime();
 #endif
 #pragma omp barrier
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
+#endif
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){
@@ -259,8 +267,8 @@ void Alltoall::twait(int tid){
       }
 #pragma omp barrier
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMM, t2-t1);
+      double t3 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
 #endif
     }
     
@@ -308,6 +316,10 @@ void Alltoall::twait(int tid){
       double t1 = omp_get_wtime();
 #endif
 #pragma omp barrier
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
+#endif
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){
@@ -316,8 +328,8 @@ void Alltoall::twait(int tid){
       }
 #pragma omp barrier
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMM, t2-t1);
+      double t3 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
 #endif
     }
   }while(tdone < tnum);
@@ -342,7 +354,14 @@ void Alltoall::wait(){
 
    // do exchange kv until all processes done
    do{
+#if GATHER_STAT
+     double t1 = MPI_Wtime();
+#endif
      exchange_kv();
+#if GATHER_STAT
+    double t2 = MPI_Wtime();
+    st.inc_timer(0, TIMER_MAP_LASTEXCH, t2-t1);
+#endif
    }while(pdone < size);
 
    // wait all pending communication
@@ -374,7 +393,7 @@ void Alltoall::wait(){
 
 void Alltoall::exchange_kv(){
 #if GATHER_STAT
-  //double t1 = omp_get_wtime();
+  double t1 = omp_get_wtime();
 #endif
 
   int i;
@@ -396,6 +415,8 @@ void Alltoall::exchange_kv(){
   }
 
 #if GATHER_STAT
+  double t2 = omp_get_wtime();
+  st.inc_timer(0, TIMER_MAP_ALLTOALL, t2-t1);
   st.inc_counter(0, COUNTER_SEND_BYTES, sendcount);
 #endif
 
@@ -403,15 +424,26 @@ void Alltoall::exchange_kv(){
   MPI_Ialltoallv(buf, off, send_displs, MPI_BYTE, recv_buf[ibuf], recv_count[ibuf], recv_displs,MPI_BYTE, comm,  &reqs[ibuf]);
 
 #if GATHER_STAT
-  //double t3 = omp_get_wtime();
-  //st.inc_timer(TIMER_IATOA, t3-t2);
+  double t3 = omp_get_wtime();
+  st.inc_timer(0, TIMER_MAP_IALLTOALL, t3-t2);
 #endif
 
   // wait data
   ibuf = (ibuf+1)%nbuf;
   if(reqs[ibuf] != MPI_REQUEST_NULL) {
+
+#if GATHER_STAT
+    double t1 = omp_get_wtime();
+#endif
+
     MPI_Status mpi_st;
     MPI_Wait(&reqs[ibuf], &mpi_st);
+
+#if GATHER_STAT
+    double t2 = omp_get_wtime();
+    st.inc_timer(0, TIMER_MAP_WAITDATA, t2-t1);
+#endif
+
     reqs[ibuf] = MPI_REQUEST_NULL;
     int recvcount = recvcounts[ibuf];
 
@@ -422,11 +454,15 @@ void Alltoall::exchange_kv(){
 #endif    
       SAVE_ALL_DATA(ibuf);
     }
+#if GATHER_STAT
+    double t3 = omp_get_wtime();
+    st.inc_timer(0, TIMER_MAP_COPYDATA, t3-t2);
+#endif
   }
 
 #if GATHER_STAT
-  //double t4 = omp_get_wtime();
-  //st.inc_timer(TIMER_WAIT, t4-t3);
+  double t4 = omp_get_wtime();
+  st.inc_timer(0, TIMER_MAP_SAVEDATA, t4-t3);
 #endif
 
   // switch buffer
@@ -437,9 +473,9 @@ void Alltoall::exchange_kv(){
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 
 #if GATHER_STAT
-  //double t5 = omp_get_wtime();
-  //st.inc_timer(TIMER_REDUCE, t5-t4);
-  //st.inc_timer(TIMER_MAP_SERIAL, t5-t1);
+  double t5 = omp_get_wtime();
+  st.inc_timer(0, TIMER_MAP_ALLREDUCE, t5-t4);
+  st.inc_timer(0, TIMER_MAP_EXCHANGE, t5-t1);
 #endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%d, done count=%d)\n", rank, size, sendcount, pdone);
