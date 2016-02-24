@@ -45,9 +45,9 @@ DataObject::DataObject(
 
   datatype = _datatype;
  
-  blocksize = _blocksize * UNIT_SIZE;
+  blocksize = _blocksize * UNIT_1M_SIZE;
   maxblock = _maxblock;
-  maxmemsize = _maxmemsize * UNIT_SIZE;
+  maxmemsize = _maxmemsize * UNIT_1G_SIZE;
   outofcore = _outofcore;
   threadsafe = _threadsafe;
   filepath = _filepath;

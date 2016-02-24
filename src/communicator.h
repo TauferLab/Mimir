@@ -8,7 +8,6 @@
 
 #define SAVE_DATA(recvbuf, recvcount) \
 {\
-  recv_bytes += recvcount;\
   if(blocks[0]==-1){\
     blocks[0] = data->addblock();\
     data->acquireblock(blocks[0]);\
@@ -48,14 +47,6 @@ public:
   // main thread
   virtual void wait() = 0;
 
-  uint64_t get_recv_KVs();
-
-public:
-#if GATHER_STAT
-  //int tcomm, tsyn;
-  //int *tsendkv, *thwait;
-#endif
-
 protected:
   int fetch_and_add_with_max(int *counter, int adder, int maxnum){
     int val=0;
@@ -66,10 +57,6 @@ protected:
         break;
     }while(1);
     return val;
-  }
-
-  void inc_counter(int target){
-    send_kv_counts[target]++;
   }
 
   // communicator and thread information
@@ -101,11 +88,14 @@ protected:
   int  **global_offsets;  // global offsets
 
 public:
-  uint64_t *send_kv_counts;
-  uint64_t recv_kv_counts;
+  //uint64_t *send_kv_counts;
+  //uint64_t recv_kv_counts;
 
   uint64_t send_bytes, recv_bytes;
-  uint64_t mem_bytes;
+  //uint64_t mem_bytes;
+
+public:
+  static Communicator* Create(MPI_Comm, int, int);
 };
 
 }

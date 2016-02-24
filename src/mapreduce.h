@@ -29,265 +29,210 @@ class MultiValueIterator;
 
 class MapReduce {
 public:
-    MapReduce(MPI_Comm);
-    MapReduce(const MapReduce &mr);
-    ~MapReduce();
+  /***** Create and Destroy MapReduce Object *******/
+  MapReduce(MPI_Comm);
+  MapReduce(const MapReduce &mr);
+  ~MapReduce();
 
-    void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
-      kvtype = _kvtype;
-      ksize = _ksize;
-      vsize = _vsize;
-    }
+  /***** Set Library Parameters ******/
+  void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
+    kvtype = _kvtype;
+    ksize = _ksize;
+    vsize = _vsize;
+  }
 
-    void set_blocksize(int _blocksize){
-      blocksize = _blocksize;
-    }
+  void set_blocksize(int _blocksize){
+    blocksize = _blocksize;
+  }
 
-    void set_maxblocks(int _nmaxblock){
-      nmaxblock = _nmaxblock;
-    }
+  void set_maxblocks(int _nmaxblock){
+    nmaxblock = _nmaxblock;
+  }
 
-    void set_maxmem(int _maxmemsize){
-      maxmemsize = _maxmemsize;
-    }
+  void set_maxmem(int _maxmemsize){
+    maxmemsize = _maxmemsize;
+  }
 
-    void set_filepath(const char *_fpath){
-      tmpfpath = std::string(_fpath);
-    }
+  void set_filepath(const char *_fpath){
+    tmpfpath = std::string(_fpath);
+  }
 
-    void set_outofcore(int _flag){
-      outofcore = _flag;
-    }
+  void set_outofcore(int _flag){
+    outofcore = _flag;
+  }
 
-    void set_localbufsize(int _lbufsize){
-      lbufsize = _lbufsize;
-    }
+  void set_threadbufsize(int _tbufsize){
+    lbufsize = _tbufsize;
+  }
  
-    void set_globalbufsize(int _gbufsize){
-      gbufsize = _gbufsize;
-    }
+  void set_sendbufsize(int _sbufsize){
+    gbufsize = _sbufsize;
+  }
 
-    void set_commmode(int _commmode){
-      commmode = _commmode;
-    }
+  void set_commmode(int _commmode){
+    commmode = _commmode;
+  }
 
-    void set_hash(int (*_myhash)(char *, int)){
-      myhash = _myhash;
-    }
+  void set_hash(int (*_myhash)(char *, int)){
+    myhash = _myhash;
+  }
 
-    // map and reduce interfaces
-    uint64_t map(void (*mymap)(MapReduce *, void *), void *ptr=NULL, int comm=1);
-    //uint64_t map_local(void (*mymap)(MapReduce *, void *), void*ptr=NULL);
-
-    uint64_t map(char *, int, int, char *, 
-      void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
-
-    //uint64_t map_local(char *, int, int, char *, 
-    //  void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL);
-
-    uint64_t map(char *, int, int, 
-      void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL, int comm=1);
-
-    //uint64_t map_local(char *, int, int, 
-    //  void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL);
-
-
-    uint64_t map(MapReduce *, 
+  /***** Map & Reduce Interfaces *****/
+  uint64_t map(void (*mymap)(MapReduce *, void *), void *ptr=NULL, int comm=1);
+  uint64_t map(char *, int, int, char *, 
+    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
+  uint64_t map(char *, int, int, 
+    void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL, int comm=1);
+  uint64_t map(MapReduce *, 
       void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *ptr=NULL, int comm=1);
 
-    //uint64_t map_local(MapReduce *,
-    //  void (*mymap) (MapReduce *, char *, int, char *, int, void *), void * ptr=NULL);
+  uint64_t reduce(void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress=0, void* ptr=NULL);
 
-    uint64_t reduce(void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress=0, void* ptr=NULL);
+  void scan(void (myscan)(char *, int, char *, int ,void *), void * ptr=NULL);
 
-    // convert KV object to KMV object
-    //   input must be KV obejct
-    //   output must be KMV object
-    //uint64_t convert();
+  // interfaces in user-defined map and reduce functions
+  void add(char *key, int keybytes, char *value, int valuebytes);
 
-    void scan(void (myscan)(char *, int, char *, int ,void *), void * ptr=NULL);
 
-    // interfaces in user-defined map and reduce functions
-    void add(char *key, int keybytes, char *value, int valuebytes);
-
-    void init_stat();
-    void show_stat(int verb=0, FILE *fp=stdout);
-
-    // output data into file
-    // type: 0 for string, 1 for int, 2 for int64_t
-    void output(int type=0, FILE *fp=stdout, int format=0);
-
-    double get_timer(int id);
-
-    struct Set
-    {
-      int       myid;
-      int       nvalue;
-      int       mvbytes;
-      int      *soffset;
-      char     *voffset;
-      int       s_off;
-      int       v_off;
-      int       pid;        // Partition ID
-      Set      *next;
-    };
-
-    struct Partition
-    {
-      int     start_blockid;
-      int     start_offset;
-      int     end_blockid;
-      int     end_offset;
-      int     start_set;
-      int     end_set;
-    };
-
-    struct Unique
-    {
-      char      *key;
-      int        keybytes;
-      int        nvalue;
-      int        mvbytes;
-      int       *soffset;
-      char      *voffset;
-      Set       *firstset;
-      Set       *lastset;
-      int        flag;
-      Unique    *next;
-    };
-
-    struct UniqueInfo
-    {
-      int        nunique;
-      int        nset;
-      Unique   **ubucket;
-      Spool     *unique_pool;
-      Spool     *set_pool;
-    };
-
-    uint64_t get_global_KVs(){
-      return global_kvs_count;
-    }
+  /**** interfaces used to get kv informations ****/
+  // output data into file
+  // type: 0 for string, 1 for int, 2 for int64_t
+  void output(int type=0, FILE *fp=stdout, int format=0);
+  uint64_t get_global_KVs(){
+    return global_kvs_count;
+  }
     
-    uint64_t get_local_KVs(){
-      return local_kvs_count;
-    }
+  uint64_t get_local_KVs(){
+    return local_kvs_count;
+  }
+
+  /**** Interfaces used for statatics *****/
+  void init_stat();
+  void show_stat(int verb=0, FILE *fp=stdout);
+
+public:
+  /**** Structure used for converting ****/
+  struct Set
+  {
+    int       myid;
+    int       nvalue;
+    int       mvbytes;
+    int      *soffset;
+    char     *voffset;
+    int       s_off;
+    int       v_off;
+    int       pid;        // Partition ID
+    Set      *next;
+  };
+
+  struct Partition
+  {
+    int     start_blockid;
+    int     start_offset;
+    int     end_blockid;
+    int     end_offset;
+    int     start_set;
+    int     end_set;
+  };
+
+  struct Unique
+  {
+    char      *key;
+    int        keybytes;
+    int        nvalue;
+    int        mvbytes;
+    int       *soffset;
+    char      *voffset;
+    Set       *firstset;
+    Set       *lastset;
+    int        flag;
+    Unique    *next;
+  };
+
+  struct UniqueInfo
+  {
+    int        nunique;
+    int        nset;
+    Unique   **ubucket;
+    Spool     *unique_pool;
+    Spool     *set_pool;
+  };
+
+
 
 private:
-    uint64_t global_kvs_count, local_kvs_count;
-
-    uint64_t send_bytes, recv_bytes;
-    uint64_t max_mem_bytes;
+  // Environemnt Variables
+  int bind_thread;
+  int show_binding;
+  int procs_per_node;
+  int thrs_per_proc;
 
 private:
+  // Statatics Variables
+  uint64_t global_kvs_count, local_kvs_count;
 
-    // parameters for binding threads
-    int bind_thread;
-    int show_binding;
-    int procs_per_node;
-    int thrs_per_proc;
+private:
+  // Configuable parameters
+  int kvtype, ksize, vsize;
+  int nmaxblock;
+  int maxmemsize;
+  int outofcore;
+  int commmode;  
+  int lbufsize;  // KB
+  int gbufsize;  // MB
+  int blocksize; // MB
+  std::string tmpfpath;
+  int (*myhash)(char *, int);
 
-    // configuable parameters
-    int kvtype, ksize, vsize;
-    int nmaxblock;
-    int maxmemsize;
-    int outofcore;
+  int nbucket, nset;
+private:
+  // MPI Commincator
+  MPI_Comm comm;
+  int me, nprocs, tnum; 
+  OpMode mode;
+  int ukeyoffset; 
+  uint64_t *nitems;
+  int *blocks;
+  DataObject  *data;
+  Communicator *c;
+  std::vector<std::string> ifiles;
 
-    int commmode;  
- 
-    int lbufsize;  // KB
-    int gbufsize;  // MB
-    int blocksize; // MB
+  // internal functions
+  void _get_default_values();
+  void _bind_threads();
 
-    std::string tmpfpath;
-    int (*myhash)(char *, int);
- 
-    // MPI Commincator
-    MPI_Comm comm;
-    int me, nprocs, tnum; 
+  void _tinit(int); // thread initialize
+  void _disinputfiles(const char *, int, int);
+  void _getinputfiles(const char *, int, int);
 
-    // Current operation
-    OpMode mode;      // -1 for nothing, 0 for map, 1 for map_local, 2 for reduce;
+
+  MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre);
+  void _unique2set(UniqueInfo *);
     
-    // thread private data
-    uint64_t *nitems;
-
-    // data object
-    DataObject  *data;
-    int *blocks;      // current block id for each threads, used in map and reduce
-    //DataObject* *tkv;
-
-    // the communicator for map
-    Communicator *c;
-
-    // input file list
-    std::vector<std::string> ifiles;
-
-    // private functions
-    //void init();
-
-    void get_default_values();
-    void bind_threads();
-
-    void tinit(int); // thread initialize
-    void disinputfiles(const char *, int, int);
-    void getinputfiles(const char *, int, int);
-
-    //
-    // Data Structure used in convert function
-    // KV_Block_info: record information in KV block
-    // UniqueList: whole unique list information
-    // Unique: unique item
-    // UKeyBlock: 
-
-#if 0    
-    struct KV_Block_info
-    {
-      int   *tkv_off;
-      int   *tkv_size;
-      Spool *hid_pool;
-      Spool *off_pool;
-      int   nkey;
-    };
-#endif
-
-    int thashmask, uhashmask;
- 
-    int ualign, ualignm;
-    int nbucket, nset;
-    int ukeyoffset;
-
-    // funcstion used in reduce
-    MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre);
-    void _unique2set(UniqueInfo *);
-    
-    int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
-      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *,
-      int shared=1);
+  int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *,
+    int shared=1);
 
     
-    void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
-    void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
-      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
+  void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
+  void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
 
-    void _mv2kmv(DataObject *,UniqueInfo *,int,
-      void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
+  void _mv2kmv(DataObject *,UniqueInfo *,int,
+    void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
 
-    uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
-    uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
-    uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+  uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+  // FIXME: _convert_media and _convert_large hasn't been implemneted
+  uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+  uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+  uint64_t _convert_compress(KeyValue *, void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), void*);
 
-    //uint64_t _kv2unique_block(char *, UniqueInfo *);
-    //uint64_t _unique2kmv_block(char *, UniqueInfo *, char *);
-    
-    uint64_t _convert_compress(KeyValue *, void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), void*);
-
-    uint64_t _get_kv_count(){
-      local_kvs_count=0;
-      for(int i=0; i<tnum; i++) local_kvs_count+=nitems[i];
-      MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-      return  global_kvs_count;
-    }
+  uint64_t _get_kv_count(){
+    local_kvs_count=0;
+    for(int i=0; i<tnum; i++) local_kvs_count+=nitems[i];
+    MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+    return  global_kvs_count;
+  }
 };//class MapReduce
 
 class MultiValueIterator{
@@ -315,8 +260,6 @@ public:
 
     mode=1;
 
-    //printf("haha!"); fflush(stdout);
-
     Begin();
   }
 
@@ -335,9 +278,6 @@ public:
     else{
       if(mode==1){
          pset=ukey->firstset;
-
-         //printf("set: pid=%d, nvale=%d, s_off=%d, v_off=%d\n", pset->pid, pset->nvalue, pset->s_off, pset->v_off);
-
          mv->acquireblock(pset->pid);
          char *tmpbuf = mv->getblockbuffer(pset->pid);
          pset->soffset = (int*)(tmpbuf + pset->s_off);
@@ -357,9 +297,6 @@ public:
 
   void Next(){
     ivalue++;
-
-    //printf("ivalue=%d, nvalue=%d, value_end=%d\n", ivalue, nvalue, value_end);
-
     if(ivalue >= nvalue) {
       isdone=1;
       if(mode==1 && pset){
@@ -370,9 +307,6 @@ public:
         value_start += pset->nvalue;
         mv->releaseblock(pset->pid);
         pset=pset->next;
-
-        //printf("set: pid=%d, nvale=%d, s_off=%d, v_off=%d\n", pset->pid, pset->nvalue, pset->s_off, pset->v_off);
-
         mv->acquireblock(pset->pid);
         char *tmpbuf = mv->getblockbuffer(pset->pid);
         pset->soffset = (int*)(tmpbuf + pset->s_off);

@@ -10,13 +10,25 @@
 #include "memory.h"
 
 #include "communicator.h"
-
+#include "alltoall.h"
+#include "ptop.h"
 
 using namespace MAPREDUCE_NS;
 
 #if GATHER_STAT
 #include "stat.h"
 #endif
+
+Communicator* Communicator::Create(MPI_Comm _comm, int _tnum, int _commmode){
+  Communicator *c=NULL;
+  if(_commmode==0)
+    c = new Alltoall(_comm, _tnum);
+  else if(_commmode==1)
+    c = new Ptop(_comm, _tnum);
+  else
+    LOG_ERROR("Create communicator error mode=%d!\n", _commmode);
+  return c;
+}
 
 
 Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
@@ -73,13 +85,13 @@ Communicator::~Communicator(){
   if(global_buffers) delete [] global_buffers;
   if(global_offsets) delete [] global_offsets;
 
-  if(send_kv_counts) delete [] send_kv_counts;
+  //if(send_kv_counts) delete [] send_kv_counts;
   //send_kv_counts = new uint64_t[size];
 }
 
 int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
-  lbufsize = _lbufsize*UNIT_SIZE;
-  gbufsize = _gbufsize*UNIT_SIZE;
+  lbufsize = _lbufsize*UNIT_1K_SIZE;
+  gbufsize = _gbufsize*UNIT_1M_SIZE;
   kvtype = _kvtype;
   ksize = _ksize;
   vsize = _vsize;
@@ -117,12 +129,6 @@ int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, i
     }
   }
 
-  send_kv_counts = new uint64_t[size];
-  for(int i=0; i<size; i++) send_kv_counts[i]=0;
-  recv_kv_counts = 0;
-
-  mem_bytes += tnum*size*lbufsize;
-  mem_bytes += nbuf*size*gbufsize;
   return 0;
 }
 
@@ -132,18 +138,18 @@ void Communicator::init(DataObject *_data){
 
   for(int i = 0; i < tnum; i++) blocks[i] = -1;
 
-  send_bytes = recv_bytes = 0;
-  mem_bytes = 0;
+  //send_bytes = recv_bytes = 0;
+  //mem_bytes = 0;
 }
 
-uint64_t Communicator::get_recv_KVs(){
+//uint64_t Communicator::get_recv_KVs(){
 
-  int *recv_counts=new int[size];
-  for(int i=0; i<size; i++) recv_counts[i]=1;
-  MPI_Reduce_scatter(send_kv_counts, &recv_kv_counts, recv_counts, MPI_UINT64_T, MPI_SUM, comm);
-  delete [] recv_counts;
+//  int *recv_counts=new int[size];
+//  for(int i=0; i<size; i++) recv_counts[i]=1;
+//  MPI_Reduce_scatter(send_kv_counts, &recv_kv_counts, recv_counts, MPI_UINT64_T, MPI_SUM, comm);
+//  delete [] recv_counts;
 
-  return recv_kv_counts;
-}
+//  return recv_kv_counts;
+//}
 
 

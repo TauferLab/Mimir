@@ -232,7 +232,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
     }
   }
 
-  inc_counter(target); 
+  //inc_counter(target); 
 
   // do communication
   //int flag;

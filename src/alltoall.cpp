@@ -221,7 +221,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     }
   }
 
-  inc_counter(target); 
+  //inc_counter(target); 
 
   return 0;
 }
@@ -400,7 +400,7 @@ void Alltoall::exchange_kv(){
   int sendcount=0;
   for(i=0; i<size; i++) sendcount += off[i];
 
-  send_bytes += sendcount;
+  //send_bytes += sendcount;
 
   // exchange send count
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
