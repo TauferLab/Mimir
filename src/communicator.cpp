@@ -42,22 +42,16 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
 
   kvtype = ksize = vsize = 0;
 
-  lbufsize = gbufsize = nbuf = 0;
+  thread_buf_size = send_buf_size = nbuf = 0;
 
-  local_buffers = NULL;
-  local_offsets = NULL;
-  global_buffers = NULL;
-  global_offsets = NULL;
+  thread_buffers = NULL;
+  thread_offsets = NULL;
+  send_buffers = NULL;
+  send_offsets = NULL;
 
   blocks = new int[tnum];
 
   init();
-
-#if GATHER_STAT
-  //tcomm = st.init_timer("exchange kv");
-  //tsyn  = st.init_timer("syn time");
-  //tput  = st.init_timer("put kvs");
-#endif
 }
 
 Communicator::~Communicator(){
@@ -70,61 +64,58 @@ Communicator::~Communicator(){
 
   for(int i = 0; i < tnum; i++){
     //printf("free: buffers[%d]=%p\n", i, local_buffers[i]);
-    if(local_buffers && local_buffers[i]) mem_aligned_free(local_buffers[i]);
-    if(local_offsets && local_offsets[i]) mem_aligned_free(local_offsets[i]);
+    if(thread_buffers && thread_buffers[i]) mem_aligned_free(thread_buffers[i]);
+    if(thread_offsets && thread_offsets[i]) mem_aligned_free(thread_offsets[i]);
   }
 
   for(int i = 0; i < nbuf; i++){
-    if(global_buffers && global_buffers[i]) mem_aligned_free(global_buffers[i]);
-    if(global_offsets && global_offsets[i]) mem_aligned_free(global_offsets[i]);
+    if(send_buffers && send_buffers[i]) mem_aligned_free(send_buffers[i]);
+    if(send_offsets && send_offsets[i]) mem_aligned_free(send_offsets[i]);
   }
 
-  if(local_buffers) delete [] local_buffers;
-  if(local_offsets) delete [] local_offsets;
+  if(thread_buffers) delete [] thread_buffers;
+  if(thread_offsets) delete [] thread_offsets;
 
-  if(global_buffers) delete [] global_buffers;
-  if(global_offsets) delete [] global_offsets;
-
-  //if(send_kv_counts) delete [] send_kv_counts;
-  //send_kv_counts = new uint64_t[size];
+  if(send_buffers) delete [] send_buffers;
+  if(send_offsets) delete [] send_offsets;
 }
 
-int Communicator::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
-  lbufsize = _lbufsize*UNIT_1K_SIZE;
-  gbufsize = _gbufsize*UNIT_1M_SIZE;
+int Communicator::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
+  thread_buf_size = _tbufsize*UNIT_1K_SIZE;
+  send_buf_size = _sbufsize*UNIT_1M_SIZE;
   kvtype = _kvtype;
   ksize = _ksize;
   vsize = _vsize;
   nbuf = _nbuf;
 
-  local_buffers = new char*[tnum];
-  local_offsets = new int*[tnum];
+  thread_buffers = new char*[tnum];
+  thread_offsets = new int*[tnum];
 
 #pragma omp parallel
   {
     int tid = omp_get_thread_num();
-    local_buffers[tid] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, size*lbufsize);
-    local_offsets[tid]   = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
-    for(int i = 0; i < size; i++) local_offsets[tid][i] = 0;
+    thread_buffers[tid] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, size*thread_buf_size);
+    thread_offsets[tid]   = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
+    for(int i = 0; i < size; i++) thread_offsets[tid][i] = 0;
   }
  
-  global_buffers = new char*[nbuf];
-  global_offsets = new int*[nbuf];
+  send_buffers = new char*[nbuf];
+  send_offsets = new int*[nbuf];
 
   for(int i = 0; i < nbuf; i++){
-    global_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, size*gbufsize);
-    global_offsets[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
-    for(int j = 0; j < size; j++) global_offsets[i][j] = 0;
+    send_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, size*send_buf_size);
+    send_offsets[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
+    for(int j = 0; j < size; j++) send_offsets[i][j] = 0;
   }
 
   for(int i = 0; i < tnum; i++){
-    if(!local_buffers[i]){
+    if(!thread_buffers[i]){
       LOG_ERROR("%s", "Error: communication buffer is overflow!\n");
     }
   }
 
   for(int i = 0; i < nbuf; i++){
-    if(!global_buffers[i]){
+    if(!send_buffers[i]){
       LOG_ERROR("%s", "Error: communication buffer is overflow!\n");
     }
   }
@@ -137,19 +128,6 @@ void Communicator::init(DataObject *_data){
   data = _data; 
 
   for(int i = 0; i < tnum; i++) blocks[i] = -1;
-
-  //send_bytes = recv_bytes = 0;
-  //mem_bytes = 0;
 }
-
-//uint64_t Communicator::get_recv_KVs(){
-
-//  int *recv_counts=new int[size];
-//  for(int i=0; i<size; i++) recv_counts[i]=1;
-//  MPI_Reduce_scatter(send_kv_counts, &recv_kv_counts, recv_counts, MPI_UINT64_T, MPI_SUM, comm);
-//  delete [] recv_counts;
-
-//  return recv_kv_counts;
-//}
 
 

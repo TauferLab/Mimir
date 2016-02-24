@@ -26,7 +26,7 @@ using namespace MAPREDUCE_NS;
     MPI_Get_count(&st, MPI_BYTE, &count);\
     if(count>0) SAVE_DATA(recv_buf, count)\
     else pdone++;\
-    MPI_Irecv(recv_buf, gbufsize, MPI_BYTE, MPI_ANY_SOURCE, 0, comm, &recv_req);\
+    MPI_Irecv(recv_buf, send_buf_size, MPI_BYTE, MPI_ANY_SOURCE, 0, comm, &recv_req);\
   }\
   for(int i=0;i<nbuf;i++){\
     for(int j=0;j<size;j++){\
@@ -52,7 +52,7 @@ using namespace MAPREDUCE_NS;
         CHECK_MPI_REQS;\
       }\
       omp_set_lock((omp_lock_t*)GET_VAL(lock,i,onelocklen));\
-      *(char**)GET_VAL(buf,i,oneptrlen)   = global_buffers[ib]+i*gbufsize;\
+      *(char**)GET_VAL(buf,i,oneptrlen)   = send_buffers[ib]+i*send_buf_size;\
       *(int*)GET_VAL(off,i,oneintlen)   = 0;\
       *(int*)GET_VAL(ibuf,i,oneintlen)=ib;\
       *(int*)(GET_VAL(flags, i, oneintlen))=0;\
@@ -108,8 +108,8 @@ Ptop::~Ptop(){
   free(recv_buf);
 }
 
-int Ptop::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
-  Communicator::setup(_lbufsize, _gbufsize, _kvtype, _ksize, _vsize, _nbuf);
+int Ptop::setup(int _thread_buf_size, int _send_buf_size, int _kvtype, int _ksize, int _vsize, int _nbuf){
+  Communicator::setup(_thread_buf_size, _send_buf_size, _kvtype, _ksize, _vsize, _nbuf);
 
   //flags = new int[size];
   flags = (int*)mem_aligned_malloc(CACHELINE_SIZE, size*ALIGNED_SIZE(oneintlen));
@@ -127,7 +127,7 @@ int Ptop::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsiz
   for(int i=0; i<nbuf; i++)
     reqs[i] = new MPI_Request[size];
 
-  recv_buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, gbufsize);
+  recv_buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, send_buf_size);
 
   return 0;
 }
@@ -142,8 +142,8 @@ void Ptop::init(DataObject *_data){
     //flags[i] = 0;
     //ibuf[i] = 0;
 
-   // buf[i] = global_buffers[0]+gbufsize*i;
-   *(char**)GET_VAL(buf,i,oneptrlen)=global_buffers[0]+gbufsize*i;
+   // buf[i] = send_buffers[0]+send_buf_size*i;
+   *(char**)GET_VAL(buf,i,oneptrlen)=send_buffers[0]+send_buf_size*i;
    *(int*)GET_VAL(off,i,oneintlen)=0;
    //off[i] = 0;
 
@@ -154,7 +154,7 @@ void Ptop::init(DataObject *_data){
       reqs[j][i] = MPI_REQUEST_NULL;
   }
 
-  MPI_Irecv(recv_buf, gbufsize, MPI_BYTE, MPI_ANY_SOURCE, 0, comm, &recv_req);
+  MPI_Irecv(recv_buf, send_buf_size, MPI_BYTE, MPI_ANY_SOURCE, 0, comm, &recv_req);
 }
 
 int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int valsize){
@@ -174,21 +174,21 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
   GET_KV_SIZE(kvtype, keysize, valsize, kvsize);
 
 #if SAFE_CHECK
-  if(kvsize > lbufsize){
-    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, lbufsize);
+  if(kvsize > thread_buf_size){
+    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, thread_buf_size);
   }
 #endif 
 
   /* copy kv into local buffer */
   while(1){
 
-    int   loff=local_offsets[tid][target];
-    char *lbuf=local_buffers[tid]+target*lbufsize+loff;
+    int   loff=thread_offsets[tid][target];
+    char *lbuf=thread_buffers[tid]+target*thread_buf_size+loff;
     
     // local buffer has space
-    if(loff + kvsize <= lbufsize){
+    if(loff + kvsize <= thread_buf_size){
      PUT_KV_VARS(kvtype,lbuf,key,keysize,val,valsize,kvsize);
-     local_offsets[tid][target]+=kvsize;
+     thread_offsets[tid][target]+=kvsize;
      break;
     // local buffer is full
     }else{
@@ -218,11 +218,11 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
       //if(tid==0) st.inc_timer(TIMER_SYN, t2-t1);
 #endif
       // try to add the offset
-      if(loff + *(int*)GET_VAL(off,target,oneintlen) <= gbufsize){
+      if(loff + *(int*)GET_VAL(off,target,oneintlen) <= send_buf_size){
         int goff=*(int*)GET_VAL(off,target,oneintlen);
-        memcpy(*(char**)GET_VAL(buf,target,oneptrlen)+goff, local_buffers[tid]+target*lbufsize, loff);
+        memcpy(*(char**)GET_VAL(buf,target,oneptrlen)+goff, thread_buffers[tid]+target*thread_buf_size, loff);
         *(int*)GET_VAL(off,target,oneintlen)+=loff;
-        local_offsets[tid][target] = 0;
+        thread_offsets[tid][target] = 0;
       }else{
        //flags[target]=1;
        *(int*)GET_VAL(flags, target, oneintlen)=1;
@@ -250,7 +250,7 @@ void Ptop::twait(int tid){
   int i=0;
   while(i<size){
 
-    int loff = local_offsets[tid][i];
+    int loff = thread_offsets[tid][i];
     if(loff == 0){
       i++;
       continue;
@@ -280,10 +280,10 @@ void Ptop::twait(int tid){
     //omp_set_lock(&lock[k]);
     omp_set_lock((omp_lock_t*)GET_VAL(lock, k, onelocklen));
     int goff=*(int*)GET_VAL(off,i,oneintlen);
-    if(goff+loff<=gbufsize){
-      char *lbuf = local_buffers[tid]+i*lbufsize;
+    if(goff+loff<=send_buf_size){
+      char *lbuf = thread_buffers[tid]+i*thread_buf_size;
       memcpy(*(char**)GET_VAL(buf,i,oneptrlen)+goff, lbuf, loff);
-      local_offsets[tid][i] = 0;
+      thread_offsets[tid][i] = 0;
       *(int*)GET_VAL(off,i,oneintlen)+=loff;
       i++;
     }else{
@@ -407,7 +407,7 @@ void Ptop::exchange_kv(){
       reqs[ib][i] = MPI_REQUEST_NULL;
 
       omp_set_lock(&lock[i]);
-      buf[i]   = global_buffers[ib]+i*gbufsize;
+      buf[i]   = send_buffers[ib]+i*send_buf_size;
       off[i]   = 0;
       ibuf[i]  = ib;
       flags[i] = 0;

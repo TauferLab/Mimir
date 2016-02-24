@@ -73,18 +73,18 @@ Alltoall::~Alltoall(){
 
 /* setup communicator 
  *   lbufsize: local buffer size
- *   gbufsize: global buffer size
+ *   send_buf_size: global buffer size
  *   nbuf: pipeline buffer count
  */
-int Alltoall::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
+int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
 
-  Communicator::setup(_lbufsize, _gbufsize, _kvtype, _ksize, _vsize, _nbuf);
+  Communicator::setup(_tbufsize, _sbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
   recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];
 
   for(int i = 0; i < nbuf; i++){
-    recv_buf[i] = (char*)malloc(size*gbufsize);
+    recv_buf[i] = (char*)malloc(size*send_buf_size);
     recv_count[i] = (int*)malloc(size*sizeof(int));
   }
 
@@ -103,7 +103,7 @@ int Alltoall::setup(int _lbufsize, int _gbufsize, int _kvtype, int _ksize, int _
 
   init(NULL);
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (local bufffer size=%d, global buffer size=%d)\n", rank, size, lbufsize, gbufsize);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (local bufffer size=%d, global buffer size=%d)\n", rank, size, thread_buf_size, send_buf_size);
 
   return 0;
 }
@@ -113,8 +113,8 @@ void Alltoall::init(DataObject *_data){
 
   switchflag=0;
   ibuf = 0;
-  buf = global_buffers[0];
-  off = global_offsets[0];
+  buf = send_buffers[0];
+  off = send_offsets[0];
 
   for(int i=0; i<size; i++) off[i] = 0;
 }
@@ -144,8 +144,8 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   GET_KV_SIZE(kvtype, keysize, valsize, kvsize);
 
 #if SAFE_CHECK
-  if(kvsize > lbufsize){
-    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, lbufsize);
+  if(kvsize > thread_buf_size){
+    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, thread_buf_size);
   }
 #endif
 
@@ -180,33 +180,33 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 #endif
     }
 
-    int loff = local_offsets[tid][target];
-    char *lbuf = local_buffers[tid]+target*lbufsize+loff;
+    int loff = thread_offsets[tid][target];
+    char *lbuf = thread_buffers[tid]+target*thread_buf_size+loff;
 
     // local buffer has space
-    if(loff + kvsize <= lbufsize){
+    if(loff + kvsize <= thread_buf_size){
       PUT_KV_VARS(kvtype,lbuf,key,keysize,val,valsize,kvsize);
-      local_offsets[tid][target]+=kvsize;
+      thread_offsets[tid][target]+=kvsize;
       break;
     // local buffer is full
     }else{
        // try to add the offset
-      if(loff + off[target] <= gbufsize){
+      if(loff + off[target] <= send_buf_size){
 
 #if GATHER_STAT
        double tstart = omp_get_wtime();
 #endif
 
-        int goff=fetch_and_add_with_max(&off[target], loff, gbufsize);
+        int goff=fetch_and_add_with_max(&off[target], loff, send_buf_size);
 
 #if GATHER_STAT
        double tstop = omp_get_wtime();
        st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
 #endif
 
-        if(goff + loff <= gbufsize){
-          memcpy(buf+target*gbufsize+goff, local_buffers[tid]+target*lbufsize, loff);
-          local_offsets[tid][target] = 0;
+        if(goff + loff <= send_buf_size){
+          memcpy(buf+target*send_buf_size+goff, thread_buffers[tid]+target*thread_buf_size, loff);
+          thread_offsets[tid][target] = 0;
         // global buffer is full, add back the offset
         }else{
           /* need wait flush */
@@ -272,7 +272,7 @@ void Alltoall::twait(int tid){
 #endif
     }
     
-    int   loff = local_offsets[tid][i];
+    int   loff = thread_offsets[tid][i];
     // skip empty buffer
     if(loff == 0){
       i++;
@@ -284,8 +284,8 @@ void Alltoall::twait(int tid){
 #endif
 
     // try to flush local buffer into global bufer
-    char *lbuf = local_buffers[tid]+i*lbufsize;
-    int goff=fetch_and_add_with_max(&off[i], loff, gbufsize);
+    char *lbuf = thread_buffers[tid]+i*thread_buf_size;
+    int goff=fetch_and_add_with_max(&off[i], loff, send_buf_size);
 
 #if GATHER_STAT
     double tstop = omp_get_wtime();
@@ -293,9 +293,9 @@ void Alltoall::twait(int tid){
 #endif
 
      // copy data to global buffer
-     if(goff+loff<=gbufsize){
-       memcpy(buf+i*gbufsize+goff, lbuf, loff);
-       local_offsets[tid][i] = 0;
+     if(goff+loff<=send_buf_size){
+       memcpy(buf+i*send_buf_size+goff, lbuf, loff);
+       thread_offsets[tid][i] = 0;
        i++;
        continue;
       // need flush global buffer firstly
@@ -405,7 +405,7 @@ void Alltoall::exchange_kv(){
   // exchange send count
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
-  for(i = 0; i < size; i++) send_displs[i] = i*gbufsize;
+  for(i = 0; i < size; i++) send_displs[i] = i*send_buf_size;
 
   recvcounts[ibuf] = recv_count[ibuf][0];
   recv_displs[0] = 0;
@@ -466,8 +466,8 @@ void Alltoall::exchange_kv(){
 #endif
 
   // switch buffer
-  buf = global_buffers[ibuf];
-  off = global_offsets[ibuf];
+  buf = send_buffers[ibuf];
+  off = send_offsets[ibuf];
   for(int i = 0; i < size; i++) off[i] = 0;
 
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);

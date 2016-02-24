@@ -79,20 +79,16 @@ protected:
   int kvtype, ksize, vsize;
 
   // buffer size information
-  int lbufsize, gbufsize, nbuf;
+  int thread_buf_size, send_buf_size, nbuf;
 
-  char **local_buffers;   // local buffers for threads
-  int  **local_offsets;   // local offsets for threads
+  char **thread_buffers;   // local buffers for threads
+  int  **thread_offsets;   // local offsets for threads
 
-  char **global_buffers;  // global buffers
-  int  **global_offsets;  // global offsets
+  char **send_buffers;  // global buffers
+  int  **send_offsets;  // global offsets
 
 public:
-  //uint64_t *send_kv_counts;
-  //uint64_t recv_kv_counts;
-
   uint64_t send_bytes, recv_bytes;
-  //uint64_t mem_bytes;
 
 public:
   static Communicator* Create(MPI_Comm, int, int);
