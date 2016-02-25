@@ -653,6 +653,9 @@ uint64_t MapReduce::reduce(void (*myreduce)(MapReduce *, char *, int, MultiValue
 #endif
 
     KeyValue *tmpkv=outkv;
+
+    //tmpkv->print();
+
     outkv = new KeyValue(kvtype, 
                   blocksize, 
                   nmaxblock, 
@@ -708,7 +711,7 @@ void MapReduce::scan(void (myscan)(char *, int, char *, int ,void *), void * ptr
 
      kv->acquire_block(i);
      char *kvbuf=kv->getblockbuffer(i);
-     int datasize=kv->getfreespace(i);
+     int datasize=kv->getdatasize(i);
      
      //offset = kmv->getNextKMV(i, offset, &key, keybytes, nvalue, &values, &valuebytes);
      int offset=0;
@@ -823,7 +826,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
     kv->acquire_block(i);
 
     kvbuf=kv->getblockbuffer(i);
-    char *kvbuf_end=kvbuf+kv->getfreespace(i);
+    char *kvbuf_end=kvbuf+kv->getdatasize(i);
     int kvbuf_off=0;
 
     while(kvbuf<kvbuf_end){
@@ -978,7 +981,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
     p.start_blockid=last_blockid;
     p.start_offset=last_offset;
     p.end_blockid=kv->nblock-1;
-    p.end_offset=kv->getfreespace(kv->nblock-1);
+    p.end_offset=kv->getdatasize(kv->nblock-1);
     p.start_set=last_set;
     p.end_set=u->nset;
 
@@ -1064,7 +1067,7 @@ end:
   for(int i=0; i<kv->nblock; i++){
     kv->acquire_block(i);
     char *kvbuf=kv->getblockbuffer(i);
-    int datasize=kv->getfreespace(i);
+    int datasize=kv->getdatasize(i);
     char *kvbuf_end=kvbuf+datasize;
     while(kvbuf<kvbuf_end){
       GET_KV_VARS(kv->kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
@@ -1097,7 +1100,7 @@ end:
   char *values;
   int nvalue, mvbytes, kmvsize, *valuesizes;
 
-  int datasize=mv->getfreespace(mv_block_id);
+  int datasize=mv->getdatasize(mv_block_id);
   int offset=0;
 
   //printf("offset=%d, datasize=%d\n", offset, datasize);
@@ -1173,7 +1176,7 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
     char *kvbuf=kv->getblockbuffer(i);
     char *kvbuf_end=kvbuf;
     if(i<p->end_blockid)
-      kvbuf_end+=kv->getfreespace(i);
+      kvbuf_end+=kv->getdatasize(i);
     else
       kvbuf_end+=p->end_offset;
     if(i==p->start_blockid) kvbuf += p->start_offset;
@@ -1470,7 +1473,7 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
     char *ubuf_end=ubuf+u->unique_pool->blocksize;
 
     kvbuf=kv->getblockbuffer(i);
-    int datasize=kv->getfreespace(i);
+    int datasize=kv->getdatasize(i);
     char *kvbuf_end=kvbuf+datasize;
     //int blocksize=
     int kvbuf_off=0;

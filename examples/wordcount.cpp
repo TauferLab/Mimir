@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#if 1
+#if 0
   mr->set_threadbufsize(lbufsize);
   mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
@@ -81,6 +81,8 @@ int main(int argc, char *argv[])
 
   //printf("map end!\n"); fflush(stdout);
 
+  //mr->output();
+
   t2 = MPI_Wtime();
 
   nunique = mr->reduce(countword, 1, NULL);
@@ -91,7 +93,7 @@ int main(int argc, char *argv[])
 
   //mr->output();
 
-  output("mtmr.wc", mr);
+  //output("mtmr.wc", mr);
  
   delete mr;
 

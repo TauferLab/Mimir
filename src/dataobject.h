@@ -49,9 +49,9 @@ public:
     vsize = _vsize;
   }
 
-  uint64_t getfreespace(int blockid){
-    return (blocksize - blocks[blockid].datasize);
-  }
+  //uint64_t getfreespace(int blockid){
+  //  return (blocksize - blocks[blockid].datasize);
+  //}
 
   int getdatasize(int blockid){
     return blocks[blockid].datasize;

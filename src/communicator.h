@@ -12,7 +12,7 @@
     blocks[0] = data->add_block();\
     data->acquire_block(blocks[0]);\
   }\
-  int datasize=data->getfreespace(blocks[0]);\
+  int datasize=data->getdatasize(blocks[0]);\
   if(datasize+recvcount>data->blocksize){\
     data->release_block(blocks[0]);\
     blocks[0] = data->add_block();\

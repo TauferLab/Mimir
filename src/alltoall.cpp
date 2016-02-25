@@ -377,6 +377,7 @@ void Alltoall::wait(){
 #if GATHER_STAT
          st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
 #endif    
+         
          SAVE_ALL_DATA(i);
          //save_data(i);
        }
