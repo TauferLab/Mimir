@@ -103,7 +103,8 @@ int Communicator::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, i
   send_offsets = new int*[nbuf];
 
   for(int i = 0; i < nbuf; i++){
-    send_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, size*send_buf_size);
+    size_t total_send_buf_size=(size_t)send_buf_size*size;
+    send_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, total_send_buf_size);
     send_offsets[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
     for(int j = 0; j < size; j++) send_offsets[i][j] = 0;
   }

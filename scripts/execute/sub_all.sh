@@ -1,6 +1,6 @@
 TIMES=1
 
-PRE=$(qsub run_wc.1.sub)
+PRE=$(qsub run_wc.32.sub)
 
 START=1
 END=0
@@ -12,3 +12,5 @@ do
     PRE=$(qsub -W depend=afterany:$PRE run_wc.$k.sub)
   done
 done
+
+

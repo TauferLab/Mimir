@@ -1086,11 +1086,12 @@ end:
       
       if(kv->kvtype==GeneralKV){
         ukey->soffset[ukey->nvalue]=valuebytes;
-        ukey->nvalue++;
       }
 
       memcpy(ukey->voffset+ukey->mvbytes, value, valuebytes);
+      
       ukey->mvbytes+=valuebytes;
+      ukey->nvalue++;
     }
     kv->release_block(i);
   }
@@ -1201,11 +1202,10 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
 
       if(kv->kvtype==GeneralKV){
         pset->soffset[pset->nvalue]=valuebytes;
-        pset->nvalue++;
       }
       memcpy(pset->voffset+pset->mvbytes, value, valuebytes);
       pset->mvbytes+=valuebytes;
-
+      pset->nvalue++;
     }// end while(kvbuf<kvbuf_end)
 
     kv->release_block(i);
@@ -1428,7 +1428,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 uint64_t MapReduce::_convert_compress(KeyValue *kv, 
   void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* ptr){
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: compress begin\n", me, nprocs);
+  LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: compress begin\n", me, nprocs);
 
 #pragma omp parallel 
 {
@@ -1641,7 +1641,7 @@ out:
 #endif
 }
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: compress end\n", me, nprocs);
+  LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: compress end\n", me, nprocs);
 
   return 0;
 }

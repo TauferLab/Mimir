@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#if 0
+#if 1
   mr->set_threadbufsize(lbufsize);
   mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
 
   //mr->output();
 
-  //output("mtmr.wc", mr);
+  output("mtmr.wc", mr);
  
   delete mr;
 
