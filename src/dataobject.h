@@ -76,11 +76,11 @@ protected:
   void _get_filename(int, std::string &);
 
   // Internal state
-  int     id;
-  int     nbuf;
-  int     maxbuf;
-  int     nitem;        // item count
-  int     maxblock;     // max block
+  int            id;
+  int          nbuf;
+  int         nitem;     // item count
+  int      maxblock;     // max block
+  int        maxbuf;
   std::string filepath;
   int outofcore, threadsafe, ref;
   omp_lock_t lock_t;

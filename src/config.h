@@ -12,7 +12,7 @@
 
 #define LOCAL_BUF_SIZE            32 // 1K
 #define GLOBAL_BUF_SIZE           64  // 1M
-#define MAXMEM_SIZE     (4*1024*1024)  // 1G  
+#define MAXMEM_SIZE                4  // 1G  
 #define MAX_BLOCKS              1024  // 1024 blocks
 
 #define PCS_PER_NODE              2

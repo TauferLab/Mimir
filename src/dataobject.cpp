@@ -42,14 +42,18 @@ DataObject::DataObject(
 
   datatype = _datatype;
  
-  blocksize = _blocksize * UNIT_1M_SIZE;
+  blocksize = (uint64_t)_blocksize * UNIT_1M_SIZE;
   maxblock = _maxblock;
-  maxmemsize = _maxmemsize * UNIT_1G_SIZE;
+
+  //printf("maxmemsize=%d\n", _maxmemsize);
+
+  maxmemsize = (uint64_t)_maxmemsize * UNIT_1G_SIZE;
   outofcore = _outofcore;
   threadsafe = _threadsafe;
   filepath = _filepath;
 
-  maxbuf = _maxmemsize / _blocksize;
+  maxbuf = (int)(maxmemsize / blocksize);
+  //printf("maxmemsize=%ld, blocksize=%ld, maxbuf=%d\n", maxmemsize, blocksize, maxbuf);
 
   nitem = nblock = nbuf = 0;
 
@@ -204,6 +208,8 @@ int DataObject::add_block(){
   }
 
   //printf("blockid=%d, maxbuf=%d, outofcore=%d, threadsafe=%d\n", blockid, maxbuf, outofcore, threadsafe);
+
+  //printf("blockid=%d, maxbuf=%d\n", blockid, maxbuf);
 
   //printf("blockid=%d, maxbuf=%d\n", blockid, maxbuf);
 
