@@ -276,20 +276,23 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
       LOG_ERROR("Error: could not query file size of %s\n", ifiles[i].c_str());
     }
 
+    LOG_PRINT(DBG_IO, "%d[%d] open file %s, file size=%ld\n", me, nprocs, ifiles[i].c_str(), stbuf.st_size);
+
     FILE *fp = fopen(ifiles[i].c_str(), "r");
-    int fsize = stbuf.st_size;
-    int foff = 0, boff = 0;
+    int64_t fsize = stbuf.st_size;
+    int64_t foff = 0, boff = 0;
     while(fsize > 0){
 
 #if GATHER_STAT
       double t1 = MPI_Wtime();
 #endif
-      
       // set file pointer
       fseek(fp, foff, SEEK_SET);
       // read a block
-      int readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
+      int64_t readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
       text[boff+readsize+1] = '\0';
+
+      LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld\n", me, nprocs, ifiles[i].c_str(), foff-boff, foff+readsize);
 
 #if GATHER_STAT
      double t2 = MPI_Wtime();
@@ -301,10 +304,15 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
       boff = 0;
       while(!strchr(whitespace, text[input_buffer_size-boff])) boff++;
 
+      printf("%d[%d] boff=%d\n", me, nprocs, boff);     
+
 #pragma omp parallel
 {
       int tid = omp_get_thread_num();
       //tinit(tid);
+      //
+
+      printf("%d[%d] thread %d begin\n", me, nprocs, tid); fflush(stdout);
 
 #if GATHER_STAT
       double t1 = omp_get_wtime();
@@ -348,15 +356,21 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
       st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
 #endif
 
+      printf("%d[%d] thread %d end\n", me, nprocs, tid); fflush(stdout);
 }
 
       foff += readsize;
       fsize -= readsize;
       
       for(int i =0; i < boff; i++) text[i] = text[input_buffer_size-boff+i];
+
+      printf("%d[%d] foff=%d, fsize=%d\n", me, nprocs, foff, fsize); fflush(stdout);
+
     }
     
     fclose(fp);
+
+    LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
   }
 
   delete []  text;

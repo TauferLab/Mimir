@@ -8,10 +8,10 @@
 #define DBG_GEN     1
 #define DBG_DATA    2
 #define DBG_COMM    4
-//#define DBG_OOC     8
+#define DBG_IO      8
 #define DBG_CVT    16
 
-#define DBG_LEVEL    0
+#define DBG_LEVEL    DBG_IO
 //#define DBG_LEVEL   (DBG_GEN | DBG_DATA | DBG_COMM | DBG_CVT)
 //#define DBG_LEVEL   DBG_CVT
 //#define DBG_LEVEL DBG_CVT
