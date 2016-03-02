@@ -12,16 +12,20 @@ using namespace MAPREDUCE_NS;
 
 #include "stat.h"
 
+#ifndef WC_M
 void fileread(MapReduce *, const char *, void *);
-void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
+#else
+void map(MapReduce *mr, char *word, void *ptr);
+#endif
 
+void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 void output(const char *filename, MapReduce *mr);
 
 int me, nprocs;
 
 int commmode=0;
 int blocksize=512;
-int gbufsize=32;
+int gbufsize=8;
 int lbufsize=16;
 
 uint64_t nword, nunique;
@@ -76,8 +80,13 @@ int main(int argc, char *argv[])
 
   //char filename[2048+1];
   //sprintf(filename, "%s/512M.%d.txt", argv[1], me);
- 
+
+#ifndef WC_M
   nword = mr->map(argv[1], 1, 1, fileread, NULL);
+#else
+  char whitespace[20] = " \n";
+  nword = mr->map(argv[1], 1, 1, whitespace, map, NULL);
+#endif
 
   //printf("map end!\n"); fflush(stdout);
 
@@ -100,11 +109,9 @@ int main(int argc, char *argv[])
   MPI_Finalize();
 }
 
+#ifndef WC_M
 void fileread(MapReduce *mr, const char *fname, void *ptr){
   int tid = omp_get_thread_num();
-  //
-
-  //printf("me=%d, filename=%s\n", me, fname);
 
   struct stat stbuf;
   int flag = stat(fname,&stbuf);
@@ -149,6 +156,15 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   st.inc_timer(tid, TIMER_MAP_SEEK, t3-t2);
 #endif
 }
+#else
+void map(MapReduce *mr, char *word, void *ptr){
+  int len=strlen(word)+1;
+  char tmp[100]={"1"};
+
+  if(len <= 8192)
+    mr->add(word,len,tmp,strlen(tmp)+1);
+}
+#endif
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
   uint64_t count=0;

@@ -403,6 +403,8 @@ void Alltoall::exchange_kv(){
 
   //send_bytes += sendcount;
 
+  //printf("MPI_Alltoall begin\n"); fflush(stdout);
+
   // exchange send count
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
@@ -420,6 +422,8 @@ void Alltoall::exchange_kv(){
   st.inc_timer(0, TIMER_MAP_ALLTOALL, t2-t1);
   st.inc_counter(0, COUNTER_SEND_BYTES, sendcount);
 #endif
+
+  // printf("MPI_Ialltoall begin\n"); fflush(stdout);
 
   // exchange kv data
   MPI_Ialltoallv(buf, off, send_displs, MPI_BYTE, recv_buf[ibuf], recv_count[ibuf], recv_displs,MPI_BYTE, comm,  &reqs[ibuf]);
@@ -471,7 +475,11 @@ void Alltoall::exchange_kv(){
   off = send_offsets[ibuf];
   for(int i = 0; i < size; i++) off[i] = 0;
 
+  //printf("MPI_Allreduce begin\n"); fflush(stdout);
+
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
+
+  //printf("Exchange KV end\n"); fflush(stdout);
 
 #if GATHER_STAT
   double t5 = omp_get_wtime();

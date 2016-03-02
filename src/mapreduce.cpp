@@ -258,6 +258,10 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   char *text = new char[input_buffer_size+1];
 
+#if GATHER_STAT
+  double t1= MPI_Wtime();
+#endif
+
 #pragma omp parallel
 {
       int tid = omp_get_thread_num();
@@ -276,11 +280,21 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
     int fsize = stbuf.st_size;
     int foff = 0, boff = 0;
     while(fsize > 0){
+
+#if GATHER_STAT
+      double t1 = MPI_Wtime();
+#endif
+      
       // set file pointer
       fseek(fp, foff, SEEK_SET);
       // read a block
       int readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
       text[boff+readsize+1] = '\0';
+
+#if GATHER_STAT
+     double t2 = MPI_Wtime();
+     st.inc_timer(0, TIMER_MAP_IO, t2-t1);
+#endif
 
       // the last block
       //if(boff+readsize < input_buffer_size) 
@@ -291,6 +305,10 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 {
       int tid = omp_get_thread_num();
       //tinit(tid);
+
+#if GATHER_STAT
+      double t1 = omp_get_wtime();
+#endif
 
       int divisor = input_buffer_size / tnum;
       int remain  = input_buffer_size % tnum;
@@ -324,6 +342,12 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
         mymap(this, word, ptr);
         word = strtok_r(NULL,whitespace,&saveptr);
       }
+
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
+#endif
+
 }
 
       foff += readsize;
@@ -340,13 +364,34 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
-  if(_comm) c->twait(tid) ;     
+
+#if GATHRE_STAT
+  double t1 = omp_get_wtime();
+#endif
+
+  if(_comm) c->twait(tid) ;   
+
+#if GATHER_STAT
+  double t2 = omp_get_wtime();
+  st.inc_timer(tid, TIMER_MAP_TWAIT, t2-t1);
+#endif  
 }
+
+#if GATHER_STAT
+  double t2= MPI_Wtime();
+  st.inc_timer(0, TIMER_MAP_PARALLEL, t2-t1);
+#endif
+
  if(_comm){
    c->wait();
    delete c;
    c = NULL;
  }
+
+#if GATHER_STAT
+  double t3= MPI_Wtime();
+  st.inc_timer(0, TIMER_MAP_WAIT, t3-t2);
+#endif
 
  mode = NoneMode;
 

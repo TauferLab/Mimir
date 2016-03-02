@@ -32,5 +32,8 @@ clean:
 bfs_mm.o: bfs.cpp
 	$(CPP) $(CFLAGS) -DBFS_MM -o bfs_mm.o -c bfs.cpp
 
+wordcount_m.o: wordcount.cpp
+	$(CPP) $(CFLAGS) -DWC_M -o wordcount_m.o -c wordcount.cpp
+
 %.o:%.cpp
 	$(CPP) $(CFLAGS) -c $<
