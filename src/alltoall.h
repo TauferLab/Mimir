@@ -18,6 +18,8 @@ public:
   void init(DataObject *);
  
   int sendKV(int, int, char *, int, char *, int);
+
+  void tpoll(int tid);
  
   // multi-threads
   void twait(int tid);

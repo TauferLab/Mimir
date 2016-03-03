@@ -41,6 +41,9 @@ public:
   // multi-threads
   virtual int sendKV(int, int, char *, int, char *, int) = 0;
 
+  // poll data
+  virtual void tpoll(int tid) = 0;
+
   // multi-threads
   virtual void twait(int tid) = 0;
 

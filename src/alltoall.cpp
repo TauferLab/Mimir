@@ -167,11 +167,12 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       double t2 = omp_get_wtime();
       st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif      
-      //int flag;
-      //MPI_Is_thread_main(&flag);
-      if(tid==0){
-       exchange_kv();
-       switchflag = 0;
+      int flag;
+      MPI_Is_thread_main(&flag);
+      //printf("rank=%d, tid=%d, sendkv\n", rank, tid); fflush(stdout);
+      if(flag){
+        exchange_kv();
+        switchflag = 0;
       }
 #pragma omp barrier
 #if GATHER_STAT
@@ -182,6 +183,8 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 
     int loff = thread_offsets[tid][target];
     char *lbuf = thread_buffers[tid]+target*thread_buf_size+loff;
+
+    //printf("loff=%d, kvsize=%d, thread_buf_size=%d\n", loff, kvsize, thread_buf_size); fflush(stdout);
 
     // local buffer has space
     if(loff + kvsize <= thread_buf_size){
@@ -227,6 +230,42 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 }
 
 
+void Alltoall::tpoll(int tid){
+#pragma omp atomic
+  tdone++;
+
+  // wait other threads
+  do{
+    if(switchflag != 0){
+#if GATHER_STAT
+      double t1 = omp_get_wtime();
+#endif
+#pragma omp barrier
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
+#endif
+      int flag;
+      MPI_Is_thread_main(&flag);
+      if(flag){
+        exchange_kv();
+        switchflag=0;
+      }
+#pragma omp barrier
+#if GATHER_STAT
+      double t3 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
+#endif
+    }
+  }while(tdone < tnum);
+
+#pragma omp barrier
+  if(tid==0){
+    tdone=0;
+  }
+#pragma omp barrier
+}
+
 /* send KV
  *   tid:     thread id
  *   target:  target process id
@@ -259,9 +298,10 @@ void Alltoall::twait(int tid){
       double t2 = omp_get_wtime();
       st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif
-      //int flag;
-      //MPI_Is_thread_main(&flag);
-      if(tid==0){
+      int flag;
+      MPI_Is_thread_main(&flag);
+      //printf("rank=%d, tid=%d, twait first\n", rank, tid); fflush(stdout);
+      if(flag){
         exchange_kv();
         switchflag=0;
       }
@@ -320,9 +360,12 @@ void Alltoall::twait(int tid){
       double t2 = omp_get_wtime();
       st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif
-      //int flag;
-      //MPI_Is_thread_main(&flag);
-      if(tid==0){
+
+      //printf("rank=%d, tid=%d, twait\n", rank, tid); fflush(stdout);
+
+      int flag;
+      MPI_Is_thread_main(&flag);
+      if(flag){
         exchange_kv();
         switchflag=0;
       }
@@ -357,7 +400,11 @@ void Alltoall::wait(){
 #if GATHER_STAT
      double t1 = MPI_Wtime();
 #endif
+
+     //printf("rank=%d, wait\n", rank); fflush(stdout);
+
      exchange_kv();
+
 #if GATHER_STAT
     double t2 = MPI_Wtime();
     st.inc_timer(0, TIMER_MAP_LASTEXCH, t2-t1);
@@ -476,6 +523,8 @@ void Alltoall::exchange_kv(){
   for(int i = 0; i < size; i++) off[i] = 0;
 
   //printf("MPI_Allreduce begin\n"); fflush(stdout);
+
+  //printf("me=%d, medone=%d, pdone=%d\n", rank, medone, pdone); fflush(stdout);
 
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 

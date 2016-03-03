@@ -28,6 +28,8 @@ public:
   // multi-thread
   int sendKV(int, int, char *, int, char *, int);
 
+  void tpoll(int tid);
+
   // thread wait
   void twait(int tid);
 

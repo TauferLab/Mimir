@@ -244,6 +244,33 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
   return 0;
 }
 
+void Ptop::tpoll(int tid){
+#pragma omp atomic
+  tdone++;
+
+  do{
+    int flag;
+    MPI_Is_thread_main(&flag);
+    if(flag){
+      //exchange_kv();  
+      //MAKE_PROGRESS;
+#if GATHER_STAT
+          double t1 = omp_get_wtime();
+#endif
+          MAKE_PROGRESS;
+#if GATHER_STAT
+          double t2 = omp_get_wtime();
+          //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
+#endif
+
+    }
+  }while(tdone < tnum);
+
+#pragma omp barrier
+  if(tid==0) tdone=0;
+#pragma omp barrier
+}
+
 void Ptop::twait(int tid){
   LOG_PRINT(DBG_COMM, "%d[%d] thread %d start wait\n", rank, size, tid);
 

@@ -246,6 +246,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   int64_t input_buffer_size=inputsize*UNIT_1M_SIZE;
   int64_t input_char_size=0;
 
+  //printf("input buffer size=%ld\n", input_buffer_size); fflush(stdout);
+
   char *text = new char[input_buffer_size+1];
 
 #if GATHER_STAT
@@ -337,7 +339,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
       //printf("tid=%d, start=%ld, text=%s\n", tid, tstart[tid], text+tstart[tid]); fflush(stdout);
 
-      //printf("thread=%d text=%s tstart=%ld\n", tid, text+tstart[tid], tstart[tid]); fflush(stdout);
+      //printf("thread=%d tstart=%ld\n", tid, tstart[tid]); fflush(stdout);
 
       char *saveptr = NULL;
       char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
@@ -347,17 +349,15 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
         word = strtok_r(NULL,whitespace,&saveptr);
       }
 
+      //printf("thread=%d begin poll\n", tid); fflush(stdout);
+ 
+      if(_comm) c->tpoll(tid);
+
 #if GATHER_STAT
       double t2 = omp_get_wtime();
       st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
 #endif
 
-       if(_comm) c->twait(tid);
-
-#if GATHER_STAT
-        double t3 = omp_get_wtime();
-        st.inc_timer(tid, TIMER_MAP_TWAIT, t3-t2);
-#endif  
 }
 
       foff += readsize;
@@ -371,6 +371,24 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
     LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
   }
+
+#pragma omp parallel
+{
+  int tid = omp_get_thread_num();
+
+#if GATHER_STAT
+  double t1 = omp_get_wtime();
+#endif
+
+  //printf("thread=%d begin wait\n", tid); fflush(stdout);
+  if(_comm) c->twait(tid);
+
+#if GATHER_STAT
+  double t2 = omp_get_wtime();
+  st.inc_timer(tid, TIMER_MAP_TWAIT, t2-t1);
+#endif  
+ 
+}
 
   delete [] tstart;
   delete []  text;
