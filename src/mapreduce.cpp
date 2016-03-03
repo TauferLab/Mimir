@@ -210,11 +210,6 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (main thread read file)\n", me, nprocs);
 
-  //printf("map begin"); fflush(stdout);
-
-  //LOG_ERROR("%s", "map (files as input, main thread reads files) has been implemented!\n");
-  // create data object
-  //if(data) delete data;
   DataObject::subRef(data);
   ifiles.clear();
 
@@ -228,13 +223,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   DataObject::addRef(data);
   kv->setKVsize(ksize,vsize);
 
-  // create communicator
-  //c = new Alltoall(comm, tnum);
   if(_comm){
-    //if(commmode==0)
-    //  c = new Alltoall(comm, tnum);
-    //else if(commmode==1)
-    //  c = new Ptop(comm, tnum);
     c=Communicator::Create(comm, tnum, commmode);
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
@@ -254,7 +243,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   struct stat stbuf;
 
-  int input_buffer_size=blocksize*UNIT_1M_SIZE;
+  int64_t input_buffer_size=inputsize*UNIT_1M_SIZE;
+  int64_t input_char_size=0;
 
   char *text = new char[input_buffer_size+1];
 
@@ -262,10 +252,13 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   double t1= MPI_Wtime();
 #endif
 
+  int64_t *tstart=new int64_t[tnum];
+  //int64_t *tend=new int64_t[tnum];
+
 #pragma omp parallel
 {
-      int tid = omp_get_thread_num();
-      _tinit(tid);
+  int tid = omp_get_thread_num();
+  _tinit(tid);
 }
 
   int fcount = ifiles.size();
@@ -290,7 +283,11 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
       fseek(fp, foff, SEEK_SET);
       // read a block
       int64_t readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
-      text[boff+readsize+1] = '\0';
+      text[boff+readsize] = '\0';
+
+      //printf("text=%s\n", text);
+
+      input_char_size = boff+readsize;
 
       LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld\n", me, nprocs, ifiles[i].c_str(), foff-boff, foff+readsize);
 
@@ -299,54 +296,53 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
      st.inc_timer(0, TIMER_MAP_IO, t2-t1);
 #endif
 
-      // the last block
-      //if(boff+readsize < input_buffer_size) 
-      boff = 0;
-      while(!strchr(whitespace, text[input_buffer_size-boff])) boff++;
+      int64_t divisor = input_char_size / tnum;
+      int64_t remain  = input_char_size % tnum;
 
-      printf("%d[%d] boff=%d\n", me, nprocs, boff);     
+      tstart[0]=0;
+      for(int j=0; j<tnum; j++){
+        int64_t tend=0;   
+        if(j<tnum-1){
+          tend = tstart[j] + divisor;
+          if(j < remain) tend += 1;
+          int64_t text_index=tend;
+          do{
+            if(strchr(whitespace, text[text_index]) != NULL) break;
+            text_index++;
+          }while(1);
+          tend=text_index;
+          text[tend]='\0';
+          tstart[j+1]=tend+1;
+        }else{
+          tend=input_char_size;
+          boff=0;
+          if(input_char_size >= input_buffer_size){
+            //printf("input_char_size=%ld, end=%c\n", input_char_size, text[input_char_size-boff]);
+            while(strchr(whitespace, text[input_char_size-boff-1])!=NULL) boff++;
+            tend-=boff;
+            text[tend]='\0';
+          }
+        }
+        //printf("%d[%d] thread %d %ld->%ld boff=%ld\n", me, nprocs, j, tstart[j], tend, boff);
+      }
+
+      //printf("haha!\n"); fflush(stdout);
 
 #pragma omp parallel
 {
       int tid = omp_get_thread_num();
-      //tinit(tid);
-      //
-
-      printf("%d[%d] thread %d begin\n", me, nprocs, tid); fflush(stdout);
-
 #if GATHER_STAT
       double t1 = omp_get_wtime();
 #endif
 
-      int divisor = input_buffer_size / tnum;
-      int remain  = input_buffer_size % tnum;
+      //printf("tid=%d, start=%ld, text=%s\n", tid, tstart[tid], text+tstart[tid]); fflush(stdout);
 
-      int tstart = tid * divisor;
-      if(tid < remain) tstart += tid;
-      else tstart += remain;
-
-      int tend = tstart + divisor;
-      if(tid < remain) tend += 1;
-
-      if(tid == tnum-1) tend -= boff;
-
-      // start by the first none whitespace char
-      int i;
-      for(i = tstart; i < tend; i++){
-        if(!strchr(whitespace, text[i])) break;
-      }
-      tstart = i;
-      
-      // end by the first whitespace char
-      for(i = tend; i < input_buffer_size; i++){
-        if(strchr(whitespace, text[i])) break;
-      }
-      tend = i;
-      text[tend] = '\0';
+      //printf("thread=%d text=%s tstart=%ld\n", tid, text+tstart[tid], tstart[tid]); fflush(stdout);
 
       char *saveptr = NULL;
-      char *word = strtok_r(text+tstart, whitespace, &saveptr);
+      char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
       while(word){
+        //printf("thread=%d word=%s\n", tid, word); fflush(stdout);
         mymap(this, word, ptr);
         word = strtok_r(NULL,whitespace,&saveptr);
       }
@@ -356,40 +352,28 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
       st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
 #endif
 
-      printf("%d[%d] thread %d end\n", me, nprocs, tid); fflush(stdout);
+       if(_comm) c->twait(tid);
+
+#if GATHER_STAT
+        double t3 = omp_get_wtime();
+        st.inc_timer(tid, TIMER_MAP_TWAIT, t3-t2);
+#endif  
 }
 
       foff += readsize;
       fsize -= readsize;
-      
-      for(int i =0; i < boff; i++) text[i] = text[input_buffer_size-boff+i];
+     
+      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
 
-      printf("%d[%d] foff=%d, fsize=%d\n", me, nprocs, foff, fsize); fflush(stdout);
-
-    }
+   }
     
     fclose(fp);
 
     LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
   }
 
+  delete [] tstart;
   delete []  text;
-
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-
-#if GATHRE_STAT
-  double t1 = omp_get_wtime();
-#endif
-
-  if(_comm) c->twait(tid) ;   
-
-#if GATHER_STAT
-  double t2 = omp_get_wtime();
-  st.inc_timer(tid, TIMER_MAP_TWAIT, t2-t1);
-#endif  
-}
 
 #if GATHER_STAT
   double t2= MPI_Wtime();
@@ -402,7 +386,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
    c = NULL;
  }
 
-#if GATHER_STAT
+#if  GATHER_STAT
   double t3= MPI_Wtime();
   st.inc_timer(0, TIMER_MAP_WAIT, t3-t2);
 #endif
@@ -1824,6 +1808,7 @@ void MapReduce::_get_default_values(){
     if(show_binding != 1) show_binding=0;
   }
 
+  inputsize = INPUT_SIZE;
   blocksize = BLOCK_SIZE;
   nmaxblock = MAX_BLOCKS;
   maxmemsize = MAXMEM_SIZE;

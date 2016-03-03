@@ -167,9 +167,9 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       double t2 = omp_get_wtime();
       st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif      
-      int flag;
-      MPI_Is_thread_main(&flag);
-      if(flag){
+      //int flag;
+      //MPI_Is_thread_main(&flag);
+      if(tid==0){
        exchange_kv();
        switchflag = 0;
       }
@@ -259,9 +259,9 @@ void Alltoall::twait(int tid){
       double t2 = omp_get_wtime();
       st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif
-      int flag;
-      MPI_Is_thread_main(&flag);
-      if(flag){
+      //int flag;
+      //MPI_Is_thread_main(&flag);
+      if(tid==0){
         exchange_kv();
         switchflag=0;
       }
@@ -320,9 +320,9 @@ void Alltoall::twait(int tid){
       double t2 = omp_get_wtime();
       st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif
-      int flag;
-      MPI_Is_thread_main(&flag);
-      if(flag){
+      //int flag;
+      //MPI_Is_thread_main(&flag);
+      if(tid==0){
         exchange_kv();
         switchflag=0;
       }

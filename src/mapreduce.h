@@ -45,6 +45,10 @@ public:
     blocksize = _blocksize;
   }
 
+  void set_inputsize(int _inputsize){
+    inputsize = _inputsize;
+  }
+
   void set_maxblocks(int _nmaxblock){
     nmaxblock = _nmaxblock;
   }
@@ -181,6 +185,7 @@ private:
   int lbufsize;  // KB
   int gbufsize;  // MB
   int blocksize; // MB
+  int inputsize; // MB
   std::string tmpfpath;
   int (*myhash)(char *, int);
 

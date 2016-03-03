@@ -24,6 +24,7 @@ void output(const char *filename, MapReduce *mr);
 int me, nprocs;
 
 int commmode=0;
+int inputsize=512;
 int blocksize=512;
 int gbufsize=8;
 int lbufsize=16;
@@ -68,6 +69,7 @@ int main(int argc, char *argv[])
   mr->set_threadbufsize(lbufsize);
   mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
+  mr->set_inputsize(inputsize);
   mr->set_maxmem(32);
   mr->set_commmode(commmode);
 #endif
@@ -100,9 +102,9 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //mr->output();
+  mr->output();
 
-  output("mtmr.wc", mr);
+  //output("mtmr.wc", mr);
  
   delete mr;
 
@@ -159,10 +161,10 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
 #else
 void map(MapReduce *mr, char *word, void *ptr){
   int len=strlen(word)+1;
-  char tmp[100]={"1"};
+  char one[10]={"1"};
 
   if(len <= 8192)
-    mr->add(word,len,tmp,strlen(tmp)+1);
+    mr->add(word,len,one,2);
 }
 #endif
 
