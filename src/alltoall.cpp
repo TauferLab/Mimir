@@ -373,7 +373,6 @@ void Alltoall::twait(int tid){
       double t2 = omp_get_wtime();
       st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif
-      //printf("rank=%d, tid=%d, twait\n", rank, tid); fflush(stdout);
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){

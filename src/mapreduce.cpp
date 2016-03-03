@@ -246,6 +246,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   int64_t input_buffer_size=inputsize*UNIT_1M_SIZE;
   int64_t input_char_size=0;
 
+  //printf("input buffer size=%ld\n", input_buffer_size); fflush(stdout);
+
   char *text = new char[input_buffer_size+1];
 
 #if GATHER_STAT
@@ -354,12 +356,6 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
       st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
 #endif
 
-       if(_comm) c->twait(tid);
-
-#if GATHER_STAT
-        double t3 = omp_get_wtime();
-        st.inc_timer(tid, TIMER_MAP_TWAIT, t3-t2);
-#endif  
 }
 
       foff += readsize;
