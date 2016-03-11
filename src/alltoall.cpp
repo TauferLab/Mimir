@@ -61,7 +61,10 @@ Alltoall::~Alltoall(){
   
   if(recvcounts) delete [] recvcounts;
 
-  if(reqs) delete [] reqs;
+  if(reqs) {
+    for(int i=0; i<nbuf; i++) delete [] reqs[i];
+    delete [] reqs;
+  }
 
 #if GATHER_STAT
   //delete [] tsendkv; 
@@ -80,6 +83,13 @@ int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _
 
   Communicator::setup(_tbufsize, _sbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
+  comm_max_size=MAX_COMM_SIZE*UNIT_1M_SIZE;
+  comm_unit_size=comm_max_size/size;
+  comm_div_count=send_buf_size/comm_unit_size;  
+  if(comm_div_count<=0) comm_div_count=1;
+
+  printf("comm: max size=%ld, unit size=%d, div count=%d\n", comm_max_size, comm_unit_size, comm_div_count); fflush(stdout);
+
   recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];
 
@@ -90,11 +100,14 @@ int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _
 
   send_displs = new int[size];
   recv_displs = new int[size];
-
-  reqs = new MPI_Request[nbuf];
-
+ 
+  reqs = new MPI_Request*[nbuf];
+  for(int i=0; i<nbuf; i++){
+    reqs[i]=new MPI_Request[comm_div_count];
+  }
   for(int i = 0; i < nbuf; i++)
-    reqs[i] = MPI_REQUEST_NULL;
+    for(int j = 0; j < comm_div_count; j++)
+      reqs[i][j] = MPI_REQUEST_NULL;
 
   recvcounts = new int[nbuf];
   for(int i = 0; i < nbuf; i++){
@@ -413,10 +426,14 @@ void Alltoall::wait(){
 
    // wait all pending communication
    for(int i = 0; i < nbuf; i++){
-     if(reqs[i] != MPI_REQUEST_NULL){
-       MPI_Status mpi_st;
-       MPI_Wait(&reqs[i], &mpi_st);
-       reqs[i] = MPI_REQUEST_NULL;
+     if(reqs[i][0] != MPI_REQUEST_NULL){
+       
+       for(int j=0; j<comm_div_count; j++){
+         MPI_Status mpi_st;
+         MPI_Wait(&reqs[i][j], &mpi_st);
+         reqs[i][j] = MPI_REQUEST_NULL;
+       }
+
        int recvcount = recvcounts[i];
 
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);      
@@ -448,15 +465,10 @@ void Alltoall::exchange_kv(){
   int sendcount=0;
   for(i=0; i<size; i++) sendcount += off[i];
 
-  //send_bytes += sendcount;
-
-  //printf("MPI_Alltoall begin\n"); fflush(stdout);
-
   // exchange send count
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
   for(i = 0; i < size; i++) send_displs[i] = i*send_buf_size;
-
   recvcounts[ibuf] = recv_count[ibuf][0];
   recv_displs[0] = 0;
   for(i = 1; i < size; i++){
@@ -470,10 +482,46 @@ void Alltoall::exchange_kv(){
   st.inc_counter(0, COUNTER_SEND_BYTES, sendcount);
 #endif
 
-  // printf("MPI_Ialltoall begin\n"); fflush(stdout);
+  int *a2a_s_count = new int[size];
+  int *a2a_s_remain = new int[size];
+  int *a2a_r_count = new int[size];
+  int *a2a_r_remain = new int[size];
+  for(i=0; i<size; i++){
+    a2a_s_count[i] = a2a_r_count[i] = 0;
+    a2a_s_remain[i] = off[i];
+    a2a_r_remain[i] = recv_count[ibuf][i];
+  }
+  // start communication
+  for(int k=0; k<comm_div_count; k++){
+    for(i=0; i<size; i++){
+      if(a2a_s_remain[i] <= comm_unit_size){
+        a2a_s_count[i] = a2a_s_remain[i];
+        a2a_s_remain[i] = 0;
+      }else{
+        a2a_s_count[i] = comm_unit_size;
+        a2a_s_remain[i] -= comm_unit_size;
+      }
+      if(a2a_r_remain[i] <= comm_unit_size){
+        a2a_r_count[i] = a2a_r_remain[i];
+        a2a_r_remain[i] = 0;
+      }else{
+        a2a_r_count[i] = comm_unit_size;
+        a2a_r_remain[i] -= comm_unit_size;
+      }
+    }
+    // exchange kv data
+    MPI_Ialltoallv(buf, a2a_s_count, send_displs, MPI_BYTE, recv_buf[ibuf], a2a_r_count, recv_displs, MPI_BYTE, comm,  &reqs[ibuf][k]);
+    
+    for(i=0; i<size; i++){
+      send_displs[i] += a2a_s_count[i];
+      recv_displs[i] += a2a_r_count[i];
+    }
+  }
 
-  // exchange kv data
-  MPI_Ialltoallv(buf, off, send_displs, MPI_BYTE, recv_buf[ibuf], recv_count[ibuf], recv_displs,MPI_BYTE, comm,  &reqs[ibuf]);
+  delete [] a2a_s_remain;
+  delete [] a2a_r_remain;
+  delete [] a2a_s_count;
+  delete [] a2a_r_count;
 
 #if GATHER_STAT
   double t3 = omp_get_wtime();
@@ -482,21 +530,23 @@ void Alltoall::exchange_kv(){
 
   // wait data
   ibuf = (ibuf+1)%nbuf;
-  if(reqs[ibuf] != MPI_REQUEST_NULL) {
+  if(reqs[ibuf][0] != MPI_REQUEST_NULL) {
 
 #if GATHER_STAT
     double t1 = omp_get_wtime();
 #endif
-
-    MPI_Status mpi_st;
-    MPI_Wait(&reqs[ibuf], &mpi_st);
+    
+    for(i=0; i<comm_div_count; i++){
+      MPI_Status mpi_st;
+      MPI_Wait(&reqs[ibuf][i], &mpi_st);
+      reqs[ibuf][i] = MPI_REQUEST_NULL;
+    }
 
 #if GATHER_STAT
     double t2 = omp_get_wtime();
     st.inc_timer(0, TIMER_MAP_WAITDATA, t2-t1);
 #endif
 
-    reqs[ibuf] = MPI_REQUEST_NULL;
     int recvcount = recvcounts[ibuf];
 
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);

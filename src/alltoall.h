@@ -48,8 +48,13 @@ private:
 
   int **recv_count;
   char **recv_buf;     
-  int  *recvcounts; 
-  MPI_Request *reqs;
+  int  *recvcounts;
+
+  uint64_t comm_max_size;    // communication max size
+  int comm_unit_size;   // communication unit size
+  int comm_div_count;   // communication divide count
+
+  MPI_Request **reqs;
 };
 
 }
