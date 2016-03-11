@@ -273,6 +273,10 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
     LOG_PRINT(DBG_IO, "%d[%d] open file %s, file size=%ld\n", me, nprocs, ifiles[i].c_str(), stbuf.st_size);
 
+#if GATHER_STAT
+    st.inc_counter(0, COUNTER_FILE_COUNT, 1);
+#endif
+
     FILE *fp = fopen(ifiles[i].c_str(), "r");
     int64_t fsize = stbuf.st_size;
     int64_t foff = 0, boff = 0;

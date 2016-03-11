@@ -63,9 +63,25 @@ int main(int argc, char *argv[])
     lbufsize=atoi(argv[5]);
   }
 
+  char *filedir=argv[1];
+
+  // copy files
+#if 1 
+  char dir[100];
+  sprintf(dir, "/tmp/mtmr_mpi.%d", me);
+
+  char cmd[1024+1];
+  sprintf(cmd, "mkdir %s", dir);
+  system(cmd);
+  sprintf(cmd, "cp -r %s %s", filedir, dir);
+  system(cmd);
+
+  filedir=dir;
+#endif
+
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#if 0
+#if 1
   mr->set_threadbufsize(lbufsize);
   mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
@@ -84,10 +100,11 @@ int main(int argc, char *argv[])
   //sprintf(filename, "%s/512M.%d.txt", argv[1], me);
 
 #ifndef WC_M
-  nword = mr->map(argv[1], 1, 1, fileread, NULL);
+  nword = mr->map(filedir, 0, 1, fileread, NULL);
 #else
   char whitespace[20] = " \n";
-  nword = mr->map(argv[1], 1, 1, whitespace, map, NULL);
+  //printf("filedir=%s\n", filedir);
+  nword = mr->map(filedir, 0, 1, whitespace, map, NULL);
 #endif
 
   //printf("map end!\n"); fflush(stdout);
@@ -104,9 +121,15 @@ int main(int argc, char *argv[])
 
   //mr->output();
 
-  //output("mtmr.wc", mr);
+  output("mtmr.wc", mr);
  
   delete mr;
+
+  // clear files
+#if 1 
+  sprintf(cmd, "rm -rf %s", dir);
+  system(cmd);
+#endif
 
   MPI_Finalize();
 }

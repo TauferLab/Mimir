@@ -1,19 +1,20 @@
 #PBS -N mtmr-mpi-wc 
-#PBS -n -l nodes=32:ppn=2
+#PBS -n -l nodes=32:ppn=4
 #PBS -l walltime=00:10:00
 
+NPROCS=128
+NTHRS=5
+INPUT=words/2.5GB
+FILE=wordcount
 
 DATAHOME=/scratch/rice/g/gao381
 
-NPROCS=64
-INPUT=words/320GB
 #INPUT=wikipedia/wikipedia_50GB
-NTHRS=10
 NOTIFY=0
 COMPILE=0
 TIMES=1
 
 cd $PBS_O_WORKDIR
 
-./run_mpi.sh $NPROCS $NTHRS $NOTIFY $COMPILE $TIMES wordcount $DATAHOME/$INPUT
+./run_mpi.sh $NPROCS $NTHRS $NOTIFY $COMPILE $TIMES $FILE $DATAHOME/$INPUT
 
