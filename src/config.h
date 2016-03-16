@@ -9,8 +9,7 @@
 //#define UNIT_SIZE               1024  // 1K
 
 
-#define MAX_COMM_SIZE             64
-#define MAX_BUF_SIZE              64
+#define MAX_COMM_SIZE           1024
 
 #define INPUT_SIZE                64
 #define BLOCK_SIZE                64  // 16M 

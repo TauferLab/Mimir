@@ -18,6 +18,8 @@ void fileread(MapReduce *, const char *, void *);
 void map(MapReduce *mr, char *word, void *ptr);
 #endif
 
+#define USE_LOCAL_DISK  0
+
 void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 void output(const char *filename, MapReduce *mr);
 
@@ -26,7 +28,7 @@ int me, nprocs;
 int commmode=0;
 int inputsize=512;
 int blocksize=512;
-int gbufsize=8;
+int gbufsize=2;
 int lbufsize=16;
 
 uint64_t nword, nunique;
@@ -68,7 +70,7 @@ int main(int argc, char *argv[])
   char *filedir=argv[1];
 
   // copy files
-#if 0 
+#if USE_LOCAL_DISK
   char dir[100];
   sprintf(dir, "/tmp/mtmr_mpi.%d", me);
 
@@ -83,7 +85,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#if 0
+#if 1
   mr->set_threadbufsize(lbufsize);
   mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
@@ -128,7 +130,7 @@ int main(int argc, char *argv[])
   delete mr;
 
   // clear files
-#if 0 
+#if USE_LOCAL_DISK 
   sprintf(cmd, "rm -rf %s", dir);
   system(cmd);
 #endif

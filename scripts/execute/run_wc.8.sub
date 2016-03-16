@@ -1,11 +1,11 @@
 #PBS -N mtmr-mpi-wc 
-#PBS -n -l nodes=8:ppn=4
-#PBS -l walltime=00:10:00
+#PBS -n -l nodes=8:ppn=2
+#PBS -l walltime=00:30:00
 
-NPROCS=32
-NTHRS=5
-INPUT=words/2.5GB
-FILE=wordcount
+NPROCS=16
+NTHRS=10
+INPUT=words/5GB.txt
+FILE=wordcount_m
 
 DATAHOME=/scratch/rice/g/gao381
 

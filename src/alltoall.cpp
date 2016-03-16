@@ -125,7 +125,7 @@ int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _
   comm_div_count=send_buf_size/comm_unit_size;  
   if(comm_div_count<=0) comm_div_count=1;
 
-  printf("comm: max size=%ld, unit size=%d, div count=%d\n", comm_max_size, comm_unit_size, comm_div_count); fflush(stdout);
+  //printf("comm: max size=%ld, unit size=%d, div count=%d\n", comm_max_size, comm_unit_size, comm_div_count); fflush(stdout);
 
   recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];
