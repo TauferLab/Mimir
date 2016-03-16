@@ -34,6 +34,8 @@ double t1, t2, t3;
 
 int main(int argc, char *argv[])
 {
+
+  //printf("%d", sizeof(int));
   int provided;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
@@ -66,7 +68,7 @@ int main(int argc, char *argv[])
   char *filedir=argv[1];
 
   // copy files
-#if 1 
+#if 0 
   char dir[100];
   sprintf(dir, "/tmp/mtmr_mpi.%d", me);
 
@@ -81,7 +83,7 @@ int main(int argc, char *argv[])
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#if 1
+#if 0
   mr->set_threadbufsize(lbufsize);
   mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
@@ -100,16 +102,16 @@ int main(int argc, char *argv[])
   //sprintf(filename, "%s/512M.%d.txt", argv[1], me);
 
 #ifndef WC_M
+  printf("filedir=%s\n", filedir);
   nword = mr->map(filedir, 0, 1, fileread, NULL);
 #else
   char whitespace[20] = " \n";
-  //printf("filedir=%s\n", filedir);
   nword = mr->map(filedir, 0, 1, whitespace, map, NULL);
 #endif
 
-  //printf("map end!\n"); fflush(stdout);
+  printf("map end!\n"); fflush(stdout);
 
-  //mr->output();
+  mr->output();
 
   t2 = MPI_Wtime();
 
@@ -119,14 +121,14 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //mr->output();
+  mr->output();
 
-  output("mtmr.wc", mr);
+  //output("mtmr.wc", mr);
  
   delete mr;
 
   // clear files
-#if 1 
+#if 0 
   sprintf(cmd, "rm -rf %s", dir);
   system(cmd);
 #endif

@@ -14,12 +14,41 @@ using namespace MAPREDUCE_NS;
 #include "stat.h"
 #endif
 
+#if 0
 #define SAVE_ALL_DATA(ii) \
 {\
   int offset=0;\
   for(int k=0;k<size;k++){\
     SAVE_DATA(recv_buf[ii]+offset, recv_count[ii][k])\
     offset += recv_count[ii][k];\
+  }\
+}
+#endif
+
+#define SAVE_ALL_DATA(ii)\
+{\
+  for(int k=0;k<size;k++){\
+    int recvcount = recv_count[ii][k];\
+    printf("recvcount=%d\n", recvcount);\
+    if(blocks[0]==-1){\
+      blocks[0] = data->add_block();\
+      data->acquire_block(blocks[0]);\
+    }\
+    int datasize=data->getdatasize(blocks[0]);\
+    if(datasize+recvcount>data->blocksize){\
+      data->release_block(blocks[0]);\
+      blocks[0] = data->add_block();\
+      data->acquire_block(blocks[0]);\
+      datasize=0;\
+    }\
+    char *databuf = data->getblockbuffer(blocks[0]);\
+    int dataoff=0;\
+    for(int i=0; i<comm_div_count; i++){\
+      printf("i=%d, dataoff=%d, comm_recv_displs=%d, comm_recv_count=%d\n", i, dataoff, comm_recv_displs[i][k], comm_recv_count[i][k]);\
+      memcpy(databuf+datasize+dataoff, comm_recv_buf[i]+comm_recv_displs[i][k], comm_recv_count[i][k]);\
+      dataoff+=comm_recv_count[i][k];\
+    }\
+    data->setblockdatasize(blocks[0], datasize+recvcount);\
   }\
 }
 
@@ -52,6 +81,14 @@ Alltoall::~Alltoall(){
     if(recv_buf && recv_buf[i]) free(recv_buf[i]);
     if(recv_count && recv_count[i]) free(recv_count[i]);
   }
+
+  for(int i = 0; i< comm_div_count; i++){
+    if(comm_recv_count && comm_recv_count[i]) free(comm_recv_count[i]);
+    if(comm_recv_displs && comm_recv_displs[i]) free(comm_recv_displs[i]);
+  }
+  delete [] comm_recv_count;
+  delete [] comm_recv_displs;
+  delete [] comm_recv_buf;
 
   if(recv_count) delete [] recv_count;
   if(recv_buf) delete [] recv_buf;
@@ -96,6 +133,14 @@ int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _
   for(int i = 0; i < nbuf; i++){
     recv_buf[i] = (char*)malloc(size*send_buf_size);
     recv_count[i] = (int*)malloc(size*sizeof(int));
+  }
+
+  comm_recv_buf = new char*[comm_div_count];
+  comm_recv_count = new int*[comm_div_count];
+  comm_recv_displs = new int*[comm_div_count];
+  for(int i=0; i<comm_div_count; i++){
+    comm_recv_count[i] = (int*)malloc(size*sizeof(int));
+    comm_recv_displs[i] = (int*)malloc(size*sizeof(int));
   }
 
   send_displs = new int[size];
@@ -454,6 +499,7 @@ void Alltoall::wait(){
 }
 
 void Alltoall::exchange_kv(){
+
 #if GATHER_STAT
   double t1 = omp_get_wtime();
 #endif
@@ -479,17 +525,66 @@ void Alltoall::exchange_kv(){
   st.inc_counter(0, COUNTER_SEND_BYTES, sendcount);
 #endif
 
+  int origin_ibuf=ibuf;
+  // wait data
+  ibuf = (ibuf+1)%nbuf;
+  if(reqs[ibuf][0] != MPI_REQUEST_NULL) {
+
+#if GATHER_STAT
+    double t1 = omp_get_wtime();
+#endif
+    
+    for(i=0; i<comm_div_count; i++){
+      MPI_Status mpi_st;
+      MPI_Wait(&reqs[ibuf][i], &mpi_st);
+      reqs[ibuf][i] = MPI_REQUEST_NULL;
+    }
+
+#if GATHER_STAT
+    double t2 = omp_get_wtime();
+    st.inc_timer(0, TIMER_MAP_WAITDATA, t2-t1);
+#endif
+
+    int recvcount = recvcounts[ibuf];
+    LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);
+    if(recvcount > 0) {
+#if GATHER_STAT
+      st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
+#endif    
+      SAVE_ALL_DATA(ibuf);
+    }
+#if GATHER_STAT
+    double t3 = omp_get_wtime();
+    st.inc_timer(0, TIMER_MAP_COPYDATA, t3-t2);
+#endif
+  }
+
+#if GATHER_STAT
+  double t3 = omp_get_wtime();
+  st.inc_timer(0, TIMER_MAP_SAVEDATA, t3-t2);
+#endif
+
+  //printf("send count!\n", )
+  char *a2a_s_buf;
+  if(comm_div_count==1) a2a_s_buf=send_buffers[origin_ibuf];
+  else a2a_s_buf = send_buffers[ibuf];
+  char *a2a_r_buf = recv_buf[origin_ibuf];
   int *a2a_s_count = new int[size];
   int *a2a_s_remain = new int[size];
+  int *a2a_s_displs = new int[size];
   int *a2a_r_count = new int[size];
   int *a2a_r_remain = new int[size];
+  int *a2a_r_displs = new int[size];
   for(i=0; i<size; i++){
     a2a_s_count[i] = a2a_r_count[i] = 0;
     a2a_s_remain[i] = off[i];
-    a2a_r_remain[i] = recv_count[ibuf][i];
+    a2a_r_remain[i] = recv_count[origin_ibuf][i];
+    //recv_count[origin_ibuf][i] = 0;
   }
   // start communication
   for(int k=0; k<comm_div_count; k++){
+    int a2a_send_count=0, a2a_recv_count=0;    
+
     for(i=0; i<size; i++){
       if(a2a_s_remain[i] <= comm_unit_size){
         a2a_s_count[i] = a2a_s_remain[i];
@@ -505,26 +600,56 @@ void Alltoall::exchange_kv(){
         a2a_r_count[i] = comm_unit_size;
         a2a_r_remain[i] -= comm_unit_size;
       }
+      a2a_send_count+=a2a_s_count[i];
+      a2a_recv_count+=a2a_r_count[i];
+    }
+
+    a2a_s_displs[0]=0;
+    a2a_r_displs[0]=0;
+    for(i=0; i<size; i++){
+      if(comm_div_count > 1) memcpy(a2a_s_buf+a2a_s_displs[i], buf+send_displs[i], a2a_s_count[i]);
+      if(i<size-1){
+        if(comm_div_count==1) a2a_s_displs[i+1]=send_displs[i+1];
+        else a2a_s_displs[i+1]=a2a_s_displs[i]+a2a_s_count[i];
+        a2a_r_displs[i+1]=a2a_r_displs[i]+a2a_r_count[i];
+      }
     }
     // exchange kv data
-    MPI_Ialltoallv(buf, a2a_s_count, send_displs, MPI_BYTE, recv_buf[ibuf], a2a_r_count, recv_displs, MPI_BYTE, comm,  &reqs[ibuf][k]);
-    
+    MPI_Ialltoallv(a2a_s_buf, a2a_s_count, a2a_s_displs, MPI_BYTE, a2a_r_buf, a2a_r_count, a2a_r_displs, MPI_BYTE, comm,  &reqs[origin_ibuf][k]);
+    comm_recv_buf[k] = a2a_r_buf;
+    comm_recv_displs[k][0] = 0;
     for(i=0; i<size; i++){
       send_displs[i] += a2a_s_count[i];
-      recv_displs[i] += a2a_r_count[i];
+      comm_recv_count[k][i] = a2a_r_count[i];
+      if(i<size-1) comm_recv_displs[k][i+1]=comm_recv_displs[k][i]+a2a_r_count[i];
+      //recv_count[origin_ibuf][(k*size+i)%comm_div_count] += a2a_r_count[i];
+      //recv_displs[i] += a2a_r_count[i];
     }
+    //for(i=0; i<comm_div_count)
+
+    a2a_s_buf+=a2a_send_count;
+    a2a_r_buf+=a2a_recv_count;
   }
 
+  delete [] a2a_s_displs; 
   delete [] a2a_s_remain;
   delete [] a2a_r_remain;
   delete [] a2a_s_count;
   delete [] a2a_r_count;
+  delete [] a2a_r_displs;
+
+  if(comm_div_count > 1){
+    char *tmp = send_buffers[ibuf];
+    send_buffers[ibuf]=send_buffers[origin_ibuf];
+    send_buffers[origin_ibuf]=tmp;
+  }
 
 #if GATHER_STAT
-  double t3 = omp_get_wtime();
-  st.inc_timer(0, TIMER_MAP_IALLTOALL, t3-t2);
+  double t4 = omp_get_wtime();
+  st.inc_timer(0, TIMER_MAP_IALLTOALL, t4-t3);
 #endif
 
+#if 0
   // wait data
   ibuf = (ibuf+1)%nbuf;
   if(reqs[ibuf][0] != MPI_REQUEST_NULL) {
@@ -562,6 +687,7 @@ void Alltoall::exchange_kv(){
 #if GATHER_STAT
   double t4 = omp_get_wtime();
   st.inc_timer(0, TIMER_MAP_SAVEDATA, t4-t3);
+#endif
 #endif
 
   // switch buffer

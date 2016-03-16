@@ -50,6 +50,10 @@ private:
   char **recv_buf;     
   int  *recvcounts;
 
+  char **comm_recv_buf;
+  int  **comm_recv_count;
+  int  **comm_recv_displs;
+
   uint64_t comm_max_size;    // communication max size
   int comm_unit_size;   // communication unit size
   int comm_div_count;   // communication divide count
