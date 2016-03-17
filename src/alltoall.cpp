@@ -29,7 +29,6 @@ using namespace MAPREDUCE_NS;
 {\
   for(int k=0;k<size;k++){\
     int recvcount = recv_count[ii][k];\
-    printf("recvcount=%d\n", recvcount);\
     if(blocks[0]==-1){\
       blocks[0] = data->add_block();\
       data->acquire_block(blocks[0]);\
@@ -44,8 +43,7 @@ using namespace MAPREDUCE_NS;
     char *databuf = data->getblockbuffer(blocks[0]);\
     int dataoff=0;\
     for(int i=0; i<comm_div_count; i++){\
-      printf("i=%d, dataoff=%d, comm_recv_displs=%d, comm_recv_count=%d\n", i, dataoff, comm_recv_displs[i][k], comm_recv_count[i][k]);\
-      memcpy(databuf+datasize+dataoff, comm_recv_buf[i]+comm_recv_displs[i][k], comm_recv_count[i][k]);\
+     memcpy(databuf+datasize+dataoff, comm_recv_buf[i]+comm_recv_displs[i][k], comm_recv_count[i][k]);\
       dataoff+=comm_recv_count[i][k];\
     }\
     data->setblockdatasize(blocks[0], datasize+recvcount);\
@@ -125,7 +123,7 @@ int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _
   comm_div_count=send_buf_size/comm_unit_size;  
   if(comm_div_count<=0) comm_div_count=1;
 
-  //printf("comm: max size=%ld, unit size=%d, div count=%d\n", comm_max_size, comm_unit_size, comm_div_count); fflush(stdout);
+  printf("comm: max size=%ld, unit size=%d, div count=%d\n", comm_max_size, comm_unit_size, comm_div_count); fflush(stdout);
 
   recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];

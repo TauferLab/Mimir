@@ -26,9 +26,9 @@ void output(const char *filename, MapReduce *mr);
 int me, nprocs;
 
 int commmode=0;
-int inputsize=512;
+int inputsize=5120;
 int blocksize=512;
-int gbufsize=2;
+int gbufsize=8;
 int lbufsize=16;
 
 uint64_t nword, nunique;
@@ -104,16 +104,16 @@ int main(int argc, char *argv[])
   //sprintf(filename, "%s/512M.%d.txt", argv[1], me);
 
 #ifndef WC_M
-  printf("filedir=%s\n", filedir);
+  //printf("filedir=%s\n", filedir);
   nword = mr->map(filedir, 0, 1, fileread, NULL);
 #else
   char whitespace[20] = " \n";
   nword = mr->map(filedir, 0, 1, whitespace, map, NULL);
 #endif
 
-  printf("map end!\n"); fflush(stdout);
+  //printf("map end!\n"); fflush(stdout);
 
-  mr->output();
+  //mr->output();
 
   t2 = MPI_Wtime();
 
@@ -123,9 +123,9 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  mr->output();
+  //mr->output();
 
-  //output("mtmr.wc", mr);
+  output("mtmr.wc", mr);
  
   delete mr;
 

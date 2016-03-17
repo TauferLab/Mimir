@@ -246,7 +246,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
   int64_t input_buffer_size=inputsize*UNIT_1M_SIZE;
   int64_t input_char_size=0;
 
-  //printf("input buffer size=%ld\n", input_buffer_size); fflush(stdout);
+  printf("input buffer size=%ld\n", input_buffer_size); fflush(stdout);
 
   char *text = new char[input_buffer_size+1];
 
@@ -280,6 +280,9 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
     FILE *fp = fopen(ifiles[i].c_str(), "r");
     int64_t fsize = stbuf.st_size;
     int64_t foff = 0, boff = 0;
+
+    
+
     while(fsize > 0){
 
 #if GATHER_STAT
@@ -290,6 +293,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
       // read a block
       int64_t readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
       text[boff+readsize] = '\0';
+
+      printf("Read: %ld->%ld\n", foff, foff+readsize);
 
       //printf("text=%s\n", text);
 
@@ -313,24 +318,29 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
           if(j < remain) tend += 1;
           int64_t text_index=tend;
           do{
-            if(strchr(whitespace, text[text_index]) != NULL) break;
+            if(strchr(whitespace, text[text_index]) != NULL || text[text_index]=='\0') break;
             text_index++;
           }while(1);
           tend=text_index;
           text[tend]='\0';
-          tstart[j+1]=tend+1;
+          if(tend+1>input_char_size)
+            tstart[j+1]=input_char_size;
+          else
+            tstart[j+1]=tend+1;
         }else{
           tend=input_char_size;
           boff=0;
-          if(input_char_size >= input_buffer_size){
-            //printf("input_char_size=%ld, end=%c\n", input_char_size, text[input_char_size-boff]);
-            while(strchr(whitespace, text[input_char_size-boff-1])!=NULL) boff++;
+          if(input_char_size >= input_buffer_size && fsize>readsize){
+            printf("input_char_size=%ld, end=%x, %lx\n", input_char_size, text[input_char_size-boff-1], strchr(whitespace, text[input_char_size-boff-1]));
+            while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
             tend-=boff;
             text[tend]='\0';
           }
         }
-        //printf("%d[%d] thread %d %ld->%ld boff=%ld\n", me, nprocs, j, tstart[j], tend, boff);
+        printf("%d[%d] thread %d %ld->%ld boff=%ld\n", me, nprocs, j, tstart[j], tend, boff);
       }
+
+      printf("boff=%d\n", boff); fflush(stdout);
 
       //printf("haha!\n"); fflush(stdout);
 

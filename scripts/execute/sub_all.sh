@@ -1,8 +1,8 @@
 TIMES=10
 START=128
-END=256
+END=1
 
-PRE=$(qsub run_wc.128.sub)
+PRE=$(qsub run_wc.1.sub)
 
 for((k=$START; k<=$END; k*=2))
 do
