@@ -485,7 +485,7 @@ void Alltoall::wait(){
 
        uint64_t recvcount = recvcounts[i];
 
-       LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);      
+       LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);      
        if(recvcount > 0) {
 #if GATHER_STAT
          st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
@@ -559,7 +559,7 @@ void Alltoall::exchange_kv(){
 #endif
 
     uint64_t recvcount = recvcounts[ibuf];
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);
+    LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
     if(recvcount > 0) {
 #if GATHER_STAT
       st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
@@ -743,7 +743,7 @@ void Alltoall::exchange_kv(){
   st.inc_timer(0, TIMER_MAP_ALLREDUCE, t5-t4);
   st.inc_timer(0, TIMER_MAP_EXCHANGE, t5-t1);
 #endif
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%d, done count=%d)\n", rank, size, sendcount, pdone);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%ld, done count=%d)\n", rank, size, sendcount, pdone);
 #endif
 }
 

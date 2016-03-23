@@ -277,21 +277,36 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
     st.inc_counter(0, COUNTER_FILE_COUNT, 1);
 #endif
 
+#ifdef USE_MPI_IO
+    MPI_File fp;
+    MPI_File_open(MPI_COMM_SELF, ifiles[i].c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fp);
+#else
     FILE *fp = fopen(ifiles[i].c_str(), "r");
+#endif
+
     int64_t fsize = stbuf.st_size;
     int64_t foff = 0, boff = 0;
-
-    
 
     while(fsize > 0){
 
 #if GATHER_STAT
       double t1 = MPI_Wtime();
 #endif
+
+      int64_t readsize=0;
+#ifdef USE_MPI_IO
       // set file pointer
-      fseek(fp, foff, SEEK_SET);
+      MPI_File_seek(fp, foff, SEEK_SET);
+      MPI_Status status;
+      MPI_File_read(fp, text+boff, input_buffer_size-boff, MPI_BYTE, &status);
+      int count;
+      MPI_Get_count(&status, MPI_BYTE, &count);
+      readsize = count;
+#else
+      fseek(fp, foff, SEEK_SET);   
+      readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
+#endif
       // read a block
-      int64_t readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
       text[boff+readsize] = '\0';
 
       //printf("Read: %ld->%ld\n", foff, foff+readsize);
@@ -378,8 +393,12 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
       for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
 
    }
-    
+
+#ifdef USE_MPI_IO
+    MPI_File_close(&fp);
+#else   
     fclose(fp);
+#endif
 
     LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
   }
