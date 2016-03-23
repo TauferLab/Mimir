@@ -1,6 +1,6 @@
 TIMES=10
-START=128
-END=1
+START=1
+END=128
 
 PRE=$(qsub run_wc.1.sub)
 

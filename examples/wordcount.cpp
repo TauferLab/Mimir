@@ -105,10 +105,10 @@ int main(int argc, char *argv[])
 
 #ifndef WC_M
   //printf("filedir=%s\n", filedir);
-  nword = mr->map(filedir, 0, 1, fileread, NULL);
+  nword = mr->map(filedir, 1, 1, fileread, NULL);
 #else
   char whitespace[20] = " \n";
-  nword = mr->map(filedir, 0, 1, whitespace, map, NULL);
+  nword = mr->map(filedir, 1, 1, whitespace, map, NULL);
 #endif
 
   //printf("map end!\n"); fflush(stdout);

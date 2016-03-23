@@ -43,12 +43,12 @@ private:
   int  *off;
 
   // used for MPI_Ialltoall
-  int *send_displs;   
-  int *recv_displs;
+  uint64_t *send_displs;   
+  uint64_t *recv_displs;
 
   int **recv_count;
   char **recv_buf;     
-  int  *recvcounts;
+  uint64_t  *recvcounts;
 
   char **comm_recv_buf;
   int  **comm_recv_count;
