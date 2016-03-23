@@ -300,6 +300,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
       int64_t readsize=0;
       char *text=input_file_buffers[0];
+
 #ifdef USE_MPI_IO
       // set file pointer
       MPI_File_seek(fp, foff, SEEK_SET);
