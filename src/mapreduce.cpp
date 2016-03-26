@@ -243,12 +243,17 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   struct stat stbuf;
 
-  int64_t input_buffer_size=(int64_t)inputsize*UNIT_1M_SIZE;
+  int64_t input_buffer_size=(int64_t)(inputsize+1)*UNIT_1M_SIZE;
   int64_t input_char_size=0;
 
   //printf("input buffer size=%ld\n", input_buffer_size); fflush(stdout);
 
-  char *text = new char[input_buffer_size+1];
+  char **input_file_buffers = new char*[1];
+  for(int i=0; i<2; i++){
+    input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size);
+  }
+
+  //char *text = new char[input_buffer_size+1];
 
 #if GATHER_STAT
   double t1= MPI_Wtime();
@@ -294,17 +299,18 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 #endif
 
       int64_t readsize=0;
+      char *text=input_file_buffers[0];
 #ifdef USE_MPI_IO
       // set file pointer
       MPI_File_seek(fp, foff, SEEK_SET);
       MPI_Status status;
-      MPI_File_read(fp, text+boff, input_buffer_size-boff, MPI_BYTE, &status);
+      MPI_File_read(fp, text+boff, input_buffer_size, MPI_BYTE, &status);
       int count;
       MPI_Get_count(&status, MPI_BYTE, &count);
       readsize = count;
 #else
       fseek(fp, foff, SEEK_SET);   
-      readsize = fread(text+boff, 1, input_buffer_size-boff, fp);
+      readsize = fread(text+boff, 1, input_buffer_size, fp);
 #endif
       // read a block
       text[boff+readsize] = '\0';
@@ -355,7 +361,7 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
         //printf("%d[%d] thread %d %ld->%ld boff=%ld\n", me, nprocs, j, tstart[j], tend, boff);
       }
 
-      //printf("boff=%d\n", boff); fflush(stdout);
+      printf("boff=%ld\n", boff); fflush(stdout);
 
       //printf("haha!\n"); fflush(stdout);
 
@@ -422,7 +428,14 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 }
 
   delete [] tstart;
-  delete []  text;
+
+  for(int i=0; i<2; i++) mem_aligned_free(input_file_buffers[i]);
+  delete [] input_file_buffers;
+  //for(int i=0; i<2; i++){
+  //  file_input_buffers[i] = mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size);
+  //}
+
+  //delete []  text;
 
 #if GATHER_STAT
   double t2= MPI_Wtime();
