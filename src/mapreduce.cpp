@@ -282,12 +282,22 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
     st.inc_counter(0, COUNTER_FILE_COUNT, 1);
 #endif
 
+#if GATHER_STAT
+    double t1 = MPI_Wtime();
+#endif
+
 #ifdef USE_MPI_IO
     MPI_File fp;
     MPI_File_open(MPI_COMM_SELF, ifiles[i].c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fp);
 #else
     FILE *fp = fopen(ifiles[i].c_str(), "r");
 #endif
+
+#if GATHER_STAT
+     double t2 = MPI_Wtime();
+     st.inc_timer(0, TIMER_MAP_OPEN, t2-t1);
+#endif
+
 
     int64_t fsize = stbuf.st_size;
     int64_t foff = 0, boff = 0;
@@ -401,11 +411,21 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
    }
 
+#if GATHER_STAT
+    double t3 = MPI_Wtime();
+#endif
+
 #ifdef USE_MPI_IO
     MPI_File_close(&fp);
 #else   
     fclose(fp);
 #endif
+
+#if GATHER_STAT
+     double t4 = MPI_Wtime();
+     st.inc_timer(0, TIMER_MAP_CLOSE, t4-t3);
+#endif
+
 
     LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
   }

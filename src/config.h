@@ -1,7 +1,7 @@
 #ifndef MTMR_CONFIG_H
 #define MTMR_CONFIG_H
 
-#define USE_MPI_IO
+//#define USE_MPI_IO
 
 #define UNIT_1K_SIZE            (1024)
 #define UNIT_1M_SIZE       (1024*1024)
@@ -67,20 +67,22 @@
 #define TIMER_MAP_WAITDATA                 14
 #define TIMER_MAP_COPYDATA                 15
 #define TIMER_MAP_IO                       16
-#define TIMER_MAP_SEEK                     17
-#define TIMER_REDUCE_CVT                   18
-#define TIMER_REDUCE_KV2U                  19
-#define TIMER_REDUCE_U2KMV                 20
-#define TIMER_REDUCE_MERGE                 21
-#define TIMER_REDUCE_LCVT                  22
-#define TIMER_REDUCE_USER                  23
-#define TIMER_REDUCE_STAGE1                24
-#define TIMER_REDUCE_STAGE2                25
-#define TIMER_COMPRESS_TOTAL               26
-#define TIMER_COMPRESS_SCAN                27
-#define TIMER_COMPRESS_GATHER              28
-#define TIMER_COMPRESS_REDUCE              29
-#define TIMER_NUM                          30
+#define TIMER_MAP_OPEN                     17          
+#define TIMER_MAP_CLOSE                    18
+#define TIMER_MAP_SEEK                     19
+#define TIMER_REDUCE_CVT                   20
+#define TIMER_REDUCE_KV2U                  21
+#define TIMER_REDUCE_U2KMV                 22
+#define TIMER_REDUCE_MERGE                 23
+#define TIMER_REDUCE_LCVT                  24
+#define TIMER_REDUCE_USER                  25
+#define TIMER_REDUCE_STAGE1                26
+#define TIMER_REDUCE_STAGE2                27
+#define TIMER_COMPRESS_TOTAL               28
+#define TIMER_COMPRESS_SCAN                29
+#define TIMER_COMPRESS_GATHER              30
+#define TIMER_COMPRESS_REDUCE              31
+#define TIMER_NUM                          32
 
 #define COUNTER_FILE_COUNT                  0
 #define COUNTER_KV_NUMS                     1
