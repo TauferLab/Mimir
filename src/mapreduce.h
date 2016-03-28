@@ -85,8 +85,8 @@ public:
   uint64_t map(void (*mymap)(MapReduce *, void *), void *ptr=NULL, int comm=1);
   uint64_t map(char *, int, int, char *, 
     void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
-  uint64_t map(char *, int, int, 
-    void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL, int comm=1);
+  //uint64_t map(char *, int, int, 
+  //  void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL, int comm=1);
   uint64_t map(MapReduce *, 
       void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *ptr=NULL, int comm=1);
 
@@ -109,6 +109,12 @@ public:
   uint64_t get_local_KVs(){
     return local_kvs_count;
   }
+
+  uint64_t _map_master_io(char *, int, int, char *, 
+    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
+
+  uint64_t _map_multithread_io(char *, int, int, char *, 
+    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
 
   /**** Interfaces used for statatics *****/
   void init_stat();

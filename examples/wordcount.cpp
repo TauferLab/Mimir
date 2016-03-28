@@ -12,11 +12,11 @@ using namespace MAPREDUCE_NS;
 
 #include "stat.h"
 
-#ifndef WC_M
-void fileread(MapReduce *, const char *, void *);
-#else
+//#ifndef WC_M
+//void fileread(MapReduce *, const char *, void *);
+//#else
 void map(MapReduce *mr, char *word, void *ptr);
-#endif
+//#endif
 
 #define USE_LOCAL_DISK  0
 
@@ -26,9 +26,9 @@ void output(const char *filename, MapReduce *mr);
 int me, nprocs;
 
 int commmode=0;
-int inputsize=5120;
-int blocksize=512;
-int gbufsize=8;
+int inputsize=64;
+int blocksize=64;
+int gbufsize=64;
 int lbufsize=16;
 
 uint64_t nword, nunique;
@@ -103,17 +103,15 @@ int main(int argc, char *argv[])
   //char filename[2048+1];
   //sprintf(filename, "%s/512M.%d.txt", argv[1], me);
 
-#ifndef WC_M
+//#ifndef WC_M
   //printf("filedir=%s\n", filedir);
-  nword = mr->map(filedir, 1, 1, fileread, NULL);
-#else
+  //nword = mr->map(filedir, 1, 1, fileread, NULL);
+//#else
   char whitespace[20] = " \n";
   nword = mr->map(filedir, 1, 1, whitespace, map, NULL);
-#endif
+//#endif
 
-  //printf("map end!\n"); fflush(stdout);
-
-  //mr->output();
+  mr->output();
 
   t2 = MPI_Wtime();
 
@@ -123,9 +121,9 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //mr->output();
+  mr->output();
 
-  output("mtmr.wc", mr);
+  //output("mtmr.wc", mr);
  
   delete mr;
 
@@ -138,6 +136,7 @@ int main(int argc, char *argv[])
   MPI_Finalize();
 }
 
+#if 0
 #ifndef WC_M
 void fileread(MapReduce *mr, const char *fname, void *ptr){
   int tid = omp_get_thread_num();
@@ -185,7 +184,9 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
   st.inc_timer(tid, TIMER_MAP_SEEK, t3-t2);
 #endif
 }
-#else
+#endif
+#endif
+
 void map(MapReduce *mr, char *word, void *ptr){
   int len=strlen(word)+1;
   char one[10]={"1"};
@@ -193,7 +194,6 @@ void map(MapReduce *mr, char *word, void *ptr){
   if(len <= 8192)
     mr->add(word,len,one,2);
 }
-#endif
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
   uint64_t count=0;
