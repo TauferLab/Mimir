@@ -1,7 +1,8 @@
 #ifndef MTMR_CONFIG_H
 #define MTMR_CONFIG_H
 
-//#define USE_MPI_IO
+#define USE_MPI_IO
+#define USE_MPI_ASYN_IO
 
 #define UNIT_1K_SIZE            (1024)
 #define UNIT_1M_SIZE       (1024*1024)
@@ -12,6 +13,8 @@
 
 
 #define MAX_COMM_SIZE           1024
+
+#define INPUT_BUF_COUNT            2
 
 #define INPUT_SIZE                64
 #define BLOCK_SIZE                64  // 16M 

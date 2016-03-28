@@ -152,11 +152,6 @@ uint64_t MapReduce::map(void (*mymap)(MapReduce *, void *), void *ptr, int _comm
   kv->setKVsize(ksize,vsize);
 
   if(_comm){
-    // create communicator
-    //if(commmode==0)
-    //  c = new Alltoall(comm, tnum);
-    //else if(commmode==1)
-    //  c = new Ptop(comm, tnum);
     c=Communicator::Create(comm, tnum, commmode);
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
@@ -248,12 +243,14 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   //printf("input buffer size=%ld\n", input_buffer_size); fflush(stdout);
 
-  char **input_file_buffers = new char*[1];
-  for(int i=0; i<2; i++){
+#ifdef USE_MPI_IO
+  char **input_file_buffers = new char*[INPUT_BUF_COUNT];
+  for(int i=0; i<INPUT_BUF_COUNT; i++){
     input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size);
   }
-
-  //char *text = new char[input_buffer_size+1];
+#else
+  char *text = new char[input_buffer_size+1];
+#endif
 
 #if GATHER_STAT
   double t1= MPI_Wtime();
@@ -287,8 +284,17 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 #endif
 
 #ifdef USE_MPI_IO
+    int ibuf=0;
+    MPI_Request reqs[INPUT_BUF_COUNT];
+    for(int j=0; j<INPUT_BUF_COUNT; j++) reqs[j]=MPI_REQUEST_NULL;
+
     MPI_File fp;
     MPI_File_open(MPI_COMM_SELF, ifiles[i].c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fp);
+
+#ifdef USE_ASYN_MPI_IO
+    MPI_File_iread_at(fp, foff, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTES, &reqs[ibuf]);
+#endif
+
 #else
     FILE *fp = fopen(ifiles[i].c_str(), "r");
 #endif
@@ -297,7 +303,6 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
      double t2 = MPI_Wtime();
      st.inc_timer(0, TIMER_MAP_OPEN, t2-t1);
 #endif
-
 
     int64_t fsize = stbuf.st_size;
     int64_t foff = 0, boff = 0;
@@ -309,16 +314,27 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 #endif
 
       int64_t readsize=0;
-      char *text=input_file_buffers[0];
 
 #ifdef USE_MPI_IO
-      // set file pointer
-      MPI_File_seek(fp, foff, SEEK_SET);
+#ifdef USE_ASYN_MPI_IO
+      char *text=input_file_buffers[ibuf];
       MPI_Status status;
-      MPI_File_read(fp, text+boff, input_buffer_size, MPI_BYTE, &status);
+      MPI_Wait(&reqs[ibuf], &status);
+      MPI_Get_count(&status, MPI_BYTE, &count);
+      readsize = count;
+      ibuf=(ibuf+1)%INPUT_BUF_COUNT;
+      if(fsize > readsize){
+        MPI_File_iread_at(fp, foff, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTES, reqs[ibuf]);
+      }
+#else
+      char *text=input_file_buffers[ibuf];
+      // set file pointer
+      MPI_Status status;
+      MPI_File_read_at(fp, foff, text+boff, input_buffer_size, MPI_BYTE, &status);
       int count;
       MPI_Get_count(&status, MPI_BYTE, &count);
       readsize = count;
+#endif
 #else
       fseek(fp, foff, SEEK_SET);   
       readsize = fread(text+boff, 1, input_buffer_size, fp);
@@ -450,13 +466,12 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 
   delete [] tstart;
 
-  for(int i=0; i<2; i++) mem_aligned_free(input_file_buffers[i]);
+#ifdef USE_MPI_IO 
+  for(int i=0; i<INPUT_BUF_COUNT; i++) mem_aligned_free(input_file_buffers[i]);
   delete [] input_file_buffers;
-  //for(int i=0; i<2; i++){
-  //  file_input_buffers[i] = mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size);
-  //}
-
-  //delete []  text;
+#else
+  delete []  text;
+#endif
 
 #if GATHER_STAT
   double t2= MPI_Wtime();
