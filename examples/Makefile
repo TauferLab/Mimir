@@ -14,8 +14,8 @@ wordcount: wordcount.o
 bfs: bfs.o
 	$(CPP) $(CFLAGS) $(LFLAGS) bfs.o $(USERLIBS) -o bfs 
 
-bfs_mm: bfs_mm.o
-	$(CPP) $(CFLAGS) $(LFLAGS) bfs_mm.o $(USERLIBS) -o bfs_mm
+#bfs_mm: bfs_mm.o
+#	$(CPP) $(CFLAGS) $(LFLAGS) bfs_mm.o $(USERLIBS) -o bfs_mm
 
 octree_move_lg: octree_move_lg.o
 	$(CPP) $(CFLAGS) $(LFLAGS) octree_move_lg.o $(USERLIBS) -o octree_move_lg
