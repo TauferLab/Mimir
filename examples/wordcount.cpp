@@ -26,9 +26,9 @@ void output(const char *filename, MapReduce *mr);
 int me, nprocs;
 
 int commmode=0;
-int inputsize=64;
-int blocksize=64;
-int gbufsize=64;
+int inputsize=512;
+int blocksize=512;
+int gbufsize=8;
 int lbufsize=16;
 
 uint64_t nword, nunique;
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
   nword = mr->map(filedir, 1, 1, whitespace, map, NULL);
 //#endif
 
-  mr->output();
+  //mr->output();
 
   t2 = MPI_Wtime();
 
@@ -121,9 +121,9 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  mr->output();
+  //mr->output();
 
-  //output("mtmr.wc", mr);
+  output("mtmr.wc", mr);
  
   delete mr;
 

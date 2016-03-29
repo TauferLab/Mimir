@@ -234,14 +234,14 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   }
 
   // create input file buffer
-  int64_t input_buffer_size=(int64_t)(inputsize+16)*UNIT_1M_SIZE+MAX_STR_SIZE;
+  int64_t input_buffer_size=(int64_t)(inputsize)*UNIT_1M_SIZE;
 #ifdef USE_MPI_IO
   char **input_file_buffers = new char*[INPUT_BUF_COUNT];
   for(int i=0; i<INPUT_BUF_COUNT; i++){
-    input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size);
+    input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
   }
 #else
-  char *text = new char[input_buffer_size+1];
+  char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
 #endif
 
 #if GATHER_STAT
@@ -311,6 +311,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       int64_t readsize=0;
 
 #ifdef USE_MPI_IO
+
 #ifdef USE_MPI_ASYN_IO
       char *text=input_file_buffers[ibuf];
       MPI_Status status;
@@ -318,10 +319,6 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       int count;
       MPI_Get_count(&status, MPI_BYTE, &count);
       readsize = count;
-      ibuf=(ibuf+1)%INPUT_BUF_COUNT;
-      if(fsize > readsize){
-        MPI_File_iread_at(fp, foff, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
-      }
 #else
       char *text=input_file_buffers[ibuf];
       // set file pointer
@@ -337,11 +334,6 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 #endif
       // read a block
       text[boff+readsize] = '\0';
-
-      //printf("Read: %ld->%ld\n", foff, foff+readsize);
-
-      //printf("text=%s\n", text);
-
       input_char_size = boff+readsize;
 
       LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld\n", me, nprocs, ifiles[i].c_str(), foff-boff, foff+readsize);
@@ -375,7 +367,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
         }else{
           tend=input_char_size;
           boff=0;
-          if(input_char_size >= input_buffer_size && fsize>readsize){
+          if(readsize >= input_buffer_size && fsize>readsize){
             //printf("input_char_size=%ld, end=%x, %lx\n", input_char_size, text[input_char_size-boff-1], strchr(whitespace, text[input_char_size-boff-1]));
             while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
             tend-=(boff+1);
@@ -384,6 +376,18 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
         }
         //printf("%d[%d] thread %d %ld->%ld boff=%ld\n", me, nprocs, j, tstart[j], tend, boff);
       }
+
+      //foff += readsize;
+      //fsize -= readsize;
+
+      if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
+
+#ifdef USE_MPI_ASYN_IO
+      ibuf=(ibuf+1)%INPUT_BUF_COUNT;
+      if(fsize > readsize){
+        MPI_File_iread_at(fp, foff+readsize, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
+      }
+#endif
 
       //printf("boff=%ld\n", boff); fflush(stdout);
 
@@ -421,7 +425,18 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       // Prepare for next buffer
       foff += readsize;
       fsize -= readsize;
+
+#ifdef USE_MPI_IO
+#ifdef USE_MPI_ASYN_IO
+      for(int j =0; j < boff; j++) input_file_buffers[ibuf][j]=text[input_char_size-boff+j];
+#else
       for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
+#endif
+
+#else
+      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
+#endif
+
    }
 
 #if GATHER_STAT
@@ -548,15 +563,15 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 #endif
 
   // create input file buffer
-  int64_t input_buffer_size=(int64_t)(inputsize)*UNIT_1M_SIZE+MAX_STR_SIZE+1;
+  int64_t input_buffer_size=(int64_t)(inputsize)*UNIT_1M_SIZE;
   int64_t input_char_size=0;
 #ifdef USE_MPI_IO
   char **input_file_buffers = new char*[INPUT_BUF_COUNT];
   for(int i=0; i<INPUT_BUF_COUNT; i++){
-    input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size);
+    input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
   }
 #else
-  char *text = new char[input_buffer_size];
+  char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
 #endif
 
   // Process files
@@ -613,10 +628,6 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
       int count;
       MPI_Get_count(&status, MPI_BYTE, &count);
       readsize = count;
-      ibuf=(ibuf+1)%INPUT_BUF_COUNT;
-      if(fsize > readsize){
-        MPI_File_iread_at(fp, foff, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
-      }
 #else
       char *text=input_file_buffers[ibuf];
       // set file pointer
@@ -632,14 +643,23 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 #endif
       // read a block
       text[boff+readsize] = '\0';
-
+      input_char_size=boff+readsize;
       uint64_t tend=input_char_size;
       boff=0;
-      if(input_char_size >= input_buffer_size && fsize>readsize){
-      while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
+      if(readsize >= input_buffer_size && fsize>readsize){
+        while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
         tend-=(boff+1);
         text[tend]='\0';
       }
+
+      if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
+
+#if USE_MPI_ASYN_IO
+      ibuf=(ibuf+1)%INPUT_BUF_COUNT;
+      if(fsize > readsize){
+        MPI_File_iread_at(fp, foff+readsize, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
+      }
+#endif
 
       char *saveptr = NULL;
       char *word = strtok_r(text, whitespace, &saveptr);
@@ -652,8 +672,17 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
       //mymap(this,ifiles[i].c_str(), ptr);
       foff += readsize;
       fsize -= readsize;
-     
+
+#ifdef USE_MPI_IO
+#ifdef USE_MPI_ASYN_IO
+      for(int j =0; j < boff; j++) input_file_buffers[ibuf][j]=text[input_char_size-boff+j];
+#else
       for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
+#endif
+
+#else
+      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
+#endif     
     }
 
 #ifdef USE_MPI_IO
