@@ -234,7 +234,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   }
 
   // create input file buffer
-  int64_t input_buffer_size=(int64_t)(inputsize)*UNIT_1M_SIZE;
+  int input_buffer_size=(inputsize)*UNIT_1M_SIZE;
 #ifdef USE_MPI_IO
   char **input_file_buffers = new char*[INPUT_BUF_COUNT];
   for(int i=0; i<INPUT_BUF_COUNT; i++){
@@ -259,19 +259,6 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   int fcount = ifiles.size();
   for(int i = 0; i < fcount; i++){
     int64_t input_char_size=0;
-
-    // Get file size
-    struct stat stbuf;
-    int flag = stat(ifiles[i].c_str(), &stbuf);
-    if( flag < 0){
-      LOG_ERROR("Error: could not query file size of %s\n", ifiles[i].c_str());
-    }
-
-    LOG_PRINT(DBG_IO, "%d[%d] open file %s, file size=%ld\n", me, nprocs, ifiles[i].c_str(), stbuf.st_size);
-
-#if GATHER_STAT
-    st.inc_counter(0, COUNTER_FILE_COUNT, 1);
-#endif
 
 #if GATHER_STAT
     double t1 = MPI_Wtime();
@@ -299,16 +286,25 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
      st.inc_timer(0, TIMER_MAP_OPEN, t2-t1);
 #endif
 
+    MPI_Offset fsize;
+    MPI_File_get_size(fp, &fsize);
+
+#if GATHER_STAT
+    st.inc_counter(0, COUNTER_FILE_COUNT, 1);
+    double t3 = MPI_Wtime();
+    st.inc_timer(0, TIMER_MAP_STAT, t3-t2);
+#endif
     // Process file
-    int64_t fsize = stbuf.st_size;
+    //int64_t fsize = stbuf.st_size;
     int64_t foff = 0, boff = 0;
-    while(fsize > 0){
+    int64_t readsize=0;
+
+    do{
+    //while(fsize > 0){
 
 #if GATHER_STAT
       double t1 = MPI_Wtime();
 #endif
-
-      int64_t readsize=0;
 
 #ifdef USE_MPI_IO
 
@@ -317,8 +313,8 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       MPI_Status status;
       MPI_Wait(&reqs[ibuf], &status);
       int count;
-      MPI_Get_count(&status, MPI_BYTE, &count);
-      readsize = count;
+      MPI_Get_count(&status, MPI_BYTE, &count); 
+      readsize = (int64_t)count;
 #else
       char *text=input_file_buffers[ibuf];
       // set file pointer
@@ -328,6 +324,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       MPI_Get_count(&status, MPI_BYTE, &count);
       readsize = count;
 #endif
+   
 #else
       fseek(fp, foff, SEEK_SET);   
       readsize = fread(text+boff, 1, input_buffer_size, fp);
@@ -337,11 +334,6 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       input_char_size = boff+readsize;
 
       LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld\n", me, nprocs, ifiles[i].c_str(), foff-boff, foff+readsize);
-
-#if GATHER_STAT
-     double t2 = MPI_Wtime();
-     st.inc_timer(0, TIMER_MAP_IO, t2-t1);
-#endif
 
       // Divide input buffer
       int64_t divisor = input_char_size / tnum;
@@ -367,31 +359,29 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
         }else{
           tend=input_char_size;
           boff=0;
-          if(readsize >= input_buffer_size && fsize>readsize){
-            //printf("input_char_size=%ld, end=%x, %lx\n", input_char_size, text[input_char_size-boff-1], strchr(whitespace, text[input_char_size-boff-1]));
-            while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
+          if(readsize >= input_buffer_size && foff+readsize<fsize){
+           while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
             tend-=(boff+1);
             text[tend]='\0';
           }
         }
-        //printf("%d[%d] thread %d %ld->%ld boff=%ld\n", me, nprocs, j, tstart[j], tend, boff);
       }
-
-      //foff += readsize;
-      //fsize -= readsize;
 
       if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
 
 #ifdef USE_MPI_ASYN_IO
       ibuf=(ibuf+1)%INPUT_BUF_COUNT;
-      if(fsize > readsize){
-        MPI_File_iread_at(fp, foff+readsize, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
+      if(foff+readsize<fsize){
+        MPI_Offset offset=foff+readsize;
+        //printf("offset=%lld, length=%d\n", offset, input_buffer_size); fflush(stdout);
+        MPI_File_iread_at(fp, offset, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
       }
 #endif
 
-      //printf("boff=%ld\n", boff); fflush(stdout);
-
-      //printf("haha!\n"); fflush(stdout);
+#if GATHER_STAT
+      double t2 = MPI_Wtime();
+      st.inc_timer(0, TIMER_MAP_IO, t2-t1);
+#endif
 
       // Process input buffer
 #pragma omp parallel
@@ -401,18 +391,13 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       double t1 = omp_get_wtime();
 #endif
 
-      //printf("tid=%d, start=%ld, text=%s\n", tid, tstart[tid], text+tstart[tid]); fflush(stdout);
-
       char *saveptr = NULL;
       char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
       while(word){
-        //printf("thread=%d word=%s\n", tid, word); fflush(stdout);
         mymap(this, word, ptr);
         word = strtok_r(NULL,whitespace,&saveptr);
       }
 
-      //printf("thread=%d begin poll\n", tid); fflush(stdout);
- 
       if(_comm) c->tpoll(tid);
 
 #if GATHER_STAT
@@ -424,7 +409,6 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 
       // Prepare for next buffer
       foff += readsize;
-      fsize -= readsize;
 
 #ifdef USE_MPI_IO
 #ifdef USE_MPI_ASYN_IO
@@ -437,10 +421,10 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
 #endif
 
-   }
+   }while(foff<fsize);
 
 #if GATHER_STAT
-    double t3 = MPI_Wtime();
+    double t4 = MPI_Wtime();
 #endif
 
     // Close file
@@ -451,10 +435,9 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 #endif
 
 #if GATHER_STAT
-     double t4 = MPI_Wtime();
-     st.inc_timer(0, TIMER_MAP_CLOSE, t4-t3);
+    double t5 = MPI_Wtime();
+    st.inc_timer(0, TIMER_MAP_CLOSE, t5-t4);
 #endif
-
 
     LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
   }
@@ -504,11 +487,11 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   st.inc_timer(0, TIMER_MAP_WAIT, t3-t2);
 #endif
 
- mode = NoneMode;
+  mode = NoneMode;
 
- LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (main thread read file)\n", me, nprocs);
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (main thread read file)\n", me, nprocs);
 
- return _get_kv_count();
+  return _get_kv_count();
 }
 
 uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recurse, 
@@ -556,8 +539,6 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   int tid = omp_get_thread_num();
   _tinit(tid);
 
-  //struct stat stbuf;
-
 #if GATHER_STAT
   double t1 = omp_get_wtime();
 #endif
@@ -565,88 +546,94 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   // create input file buffer
   int64_t input_buffer_size=(int64_t)(inputsize)*UNIT_1M_SIZE;
   int64_t input_char_size=0;
-#ifdef USE_MPI_IO
-  char **input_file_buffers = new char*[INPUT_BUF_COUNT];
-  for(int i=0; i<INPUT_BUF_COUNT; i++){
-    input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
-  }
-#else
+//#ifdef USE_MPI_IO
+//  char **input_file_buffers = new char*[INPUT_BUF_COUNT];
+//  for(int i=0; i<INPUT_BUF_COUNT; i++){
+//    input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
+//  }
+//#else
   char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
-#endif
+//#endif
 
   // Process files
   int i;
   while((i=__sync_fetch_and_add(&fp,1))<fcount){
+
 #if GATHER_STAT
     st.inc_counter(tid, COUNTER_FILE_COUNT, 1);
 #endif 
 
-    printf("open file %s\n", ifiles[i].c_str()); fflush(stdout);
-
-    // Get file size
-    struct stat stbuf;
-    int flag = stat(ifiles[i].c_str(), &stbuf);
-    if( flag < 0){
-      LOG_ERROR("Error: could not query file size of %s\n", ifiles[i].c_str());
-    }
-
     // Open file
-#ifdef USE_MPI_IO
-    int ibuf=0;
-    MPI_Request reqs[INPUT_BUF_COUNT];
-    for(int j=0; j<INPUT_BUF_COUNT; j++) reqs[j]=MPI_REQUEST_NULL;
+//#ifdef USE_MPI_IO
+//    int ibuf=0;
+//    MPI_Request reqs[INPUT_BUF_COUNT];
+//    for(int j=0; j<INPUT_BUF_COUNT; j++) reqs[j]=MPI_REQUEST_NULL;
 
-    MPI_File fp;
-    MPI_File_open(MPI_COMM_SELF, ifiles[i].c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fp);
+//    MPI_File fp;
+//    MPI_File_open(MPI_COMM_SELF, ifiles[i].c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fp);
 
-#ifdef USE_MPI_ASYN_IO
-    MPI_File_iread_at(fp, 0, input_file_buffers[ibuf], input_buffer_size, MPI_BYTE, &reqs[ibuf]);
-#endif
+//#ifdef USE_MPI_ASYN_IO
+//    MPI_File_iread_at(fp, 0, input_file_buffers[ibuf], input_buffer_size, MPI_BYTE, &reqs[ibuf]);
+//#endif
 
-#else
-    FILE *fp = fopen(ifiles[i].c_str(), "r");
-#endif
-
-    // Process File
-    int64_t fsize = stbuf.st_size;
-    int64_t foff = 0, boff = 0;
-
-    while(fsize > 0){
+//#else
 
 #if GATHER_STAT
-      double t1 = MPI_Wtime();
+    double t1 = omp_get_wtime();
 #endif
 
-      int64_t readsize=0;
+    FILE *fp = fopen(ifiles[i].c_str(), "r");
 
-#ifdef USE_MPI_IO
+    //printf("%d[%d] open file %s\n", tid, me, ifiles[i].c_str()); fflush(stdout);
 
-#ifdef USE_MPI_ASYN_IO
-      char *text=input_file_buffers[ibuf];
-      MPI_Status status;
-      MPI_Wait(&reqs[ibuf], &status);
-      int count;
-      MPI_Get_count(&status, MPI_BYTE, &count);
-      readsize = count;
-#else
-      char *text=input_file_buffers[ibuf];
+#if GATHER_STAT
+    double t2 = omp_get_wtime();
+    st.inc_timer(tid, TIMER_MAP_OPEN, t2-t1);
+#endif
+
+//#endif
+
+    // Process File
+    //int64_t fsize = stbuf.st_size;
+    int64_t foff = 0, boff = 0;
+    int64_t readsize=0;
+
+    do{
+
+//#ifdef USE_MPI_IO
+
+//#ifdef USE_MPI_ASYN_IO
+//      char *text=input_file_buffers[ibuf];
+//      MPI_Status status;
+//      MPI_Wait(&reqs[ibuf], &status);
+//      int count;
+//      MPI_Get_count(&status, MPI_BYTE, &count);
+//      readsize = (int64_t)count;
+//#else
+//      char *text=input_file_buffers[ibuf];
       // set file pointer
-      MPI_Status status;
-      MPI_File_read_at(fp, foff, text+boff, input_buffer_size, MPI_BYTE, &status);
-      int count;
-      MPI_Get_count(&status, MPI_BYTE, &count);
-      readsize = count;
+//      MPI_Status status;
+//      MPI_File_read_at(fp, foff, text+boff, input_buffer_size, MPI_BYTE, &status);
+//      int count;
+//      MPI_Get_count(&status, MPI_BYTE, &count);
+//      readsize = (int64_t)count;
+//#endif
+//#else
+
+#if GATHER_STAT
+      double t1 = omp_get_wtime();
 #endif
-#else
+
       fseek(fp, foff, SEEK_SET);   
       readsize = fread(text+boff, 1, input_buffer_size, fp);
-#endif
+
+//#endif
       // read a block
       text[boff+readsize] = '\0';
       input_char_size=boff+readsize;
       uint64_t tend=input_char_size;
       boff=0;
-      if(readsize >= input_buffer_size && fsize>readsize){
+      if(readsize >= input_buffer_size){
         while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
         tend-=(boff+1);
         text[tend]='\0';
@@ -654,55 +641,73 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 
       if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
 
-#if USE_MPI_ASYN_IO
-      ibuf=(ibuf+1)%INPUT_BUF_COUNT;
-      if(fsize > readsize){
-        MPI_File_iread_at(fp, foff+readsize, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
-      }
+//#ifdef USE_MPI_ASYN_IO
+//      ibuf=(ibuf+1)%INPUT_BUF_COUNT;
+//      if(readsize == input_buffer_size){
+//        MPI_File_iread_at(fp, foff+readsize, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
+//      }
+//#endif
+
+#if GATHER_STAT
+      double t2 = omp_get_wtime();
+      //printf("add io time: t2=%g, t1=%g\n", t2, t1); fflush(stdout);
+      st.inc_timer(tid, TIMER_MAP_IO, t2-t1);
 #endif
 
       char *saveptr = NULL;
       char *word = strtok_r(text, whitespace, &saveptr);
       while(word){
-        //printf("thread=%d word=%s\n", tid, word); fflush(stdout);
+
         mymap(this, word, ptr);
+
         word = strtok_r(NULL,whitespace,&saveptr);
       }
 
-      //mymap(this,ifiles[i].c_str(), ptr);
+#if GATHER_STAT
+      double t3 = omp_get_wtime();
+      st.inc_timer(tid, TIMER_MAP_USER, t3-t2);
+#endif
+
       foff += readsize;
-      fsize -= readsize;
 
-#ifdef USE_MPI_IO
-#ifdef USE_MPI_ASYN_IO
-      for(int j =0; j < boff; j++) input_file_buffers[ibuf][j]=text[input_char_size-boff+j];
-#else
+//#ifdef USE_MPI_IO
+//#ifdef USE_MPI_ASYN_IO
+//      for(int j =0; j < boff; j++) input_file_buffers[ibuf][j]=text[input_char_size-boff+j];
+//#else
+//      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
+//#endif
+
+//#else
       for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
-#endif
+//#endif
+    }while(readsize >= input_buffer_size);
 
-#else
-      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
-#endif     
-    }
+//#ifdef USE_MPI_IO
+//    MPI_File_close(&fp);
+//#else   
 
-#ifdef USE_MPI_IO
-    MPI_File_close(&fp);
-#else   
+#if GATHER_STAT
+    double t3 = omp_get_wtime();
+#endif   
     fclose(fp);
+#if GATHER_STAT
+    double t4 = omp_get_wtime();
+    st.inc_timer(tid, TIMER_MAP_CLOSE, t4-t3);
 #endif
+
+//#endif
   }
 
   // delete input file buffer
-#ifdef USE_MPI_IO 
-  for(int i=0; i<INPUT_BUF_COUNT; i++) mem_aligned_free(input_file_buffers[i]);
-  delete [] input_file_buffers;
-#else
+//#ifdef USE_MPI_IO 
+//  for(int i=0; i<INPUT_BUF_COUNT; i++) mem_aligned_free(input_file_buffers[i]);
+//  delete [] input_file_buffers;
+//#else
   delete []  text;
-#endif   
+//#endif   
 
 #if GATHER_STAT
   double t2 = omp_get_wtime();
-  st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
 #endif
 
   if(_comm) c->twait(tid);
