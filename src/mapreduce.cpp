@@ -265,7 +265,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 #endif
 
     // Process file
-    int64_t fsize = stbuf.st_size;
+    //int64_t fsize = stbuf.st_size;
     // Open file
 #ifdef USE_MPI_IO
     int ibuf=0;
