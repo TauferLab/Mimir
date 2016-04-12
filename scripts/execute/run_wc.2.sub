@@ -4,7 +4,7 @@
 
 NPROCS=4
 NTHRS=10
-INPUT=words/20GB_c1_s512m
+INPUT=words/20GB
 FILE=wordcount
 
 DATAHOME=/scratch/rice/g/gao381

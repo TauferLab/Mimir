@@ -286,8 +286,14 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
      st.inc_timer(0, TIMER_MAP_OPEN, t2-t1);
 #endif
 
+#if USE_MPI_IO
     MPI_Offset fsize;
     MPI_File_get_size(fp, &fsize);
+#else
+    struct stat stbuf;
+    stat(ifiles[i].c_str(), &stbuf);
+    int64_t fsize = stbuf.st_size;
+#endif
 
 #if GATHER_STAT
     st.inc_counter(0, COUNTER_FILE_COUNT, 1);
@@ -588,6 +594,7 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 
 #if GATHER_STAT
     double t2 = omp_get_wtime();
+    //printf("%d open file\n", tid); fflush(stdout);
     st.inc_timer(tid, TIMER_MAP_OPEN, t2-t1);
 #endif
 

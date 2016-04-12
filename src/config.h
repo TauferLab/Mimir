@@ -1,9 +1,9 @@
 #ifndef MTMR_CONFIG_H
 #define MTMR_CONFIG_H
 
-//#define USE_MT_IO
-#define USE_MPI_IO
-#define USE_MPI_ASYN_IO
+#define USE_MT_IO
+//#define USE_MPI_IO
+//#define USE_MPI_ASYN_IO
 
 #define UNIT_1K_SIZE            (1024)
 #define UNIT_1M_SIZE       (1024*1024)
