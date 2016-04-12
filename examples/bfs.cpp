@@ -29,7 +29,7 @@ int mypartition_str(char *, int);
 int mypartition_int(char *, int);
 
 // read file to edges
-void fileread(MapReduce *, const char *, void *);
+void fileread(MapReduce *, char *, void *);
 // construct graph struct
 void makegraph(MapReduce *, char *, int,  MultiValueIterator *, void*);
 //void makegraph(MapReduce *, char *, int, int, char *, int *, void *);
@@ -152,10 +152,11 @@ int main(int narg, char **args)
 
   //printf("begin map\n");
 
-  double g_t1=MPI_Wtime();
+  //double g_t1=MPI_Wtime();
 
   // read edge list
-  uint64_t nedges = mr->map(args[2],1,0,fileread,&bfs_st);
+  char whitespace[10]={"\n"};
+  uint64_t nedges = mr->map(args[2],1,0,whitespace,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
   //mr->output();
@@ -180,12 +181,12 @@ int main(int narg, char **args)
   
   g->columns   = new int64_t[g->nlocaledges];
 
-  double g_t4=MPI_Wtime();
+  //double g_t4=MPI_Wtime();
 
   // begin to make CSR graph
   mr->reduce(makegraph, 1, &bfs_st);
 
-  double g_t5=MPI_Wtime();
+  //double g_t5=MPI_Wtime();
 
   delete [] g->rowinserts;
 
@@ -197,7 +198,7 @@ int main(int narg, char **args)
   }
 
   // print graph
-  printgraph(g);
+  //printgraph(g);
 
   // begin do traversal
   int bitmapsize = (g->nlocalverts + LONG_BITS - 1) / LONG_BITS;
@@ -246,20 +247,20 @@ int main(int narg, char **args)
     do{
       double t1 = MPI_Wtime();
 
-#ifndef BFS_MM
-      double t2 = MPI_Wtime();
+//#ifndef BFS_MM
+//      double t2 = MPI_Wtime();
       //mr->output(2);
-      mr->reduce(shrink, 0, &bfs_st);
-#else
+//      mr->reduce(shrink, 0, &bfs_st);
+//#else
       double t2 = MPI_Wtime();
-      mr->map_local(mr, shrink_mm, &bfs_st);
-#endif
+      mr->map(mr, shrink_mm, &bfs_st, 0);
+//#endif
 
       double t3 = MPI_Wtime();
       
       nactives[level] = mr->map(mr, expand, &bfs_st);
 
-      printf("actives=%d\n", nactives[level]); fflush(stdout);
+      //printf("actives=%d\n", nactives[level]); fflush(stdout);
 
       double t4 = MPI_Wtime();
 
@@ -289,40 +290,9 @@ int main(int narg, char **args)
         //printf("k=%d, level=%d\n", k, level);
       }
       fprintf(rf, "\n");
-      //fprintf(stdout, "Traversal %d end. (time=%g s %g %g %g)\n", index, stop_t-start_t, map_t, convert_t, reduce_t);
-       //fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g\n", commmode, blocksize, gbufsize, lbufsize, index, stop_t-start_t, map_t, convert_t, reduce_t);
-#if 0
-       if(commmode==0){
-         double tpar = mr->get_timer(TIMER_MAP_PARALLEL);
-         double twait = mr->get_timer(TIMER_MAP_TWAIT);
-         double tsendkv = mr->get_timer(TIMER_MAP_SENDKV);
-         double tserial = mr->get_timer(TIMER_MAP_SERIAL);
-         fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
-           lbufsize, gbufsize, blocksize, \
-           index, stop_t-start_t, map_t, reduce_t,\
-           tpar,\
-           mr->get_timer(TIMER_MAP_WAIT),\
-           tpar-twait-tsendkv,\
-           tsendkv-tserial,\
-           tserial,\
-           twait,\
-           mr->get_timer(TIMER_MAP_LOCK),\
-           (g->nglobaledges)/(stop_t-start_t));
-        }
-        //else
-         //fprintf(stdout, "%d,%d,%d,%d,%d,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", \
-           commmode, blocksize, gbufsize, lbufsize, \
-           index, stop_t-start_t, map_t, convert_t, reduce_t,\
-           mr->get_timer(TIMER_COMM),\
-           mr->get_timer(TIMER_ISEND),\
-           mr->get_timer(TIMER_CHECK),\
-           mr->get_timer(TIMER_LOCK),\
-           mr->get_timer(TIMER_SYN));
-      //mr->show_stat();
-#endif
     }
 
-    mr->init_stat();
+    //mr->init_stat();
   }
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -385,37 +355,39 @@ int mypartition_int(char *key, int keybytes){
   return v/(bfs_st.g.nlocalverts);
 }
 
-void fileread(MapReduce *mr, const char *fname, void *ptr){
+void fileread(MapReduce *mr, char *line, void *ptr){
+  //printf("line=%s\n", line);
+
   bfs_state *st = (bfs_state*)ptr;
   csr_graph *g = &(st->g);
 
-  struct stat stbuf;
-  int flag = stat(fname,&stbuf);
-  if(flag < 0){
-    printf("ERROR: Counld not query file size\n");
-    MPI_Abort(MPI_COMM_WORLD, 1);
-  }
+  //struct stat stbuf;
+  //int flag = stat(fname,&stbuf);
+  //if(flag < 0){
+  //  printf("ERROR: Counld not query file size\n");
+  //  MPI_Abort(MPI_COMM_WORLD, 1);
+  //}
 
-  int filesize = stbuf.st_size;
+  //int filesize = stbuf.st_size;
 
-  FILE *fp = fopen(fname, "r");
-  char *text = new char[filesize+1];
-  int nchar = fread(text,1,filesize,fp);
-  text[nchar] = '\0';
-  fclose(fp);
+  //FILE *fp = fopen(fname, "r");
+  //char *text = new char[filesize+1];
+  //int nchar = fread(text,1,filesize,fp);
+  //text[nchar] = '\0';
+  //fclose(fp);
 
   char *v0=NULL, *v1=NULL, *val;
   
-  char *line = text;
-  int linesize;
+  //char *line = text;
+  //int linesize;
 
-  while(line && line[0]!='\0'){
+  //while(line && line[0]!='\0'){
 
-    char *p = strchr(line, '\n');
-    if(p) p[0]='\0';
+    //char *p = strchr(line, '\n');
+    //if(p) p[0]='\0';
 
     // get line size
-    linesize = strlen(line)+1;
+    //int linesize = strlen(line)+1;
 
     // get v0,v1,val
     v0 = line;
@@ -438,18 +410,17 @@ void fileread(MapReduce *mr, const char *fname, void *ptr){
 
     //printf("%s,%s\n", v0, v1);
 
-    if(strcmp(v0, v1) == 0){
-      line += linesize;
-      continue;
+    if(strcmp(v0, v1) != 0){
+      //line += linesize;
+      //continue;
+      mr->add(v0, strlen(v0)+1, v1, strlen(v1)+1);
+      mr->add(v1, strlen(v1)+1, v0, strlen(v0)+1);
     }
 
-    mr->add(v0, strlen(v0)+1, v1, strlen(v1)+1);
-    mr->add(v1, strlen(v1)+1, v0, strlen(v0)+1);    
+    //line += linesize;
+  //}
 
-    line += linesize;
-  }
-
-  delete [] text;
+  //delete [] text;
 }
 
 void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
@@ -470,7 +441,7 @@ void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 
     value=iter->getValue();
 
-    printf("key=%s, value=%s\n", key, value);
+    //printf("key=%s, value=%s\n", key, value);
 
     v1 = atoi(value)-1;
     g->columns[g->rowstarts[v0_local]+g->rowinserts[v0_local]] = v1;
