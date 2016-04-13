@@ -277,8 +277,8 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 
 #ifdef USE_MPI_ASYN_IO
     //printf("input_buffer_size=%ld, ibuf=%d\n", input_buffer_size, ibuf); fflush(stdout);
-    int64_t input_read_count = fsize<input_buffer_size ? fsize : input_buffer_size;
-    MPI_File_iread_at(fp, 0, input_file_buffers[ibuf], input_read_count, MPI_BYTE, &reqs[ibuf]);
+    //int64_t input_read_count = fsize<input_buffer_size ? fsize : input_buffer_size;
+    MPI_File_iread_at(fp, 0, input_file_buffers[ibuf], input_buffer_size, MPI_BYTE, &reqs[ibuf]);
 #endif
 
 #else
@@ -290,7 +290,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
      st.inc_timer(0, TIMER_MAP_OPEN, t2-t1);
 #endif
 
-#if USE_MPI_IO
+#ifdef USE_MPI_IO
     MPI_Offset fsize;
     MPI_File_get_size(fp, &fsize);
 #else
