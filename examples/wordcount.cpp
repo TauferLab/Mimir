@@ -13,7 +13,7 @@ using namespace MAPREDUCE_NS;
 #include "stat.h"
 
 //char *outdir[]={"/scratch/rice/g/gao381"};
-char outdir[]={"/oasis/scratch/comet/taogao/temp_project"};
+//char outdir[]={"/oasis/scratch/comet/taogao/temp_project"};
 
 //#ifndef WC_M
 //void fileread(MapReduce *, const char *, void *);
@@ -24,7 +24,7 @@ void map(MapReduce *mr, char *word, void *ptr);
 #define USE_LOCAL_DISK  0
 
 void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
-void output(const char *filename, MapReduce *mr);
+void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr);
 
 int me, nprocs;
 
@@ -63,18 +63,21 @@ int main(int argc, char *argv[])
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
-  if(argc > 2){
-    commmode=atoi(argv[2]);
-  } 
-  if(argc > 3){
-    blocksize=atoi(argv[3]);
-  }
-  if(argc > 4){
-    gbufsize=atoi(argv[4]);
-  }
-  if(argc > 5){
-    lbufsize=atoi(argv[5]);
-  }
+  const char *prefix = argv[2];
+  const char *outdir = argv[3];
+
+  //if(argc > 2){
+  //  commmode=atoi(argv[2]);
+  //} 
+  //if(argc > 3){
+  //  blocksize=atoi(argv[3]);
+  //}
+  //if(argc > 4){
+  //  gbufsize=atoi(argv[4]);
+  //}
+  //if(argc > 5){
+  //  lbufsize=atoi(argv[5]);
+  //}
 
   char *filedir=argv[1];
 
@@ -119,7 +122,7 @@ int main(int argc, char *argv[])
   //nword = mr->map(filedir, 1, 1, fileread, NULL);
 //#else
   char whitespace[20] = " \n";
-  nword = mr->map(filedir, 0, 1, whitespace, map, NULL);
+  nword = mr->map(filedir, 1, 1, whitespace, map, NULL);
 //#endif
 
   //printf("map end!"); fflush(stdout);
@@ -138,7 +141,7 @@ int main(int argc, char *argv[])
 
   //mr->output();
 
-  output("mtmr.wc", mr);
+  output("mtmr.wc", outdir, prefix, mr);
  
   delete mr;
 
@@ -225,15 +228,15 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   mr->add(key, keysize, count_str, strlen(count_str)+1);
 }
 
-void output(const char *filename, MapReduce *mr){
+void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
   char tmp[1000];
   
-  sprintf(tmp, "%s/results/mtmr-mpi/wc/%s.%d.%d.%d.%d.P.%d.%d.csv", outdir, filename, lbufsize, gbufsize, blocksize, commmode, nprocs, me);
+  sprintf(tmp, "%s/%s.%s.%d.%d.%d.%d.P.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me);
   FILE *fp = fopen(tmp, "a+");
   fprintf(fp, "%ld,%ld,%g,%g,%g\n", nword, nunique, t3-t1, t2-t1, t3-t2);
   fclose(fp);
 
-  sprintf(tmp, "%s/results/mtmr-mpi/wc/%s.%d.%d.%d.%d.T.%d.%d.csv", outdir, filename, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
+  sprintf(tmp, "%s/%s.%s.%d.%d.%d.%d.T.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
   fp = fopen(tmp, "a+");
   mr->show_stat(0, fp);
   fclose(fp);

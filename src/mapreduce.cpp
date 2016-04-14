@@ -275,13 +275,13 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
     MPI_File fp;
     int err=MPI_File_open(MPI_COMM_SELF, ifiles[i].c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fp);
 
-    fprintf(stdout, "%d[%d] open file %s, err=%d\n", me, nprocs, ifiles[i].c_str(), err); fflush(stdout);
+    //fprintf(stdout, "%d[%d] open file %s, err=%d\n", me, nprocs, ifiles[i].c_str(), err); fflush(stdout);
 
 #ifdef USE_MPI_ASYN_IO
     MPI_File_iread_at(fp, 0, input_file_buffers[ibuf], input_buffer_size, MPI_BYTE, &reqs[ibuf]);
 #endif
 
-    fprintf(stdout, "%d[%d] after iread\n", me, nprocs); fflush(stdout);
+    //fprintf(stdout, "%d[%d] after iread\n", me, nprocs); fflush(stdout);
 
 #else
     FILE *fp = fopen(ifiles[i].c_str(), "r");
@@ -295,7 +295,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 #ifdef USE_MPI_IO
     MPI_Offset fsize;
     MPI_File_get_size(fp, &fsize);
-    fprintf(stdout, "%d[%d] file size=%lld\n", me, nprocs, fsize); fflush(stdout);
+    //fprintf(stdout, "%d[%d] file size=%lld\n", me, nprocs, fsize); fflush(stdout);
 #else
     struct stat stbuf;
     stat(ifiles[i].c_str(), &stbuf);
@@ -328,7 +328,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       int count;
       MPI_Get_count(&status, MPI_BYTE, &count); 
       readsize = (int64_t)count;
-      fprintf(stdout, "%d[%d] readsize=%ld\n", me, nprocs, readsize); fflush(stdout);
+      //fprintf(stdout, "%d[%d] readsize=%ld\n", me, nprocs, readsize); fflush(stdout);
       //printf("")
 #else
       char *text=input_file_buffers[ibuf];

@@ -1,20 +1,28 @@
-#settings=('io_c_process' 'io_c_thread' 'io_mpi_blocking' 'io_mpi_nonblocking')
-settings=('io_mpi_nonblocking')
+settings=('io_c_process' 'io_c_thread' 'io_mpi_blocking' 'io_mpi_nonblocking')
+#settings=('io_mpi_nonblocking')
 
-TIMES=10
-START=1
-END=64
+TIMES=20
+START=2
+END=2
 
-PRE=-1
+PRE="none"
 
-for setting in ${settings[@]}
+for((k=$START; k<=$END; k*=2))
 do
-  echo $setting
-  for((k=$START; k<=$END; k*=2))
+  for setting in ${settings[@]}
   do
+    echo $setting
+    cd $setting
     for((i=1; i<=$TIMES; i++))
     do
-      PRE=$(qsub -W depend=afterany:$PRE $setting/run_wc.$k.sub)
+      if [ $PRE == "none" ]
+      then
+        PRE=$(qsub run_wc.$k.sub)
+      else
+        PRE=$(qsub -W depend=afterany:$PRE run_wc.$k.sub)
+      fi
+      echo $PRE
     done
+    cd ..
   done
 done
