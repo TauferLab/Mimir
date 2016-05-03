@@ -11,12 +11,12 @@
 using namespace MAPREDUCE_NS;
 
 int commmode=0;
-int blocksize=1;
-int gbufsize=1;
+int blocksize=128;
+int gbufsize=1024;
 int lbufsize=16;
 
 
-#define TEST_TIMES 1
+#define TEST_TIMES 10
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -104,7 +104,7 @@ int main(int narg, char **args)
   g->nglobalverts = (1 << g->lg_nglobalverts);
 
   if(g->nglobalverts % nprocs != 0){
-    if(me == 0) printf("ERROR: process size must be the power of 2\n");
+    if(me == 0) printf("ERROR: process size %d must be the power of 2\n", nprocs);
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
@@ -136,11 +136,11 @@ int main(int narg, char **args)
   // set hash function
   mr->set_hash(mypartition_str);
 
-#if 0
-  mr->set_localbufsize(lbufsize);
-  mr->set_globalbufsize(gbufsize*1024);
-  mr->set_blocksize(blocksize*1024); 
-  mr->set_maxmem(32*1024*1024);
+#if 1
+  mr->set_threadbufsize(lbufsize);
+  mr->set_sendbufsize(gbufsize);
+  mr->set_blocksize(blocksize); 
+  mr->set_maxmem(32);
   mr->set_commmode(commmode);
   mr->set_outofcore(0);
 #endif

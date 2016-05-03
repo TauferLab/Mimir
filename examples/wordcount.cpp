@@ -31,7 +31,7 @@ int me, nprocs;
 int commmode=0;
 int inputsize=512;
 int blocksize=512;
-int gbufsize=8;
+int gbufsize=128;
 int lbufsize=16;
 
 uint64_t nword, nunique;
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 
   //printf("here!\n");
 
-  if(argc < 2){
+  if(argc <= 3){
     if(me == 0) printf("Syntax: wordcount filepath\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
@@ -231,12 +231,12 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
   char tmp[1000];
   
-  sprintf(tmp, "%s/%s.%s.%d.%d.%d.%d.P.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me);
+  sprintf(tmp, "%s/%s.%s.%dk.%dk.%dm.%d.P.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me);
   FILE *fp = fopen(tmp, "a+");
   fprintf(fp, "%ld,%ld,%g,%g,%g\n", nword, nunique, t3-t1, t2-t1, t3-t2);
   fclose(fp);
 
-  sprintf(tmp, "%s/%s.%s.%d.%d.%d.%d.T.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
+  sprintf(tmp, "%s/%s.%s.%dk.%dk.%dm.%d.T.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
   fp = fopen(tmp, "a+");
   mr->show_stat(0, fp);
   fclose(fp);

@@ -3,12 +3,12 @@
 #PBS -l walltime=00:20:00
 
 SUBDIR=160GB
-NPROCS=32
-NTHRS=10
+NODE=16
 
 cd $PBS_O_WORKDIR
 source common.h
 module load impi
-OMP_NUM_THREADS=$NTHRS mpiexec -n $NPROCS ./wordcount $INDIR/$SUBDIR $PREFIX $OUTDIR
+let NPROCS=$NODE*$PPN
+OMP_NUM_THREADS=$NTHRS mpiexec -n $NPROCS ./$EXE $INDIR/$SUBDIR $PREFIX $OUTDIR
 
 

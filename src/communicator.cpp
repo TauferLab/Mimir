@@ -82,7 +82,7 @@ Communicator::~Communicator(){
 
 int Communicator::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
   thread_buf_size = _tbufsize*UNIT_1K_SIZE;
-  send_buf_size = _sbufsize*UNIT_1M_SIZE;
+  send_buf_size = _sbufsize*UNIT_1K_SIZE;
   kvtype = _kvtype;
   ksize = _ksize;
   vsize = _vsize;

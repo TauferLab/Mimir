@@ -3,7 +3,7 @@ CPP = mpicxx
 CLINK = mpicc
 CPPLINK = mpicxx
 DEBUG = -g
-CFLAGS = -fopenmp $(DEBUG) -O2  -DDEBUG=0 -DFUSION
+local_CFLAGS = -fopenmp $(DEBUG) -O2  -DDEBUG=0 -DFUSION
 LFLAGS = 
 ARCHIEVE = ar
 AFLAGS =  -rcv
@@ -15,40 +15,40 @@ libmrmpi: $(OBJS)
 	$(ARCHIEVE) $(AFLAGS) libmrmpi.a $(OBJS)
 
 mapreduce.o: mapreduce.cpp mapreduce.h
-	$(CPP) $(CFLAGS) -c mapreduce.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c mapreduce.cpp
 
 dataobject.o: dataobject.cpp dataobject.h
-	$(CPP) $(CFLAGS) -c dataobject.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c dataobject.cpp
 
 keyvalue.o: keyvalue.cpp keyvalue.h
-	$(CPP) $(CFLAGS) -c keyvalue.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c keyvalue.cpp
 
 keymultivalue.o: keymultivalue.cpp keymultivalue.h
-	$(CPP) $(CFLAGS) -c keymultivalue.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c keymultivalue.cpp
 
 communicator.o: communicator.cpp communicator.h
-	$(CPP) $(CFLAGS) -c communicator.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c communicator.cpp
 
 alltoall.o: alltoall.cpp alltoall.h
-	$(CPP) $(CFLAGS) -c alltoall.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c alltoall.cpp
 
 ptop.o: ptop.cpp ptop.h
-	$(CPP) $(CFLAGS) -c ptop.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c ptop.cpp
 
 hash.o: hash.cpp hash.h
-	$(CPP) $(CFLAGS) -c hash.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c hash.cpp
 
 spool.o: spool.cpp spool.h
-	$(CPP) $(CFLAGS) -c spool.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c spool.cpp
 
 const.o: const.cpp const.h
-	$(CPP) $(CFLAGS) -c const.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c const.cpp
 
 memory.o: memory.cpp memory.h
-	$(CPP) $(CFLAGS) -c memory.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c memory.cpp
 
 stat.o: stat.cpp stat.h
-	$(CPP) $(CFLAGS) -c stat.cpp
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c stat.cpp
 
 clean: 
-	rm *.o *libmrmpi.a
+	rm *.o libmrmpi.a
