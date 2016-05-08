@@ -1,10 +1,11 @@
-PPN=20
-NTHRS=1
+PPN=2
+NTHRS=10
 EXE=wordcount
 #EXE=bfs
 
 #INDIR=/scratch/rice/g/gao381/graph
-INDIR=/scratch/rice/g/gao381/words/lustre_default
-OUTDIR=/scratch/rice/g/gao381/results/mtmr-mpi/wc/lustre_default/a
-PREFIX=at1
+#INDIR=/scratch/rice/g/gao381/words/lustre_default
+INDIR=/scratch/rice/g/gao381/words/128M_scale
+OUTDIR=/scratch/rice/g/gao381/results/mtmr-mpi/wc
+PREFIX=2_5Gat10
 

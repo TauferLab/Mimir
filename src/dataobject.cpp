@@ -194,18 +194,17 @@ int DataObject::add_block(){
   else{
     blockid = nblock;
     nblock++;
-    //printf("nblock=%d, maxblock=%d\n", nblock, maxblock);
   }
 
-  //if(id==2){
-  //  printf("addblock: blockid=%d, datatype=%d\n", blockid, datatype);
-  //}
 
   if(blockid >= maxblock){
     int tid = omp_get_thread_num();
     LOG_ERROR("Error: block count is larger than max number %d, id=%d, tid=%d!\n", maxblock, id, tid);
     return -1;
   }
+
+  printf("id=%d, blockid=%d\n",\
+    id, blockid); fflush(stdout);
 
   //printf("blockid=%d, maxbuf=%d, outofcore=%d, threadsafe=%d\n", blockid, maxbuf, outofcore, threadsafe);
 

@@ -511,17 +511,12 @@ void Alltoall::exchange_kv(){
   double t1 = omp_get_wtime();
 #endif
 
-  int i;
-  
+  int i;  
   uint64_t sendcount=0;
   for(i=0; i<size; i++) sendcount += (uint64_t)off[i];
 
-  //printf("%d send count=%d %d\n", rank, off[0], off[1]); fflush(stdout);
-
   // exchange send count
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
-
-  //printf("%d recv count=%d %d\n", rank, recv_count[ibuf][0], recv_count[ibuf][1]); fflush(stdout);
 
   for(i = 0; i < size; i++) send_displs[i] = i*(uint64_t)send_buf_size;
 
@@ -577,7 +572,6 @@ void Alltoall::exchange_kv(){
   st.inc_timer(0, TIMER_MAP_SAVEDATA, t3-t2);
 #endif
 
-  //printf("send count!\n", )
   char *a2a_s_buf;
   if(comm_div_count==1) a2a_s_buf=send_buffers[origin_ibuf];
   else a2a_s_buf = send_buffers[ibuf];
@@ -592,10 +586,7 @@ void Alltoall::exchange_kv(){
     a2a_s_count[i] = a2a_r_count[i] = 0;
     a2a_s_remain[i] = off[i];
     a2a_r_remain[i] = recv_count[origin_ibuf][i];
-    //recv_count[origin_ibuf][i] = 0;
   }
-
-  //printf("recv buf=%p\n", a2a_r_buf); fflush(stdout);
 
   // start communication
   for(int k=0; k<comm_div_count; k++){
@@ -630,28 +621,10 @@ void Alltoall::exchange_kv(){
 
     if(comm_div_count > 1){
       for(i=0; i<size; i++){
-         //printf("%d memcpy: dst buf displs=%d, src buf displs=%ld, count=%d\n", i, a2a_s_displs[i], send_displs[i], a2a_s_count[i]);
-        //if(send_displs[i]<0 || a2a_s_displs[i] <0 || a2a_s_count[i]<0)
-        //  LOG_ERROR("hah i=%d a2a_s_displs=%d send_displs=%ld, a2a_s_count=%d\n", i, a2a_s_displs[i], send_displs[i], a2a_s_count[i]);
         memcpy(a2a_s_buf+a2a_s_displs[i], buf+send_displs[i], a2a_s_count[i]);
       }
     }
-   
-    //if(a2a_s_buf==NULL || a2a_r_buf==NULL)
-    //  LOG_ERROR("send buffer=%p, recv buffer=%p\n", a2a_s_buf, a2a_r_buf);
-
-    //for(int ii=0;ii<size;ii++){
-      // exchange kv data
-   //   printf("%d send count=%d, send displs=%d, recv count=%d, recv displs=%d\n", rank, 
-   //     a2a_s_count[ii], a2a_s_displs[ii], a2a_r_count[ii], a2a_r_displs[ii]); fflush(stdout);
-    //}
-
-    //for(int ii=0; ii<size; ii++){
-    //  if(a2a_s_count[ii] <0 || a2a_s_displs[ii]<0 || a2a_r_count[ii]<0 || a2a_r_displs[ii]<0)
-    //    LOG_ERROR("%d ii=%d, send count=%d, send displs=%d, recv count=%d, recv displs=%d\n", rank, ii,
-    //      a2a_s_count[ii], a2a_s_displs[ii], a2a_r_count[ii], a2a_r_displs[ii]);
-    //}
-    
+       
     MPI_Ialltoallv(a2a_s_buf, a2a_s_count, a2a_s_displs, MPI_BYTE, a2a_r_buf, a2a_r_count, a2a_r_displs, MPI_BYTE, comm,  &reqs[origin_ibuf][k]);
     comm_recv_buf[k] = a2a_r_buf;
     comm_recv_displs[k][0] = 0;

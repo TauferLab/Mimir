@@ -12,26 +12,18 @@ using namespace MAPREDUCE_NS;
 
 #include "stat.h"
 
-//char *outdir[]={"/scratch/rice/g/gao381"};
-//char outdir[]={"/oasis/scratch/comet/taogao/temp_project"};
-
-//#ifndef WC_M
-//void fileread(MapReduce *, const char *, void *);
-//#else
 void map(MapReduce *mr, char *word, void *ptr);
-//#endif
+void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 
 #define USE_LOCAL_DISK  0
-
-void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
-void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr);
+void output(const char *filename, const char *outdir, \
+  const char *prefix, MapReduce *mr);
 
 int me, nprocs;
-
 int commmode=0;
 int inputsize=512;
 int blocksize=512;
-int gbufsize=128;
+int gbufsize=8192;
 int lbufsize=16;
 
 uint64_t nword, nunique;
@@ -39,9 +31,6 @@ double t1, t2, t3;
 
 int main(int argc, char *argv[])
 {
-  //printf("test1\n"); fflush(stdout);
-
-  //printf("%d", sizeof(int));
   int provided;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   if (provided < MPI_THREAD_FUNNELED){
@@ -49,14 +38,8 @@ int main(int argc, char *argv[])
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
- // printf("test2\n"); fflush(stdout);
-
-  //printf("test!\n");
-
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-
-  //printf("here!\n");
 
   if(argc <= 3){
     if(me == 0) printf("Syntax: wordcount filepath\n");
@@ -65,19 +48,6 @@ int main(int argc, char *argv[])
 
   const char *prefix = argv[2];
   const char *outdir = argv[3];
-
-  //if(argc > 2){
-  //  commmode=atoi(argv[2]);
-  //} 
-  //if(argc > 3){
-  //  blocksize=atoi(argv[3]);
-  //}
-  //if(argc > 4){
-  //  gbufsize=atoi(argv[4]);
-  //}
-  //if(argc > 5){
-  //  lbufsize=atoi(argv[5]);
-  //}
 
   char *filedir=argv[1];
 
@@ -108,38 +78,20 @@ int main(int argc, char *argv[])
 
   mr->set_outofcore(0);
 
-  //printf("begin\n"); fflush(stdout);
-
   MPI_Barrier(MPI_COMM_WORLD);
 
   t1 = MPI_Wtime();
 
-  //char filename[2048+1];
-  //sprintf(filename, "%s/512M.%d.txt", argv[1], me);
-
-//#ifndef WC_M
-  //printf("filedir=%s\n", filedir);
-  //nword = mr->map(filedir, 1, 1, fileread, NULL);
-//#else
   char whitespace[20] = " \n";
   nword = mr->map(filedir, 1, 1, whitespace, map, NULL);
-//#endif
-
-  //printf("map end!"); fflush(stdout);
-
-  //mr->output();
 
   t2 = MPI_Wtime();
 
   nunique = mr->reduce(countword, 1, NULL);
 
-  //printf("reduce end!"); fflush(stdout);
-
   t3 = MPI_Wtime();
 
   MPI_Barrier(MPI_COMM_WORLD);
-
-  //mr->output();
 
   output("mtmr.wc", outdir, prefix, mr);
  
@@ -153,57 +105,6 @@ int main(int argc, char *argv[])
 
   MPI_Finalize();
 }
-
-#if 0
-#ifndef WC_M
-void fileread(MapReduce *mr, const char *fname, void *ptr){
-  int tid = omp_get_thread_num();
-
-  struct stat stbuf;
-  int flag = stat(fname,&stbuf);
-  if (flag < 0) {
-    printf("ERROR: Could not query file size\n");
-    MPI_Abort(MPI_COMM_WORLD,1);
-  }
-  int filesize = stbuf.st_size;
-
-  FILE *fp = fopen(fname,"r");
-  char *text = new char[filesize+1];
-
-#if GATHER_STAT
-  double t1 = omp_get_wtime();
-#endif
-
-  int nchar = fread(text,1,filesize,fp);
-
-#if GATHER_STAT
-  double t2 = omp_get_wtime();
-  st.inc_timer(tid, TIMER_MAP_IO, t2-t1);
-#endif
-
-  text[nchar] = '\0';
-  fclose(fp);
-
-  char one[10]={"1"};
-  char *saveptr = NULL;
-  char whitespace[20] = " \n";
-  char *word = strtok_r(text,whitespace,&saveptr);
-  while (word) {
-    int len=strlen(word)+1;
-    if(len <= 8192)
-      mr->add(word,len,one,2);
-    word = strtok_r(NULL,whitespace,&saveptr);
-  }
-
-  delete [] text;
-
-#if GATHER_STAT
-  double t3 = omp_get_wtime();
-  st.inc_timer(tid, TIMER_MAP_SEEK, t3-t2);
-#endif
-}
-#endif
-#endif
 
 void map(MapReduce *mr, char *word, void *ptr){
   int len=strlen(word)+1;
@@ -222,9 +123,6 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   
   char count_str[100];
   sprintf(count_str, "%lu", count);
-
-  //printf("add: key=%s,count_str=%s\n", key, count_str);
-
   mr->add(key, keysize, count_str, strlen(count_str)+1);
 }
 

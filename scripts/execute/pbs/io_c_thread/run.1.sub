@@ -2,12 +2,12 @@
 #PBS -n -l nodes=1:ppn=20
 #PBS -l walltime=00:20:00
 
-SUBDIR=10GB
+SUBDIR=n1
 NODE=1
 
 cd $PBS_O_WORKDIR
 source common.h
 module load impi
 let NPROCS=$NODE*$PPN
-OMP_NUM_THREADS=$NTHRS mpiexec -n $NPROCS ./$EXE $INDIR/$SUBDIR $PREFIX $OUTDIR
+OMP_NUM_THREADS=$NTHRS mpiexec -n $NPROCS -ppn $PPN ./$EXE $INDIR/$SUBDIR $PREFIX $OUTDIR
 

@@ -3,7 +3,7 @@
 settings=('io_c_thread')
 
 TIMES=10
-START=64
+START=1
 END=64
 
 PRE=$1

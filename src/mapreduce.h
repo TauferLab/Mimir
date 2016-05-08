@@ -199,7 +199,7 @@ private:
 private:
   // MPI Commincator
   MPI_Comm comm;
-  int me, nprocs, tnum; 
+  int me, nprocs, tnum;
   OpMode mode;
   int ukeyoffset; 
   uint64_t *nitems;
