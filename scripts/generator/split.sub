@@ -1,0 +1,13 @@
+cd $PBS_O_WORKDIR
+
+#INPUT=/scratch/rice/g/gao381/wikipedia/wikipedia_300GB
+INPUT=/scratch/rice/g/gao381/wikipedia/wikipedia_300GB
+OUTPUT=/scratch/rice/g/gao381/wikipedia/512M_300GB
+PREFIX=512M
+FSIZE=512
+SIDX=0
+NFILE=1000
+THRS=20
+
+OMP_NUM_THREADS=$THRS ./split_text_files $INPUT $OUTPUT $PREFIX $FSIZE $SIDX $NFILE
+

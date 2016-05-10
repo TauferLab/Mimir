@@ -12,8 +12,8 @@
 #include <string>
 
 #define MAXLINE 2048
-//#define CHUNK_UNIT (1024*1024)
-#define CHUNK_UNIT 1
+#define CHUNK_UNIT (1024*1024)
+//#define CHUNK_UNIT 1
 
 // get file list
 void get_file_list(const char *filepath,int recurse);
@@ -22,14 +22,16 @@ std::vector<std::string> ifiles;
 
 int main(int argc, char *argv[]){
   // get argument of program
-  if(argc < 5){
-    printf("Usage: ./split inputpath outputfile outprefix filesize(MB)\n");
+  if(argc < 7){
+    printf("Usage: ./split inputpath outputfile outprefix filesize(MB) startidx maxnfile\n");
     exit(1);
   }
   char *filepath=argv[1];
   char *outpath=argv[2];
   char *outprefix=argv[3];
   int chunksize=atoi(argv[4]);
+  int startidx=atoi(argv[5]);
+  int maxnfile=atoi(argv[6]);
 
   int64_t maxfilesize=(int64_t)chunksize*(CHUNK_UNIT);
   char *buf=(char*)malloc(maxfilesize+1);
@@ -43,6 +45,7 @@ int main(int argc, char *argv[]){
 {
   int tid = omp_get_thread_num();
   int out_fd=-1;
+  int end_flag=0;
 
   // thread tmp file
   char tfilename[100];
@@ -52,7 +55,7 @@ int main(int argc, char *argv[]){
   int64_t outfilesize=0;
   out_fd=creat(tfilename, S_IRUSR|S_IWUSR);
 
-  printf("tfilename=%s\n", tfilename);
+  //printf("tfilename=%s\n", tfilename);
  
 #pragma omp for
   for(int i = 0; i < fcount; i++){
@@ -64,7 +67,7 @@ int main(int argc, char *argv[]){
    
     printf("thread %d filename=%s, filesize=%ld\n", tid, ifiles[i].c_str(), fsize);
 
-    if(fsize == 0) continue;
+    if(fsize == 0 || end_flag == 1) continue;
     
     int64_t foff=0;
     int in_fd=open(ifiles[i].c_str(), O_RDONLY);
@@ -76,7 +79,7 @@ int main(int argc, char *argv[]){
       if(fsize-foff<=maxfilesize-outfilesize) readsize=fsize-foff;
       else readsize=maxfilesize-outfilesize;
 
-      printf("readsize=%ld, fsize=%ld, foff=%ld, maxfsize=%ld, outfsize=%ld\n", \
+      //printf("readsize=%ld, fsize=%ld, foff=%ld, maxfsize=%ld, outfsize=%ld\n", \
         readsize, fsize, foff, maxfilesize, outfilesize);
  
       // read file
@@ -108,24 +111,31 @@ int main(int argc, char *argv[]){
         outfilesize+=readsize;  
       }   
 
-      printf("readsize=%ld, foff=%ld, outfilesize=%ld\n", readsize, foff, outfilesize);
+      //printf("readsize=%ld, foff=%ld, outfilesize=%ld\n", readsize, foff, outfilesize);
 
       // change output file
       if(readsize==0 || outfilesize==maxfilesize){
         close(out_fd);
         char tmp[100];
         int i=__sync_fetch_and_add(&fid,1);
-        sprintf(tmp, "%s/%s.%d.txt", outpath, outprefix, i);
-        rename(tfilename, tmp);
-        outfilesize=0;
-        out_fd=creat(tfilename, S_IRUSR|S_IWUSR);
+        if(i<maxnfile){
+          sprintf(tmp, "%s/%s.%d.txt", outpath, outprefix, startidx+i);
+          rename(tfilename, tmp);
+          outfilesize=0;
+          out_fd=creat(tfilename, S_IRUSR|S_IWUSR);
+        }else{
+          //close(in_fd);
+          end_flag=1;
+          //goto end;
+          break;
+        }
       }
       //counter++;
       //if(counter>=2) exit(1);
     }
-    close(in_fd);  
+    close(in_fd);
+    //if(end_flag) break;
   } 
-
   close(out_fd);
 }
 
