@@ -20,6 +20,7 @@ class MapReduce;
 class MultiValueIterator;
 
 enum KVType{GeneralKV, StringKV, FixedKV, StringKeyOnly};
+
 typedef void (*UserInitKV)(MapReduce *, void *);
 typedef void (*UserMapFile) (MapReduce *, char *, void *);
 typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
@@ -28,80 +29,61 @@ typedef void (*UserScan)(char *, int, char *, int ,void *);
 
 class MapReduce {
 public:
-  /***** Create and Destroy MapReduce Object *******/
   MapReduce(MPI_Comm);
   MapReduce(const MapReduce &mr);
   ~MapReduce();
 
-  uint64_t init_key_value(UserInitKV _myinit, void *ptr=NULL, int comm=1);
+  uint64_t init_key_value(
+    UserInitKV _myinit, void *ptr=NULL, int comm=1);
   uint64_t map_text_file(char *, int, int, char *, 
     UserMapFile _mymap, void *ptr=NULL, int comm=1);
-  //uint64_t map(char *, int, int, 
-  //  void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL, int comm=1);
   uint64_t map_key_value(MapReduce *, 
-      UserMapKV _mymap, void *ptr=NULL, int comm=1);
-
-  uint64_t reduce(UserReduce _myreduce, int compress=0, void* ptr=NULL);
-
+    UserMapKV _mymap, void *ptr=NULL, int comm=1);
+  uint64_t reduce(UserReduce _myreduce, int compress=0, 
+    void* ptr=NULL);
   void scan(UserScan _myscan, void * ptr=NULL);
+  void add_key_value(char *key, int keybytes, 
+    char *value, int valuebytes);
+  void output(int type=0, FILE *fp=stdout, int format=0);
+  void init_stat();
+  void show_stat(int verb=0, FILE *fp=stdout);
 
-  // interfaces in user-defined map and reduce functions
-  void add_key_value(char *key, int keybytes, char *value, int valuebytes);
-
-
-
-  /***** Set Library Parameters ******/
   void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
     kvtype = _kvtype;
     ksize = _ksize;
     vsize = _vsize;
   }
-
   void set_blocksize(int _blocksize){
     blocksize = _blocksize;
   }
-
   void set_inputsize(int _inputsize){
     inputsize = _inputsize;
   }
-
   void set_maxblocks(int _nmaxblock){
     nmaxblock = _nmaxblock;
   }
-
   void set_maxmem(int _maxmemsize){
     maxmemsize = _maxmemsize;
   }
-
   void set_filepath(const char *_fpath){
     tmpfpath = std::string(_fpath);
   }
-
   void set_outofcore(int _flag){
     outofcore = _flag;
   }
-
   void set_threadbufsize(int _tbufsize){
     lbufsize = _tbufsize;
   }
- 
   void set_sendbufsize(int _sbufsize){
     gbufsize = _sbufsize;
   }
-
   void set_commmode(int _commmode){
     commmode = _commmode;
   }
-
   void set_hash(int (*_myhash)(char *, int)){
     myhash = _myhash;
   }
 
-
-  /**** interfaces used to get kv informations ****/
-  // output data into file
-  // type: 0 for string, 1 for int, 2 for int64_t
-  void output(int type=0, FILE *fp=stdout, int format=0);
   uint64_t get_global_KVs(){
     return global_kvs_count;
   }
@@ -110,21 +92,9 @@ public:
     return local_kvs_count;
   }
 
-  /**** Interfaces used for statatics *****/
-  void init_stat();
-  void show_stat(int verb=0, FILE *fp=stdout);
-
-
-
-  uint64_t _map_master_io(char *, int, int, char *, 
-    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
-
-  uint64_t _map_multithread_io(char *, int, int, char *, 
-    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
-
 private:
   friend class MultiValueIterator; 
-enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
+  enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
 
   /**** Structure used for converting ****/
   struct Set
@@ -216,6 +186,11 @@ private:
   // internal functions
   void _get_default_values();
   void _bind_threads();
+
+  uint64_t _map_master_io(char *, int, int, char *, 
+    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
+  uint64_t _map_multithread_io(char *, int, int, char *, 
+    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
 
   void _tinit(int); // thread initialize
   void _disinputfiles(const char *, int, int);
