@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
   t1 = MPI_Wtime();
 
   char whitespace[20] = " \n";
-  nword = mr->map(filedir, 1, 1, whitespace, map, NULL);
+  nword = mr->map_text_file(filedir, 1, 1, whitespace, map, NULL);
 
   t2 = MPI_Wtime();
 
@@ -111,7 +111,7 @@ void map(MapReduce *mr, char *word, void *ptr){
   char one[10]={"1"};
 
   if(len <= 8192)
-    mr->add(word,len,one,2);
+    mr->add_key_value(word,len,one,2);
 }
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
@@ -123,7 +123,7 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   
   char count_str[100];
   sprintf(count_str, "%lu", count);
-  mr->add(key, keysize, count_str, strlen(count_str)+1);
+  mr->add_key_value(key, keysize, count_str, strlen(count_str)+1);
 }
 
 void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){

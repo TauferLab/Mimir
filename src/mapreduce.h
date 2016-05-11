@@ -3,29 +3,28 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <string>
 #include <vector>
-
 #include <mpi.h>
-
 #include "hash.h"
 #include "dataobject.h"
 #include "keyvalue.h"
 #include "keymultivalue.h"
 #include "communicator.h"
-
 #include "spool.h"
-
 #include "config.h"
 
 namespace MAPREDUCE_NS {
 
-enum KVType{GeneralKV, StringKV, FixedKV, StringKeyOnly};
-
-enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
-
+class MapReduce;
 class MultiValueIterator;
+
+enum KVType{GeneralKV, StringKV, FixedKV, StringKeyOnly};
+typedef void (*UserInitKV)(MapReduce *, void *);
+typedef void (*UserMapFile) (MapReduce *, char *, void *);
+typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
+typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*);
+typedef void (*UserScan)(char *, int, char *, int ,void *);
 
 class MapReduce {
 public:
@@ -33,6 +32,23 @@ public:
   MapReduce(MPI_Comm);
   MapReduce(const MapReduce &mr);
   ~MapReduce();
+
+  uint64_t init_key_value(UserInitKV _myinit, void *ptr=NULL, int comm=1);
+  uint64_t map_text_file(char *, int, int, char *, 
+    UserMapFile _mymap, void *ptr=NULL, int comm=1);
+  //uint64_t map(char *, int, int, 
+  //  void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL, int comm=1);
+  uint64_t map_key_value(MapReduce *, 
+      UserMapKV _mymap, void *ptr=NULL, int comm=1);
+
+  uint64_t reduce(UserReduce _myreduce, int compress=0, void* ptr=NULL);
+
+  void scan(UserScan _myscan, void * ptr=NULL);
+
+  // interfaces in user-defined map and reduce functions
+  void add_key_value(char *key, int keybytes, char *value, int valuebytes);
+
+
 
   /***** Set Library Parameters ******/
   void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
@@ -81,22 +97,6 @@ public:
     myhash = _myhash;
   }
 
-  /***** Map & Reduce Interfaces *****/
-  uint64_t map(void (*mymap)(MapReduce *, void *), void *ptr=NULL, int comm=1);
-  uint64_t map(char *, int, int, char *, 
-    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
-  //uint64_t map(char *, int, int, 
-  //  void (*mymap) (MapReduce *, const char *, void *), void *ptr=NULL, int comm=1);
-  uint64_t map(MapReduce *, 
-      void (*mymap) (MapReduce *, char *, int, char *, int, void *), void *ptr=NULL, int comm=1);
-
-  uint64_t reduce(void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), int compress=0, void* ptr=NULL);
-
-  void scan(void (myscan)(char *, int, char *, int ,void *), void * ptr=NULL);
-
-  // interfaces in user-defined map and reduce functions
-  void add(char *key, int keybytes, char *value, int valuebytes);
-
 
   /**** interfaces used to get kv informations ****/
   // output data into file
@@ -110,17 +110,22 @@ public:
     return local_kvs_count;
   }
 
+  /**** Interfaces used for statatics *****/
+  void init_stat();
+  void show_stat(int verb=0, FILE *fp=stdout);
+
+
+
   uint64_t _map_master_io(char *, int, int, char *, 
     void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
 
   uint64_t _map_multithread_io(char *, int, int, char *, 
     void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
 
-  /**** Interfaces used for statatics *****/
-  void init_stat();
-  void show_stat(int verb=0, FILE *fp=stdout);
+private:
+  friend class MultiValueIterator; 
+enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
 
-public:
   /**** Structure used for converting ****/
   struct Set
   {
