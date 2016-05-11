@@ -1,3 +1,11 @@
+/**
+ * @file   example_action.h
+ * @Author Me (me@example.com)
+ * @date   September, 2008
+ * @brief  Brief description of file.
+ *
+ * Detailed description of file.
+ */
 #ifndef MAP_REDUCE_H
 #define MAP_REDUCE_H
 
