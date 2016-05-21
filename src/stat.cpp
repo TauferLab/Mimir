@@ -6,7 +6,7 @@
 using namespace MAPREDUCE_NS;
 
 #if GATHER_STAT
-Stat st(TIMER_NUM, COUNTER_NUM);
+//Stat st(TIMER_NUM, COUNTER_NUM);
 #endif
 
 Stat::Stat(int _ntimer, int _ncounter){

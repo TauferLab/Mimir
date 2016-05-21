@@ -219,12 +219,12 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     // need communication
     if(switchflag != 0){
 #if GATHER_STAT
-      double t1 = omp_get_wtime();
+      //double t1 = omp_get_wtime();
 #endif
 #pragma omp barrier
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif      
       int flag;
       MPI_Is_thread_main(&flag);
@@ -235,8 +235,8 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       }
 #pragma omp barrier
 #if GATHER_STAT
-      double t3 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
+      //double t3 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
 #endif
     }
 
@@ -256,14 +256,14 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       if(loff + off[target] <= send_buf_size){
 
 #if GATHER_STAT
-       double tstart = omp_get_wtime();
+       //double tstart = omp_get_wtime();
 #endif
 
         int goff=fetch_and_add_with_max(&off[target], loff, send_buf_size);
 
 #if GATHER_STAT
-       double tstop = omp_get_wtime();
-       st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
+       //double tstop = omp_get_wtime();
+      // st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
 #endif
 
         if(goff + loff <= send_buf_size){
@@ -300,12 +300,12 @@ void Alltoall::tpoll(int tid){
   do{
     if(switchflag != 0){
 #if GATHER_STAT
-      double t1 = omp_get_wtime();
+      //double t1 = omp_get_wtime();
 #endif
 #pragma omp barrier
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif
       int flag;
       MPI_Is_thread_main(&flag);
@@ -315,8 +315,8 @@ void Alltoall::tpoll(int tid){
       }
 #pragma omp barrier
 #if GATHER_STAT
-      double t3 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
+      //double t3 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
 #endif
     }
   }while(tdone < tnum);
@@ -353,12 +353,12 @@ void Alltoall::twait(int tid){
     // check communication
     if(switchflag != 0){
 #if GATHER_STAT
-      double t1 = omp_get_wtime();
+      //double t1 = omp_get_wtime();
 #endif
 #pragma omp barrier
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif
       int flag;
       MPI_Is_thread_main(&flag);
@@ -369,8 +369,8 @@ void Alltoall::twait(int tid){
       }
 #pragma omp barrier
 #if GATHER_STAT
-      double t3 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
+      //double t3 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
 #endif
     }
     
@@ -382,7 +382,7 @@ void Alltoall::twait(int tid){
     }
 
 #if GATHER_STAT
-    double tstart = omp_get_wtime();
+    //double tstart = omp_get_wtime();
 #endif
 
     // try to flush local buffer into global bufer
@@ -390,8 +390,8 @@ void Alltoall::twait(int tid){
     int goff=fetch_and_add_with_max(&off[i], loff, send_buf_size);
 
 #if GATHER_STAT
-    double tstop = omp_get_wtime();
-    st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
+    //double tstop = omp_get_wtime();
+    //st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
 #endif
 
      // copy data to global buffer
@@ -418,12 +418,12 @@ void Alltoall::twait(int tid){
   do{
     if(switchflag != 0){
 #if GATHER_STAT
-      double t1 = omp_get_wtime();
+      //double t1 = omp_get_wtime();
 #endif
 #pragma omp barrier
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
 #endif
       int flag;
       MPI_Is_thread_main(&flag);
@@ -433,8 +433,8 @@ void Alltoall::twait(int tid){
       }
 #pragma omp barrier
 #if GATHER_STAT
-      double t3 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
+      //double t3 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
 #endif
     }
   }while(tdone < tnum);
@@ -460,7 +460,7 @@ void Alltoall::wait(){
    // do exchange kv until all processes done
    do{
 #if GATHER_STAT
-     double t1 = MPI_Wtime();
+     //double t1 = MPI_Wtime();
 #endif
 
      //printf("rank=%d, wait\n", rank); fflush(stdout);
@@ -468,8 +468,8 @@ void Alltoall::wait(){
      exchange_kv();
 
 #if GATHER_STAT
-    double t2 = MPI_Wtime();
-    st.inc_timer(0, TIMER_MAP_LASTEXCH, t2-t1);
+    //double t2 = MPI_Wtime();
+    //st.inc_timer(0, TIMER_MAP_LASTEXCH, t2-t1);
 #endif
    }while(pdone < size);
 
@@ -488,7 +488,7 @@ void Alltoall::wait(){
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);      
        if(recvcount > 0) {
 #if GATHER_STAT
-         st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
+         //st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
 #endif    
          
          SAVE_ALL_DATA(i);
@@ -508,7 +508,7 @@ void Alltoall::wait(){
 void Alltoall::exchange_kv(){
 #if 1
 #if GATHER_STAT
-  double t1 = omp_get_wtime();
+  //double t1 = omp_get_wtime();
 #endif
 
   int i;  
@@ -528,9 +528,9 @@ void Alltoall::exchange_kv(){
   }
 
 #if GATHER_STAT
-  double t2 = omp_get_wtime();
-  st.inc_timer(0, TIMER_MAP_ALLTOALL, t2-t1);
-  st.inc_counter(0, COUNTER_SEND_BYTES, sendcount);
+  //double t2 = omp_get_wtime();
+  //st.inc_timer(0, TIMER_MAP_ALLTOALL, t2-t1);
+  //st.inc_counter(0, COUNTER_SEND_BYTES, sendcount);
 #endif
 
   int origin_ibuf=ibuf;
@@ -539,7 +539,7 @@ void Alltoall::exchange_kv(){
   if(reqs[ibuf][0] != MPI_REQUEST_NULL) {
 
 #if GATHER_STAT
-    double t1 = omp_get_wtime();
+    //double t1 = omp_get_wtime();
 #endif
     
     for(i=0; i<comm_div_count; i++){
@@ -549,27 +549,27 @@ void Alltoall::exchange_kv(){
     }
 
 #if GATHER_STAT
-    double t2 = omp_get_wtime();
-    st.inc_timer(0, TIMER_MAP_WAITDATA, t2-t1);
+    //double t2 = omp_get_wtime();
+    //st.inc_timer(0, TIMER_MAP_WAITDATA, t2-t1);
 #endif
 
     uint64_t recvcount = recvcounts[ibuf];
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
     if(recvcount > 0) {
 #if GATHER_STAT
-      st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
+      //st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
 #endif    
       SAVE_ALL_DATA(ibuf);
     }
 #if GATHER_STAT
-    double t3 = omp_get_wtime();
-    st.inc_timer(0, TIMER_MAP_COPYDATA, t3-t2);
+    //double t3 = omp_get_wtime();
+    //st.inc_timer(0, TIMER_MAP_COPYDATA, t3-t2);
 #endif
   }
 
 #if GATHER_STAT
-  double t3 = omp_get_wtime();
-  st.inc_timer(0, TIMER_MAP_SAVEDATA, t3-t2);
+  //double t3 = omp_get_wtime();
+  //st.inc_timer(0, TIMER_MAP_SAVEDATA, t3-t2);
 #endif
 
   char *a2a_s_buf;
@@ -653,8 +653,8 @@ void Alltoall::exchange_kv(){
   }
 
 #if GATHER_STAT
-  double t4 = omp_get_wtime();
-  st.inc_timer(0, TIMER_MAP_IALLTOALL, t4-t3);
+  //double t4 = omp_get_wtime();
+  //st.inc_timer(0, TIMER_MAP_IALLTOALL, t4-t3);
 #endif
 
 #if 0
@@ -712,9 +712,9 @@ void Alltoall::exchange_kv(){
   //printf("Exchange KV end\n"); fflush(stdout);
 
 #if GATHER_STAT
-  double t5 = omp_get_wtime();
-  st.inc_timer(0, TIMER_MAP_ALLREDUCE, t5-t4);
-  st.inc_timer(0, TIMER_MAP_EXCHANGE, t5-t1);
+  //double t5 = omp_get_wtime();
+  //st.inc_timer(0, TIMER_MAP_ALLREDUCE, t5-t4);
+  //st.inc_timer(0, TIMER_MAP_EXCHANGE, t5-t1);
 #endif
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%ld, done count=%d)\n", rank, size, sendcount, pdone);
 #endif

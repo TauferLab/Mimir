@@ -198,23 +198,23 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
         MPI_Is_thread_main(&flag);
         if(flag){
 #if GATHER_STAT
-          double t1 = omp_get_wtime();
+          //double t1 = omp_get_wtime();
 #endif
           MAKE_PROGRESS;
 #if GATHER_STAT
-          double t2 = omp_get_wtime();
+          //double t2 = omp_get_wtime();
           //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
         }
       }
 
 #if GATHER_STAT
-      double t1 = omp_get_wtime();
+      //double t1 = omp_get_wtime();
 #endif
       omp_set_lock((omp_lock_t*)GET_VAL(lock, target, onelocklen));
 #if GATHER_STAT
-      double t2 = omp_get_wtime();
-      st.inc_timer(tid, TIMER_MAP_LOCK, t2-t1);
+      //double t2 = omp_get_wtime();
+      //st.inc_timer(tid, TIMER_MAP_LOCK, t2-t1);
 #endif
       // try to add the offset
       if(loff + *(int*)GET_VAL(off,target,oneintlen) <= send_buf_size){
@@ -254,11 +254,11 @@ void Ptop::tpoll(int tid){
       //exchange_kv();  
       //MAKE_PROGRESS;
 #if GATHER_STAT
-          double t1 = omp_get_wtime();
+          //double t1 = omp_get_wtime();
 #endif
           MAKE_PROGRESS;
 #if GATHER_STAT
-          double t2 = omp_get_wtime();
+          //double t2 = omp_get_wtime();
           //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
 
@@ -290,11 +290,11 @@ void Ptop::twait(int tid){
       if(flag){
         //MAKE_PROGRESS; 
 #if GATHER_STAT
-          double t1 = omp_get_wtime();
+          //double t1 = omp_get_wtime();
 #endif
           MAKE_PROGRESS;
 #if GATHER_STAT
-          double t2 = omp_get_wtime();
+          //double t2 = omp_get_wtime();
           //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
       }
@@ -333,11 +333,11 @@ void Ptop::twait(int tid){
       //exchange_kv();  
       //MAKE_PROGRESS;
 #if GATHER_STAT
-          double t1 = omp_get_wtime();
+          //double t1 = omp_get_wtime();
 #endif
           MAKE_PROGRESS;
 #if GATHER_STAT
-          double t2 = omp_get_wtime();
+          //double t2 = omp_get_wtime();
           //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
 #endif
 

@@ -15,9 +15,9 @@
 
 using namespace MAPREDUCE_NS;
 
-#if GATHER_STAT
-#include "stat.h"
-#endif
+//#if GATHER_STAT
+//#include "stat.h"
+//#endif
 
 Communicator* Communicator::Create(MPI_Comm _comm, int _tnum, int _commmode){
   Communicator *c=NULL;
