@@ -12,9 +12,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#if GATHER_STAT
 #include "stat.h"
-#endif
 
 #if 0
 #define SAVE_ALL_DATA(ii) \
@@ -33,12 +31,14 @@ using namespace MAPREDUCE_NS;
     int recvcount = recv_count[ii][k];\
     if(blocks[0]==-1){\
       blocks[0] = data->add_block();\
+      PROFILER_RECORD_COUNT(0, "mr_map_kv_size", data->blocksize);\
       data->acquire_block(blocks[0]);\
     }\
     int datasize=data->getdatasize(blocks[0]);\
     if(datasize+recvcount>data->blocksize){\
       data->release_block(blocks[0]);\
       blocks[0] = data->add_block();\
+      PROFILER_RECORD_COUNT(0, "mr_map_kv_size", data->blocksize);\
       data->acquire_block(blocks[0]);\
       datasize=0;\
     }\
@@ -103,11 +103,6 @@ Alltoall::~Alltoall(){
     delete [] reqs;
   }
 
-#if GATHER_STAT
-  //delete [] tsendkv; 
-  //delete [] thwait;
-#endif
-
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall destroy.\n", rank, size);
 }
 
@@ -130,11 +125,13 @@ int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _
   recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];
 
+  size_t total_send_buf_size=(size_t)send_buf_size*size;
   for(int i = 0; i < nbuf; i++){
-    size_t total_send_buf_size=(size_t)send_buf_size*size;
     recv_buf[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, total_send_buf_size);
     recv_count[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
   }
+
+  PROFILER_RECORD_COUNT(0, "mr_recv_buf_size", total_send_buf_size*nbuf);
 
   comm_recv_buf = new char*[comm_div_count];
   comm_recv_count = new int*[comm_div_count];
@@ -197,8 +194,6 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   }
 #endif
 
-  //printf("send KV: %s\n", key);
-
   int kvsize = 0;
   GET_KV_SIZE(kvtype, keysize, valsize, kvsize);
 
@@ -208,24 +203,13 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   }
 #endif
 
-#if GATHER_STAT
-  //double t1 = omp_get_wtime();      
-#endif
-
-  //char *lbuf = local_buffers[tid]+target*lbufsize;
-
   /* copy kv into local buffer */
   while(1){
     // need communication
     if(switchflag != 0){
-#if GATHER_STAT
-      //double t1 = omp_get_wtime();
-#endif
-#pragma omp barrier
-#if GATHER_STAT
-      //double t2 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
-#endif      
+      TRACKER_RECORD_EVENT(tid, "mr_map");
+#pragma omp barrier  
+      TRACKER_RECORD_EVENT(tid, "mr_omp_barrier");
       int flag;
       MPI_Is_thread_main(&flag);
       //printf("rank=%d, tid=%d, sendkv\n", rank, tid); fflush(stdout);
@@ -234,16 +218,11 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
         switchflag = 0;
       }
 #pragma omp barrier
-#if GATHER_STAT
-      //double t3 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_omp_idle");
     }
 
     int loff = thread_offsets[tid][target];
     char *lbuf = thread_buffers[tid]+target*thread_buf_size+loff;
-
-    //printf("loff=%d, kvsize=%d, thread_buf_size=%d\n", loff, kvsize, thread_buf_size); fflush(stdout);
 
     // local buffer has space
     if(loff + kvsize <= thread_buf_size){
@@ -254,59 +233,48 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
     }else{
        // try to add the offset
       if(loff + off[target] <= send_buf_size){
-
-#if GATHER_STAT
-       //double tstart = omp_get_wtime();
-#endif
-
+         PROFILER_RECORD_TIME_START;
         int goff=fetch_and_add_with_max(&off[target], loff, send_buf_size);
-
-#if GATHER_STAT
-       //double tstop = omp_get_wtime();
-      // st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
-#endif
+         PROFILER_RECORD_TIME_END(tid, "mr_map_fop");
 
         if(goff + loff <= send_buf_size){
           size_t global_buf_off=target*(size_t)send_buf_size+goff;
-          //if(global_buf_off<0) 
-          //   LOG_ERROR("hah global_buf_off=%ld\n", global_buf_off);
           memcpy(buf+global_buf_off, thread_buffers[tid]+target*thread_buf_size, loff);
           thread_offsets[tid][target] = 0;
         // global buffer is full, add back the offset
         }else{
           /* need wait flush */
+          PROFILER_RECORD_TIME_START;
 #pragma omp atomic
           switchflag++;
+          PROFILER_RECORD_TIME_END(tid, "mr_map_atomic");
         }
       /* need wait flush */
       }else{
+        PROFILER_RECORD_TIME_START;
 #pragma omp atomic
         switchflag++;
+        PROFILER_RECORD_TIME_END(tid, "mr_map_atomic");
       }
     }
   }
-
-  //inc_counter(target); 
 
   return 0;
 }
 
 
 void Alltoall::tpoll(int tid){
+  PROFILER_RECORD_TIME_START;
 #pragma omp atomic
   tdone++;
+  PROFILER_RECORD_TIME_END(tid, "mr_map_atomic");
 
   // wait other threads
   do{
     if(switchflag != 0){
-#if GATHER_STAT
-      //double t1 = omp_get_wtime();
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_map");
 #pragma omp barrier
-#if GATHER_STAT
-      //double t2 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_omp_barrier");
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){
@@ -314,18 +282,19 @@ void Alltoall::tpoll(int tid){
         switchflag=0;
       }
 #pragma omp barrier
-#if GATHER_STAT
-      //double t3 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_omp_idle");
     }
   }while(tdone < tnum);
+
+  TRACKER_RECORD_EVENT(tid, "mr_map");
 
 #pragma omp barrier
   if(tid==0){
     tdone=0;
   }
 #pragma omp barrier
+
+  TRACKER_RECORD_EVENT(tid, "mr_omp_barrier");
 }
 
 /* send KV
@@ -340,10 +309,6 @@ void Alltoall::twait(int tid){
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: thread %d begin wait.\n", rank, size, tid);
 
-#if GATHER_STAT
-  //double t1 = MPI_Wtime();
-#endif
-
   // flush local buffer
   int i =0;
 
@@ -352,26 +317,17 @@ void Alltoall::twait(int tid){
     
     // check communication
     if(switchflag != 0){
-#if GATHER_STAT
-      //double t1 = omp_get_wtime();
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_map");
 #pragma omp barrier
-#if GATHER_STAT
-      //double t2 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_omp_barrier");
       int flag;
       MPI_Is_thread_main(&flag);
-      //printf("rank=%d, tid=%d, twait first\n", rank, tid); fflush(stdout);
       if(flag){
         exchange_kv();
         switchflag=0;
       }
 #pragma omp barrier
-#if GATHER_STAT
-      //double t3 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_omp_idle");
     }
     
     int   loff = thread_offsets[tid][i];
@@ -381,50 +337,39 @@ void Alltoall::twait(int tid){
       continue;
     }
 
-#if GATHER_STAT
-    //double tstart = omp_get_wtime();
-#endif
-
     // try to flush local buffer into global bufer
     char *lbuf = thread_buffers[tid]+i*thread_buf_size;
+    PROFILER_RECORD_TIME_START;
     int goff=fetch_and_add_with_max(&off[i], loff, send_buf_size);
-
-#if GATHER_STAT
-    //double tstop = omp_get_wtime();
-    //st.inc_timer(tid, TIMER_MAP_LOCK, tstop-tstart);
-#endif
+    PROFILER_RECORD_TIME_END(tid, "mr_map_fop");
 
      // copy data to global buffer
      if(goff+loff<=send_buf_size){
        size_t global_buf_off=i*(size_t)send_buf_size+goff;
-       //if(global_buf_off<0) 
-       //  LOG_ERROR("hehe global_buf_off=%ld\n", global_buf_off);
        memcpy(buf+global_buf_off, lbuf, loff);
        thread_offsets[tid][i] = 0;
        i++;
        continue;
       // need flush global buffer firstly
      }else{
+       PROFILER_RECORD_TIME_START;
 #pragma omp atomic
        switchflag++;
+       PROFILER_RECORD_TIME_END(tid, "mr_map_atomic");
      }
   } // end i <size
- 
+
+  PROFILER_RECORD_TIME_START;
   // add tdone counter
 #pragma omp atomic
   tdone++;
-
+  PROFILER_RECORD_TIME_END(tid, "mr_map_atomic");
   // wait other threads
   do{
     if(switchflag != 0){
-#if GATHER_STAT
-      //double t1 = omp_get_wtime();
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_map");
 #pragma omp barrier
-#if GATHER_STAT
-      //double t2 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_COMMSYN, t2-t1);
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_omp_barrier");
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){
@@ -432,17 +377,10 @@ void Alltoall::twait(int tid){
         switchflag=0;
       }
 #pragma omp barrier
-#if GATHER_STAT
-      //double t3 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_COMM, t3-t1);
-#endif
+      TRACKER_RECORD_EVENT(tid, "mr_omp_idle");
     }
   }while(tdone < tnum);
 
-#if GATHER_STAT
-  //double t2 = omp_get_wtime();
-  //st.inc_timer(thwait[tid], t2-t1);    
-#endif
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: thread %d finish wait.\n", rank, size, tid);
 }
@@ -451,26 +389,12 @@ void Alltoall::twait(int tid){
 void Alltoall::wait(){
    LOG_PRINT(DBG_COMM, "%d[%d] Comm: start wait.\n", rank, size);
 
-#if GATHER_STAT
-  //double tstart = MPI_Wtime();
-#endif
-
    medone = 1;
 
    // do exchange kv until all processes done
    do{
-#if GATHER_STAT
-     //double t1 = MPI_Wtime();
-#endif
-
-     //printf("rank=%d, wait\n", rank); fflush(stdout);
-
      exchange_kv();
 
-#if GATHER_STAT
-    //double t2 = MPI_Wtime();
-    //st.inc_timer(0, TIMER_MAP_LASTEXCH, t2-t1);
-#endif
    }while(pdone < size);
 
    // wait all pending communication
@@ -487,36 +411,26 @@ void Alltoall::wait(){
 
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);      
        if(recvcount > 0) {
-#if GATHER_STAT
-         //st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
-#endif    
-         
          SAVE_ALL_DATA(i);
-         //save_data(i);
        }
      }
    }
-
-#if GATHER_STAT
-  //double tstop = MPI_Wtime();
-  //st.inc_timer(pwait, tstop-tstart);
-#endif
 
    LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);
 }
 
 void Alltoall::exchange_kv(){
-#if 1
-#if GATHER_STAT
-  //double t1 = omp_get_wtime();
-#endif
-
   int i;  
   uint64_t sendcount=0;
   for(i=0; i<size; i++) sendcount += (uint64_t)off[i];
 
   // exchange send count
+  TRACKER_RECORD_EVENT(0, "mr_map");
+  PROFILER_RECORD_COUNT(0, "mr_send_size", sendcount);
+
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
+
+  TRACKER_RECORD_EVENT(0, "mr_mpi_alltoll");
 
   for(i = 0; i < size; i++) send_displs[i] = i*(uint64_t)send_buf_size;
 
@@ -527,50 +441,29 @@ void Alltoall::exchange_kv(){
     recvcounts[ibuf] += (uint64_t)recv_count[ibuf][i];
   }
 
-#if GATHER_STAT
-  //double t2 = omp_get_wtime();
-  //st.inc_timer(0, TIMER_MAP_ALLTOALL, t2-t1);
-  //st.inc_counter(0, COUNTER_SEND_BYTES, sendcount);
-#endif
-
   int origin_ibuf=ibuf;
   // wait data
   ibuf = (ibuf+1)%nbuf;
   if(reqs[ibuf][0] != MPI_REQUEST_NULL) {
 
-#if GATHER_STAT
-    //double t1 = omp_get_wtime();
-#endif
-    
+    TRACKER_RECORD_EVENT(0, "mr_map");
+  
     for(i=0; i<comm_div_count; i++){
       MPI_Status mpi_st;
       MPI_Wait(&reqs[ibuf][i], &mpi_st);
       reqs[ibuf][i] = MPI_REQUEST_NULL;
     }
 
-#if GATHER_STAT
-    //double t2 = omp_get_wtime();
-    //st.inc_timer(0, TIMER_MAP_WAITDATA, t2-t1);
-#endif
-
     uint64_t recvcount = recvcounts[ibuf];
+
+    TRACKER_RECORD_EVENT(0, "mr_mpi_wait");
+    PROFILER_RECORD_COUNT(0, "mr_send_size", recvcount);
+
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
-    if(recvcount > 0) {
-#if GATHER_STAT
-      //st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
-#endif    
+    if(recvcount > 0) { 
       SAVE_ALL_DATA(ibuf);
     }
-#if GATHER_STAT
-    //double t3 = omp_get_wtime();
-    //st.inc_timer(0, TIMER_MAP_COPYDATA, t3-t2);
-#endif
   }
-
-#if GATHER_STAT
-  //double t3 = omp_get_wtime();
-  //st.inc_timer(0, TIMER_MAP_SAVEDATA, t3-t2);
-#endif
 
   char *a2a_s_buf;
   if(comm_div_count==1) a2a_s_buf=send_buffers[origin_ibuf];
@@ -624,8 +517,13 @@ void Alltoall::exchange_kv(){
         memcpy(a2a_s_buf+a2a_s_displs[i], buf+send_displs[i], a2a_s_count[i]);
       }
     }
-       
+
+    TRACKER_RECORD_EVENT(0, "mr_map");
+     
     MPI_Ialltoallv(a2a_s_buf, a2a_s_count, a2a_s_displs, MPI_BYTE, a2a_r_buf, a2a_r_count, a2a_r_displs, MPI_BYTE, comm,  &reqs[origin_ibuf][k]);
+
+    TRACKER_RECORD_EVENT(0, "mr_mpi_ialltoallv");
+
     comm_recv_buf[k] = a2a_r_buf;
     comm_recv_displs[k][0] = 0;
     for(i=1; i<size; i++) comm_recv_displs[k][i]=comm_recv_displs[k][i-1]+a2a_r_count[i-1];
@@ -652,10 +550,16 @@ void Alltoall::exchange_kv(){
     send_buffers[origin_ibuf]=tmp;
   }
 
-#if GATHER_STAT
-  //double t4 = omp_get_wtime();
-  //st.inc_timer(0, TIMER_MAP_IALLTOALL, t4-t3);
-#endif
+  // switch buffer
+  buf = send_buffers[ibuf];
+  off = send_offsets[ibuf];
+  for(int i = 0; i < size; i++) off[i] = 0;
+
+  TRACKER_RECORD_EVENT(0, "mr_map");
+  
+  MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
+
+  TRACKER_RECORD_EVENT(0, "mr_mpi_allreduce");
 
 #if 0
   // wait data
@@ -698,26 +602,7 @@ void Alltoall::exchange_kv(){
 #endif
 #endif
 
-  // switch buffer
-  buf = send_buffers[ibuf];
-  off = send_offsets[ibuf];
-  for(int i = 0; i < size; i++) off[i] = 0;
-
-  //printf("MPI_Allreduce begin\n"); fflush(stdout);
-
-  //printf("me=%d, medone=%d, pdone=%d\n", rank, medone, pdone); fflush(stdout);
-
-  MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
-
-  //printf("Exchange KV end\n"); fflush(stdout);
-
-#if GATHER_STAT
-  //double t5 = omp_get_wtime();
-  //st.inc_timer(0, TIMER_MAP_ALLREDUCE, t5-t4);
-  //st.inc_timer(0, TIMER_MAP_EXCHANGE, t5-t1);
-#endif
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%ld, done count=%d)\n", rank, size, sendcount, pdone);
-#endif
 }
 
 #if 0

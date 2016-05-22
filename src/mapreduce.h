@@ -22,6 +22,8 @@
 #include "spool.h"
 #include "config.h"
 
+#include "stat.h"
+
 namespace MAPREDUCE_NS {
 
 class MapReduce;
@@ -151,8 +153,6 @@ private:
     Spool     *set_pool;
   };
 
-
-
 private:
   // Environemnt Variables
   int bind_thread;
@@ -185,8 +185,16 @@ private:
   int me, nprocs, tnum;
   OpMode mode;
   int ukeyoffset; 
-  uint64_t *nitems;
-  int *blocks;
+
+struct thread_private_info{
+  uint64_t nitem;
+  int      block;
+};
+
+  thread_private_info *thread_info;
+
+  //uint64_t *nitems;
+  //int *blocks;
   DataObject  *data;
   Communicator *c;
   std::vector<std::string> ifiles;
@@ -228,8 +236,9 @@ private:
 
   uint64_t _get_kv_count(){
     local_kvs_count=0;
-    for(int i=0; i<tnum; i++) local_kvs_count+=nitems[i];
+    for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
     MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+    TRACKER_RECORD_EVENT(0, "mr_mpi_allreduce");
     return  global_kvs_count;
   }
 };//class MapReduce

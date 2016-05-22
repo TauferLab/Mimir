@@ -13,11 +13,9 @@
 #include "alltoall.h"
 #include "ptop.h"
 
-using namespace MAPREDUCE_NS;
+#include "stat.h"
 
-//#if GATHER_STAT
-//#include "stat.h"
-//#endif
+using namespace MAPREDUCE_NS;
 
 Communicator* Communicator::Create(MPI_Comm _comm, int _tnum, int _commmode){
   Communicator *c=NULL;
@@ -102,12 +100,14 @@ int Communicator::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, i
   send_buffers = new char*[nbuf];
   send_offsets = new int*[nbuf];
 
+  size_t total_send_buf_size=(size_t)send_buf_size*size;
   for(int i = 0; i < nbuf; i++){
-    size_t total_send_buf_size=(size_t)send_buf_size*size;
     send_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, total_send_buf_size);
     send_offsets[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
     for(int j = 0; j < size; j++) send_offsets[i][j] = 0;
   }
+
+  PROFILER_RECORD_COUNT(0, "mr_send_buf_size", total_send_buf_size*nbuf);
 
   for(int i = 0; i < tnum; i++){
     if(!thread_buffers[i]){

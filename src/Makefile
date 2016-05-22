@@ -3,7 +3,7 @@ CPP = mpicxx
 CLINK = mpicc
 CPPLINK = mpicxx
 DEBUG = -g
-local_CFLAGS = -fopenmp $(DEBUG) -O2  -DDEBUG=0 -DFUSION
+local_CFLAGS = -fopenmp $(DEBUG) -O2  -DENABLE_PROFILER -DENABLE_TRACKER
 LFLAGS = 
 ARCHIEVE = ar
 AFLAGS =  -rcv
