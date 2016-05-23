@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
   if(argc <= 3){
-    if(me == 0) printf("Syntax: wordcount filepath\n");
+    if(me == 0) printf("Syntax: wordcount filepath prefix outdir\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
