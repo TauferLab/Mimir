@@ -136,6 +136,6 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
 
   sprintf(tmp, "%s/%s.%s.%dk.%dk.%dm.%d.T.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
   fp = fopen(tmp, "a+");
-  mr->show_stat(0, fp);
+  mr->print_stat(fp);
   fclose(fp);
 }

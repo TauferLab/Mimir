@@ -10,8 +10,8 @@ make CFLAGS+="-DUSE_MT_IO"
 cd ../examples
 make clean
 make wordcount
-make bfs
+#make bfs
 
 cp ./wordcount $DIR
-cp ./bfs $DIR
+#cp ./bfs $DIR
 cd $DIR

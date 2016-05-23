@@ -52,8 +52,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
   PROFILER_START(tnum);
   thread_info=new thread_private_info[tnum];
 }
-  thread_info[tid].block=-1;
-  thread_info[tid].nitem=0;
+#pragma omp barrier
   TRACKER_TIMER_INIT(tid);
 }
  
@@ -718,6 +717,8 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   // Distribute files
   ifiles.clear();
   _disinputfiles(filepath, sharedflag, recurse);
+
+  LOG_PRINT(DBG_GEN, "%d[%d] Distribute files end\n", me, nprocs);
 
   TRACKER_RECORD_EVENT(0, "mr_distribute_files");
 
