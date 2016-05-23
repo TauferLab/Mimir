@@ -1711,17 +1711,20 @@ out:
   return 0;
 }
 
-void MapReduce::show_stat(int verb, FILE *out){
-#if GATHER_STAT  
+void MapReduce::print_stat(FILE *out){
+//#if GATHER_STAT  
   //st.print(verb, out);
-#endif
+//#endif
+  
+  PROFILER_PRINT(out, tnum);
+  TRACKER_PRINT(out, tnum); 
 }
 
-void MapReduce::init_stat(){
-#if GATHER_STAT
+//void MapReduce::init_stat(){
+//#if GATHER_STAT
   //st.clear();
-#endif
-}
+//#endif
+//}
 
 /*
  * Output data in this object

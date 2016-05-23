@@ -55,8 +55,8 @@ public:
   void add_key_value(char *key, int keybytes, 
     char *value, int valuebytes);
   void output(int type=0, FILE *fp=stdout, int format=0);
-  void init_stat();
-  void show_stat(int verb=0, FILE *fp=stdout);
+  //void init_stat();
+  void print_stat(FILE *fp=stdout);
 
   void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
     kvtype = _kvtype;
