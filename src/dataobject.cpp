@@ -33,7 +33,7 @@ void DataObject::subRef(DataObject *data){
 
 DataObject::DataObject(
   DataType _datatype,
-  int _blocksize,
+  uint64_t _blocksize,
   int _maxblock,
   int _maxmemsize,
   int _outofcore,
@@ -42,7 +42,7 @@ DataObject::DataObject(
 
   datatype = _datatype;
  
-  blocksize = (uint64_t)_blocksize * UNIT_1M_SIZE;
+  blocksize = _blocksize;
   maxblock = _maxblock;
 
   //printf("maxmemsize=%d\n", _maxmemsize);

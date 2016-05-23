@@ -508,7 +508,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   }
 
   // create input file buffer
-  int input_buffer_size=(inputsize)*UNIT_1M_SIZE;
+  uint64_t input_buffer_size=inputsize;
 #ifdef USE_MPI_IO
   char **input_file_buffers = new char*[INPUT_BUF_COUNT];
   for(int i=0; i<INPUT_BUF_COUNT; i++){
@@ -760,7 +760,7 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   TRACKER_RECORD_EVENT(tid, "mr_omp_idle");
 
   // create input file buffer
-  int64_t input_buffer_size=(int64_t)(inputsize)*UNIT_1M_SIZE;
+  uint64_t input_buffer_size=inputsize;
   int64_t input_char_size=0;
   char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
 
@@ -1716,8 +1716,11 @@ void MapReduce::print_stat(FILE *out){
 //#if GATHER_STAT  
   //st.print(verb, out);
 //#endif
-  
+ 
+  fprintf(out, "rank:%d", me); 
+  fprintf(out, ",size:%d,", nprocs);
   PROFILER_PRINT(out, tnum);
+  fprintf(out, ",");
   TRACKER_PRINT(out, tnum); 
 }
 
@@ -1837,6 +1840,51 @@ void MapReduce::_tinit(int tid){
   //blocks[tid] = -1;
   //nitems[tid] = 0;
 }
+
+int64_t MapReduce::_stringtoint(const char *_str){
+  std::string str=_str;
+  int64_t num=0;
+  if(str[str.size()-1]=='k'||str[str.size()-1]=='K'||\
+    (str[str.size()-1]=='b'&&str[str.size()-2]=='k')||\
+    (str[str.size()-1]=='B'&&str[str.size()-2]=='K')){
+    if(str[str.size()-1]=='b'||str[str.size()-1]=='B'){
+      str=str.substr(0, str.size()-2);
+    }else{
+      str=str.substr(0, str.size()-1);
+    }
+    num=atoi(str.c_str());
+    num*=1024; 
+  }else if(str[str.size()-1]=='m'||str[str.size()-1]=='M'||\
+    (str[str.size()-1]=='b'&&str[str.size()-2]=='m')||\
+    (str[str.size()-1]=='B'&&str[str.size()-2]=='M')){
+    if(str[str.size()-1]=='b'||str[str.size()-1]=='B'){
+      str=str.substr(0, str.size()-2);
+    }else{
+      str=str.substr(0, str.size()-1);
+    }
+    num=atoi(str.c_str());
+    num*=1024*1024; 
+  }else if(str[str.size()-1]=='g'||str[str.size()-1]=='G'||\
+    (str[str.size()-1]=='b'&&str[str.size()-2]=='g')||\
+    (str[str.size()-1]=='B'&&str[str.size()-2]=='G')){
+    if(str[str.size()-1]=='b'||str[str.size()-1]=='B'){
+      str=str.substr(0, str.size()-2);
+    }else{
+      str=str.substr(0, str.size()-1);
+    }
+    num=atoi(str.c_str());
+    num*=1024*1024*1024; 
+  }else{
+    LOG_ERROR("Error: set buffer size %s error! \
+      The buffer size should end with k,K,kb,KB,m,M,mb,MB,g,G,gb,GB", _str);
+  }
+  if(num==0){
+    LOG_ERROR("Error: buffer size %s should not be zero!", _str);
+  }
+
+  return num;
+}
+
 
 // distribute input file list
 void MapReduce::_disinputfiles(const char *filepath, int sharedflag, int recurse){

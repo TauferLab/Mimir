@@ -13,7 +13,7 @@ public:
   Alltoall(MPI_Comm, int);
   ~Alltoall();
 
-  int setup(int, int, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
+  int setup(int64_t, int64_t, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
 
   void init(DataObject *);
  

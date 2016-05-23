@@ -111,7 +111,7 @@ Alltoall::~Alltoall(){
  *   send_buf_size: global buffer size
  *   nbuf: pipeline buffer count
  */
-int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
+int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
 
   Communicator::setup(_tbufsize, _sbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
@@ -120,7 +120,7 @@ int Alltoall::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _
   comm_div_count=send_buf_size/comm_unit_size;  
   if(comm_div_count<=0) comm_div_count=1;
 
-  //printf("comm: max size=%ld, unit size=%d, div count=%d\n", comm_max_size, comm_unit_size, comm_div_count); fflush(stdout);
+  printf("comm: max size=%ld, unit size=%d, div count=%d\n", comm_max_size, comm_unit_size, comm_div_count); fflush(stdout);
 
   recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];

@@ -9,13 +9,13 @@
 #define UNIT_1M_SIZE       (1024*1024)
 #define UNIT_1G_SIZE  (1024*1024*1024)
 
-#define MAX_COMM_SIZE           1024
+#define MAX_COMM_SIZE            1024
 
-#define MAX_STR_SIZE            8192
-#define INPUT_BUF_COUNT            2
+#define MAX_STR_SIZE             8192
+#define INPUT_BUF_COUNT             2
 
-#define INPUT_SIZE                 8
-#define BLOCK_SIZE                64  // 16M 
+#define INPUT_SIZE                  8
+#define BLOCK_SIZE                 64  // 16M 
 
 #define LOCAL_BUF_SIZE            32  // 1K
 #define GLOBAL_BUF_SIZE           64  // 1M

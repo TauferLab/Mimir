@@ -21,13 +21,13 @@ void output(const char *filename, const char *outdir, \
 
 int me, nprocs;
 int commmode=0;
-int inputsize=512;
-int blocksize=512;
-int gbufsize=8192;
-int lbufsize=16;
+const char* inputsize="128M";
+const char* blocksize="128M";
+const char* gbufsize="1G";
+const char* lbufsize="1M";
 
-uint64_t nword, nunique;
-double t1, t2, t3;
+//uint64_t nword, nunique;
+//double t1, t2, t3;
 
 int main(int argc, char *argv[])
 {
@@ -80,16 +80,16 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  t1 = MPI_Wtime();
+  //t1 = MPI_Wtime();
 
   char whitespace[20] = " \n";
-  nword = mr->map_text_file(filedir, 1, 1, whitespace, map, NULL);
+  mr->map_text_file(filedir, 1, 1, whitespace, map, NULL);
 
-  t2 = MPI_Wtime();
+  //t2 = MPI_Wtime();
 
-  nunique = mr->reduce(countword, 1, NULL);
+  mr->reduce(countword, 1, NULL);
 
-  t3 = MPI_Wtime();
+  //t3 = MPI_Wtime();
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -129,13 +129,27 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
   char tmp[1000];
   
-  sprintf(tmp, "%s/%s.%s.%dk.%dk.%dm.%d.P.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me);
-  FILE *fp = fopen(tmp, "a+");
-  fprintf(fp, "%ld,%ld,%g,%g,%g\n", nword, nunique, t3-t1, t2-t1, t3-t2);
-  fclose(fp);
+  sprintf(tmp, "%s/mtmr.wc.%s.%s.%s.%s.%s.%d.%d.%d.txt", outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, commmode, nprocs, me); 
 
-  sprintf(tmp, "%s/%s.%s.%dk.%dk.%dm.%d.T.%d.%d.csv", outdir, filename, prefix, lbufsize, gbufsize, blocksize, commmode, nprocs, me); 
-  fp = fopen(tmp, "a+");
+  FILE *fp = fopen(tmp, "w+");
   mr->print_stat(fp);
   fclose(fp);
+  
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if(me==0){
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    char timestr[1024];
+    sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    char infile[1024+1];
+    sprintf(infile, "%s/mtmr.wc.%s.%s.%s.%s.%s.%d.%d.*.txt", outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, commmode, nprocs); 
+    char outfile[1024+1];
+    sprintf(outfile, "%s/mtmr.wc.%s.%s.%s.%s.%s.%d.%d_%s.txt", outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, commmode, nprocs, timestr);  
+    char cmd[8192+1];
+    sprintf(cmd, "cat %s>>%s", infile, outfile);
+    system(cmd);
+    sprintf(cmd, "rm %s", infile);
+    system(cmd);
+  }
 }

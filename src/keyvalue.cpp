@@ -11,7 +11,7 @@ using namespace MAPREDUCE_NS;
 
 KeyValue::KeyValue(
   int _kvtype,
-  int blocksize, 
+  uint64_t blocksize, 
   int maxblock,
   int maxmemsize,
   int outofcore,

@@ -33,7 +33,7 @@ public:
   virtual ~Communicator();
 
   // main thread
-  virtual int setup(int, int, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
+  virtual int setup(int64_t, int64_t, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
 
   // main thread
   virtual void init(DataObject *data = NULL);
@@ -82,7 +82,8 @@ protected:
   int kvtype, ksize, vsize;
 
   // buffer size information
-  int thread_buf_size, send_buf_size, nbuf;
+  int thread_buf_size, send_buf_size;
+  int nbuf;
 
   char **thread_buffers;   // local buffers for threads
   int  **thread_offsets;   // local offsets for threads

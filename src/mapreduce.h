@@ -63,11 +63,17 @@ public:
     ksize = _ksize;
     vsize = _vsize;
   }
-  void set_blocksize(int _blocksize){
-    blocksize = _blocksize;
+  void set_blocksize(const char *_blocksize){
+    blocksize = _stringtoint(_blocksize);
   }
-  void set_inputsize(int _inputsize){
-    inputsize = _inputsize;
+  void set_inputsize(const char *_inputsize){
+    inputsize = _stringtoint(_inputsize);
+  }
+  void set_threadbufsize(const char* _tbufsize){
+    lbufsize = _stringtoint(_tbufsize);
+  }
+  void set_sendbufsize(const char* _sbufsize){
+    gbufsize = _stringtoint(_sbufsize);
   }
   void set_maxblocks(int _nmaxblock){
     nmaxblock = _nmaxblock;
@@ -80,12 +86,6 @@ public:
   }
   void set_outofcore(int _flag){
     outofcore = _flag;
-  }
-  void set_threadbufsize(int _tbufsize){
-    lbufsize = _tbufsize;
-  }
-  void set_sendbufsize(int _sbufsize){
-    gbufsize = _sbufsize;
   }
   void set_commmode(int _commmode){
     commmode = _commmode;
@@ -171,10 +171,10 @@ private:
   int maxmemsize;
   int outofcore;
   int commmode;  
-  int lbufsize;  // KB
-  int gbufsize;  // MB
-  int blocksize; // MB
-  int inputsize; // MB
+  int64_t lbufsize;  // KB
+  int64_t gbufsize;  // MB
+  int64_t blocksize; // MB
+  int64_t inputsize; // MB
   std::string tmpfpath;
   int (*myhash)(char *, int);
 
@@ -202,6 +202,8 @@ struct thread_private_info{
   // internal functions
   void _get_default_values();
   void _bind_threads();
+
+  int64_t _stringtoint(const char *);
 
   uint64_t _map_master_io(char *, int, int, char *, 
     void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);

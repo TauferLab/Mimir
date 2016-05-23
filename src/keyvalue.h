@@ -15,7 +15,7 @@ public:
 
 public:
   KeyValue(int, 
-    int blocksize=1, 
+    uint64_t blocksize=1, 
     int maxblock=4, 
     int memsize=4,
     int outofcore=0, 

@@ -40,7 +40,8 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
 
   kvtype = ksize = vsize = 0;
 
-  thread_buf_size = send_buf_size = nbuf = 0;
+  thread_buf_size = send_buf_size = 0;
+  nbuf = 0;
 
   thread_buffers = NULL;
   thread_offsets = NULL;
@@ -50,6 +51,8 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
   blocks = new int[tnum];
 
   init();
+
+  printf("communicator start\n"); fflush(stdout);
 }
 
 Communicator::~Communicator(){
@@ -78,9 +81,18 @@ Communicator::~Communicator(){
   if(send_offsets) delete [] send_offsets;
 }
 
-int Communicator::setup(int _tbufsize, int _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
-  thread_buf_size = _tbufsize*UNIT_1K_SIZE;
-  send_buf_size = _sbufsize*UNIT_1K_SIZE;
+int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
+  fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", _tbufsize, _sbufsize);fflush(stdout);
+
+  if(_tbufsize%size!=0||_sbufsize%size!=0){
+    LOG_ERROR("%s", "Error: the send buffer size should be divided into processes evently!");
+  }
+
+  thread_buf_size = (int)(_tbufsize/size);
+  send_buf_size = (int)(_sbufsize/size);
+
+  fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", thread_buf_size, send_buf_size);fflush(stdout);
+
   kvtype = _kvtype;
   ksize = _ksize;
   vsize = _vsize;
