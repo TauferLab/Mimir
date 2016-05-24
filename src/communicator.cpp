@@ -52,7 +52,7 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
 
   init();
 
-  printf("communicator start\n"); fflush(stdout);
+  //printf("communicator start\n"); fflush(stdout);
 }
 
 Communicator::~Communicator(){
@@ -82,16 +82,21 @@ Communicator::~Communicator(){
 }
 
 int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
-  fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", _tbufsize, _sbufsize);fflush(stdout);
+  //fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", _tbufsize, _sbufsize);fflush(stdout);
 
   if(_tbufsize%size!=0||_sbufsize%size!=0){
     LOG_ERROR("%s", "Error: the send buffer size should be divided into processes evently!");
   }
 
-  thread_buf_size = (int)(_tbufsize/size);
-  send_buf_size = (int)(_sbufsize/size);
+  thread_buf_size = (int64_t)(_tbufsize/size);
+  send_buf_size = (int64_t)(_sbufsize/size);
 
-  fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", thread_buf_size, send_buf_size);fflush(stdout);
+  if(thread_buf_size>send_buf_size){
+    LOG_ERROR("Error: thread local buffer size (%ld per process) cannot be larger than send buffer size (%ld per process)!", \
+     thread_buf_size, send_buf_size);
+  }
+
+  //fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", thread_buf_size, send_buf_size);fflush(stdout);
 
   kvtype = _kvtype;
   ksize = _ksize;
@@ -107,6 +112,8 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
     thread_buffers[tid] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, size*thread_buf_size);
     thread_offsets[tid]   = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
     for(int i = 0; i < size; i++) thread_offsets[tid][i] = 0;
+    PROFILER_RECORD_COUNT(tid, COUNTER_COMM_THREAD_BUF, \
+      thread_buf_size*size);
   }
  
   send_buffers = new char*[nbuf];
@@ -119,7 +126,7 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
     for(int j = 0; j < size; j++) send_offsets[i][j] = 0;
   }
 
-  PROFILER_RECORD_COUNT(0, "mr_send_buf_size", total_send_buf_size*nbuf);
+  PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_BUF, total_send_buf_size*nbuf);
 
   for(int i = 0; i < tnum; i++){
     if(!thread_buffers[i]){

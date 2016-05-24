@@ -240,7 +240,7 @@ struct thread_private_info{
     local_kvs_count=0;
     for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
     MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-    TRACKER_RECORD_EVENT(0, "mr_mpi_allreduce");
+    TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
     return  global_kvs_count;
   }
 };//class MapReduce

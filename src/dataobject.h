@@ -17,7 +17,7 @@ class DataObject{
 public:
   /**** Create and Destory DataObject****/
   DataObject(DataType,
-    uint64_t blocksize=1, 
+    int64_t blocksize=1, 
     int maxblock=4, 
     int memsize=4, 
     int outofcore=0, 
@@ -69,7 +69,7 @@ public:
   DataType datatype;    // 0 for bytes, 1 for kv, 2 for kmv
   int ksize, vsize;
   int nblock;
-  uint64_t blocksize;   // block size
+  int64_t blocksize;   // block size
   uint64_t maxmemsize;  // max memory size
 
 protected:

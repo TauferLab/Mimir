@@ -82,7 +82,7 @@ protected:
   int kvtype, ksize, vsize;
 
   // buffer size information
-  int thread_buf_size, send_buf_size;
+  int64_t thread_buf_size, send_buf_size;
   int nbuf;
 
   char **thread_buffers;   // local buffers for threads

@@ -10,62 +10,48 @@
 #include <vector>
 #include <string>
 
-#ifndef ENABLE_TRACKER
-#define TRACKER_START(thread_count)
-#define TRACKER_TIMER_INIT(thread_id)
-#define TRACKER_RECORD_EVENT(thread_id, event_type)
-#define TRACKER_END
-#define TRACKER_PRINT(out, thread_count)
-#else
-typedef struct _tracker_thread_info{
-  double prev_wtime;
-  double overhead;
-}tracker_thread_info;
+// Events
+#define EVENT_MR_GENERAL         "event_mr_general"
+#define EVENT_MAP_COMPUTING      "event_map"
+#define EVENT_MAP_DIS_FILES      "event_distribute_files"
+#define EVENT_RDC_COMPUTING      "event_reduce"
+#define EVENT_OMP_START          "event_omp_start"
+#define EVENT_OMP_END            "event_omp_end"
+#define EVENT_OMP_BARRIER        "event_omp_barrier"
+#define EVENT_COMM_ALLTOALL      "event_comm_alltoall"
+#define EVENT_COMM_WAIT          "event_comm_wait"
+#define EVENT_COMM_IALLTOALLV    "event_comm_ialltoallv"
+#define EVENT_COMM_ALLREDUCE     "event_comm_allreduce"
+#define EVENT_PFS_OPEN           "event_pfs_open"
+#define EVENT_PFS_SEEK           "event_pfs_seek"
+#define EVENT_PFS_READ           "event_pfs_read"
+#define EVENT_PFS_CLOSE          "event_pfs_close"
+// Timers
+#define TIMER_MAP_FOP            "timer_map_fop"
+#define TIMER_MAP_ATOMIC         "timer_map_atomic"
+// Counters
+#define COUNTER_COMM_THREAD_BUF  "counter_comm_thread_buf"
+#define COUNTER_COMM_SEND_BUF    "counter_comm_send_buf"
+#define COUNTER_COMM_RECV_BUF    "counter_comm_recv_buf"
+#define COUNTER_COMM_SEND_SIZE   "counter_comm_send_size"
+#define COUNTER_COMM_RECV_SIZE   "counter_comm_recv_size"
+#define COUNTER_MAP_FILE_COUNT   "counter_map_file_count"
+#define COUNTER_MAP_FILE_SIZE    "counter_map_file_size"
+#define COUNTER_MAP_OUTPUT_KV    "counter_map_output_kv"
+#define COUNTER_MAP_KV_COUNT     "counter_map_kv_count"
+#define COUNTER_CPS_BUCKET_SIZE  "counter_cps_bucket_size"
+#define COUNTER_CPS_UNIQUE_SIZE  "counter_cps_unique_size"
+#define COUNTER_CPS_KMV_SIZE     "counter_cps_kmv_size"
+#define COUNTER_CPS_OUTPUT_KV    "counter_cps_output_kv"
+#define COUNTER_CVT_BUCKET_SIZE  "counter_cvt_bucket_size"
+#define COUNTER_CVT_UNIQUE_SIZE  "counter_cvt_unique_size"
+#define COUNTER_CVT_SET_SIZE     "counter_cvt_set_size"
+#define COUNTER_CVT_NUNIQUE      "counter_cvt_nunique"
+#define COUNTER_CVT_KMV_SIZE     "counter_cvt_kmv_size"
+#define COUNTER_RDC_INPUT_KV     "counter_rdc_input_kv"
+#define COUNTER_RDC_OUTPUT_KV    "counter_rdc_output_kv"
 
-extern bool enable_tracker;
-
-extern std::vector<std::pair<std::string,double> > *tracker_event_timer;
-extern tracker_thread_info *tracker_info;
-
-#define TRACKER_START(thread_count)  \
-  if(!enable_tracker){\
-    tracker_info=new tracker_thread_info[thread_count];\
-    tracker_event_timer=new std::vector<std::pair<std::string,double> >[thread_count];\
-    enable_tracker=true;\
-  }
-
-#define TRACKER_TIMER_INIT(thread_id) \
-  tracker_info[thread_id].prev_wtime=omp_get_wtime();\
-  tracker_info[thread_id].overhead=0.0;
-
-#define TRACKER_RECORD_EVENT(thread_id, event_type) {\
-  double t_start=omp_get_wtime();\
-  double t_prev=tracker_info[thread_id].prev_wtime;\
-  printf("event_type=%s, thread_id=%d, %g\n", event_type, thread_id, t_start-t_prev);fflush(stdout);\
-  tracker_event_timer[thread_id].push_back(\
-   std::make_pair<std::string,double>(event_type, t_start-t_prev));\
-  double t_end=omp_get_wtime();\
-  tracker_info[thread_id].prev_wtime=t_end;\
-  tracker_info[thread_id].overhead+=t_end-t_start;}
-
-#define TRACKER_END \
-  delete [] tracker_info;\
-  delete [] tracker_event_timer;\
-  enable_tracker=false;
-
-#define TRACKER_PRINT(out, thread_count) \
-  fprintf(out, "action:tracker_start");\
-  for(int i=0;i<thread_count; i++){\
-    fprintf(out, ",threadid:%d", i);\
-    fprintf(out, ",tracker_timer:%d", tracker_event_timer[i].size());\
-    std::vector<std::pair<std::string,double> >::iterator iter;\
-    for(iter=tracker_event_timer[i].begin(); iter!=tracker_event_timer[i].end(); iter++){\
-      fprintf(out, ",%s:%g", iter->first.c_str(), iter->second);\
-    }\
-  }\
-  fprintf(out, ",action:tracker_stop");
-#endif
-
+// Profiler
 #ifndef ENABLE_PROFILER
 #define PROFILER_START(thread_count)
 #define PROFILER_RECORD_TIME_START
@@ -100,11 +86,8 @@ extern std::map<std::string,uint64_t> *profiler_event_counter;
   enable_profiler=false;
 
 #define PROFILER_PRINT(out, thread_count) \
-  fprintf(out, "action:profiler_start");\
   for(int i=0; i<thread_count; i++){\
-    fprintf(out, ",threadid:%d", i);\
-    fprintf(out, ",profiler_timer:%d", profiler_event_timer[i].size());\
-    fprintf(out, ",profiler_counter:%d", profiler_event_counter[i].size());\
+    fprintf(out, "profiler:%d", i);\
     std::map<std::string,double>::iterator iter;\
     for(iter=profiler_event_timer[i].begin(); iter!=profiler_event_timer[i].end(); iter++){\
       fprintf(out, ",%s:%g", iter->first.c_str(), iter->second);\
@@ -113,8 +96,63 @@ extern std::map<std::string,uint64_t> *profiler_event_counter;
     for(iter1=profiler_event_counter[i].begin(); iter1!=profiler_event_counter[i].end(); iter1++){\
       fprintf(out, ",%s:%ld", iter1->first.c_str(), iter1->second);\
     }\
-  }\
-  fprintf(out, ",action:profiler_stop");
+    fprintf(out, "\n");\
+  }
 #endif
+
+// Tracker
+#ifndef ENABLE_TRACKER
+#define TRACKER_START(thread_count)
+#define TRACKER_TIMER_INIT(thread_id)
+#define TRACKER_RECORD_EVENT(thread_id, event_type)
+#define TRACKER_END
+#define TRACKER_PRINT(out, thread_count)
+#else
+typedef struct _tracker_thread_info{
+  double prev_wtime;
+  double overhead;
+}tracker_thread_info;
+
+extern bool enable_tracker;
+
+extern std::vector<std::pair<std::string,double> > *tracker_event_timer;
+extern tracker_thread_info *tracker_info;
+
+#define TRACKER_START(thread_count)  \
+  if(!enable_tracker){\
+    tracker_info=new tracker_thread_info[thread_count];\
+    tracker_event_timer=new std::vector<std::pair<std::string,double> >[thread_count];\
+    enable_tracker=true;\
+  }
+
+#define TRACKER_TIMER_INIT(thread_id) \
+  tracker_info[thread_id].prev_wtime=omp_get_wtime();\
+  tracker_info[thread_id].overhead=0.0;
+
+#define TRACKER_RECORD_EVENT(thread_id, event_type) {\
+  double t_start=omp_get_wtime();\
+  double t_prev=tracker_info[thread_id].prev_wtime;\
+  tracker_event_timer[thread_id].push_back(\
+   std::make_pair<std::string,double>(event_type, t_start-t_prev));\
+  double t_end=omp_get_wtime();\
+  tracker_info[thread_id].prev_wtime=t_end;\
+  tracker_info[thread_id].overhead+=t_end-t_start;}
+
+#define TRACKER_END \
+  delete [] tracker_info;\
+  delete [] tracker_event_timer;\
+  enable_tracker=false;
+
+#define TRACKER_PRINT(out, thread_count) \
+  for(int i=0;i<thread_count; i++){\
+    fprintf(out, "tracker:%d", i);\
+    std::vector<std::pair<std::string,double> >::iterator iter;\
+    for(iter=tracker_event_timer[i].begin(); iter!=tracker_event_timer[i].end(); iter++){\
+      fprintf(out, ",%s:%g", iter->first.c_str(), iter->second);\
+    }\
+    fprintf(out, "\n");\
+  }
+#endif
+
 
 #endif

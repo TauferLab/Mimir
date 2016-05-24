@@ -33,7 +33,7 @@ void DataObject::subRef(DataObject *data){
 
 DataObject::DataObject(
   DataType _datatype,
-  uint64_t _blocksize,
+  int64_t _blocksize,
   int _maxblock,
   int _maxmemsize,
   int _outofcore,
@@ -203,7 +203,7 @@ int DataObject::add_block(){
     return -1;
   }
 
-  printf("id=%d, blockid=%d\n",\
+  //printf("id=%d, blockid=%d\n",\
     id, blockid); fflush(stdout);
 
   //printf("blockid=%d, maxbuf=%d, outofcore=%d, threadsafe=%d\n", blockid, maxbuf, outofcore, threadsafe);
