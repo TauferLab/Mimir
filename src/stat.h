@@ -87,7 +87,7 @@ extern std::map<std::string,uint64_t> *profiler_event_counter;
 
 #define PROFILER_PRINT(out, thread_count) \
   for(int i=0; i<thread_count; i++){\
-    fprintf(out, "profiler:%d", i);\
+    fprintf(out, "action:profiler_start");\
     std::map<std::string,double>::iterator iter;\
     for(iter=profiler_event_timer[i].begin(); iter!=profiler_event_timer[i].end(); iter++){\
       fprintf(out, ",%s:%g", iter->first.c_str(), iter->second);\
@@ -96,7 +96,7 @@ extern std::map<std::string,uint64_t> *profiler_event_counter;
     for(iter1=profiler_event_counter[i].begin(); iter1!=profiler_event_counter[i].end(); iter1++){\
       fprintf(out, ",%s:%ld", iter1->first.c_str(), iter1->second);\
     }\
-    fprintf(out, "\n");\
+    fprintf(out, ",action:profiler_end\n");\
   }
 #endif
 
@@ -143,16 +143,6 @@ extern tracker_thread_info *tracker_info;
   delete [] tracker_event_timer;\
   enable_tracker=false;
 
-#define TRACKER_PRINT(out, thread_count) \
-  for(int i=0;i<thread_count; i++){\
-    fprintf(out, "tracker:%d", i);\
-    std::vector<std::pair<std::string,double> >::iterator iter;\
-    for(iter=tracker_event_timer[i].begin(); iter!=tracker_event_timer[i].end(); iter++){\
-      fprintf(out, ",%s:%g", iter->first.c_str(), iter->second);\
-    }\
-    fprintf(out, "\n");\
-  }
 #endif
-
 
 #endif

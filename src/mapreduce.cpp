@@ -1479,6 +1479,8 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) start.\n", me, nprocs);
 
+  TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
+
   uint64_t tmax_mem_bytes=0;
 #pragma omp parallel reduction(+:tmax_mem_bytes) 
 {
@@ -1555,6 +1557,8 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
   void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* ptr){
 
   LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: compress begin\n", me, nprocs);
+
+  TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
 
 #pragma omp parallel 
 {
@@ -1762,10 +1766,39 @@ void MapReduce::print_stat(FILE *out){
  
   fprintf(out, "rank:%d", me); 
   fprintf(out, ",size:%d", nprocs);
-  fprintf(out, ",thread:%d\n", tnum);
-  PROFILER_PRINT(out, tnum);
-  //fprintf(out, ",");
-  TRACKER_PRINT(out, tnum); 
+  fprintf(out, ",thread:%d", tnum);
+#ifdef ENABLE_PROFILER
+  fprintf(out, ",profiler:enable");
+#endif
+#ifdef ENABLE_TRACKER
+  fprintf(out, ",tracker:enable");
+#endif 
+  fprintf(out, "\n");
+  for(int i=0;i<tnum; i++){
+#ifdef ENABLE_PROFILER
+    fprintf(out, "action:profiler_start");
+    std::map<std::string,double>::iterator timer_iter;
+    for(timer_iter=profiler_event_timer[i].begin(); timer_iter!=profiler_event_timer[i].end(); timer_iter++){
+      fprintf(out, ",%s:%g",timer_iter->first.c_str(), timer_iter->second);
+    }
+    std::map<std::string,uint64_t>::iterator counter_iter;
+    for(counter_iter=profiler_event_counter[i].begin(); counter_iter!=profiler_event_counter[i].end(); counter_iter++){
+      fprintf(out, ",%s:%ld", counter_iter->first.c_str(), counter_iter->second);
+    }
+    fprintf(out, ",action:profiler_end\n");
+#endif
+#ifdef ENABLE_TRACKER
+    fprintf(out, "action:tracker_start");
+    std::vector<std::pair<std::string,double> >::iterator event_iter;
+    for(event_iter=tracker_event_timer[i].begin(); event_iter!=tracker_event_timer[i].end(); event_iter++){
+      fprintf(out, ",%s:%g", event_iter->first.c_str(), event_iter->second);
+    }
+    fprintf(out, ",action:tracker_end\n");
+#endif
+  }
+
+  //PROFILER_PRINT(out, tnum);
+  //TRACKER_PRINT(out, tnum);
 }
 
 //void MapReduce::init_stat(){

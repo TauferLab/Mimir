@@ -22,9 +22,9 @@ void output(const char *filename, const char *outdir, \
 int me, nprocs;
 int commmode=0;
 const char* inputsize="128M";
-const char* blocksize="512M";
-const char* gbufsize="1G";
-const char* lbufsize="1M";
+const char* blocksize="128M";
+const char* gbufsize="200M";
+const char* lbufsize="20M";
 
 //uint64_t nword, nunique;
 //double t1, t2, t3;
