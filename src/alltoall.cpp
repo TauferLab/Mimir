@@ -20,7 +20,7 @@ using namespace MAPREDUCE_NS;
   int offset=0;\
   for(int k=0;k<size;k++){\
     SAVE_DATA(recv_buf[ii]+offset, recv_count[ii][k])\
-    offset +=(recv_count[ii][k]+one_type_bytes-1)/one_type_bytes*one_type_bytes;\
+    offset+=(recv_count[ii][k]+one_type_bytes-1)/one_type_bytes*one_type_bytes;\
   }\
 }
 #endif
@@ -116,7 +116,12 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
   Communicator::setup(_tbufsize, _sbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
   one_type_bytes=1;
+  size_t total_send_buf_size=(size_t)send_buf_size*size;
 
+  while((int64_t)one_type_bytes*MAX_COMM_SIZE<total_send_buf_size)
+    one_type_bytes<<=1;
+
+  //one_type_bytes=8;
   //comm_max_size=MAX_COMM_SIZE;
   //comm_unit_size=comm_max_size/size;
   //comm_div_count=send_buf_size/comm_unit_size;  
@@ -125,7 +130,6 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
   recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];
 
-  size_t total_send_buf_size=(size_t)send_buf_size*size;
   for(int i = 0; i < nbuf; i++){
     recv_buf[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, total_send_buf_size);
     recv_count[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
@@ -161,7 +165,7 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
 
   init(NULL);
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (local bufffer size=%d, global buffer size=%d)\n", rank, size, thread_buf_size, send_buf_size);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (local bufffer size=%ld, global buffer size=%ld)\n", rank, size, thread_buf_size, send_buf_size);
 
   return 0;
 }
@@ -201,7 +205,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
 
 #if SAFE_CHECK
   if(kvsize > thread_buf_size){
-    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, thread_buf_size);
+    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%ld)\n", kvsize, thread_buf_size);
   }
 #endif
 
@@ -415,6 +419,9 @@ void Alltoall::wait(){
 
        uint64_t recvcount = recvcounts[i];
 
+       TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
+       PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
+
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);      
        if(recvcount > 0) {
          SAVE_ALL_DATA(i);
@@ -431,7 +438,7 @@ void Alltoall::exchange_kv(){
   for(i=0; i<size; i++) sendcount += (uint64_t)off[i];
 
   // exchange send count
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+  //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_SIZE, sendcount);
 
   // exchange send and recv counts
@@ -456,27 +463,52 @@ void Alltoall::exchange_kv(){
   for(i=0; i<size; i++){
     a2a_s_count[i]=(off[i]+one_type_bytes-1)/one_type_bytes;
     a2a_r_count[i]=(recv_count[ibuf][i]+one_type_bytes-1)/one_type_bytes;
-    a2a_s_displs[i] = i*send_buf_size;
+    a2a_s_displs[i] = (i*send_buf_size)/one_type_bytes;
   }
   a2a_r_displs[0] = 0;
-  for(i=1; i<size; i++) a2a_r_displs[i]=a2a_r_displs[i-1]+a2a_r_count[i-1];
-  
+  for(i=1; i<size; i++)
+    a2a_r_displs[i]=a2a_r_displs[i-1]+a2a_r_count[i-1];
+
+  uint64_t send_padding_bytes=a2a_s_count[0];
+  uint64_t recv_padding_bytes=a2a_r_count[0]; 
+  for(i=1;i<size;i++){
+    send_padding_bytes+=a2a_s_count[i];
+    recv_padding_bytes+=a2a_r_count[i];
+  }
+  send_padding_bytes*=one_type_bytes;
+  recv_padding_bytes*=one_type_bytes;
+  send_padding_bytes-=sendcount;
+  recv_padding_bytes-=recvcounts[ibuf];
+
+  PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_PAD, send_padding_bytes);
+  PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_PAD, recv_padding_bytes);
+ 
   MPI_Datatype comm_type;
   MPI_Type_contiguous(one_type_bytes, MPI_BYTE, &comm_type);
+  MPI_Type_commit(&comm_type);
+
+  //for(i=0;i<size;i++){
+  //  printf("%d->%d s_count=%d, s_displs=%d, r_count=%d, r_displs=%d\n",\
+     rank, i, a2a_s_count[i], a2a_s_displs[i], a2a_r_count[i], a2a_r_displs[i]); fflush(stdout);
+  //}
+
   MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
-    recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
-  
+  recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
+  MPI_Type_free(&comm_type);  
+
   delete [] a2a_s_count;
   delete [] a2a_s_displs;
   delete [] a2a_r_count;
   delete [] a2a_r_displs;
+
+  TRACKER_RECORD_EVENT(0, EVENT_COMM_IALLTOALLV);
 
   //int origin_ibuf=ibuf;
   // wait data
   ibuf = (ibuf+1)%nbuf;
   if(reqs[ibuf] != MPI_REQUEST_NULL) {
 
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+    //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   
     //for(i=0; i<comm_div_count; i++){
     //  MPI_Status mpi_st;
@@ -591,7 +623,7 @@ void Alltoall::exchange_kv(){
   off = send_offsets[ibuf];
   for(int i = 0; i < size; i++) off[i] = 0;
 
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+  //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 

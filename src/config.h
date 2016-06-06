@@ -1,7 +1,7 @@
 #ifndef MTMR_CONFIG_H
 #define MTMR_CONFIG_H
 
-//#define USE_MT_IO
+#define USE_MT_IO
 //#define USE_MPI_IO
 //#define USE_MPI_ASYN_IO
 

@@ -23,11 +23,8 @@ int me, nprocs;
 int commmode=0;
 const char* inputsize="128M";
 const char* blocksize="128M";
-const char* gbufsize="200M";
-const char* lbufsize="20M";
-
-//uint64_t nword, nunique;
-//double t1, t2, t3;
+const char* gbufsize="40M";
+const char* lbufsize="2M";
 
 int main(int argc, char *argv[])
 {

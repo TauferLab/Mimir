@@ -84,12 +84,12 @@ Communicator::~Communicator(){
 int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
   //fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", _tbufsize, _sbufsize);fflush(stdout);
 
-  if(_tbufsize%size!=0||_sbufsize%size!=0){
-    LOG_ERROR("%s", "Error: the send buffer size should be divided into processes evently!");
-  }
+  //if(_tbufsize%size!=0||_sbufsize%size!=0){
+  //  LOG_ERROR("%s", "Error: the send buffer size should be divided into processes evently!");
+  //}
 
-  thread_buf_size = (int64_t)(_tbufsize/size);
-  send_buf_size = (int64_t)(_sbufsize/size);
+  thread_buf_size = _tbufsize;
+  send_buf_size = _sbufsize;
 
   if(thread_buf_size>send_buf_size){
     LOG_ERROR("Error: thread local buffer size (%ld per process) cannot be larger than send buffer size (%ld per process)!", \

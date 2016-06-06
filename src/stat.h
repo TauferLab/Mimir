@@ -35,6 +35,8 @@
 #define COUNTER_COMM_RECV_BUF    "counter_comm_recv_buf"
 #define COUNTER_COMM_SEND_SIZE   "counter_comm_send_size"
 #define COUNTER_COMM_RECV_SIZE   "counter_comm_recv_size"
+#define COUNTER_COMM_SEND_PAD    "counter_comm_send_padding"
+#define COUNTER_COMM_RECV_PAD    "counter_comm_recv_padding"
 #define COUNTER_MAP_FILE_COUNT   "counter_map_file_count"
 #define COUNTER_MAP_FILE_SIZE    "counter_map_file_size"
 #define COUNTER_MAP_OUTPUT_KV    "counter_map_output_kv"

@@ -1285,7 +1285,7 @@ end:
 
 #if SAFE_CHECK
   if(mv_off > (blocksize)){
-    LOG_ERROR("KMV size %d is larger than a single block size %d!\n", mv_off, blocksize);
+    LOG_ERROR("KMV size %d is larger than a single block size %ld!\n", mv_off, blocksize);
   }
 #endif
 

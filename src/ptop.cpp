@@ -175,7 +175,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
 
 #if SAFE_CHECK
   if(kvsize > thread_buf_size){
-    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%d)\n", kvsize, thread_buf_size);
+    LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%ld)\n", kvsize, thread_buf_size);
   }
 #endif 
 
