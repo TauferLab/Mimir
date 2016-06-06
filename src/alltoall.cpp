@@ -14,17 +14,18 @@ using namespace MAPREDUCE_NS;
 
 #include "stat.h"
 
-#if 0
+#if 1
 #define SAVE_ALL_DATA(ii) \
 {\
   int offset=0;\
   for(int k=0;k<size;k++){\
     SAVE_DATA(recv_buf[ii]+offset, recv_count[ii][k])\
-    offset += recv_count[ii][k];\
+    offset +=(recv_count[ii][k]+one_type_bytes-1)/one_type_bytes*one_type_bytes;\
   }\
 }
 #endif
 
+#if 0
 #define SAVE_ALL_DATA(ii)\
 {\
   for(int k=0;k<size;k++){\
@@ -49,6 +50,7 @@ using namespace MAPREDUCE_NS;
     data->setblockdatasize(blocks[0], datasize+recvcount);\
   }\
 }
+#endif
 
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   int provided;
@@ -64,7 +66,7 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   off = NULL;
 
   recv_count = NULL;
-  send_displs = recv_displs = NULL;
+  //send_displs = recv_displs = NULL;
 
   recv_buf = NULL;
   recvcounts = NULL;
@@ -80,24 +82,24 @@ Alltoall::~Alltoall(){
     if(recv_count && recv_count[i]) free(recv_count[i]);
   }
 
-  for(int i = 0; i< comm_div_count; i++){
-    if(comm_recv_count && comm_recv_count[i]) free(comm_recv_count[i]);
-    if(comm_recv_displs && comm_recv_displs[i]) free(comm_recv_displs[i]);
-  }
-  delete [] comm_recv_count;
-  delete [] comm_recv_displs;
-  delete [] comm_recv_buf;
+  //for(int i = 0; i< comm_div_count; i++){
+  //  if(comm_recv_count && comm_recv_count[i]) free(comm_recv_count[i]);
+  //  if(comm_recv_displs && comm_recv_displs[i]) free(comm_recv_displs[i]);
+  //}
+  //delete [] comm_recv_count;
+  //delete [] comm_recv_displs;
+  //delete [] comm_recv_buf;
 
   if(recv_count) delete [] recv_count;
   if(recv_buf) delete [] recv_buf;
 
-  if(send_displs) delete [] send_displs;
-  if(recv_displs) delete [] recv_displs;
+  //if(send_displs) delete [] send_displs;
+  //if(recv_displs) delete [] recv_displs;
   
   if(recvcounts) delete [] recvcounts;
 
   if(reqs) {
-    for(int i=0; i<nbuf; i++) delete [] reqs[i];
+    //for(int i=0; i<nbuf; i++) delete [] reqs[i];
     delete [] reqs;
   }
 
@@ -113,10 +115,12 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
 
   Communicator::setup(_tbufsize, _sbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
-  comm_max_size=MAX_COMM_SIZE;
-  comm_unit_size=comm_max_size/size;
-  comm_div_count=send_buf_size/comm_unit_size;  
-  if(comm_div_count<=0) comm_div_count=1;
+  one_type_bytes=1;
+
+  //comm_max_size=MAX_COMM_SIZE;
+  //comm_unit_size=comm_max_size/size;
+  //comm_div_count=send_buf_size/comm_unit_size;  
+  //if(comm_div_count<=0) comm_div_count=1;
 
   recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];
@@ -129,24 +133,26 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
 
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_BUF, total_send_buf_size*nbuf);
 
-  comm_recv_buf = new char*[comm_div_count];
-  comm_recv_count = new int*[comm_div_count];
-  comm_recv_displs = new int*[comm_div_count];
-  for(int i=0; i<comm_div_count; i++){
-    comm_recv_count[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
-    comm_recv_displs[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
-  }
+  //comm_recv_buf = new char*[comm_div_count];
+  //comm_recv_count = new int*[comm_div_count];
+  //comm_recv_displs = new int*[comm_div_count];
+  //for(int i=0; i<comm_div_count; i++){
+  //  comm_recv_count[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
+  //  comm_recv_displs[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
+  //}
 
-  send_displs = new uint64_t[size];
-  recv_displs = new uint64_t[size];
+  //send_displs = new uint64_t[size];
+  //recv_displs = new uint64_t[size];
  
-  reqs = new MPI_Request*[nbuf];
-  for(int i=0; i<nbuf; i++){
-    reqs[i]=new MPI_Request[comm_div_count];
-  }
-  for(int i = 0; i < nbuf; i++)
-    for(int j = 0; j < comm_div_count; j++)
-      reqs[i][j] = MPI_REQUEST_NULL;
+  reqs = new MPI_Request[nbuf];
+  for(int i=0; i<nbuf; i++)
+    reqs[i]=MPI_REQUEST_NULL;
+  //for(int i=0; i<nbuf; i++){
+  //  reqs[i]=new MPI_Request[comm_div_count];
+  //}
+  //for(int i = 0; i < nbuf; i++)
+  //  for(int j = 0; j < comm_div_count; j++)
+  //    reqs[i][j] = MPI_REQUEST_NULL;
 
   recvcounts = new uint64_t[nbuf];
   for(int i = 0; i < nbuf; i++){
@@ -395,13 +401,17 @@ void Alltoall::wait(){
 
    // wait all pending communication
    for(int i = 0; i < nbuf; i++){
-     if(reqs[i][0] != MPI_REQUEST_NULL){
+     if(reqs[i] != MPI_REQUEST_NULL){
        
-       for(int j=0; j<comm_div_count; j++){
-         MPI_Status mpi_st;
-         MPI_Wait(&reqs[i][j], &mpi_st);
-         reqs[i][j] = MPI_REQUEST_NULL;
-       }
+       //for(int j=0; j<comm_div_count; j++){
+       //  MPI_Status mpi_st;
+       //  MPI_Wait(&reqs[i][j], &mpi_st);
+       //  reqs[i][j] = MPI_REQUEST_NULL;
+       //}
+
+       MPI_Status mpi_st;
+       MPI_Wait(&reqs[i], &mpi_st);
+       reqs[i] = MPI_REQUEST_NULL;
 
        uint64_t recvcount = recvcounts[i];
 
@@ -424,31 +434,59 @@ void Alltoall::exchange_kv(){
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_SIZE, sendcount);
 
+  // exchange send and recv counts
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALL);
 
-  for(i = 0; i < size; i++) send_displs[i] = i*(uint64_t)send_buf_size;
+  //for(i = 0; i < size; i++) send_displs[i] = i*(uint64_t)send_buf_size;
 
   recvcounts[ibuf] = (uint64_t)recv_count[ibuf][0];
-  recv_displs[0] = 0;
+  //recv_displs[0] = 0;
   for(i = 1; i < size; i++){
-    recv_displs[i] = recv_count[ibuf][i-1] + recv_displs[i-1];
+    //recv_displs[i] = recv_count[ibuf][i-1] + recv_displs[i-1];
     recvcounts[ibuf] += (uint64_t)recv_count[ibuf][i];
   }
 
-  int origin_ibuf=ibuf;
+  int *a2a_s_count=new int[size];
+  int *a2a_s_displs=new int[size];
+  int *a2a_r_count=new int[size];
+  int *a2a_r_displs= new int[size];
+
+  for(i=0; i<size; i++){
+    a2a_s_count[i]=(off[i]+one_type_bytes-1)/one_type_bytes;
+    a2a_r_count[i]=(recv_count[ibuf][i]+one_type_bytes-1)/one_type_bytes;
+    a2a_s_displs[i] = i*send_buf_size;
+  }
+  a2a_r_displs[0] = 0;
+  for(i=1; i<size; i++) a2a_r_displs[i]=a2a_r_displs[i-1]+a2a_r_count[i-1];
+  
+  MPI_Datatype comm_type;
+  MPI_Type_contiguous(one_type_bytes, MPI_BYTE, &comm_type);
+  MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
+    recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
+  
+  delete [] a2a_s_count;
+  delete [] a2a_s_displs;
+  delete [] a2a_r_count;
+  delete [] a2a_r_displs;
+
+  //int origin_ibuf=ibuf;
   // wait data
   ibuf = (ibuf+1)%nbuf;
-  if(reqs[ibuf][0] != MPI_REQUEST_NULL) {
+  if(reqs[ibuf] != MPI_REQUEST_NULL) {
 
     TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   
-    for(i=0; i<comm_div_count; i++){
-      MPI_Status mpi_st;
-      MPI_Wait(&reqs[ibuf][i], &mpi_st);
-      reqs[ibuf][i] = MPI_REQUEST_NULL;
-    }
+    //for(i=0; i<comm_div_count; i++){
+    //  MPI_Status mpi_st;
+    //  MPI_Wait(&reqs[ibuf][i], &mpi_st);
+    //  reqs[ibuf][i] = MPI_REQUEST_NULL;
+    //}
+
+    MPI_Status mpi_st;
+    MPI_Wait(&reqs[ibuf], &mpi_st);
+    reqs[ibuf] = MPI_REQUEST_NULL;
 
     uint64_t recvcount = recvcounts[ibuf];
 
@@ -461,6 +499,7 @@ void Alltoall::exchange_kv(){
     }
   }
 
+#if 0
   char *a2a_s_buf;
   if(comm_div_count==1) a2a_s_buf=send_buffers[origin_ibuf];
   else a2a_s_buf = send_buffers[ibuf];
@@ -545,6 +584,7 @@ void Alltoall::exchange_kv(){
     send_buffers[ibuf]=send_buffers[origin_ibuf];
     send_buffers[origin_ibuf]=tmp;
   }
+#endif
 
   // switch buffer
   buf = send_buffers[ibuf];

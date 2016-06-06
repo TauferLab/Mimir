@@ -43,22 +43,23 @@ private:
   int  *off;
 
   // used for MPI_Ialltoall
-  uint64_t *send_displs;   
-  uint64_t *recv_displs;
+  //uint64_t *send_displs;   
+  //uint64_t *recv_displs;
 
   int **recv_count;
   char **recv_buf;     
   uint64_t  *recvcounts;
+  int one_type_bytes;
 
-  char **comm_recv_buf;
-  int  **comm_recv_count;
-  int  **comm_recv_displs;
+  //char **comm_recv_buf;
+  //int  **comm_recv_count;
+  //int  **comm_recv_displs;
 
-  uint64_t comm_max_size;    // communication max size
-  int comm_unit_size;   // communication unit size
-  int comm_div_count;   // communication divide count
+  //uint64_t comm_max_size;    // communication max size
+  //int comm_unit_size;   // communication unit size
+  //int comm_div_count;   // communication divide count
 
-  MPI_Request **reqs;
+  MPI_Request *reqs;
 };
 
 }
