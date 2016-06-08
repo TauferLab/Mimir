@@ -770,12 +770,14 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   int tid = omp_get_thread_num();
   _tinit(tid);
  
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_START);
+  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
 
   // create input file buffer
   uint64_t input_buffer_size=inputsize;
   int64_t input_char_size=0;
   char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
+
+  PROFILER_RECORD_COUNT(tid, COUNTER_MAP_INPUT_SIZE, input_buffer_size);
 
   // Process files
   int i;
@@ -837,7 +839,7 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   if(_comm) c->twait(tid);
 
   PROFILER_RECORD_COUNT(tid, COUNTER_MAP_KV_COUNT, thread_info[tid].nitem);
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_END);
+  TRACKER_RECORD_EVENT(tid, EVENT_MAP_COMPUTING);
 }
 
   // delete communicator
@@ -1487,7 +1489,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
   int tid = omp_get_thread_num();
   _tinit(tid);
 
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_START);
+  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
  
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
@@ -1539,7 +1541,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
   delete u;
 
   PROFILER_RECORD_COUNT(tid, COUNTER_CVT_NUNIQUE, thread_info[tid].nitem);
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_END);
+  TRACKER_RECORD_EVENT(tid, EVENT_RDC_COMPUTING);
 }
 
   uint64_t nunique=0;
@@ -1565,7 +1567,7 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
   int tid = omp_get_thread_num();
   _tinit(tid);
 
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_START);
+  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
 
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
@@ -1751,7 +1753,7 @@ out:
   //delete u->set_pool;
   delete u;
 
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_END);
+  TRACKER_RECORD_EVENT(tid, EVENT_CPS_COMPUTING);
 }
 
   LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: compress end\n", me, nprocs);

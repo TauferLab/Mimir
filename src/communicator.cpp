@@ -50,7 +50,7 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
 
   blocks = new int[tnum];
 
-  init();
+  //init();
 
   //printf("communicator start\n"); fflush(stdout);
 }
@@ -95,7 +95,6 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
     LOG_ERROR("Error: thread local buffer size (%ld per process) cannot be larger than send buffer size (%ld per process)!", \
      thread_buf_size, send_buf_size);
   }
-
   //fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", thread_buf_size, send_buf_size);fflush(stdout);
 
   kvtype = _kvtype;
@@ -146,6 +145,10 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
 void Communicator::init(DataObject *_data){
   medone = tdone = pdone = 0;
   data = _data; 
+
+ if(send_buf_size>data->blocksize){
+    LOG_ERROR("Error: send buffer size (%ld per process) cannot be larger than block size (%ld)!\n", send_buf_size, data->blocksize);
+  }
 
   for(int i = 0; i < tnum; i++) blocks[i] = -1;
 }

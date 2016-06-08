@@ -19,12 +19,14 @@ void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 void output(const char *filename, const char *outdir, \
   const char *prefix, MapReduce *mr);
 
+#define PPN 20
 int me, nprocs;
 int commmode=0;
 const char* inputsize="128M";
-const char* blocksize="128M";
-const char* gbufsize="40M";
-const char* lbufsize="2M";
+const char* blocksize="512M";
+int sbufsize=65536;
+//const char* gbufsize="512M";
+const char* lbufsize="4K";
 
 int main(int argc, char *argv[])
 {
@@ -66,7 +68,10 @@ int main(int argc, char *argv[])
 
 #if 1
   mr->set_threadbufsize(lbufsize);
-  mr->set_sendbufsize(gbufsize);
+  char gbufsize[100];
+  sbufsize=sbufsize/(nprocs/PPN);
+  sprintf(gbufsize, "%dK", sbufsize);
+  mr->set_sendbufsize(gbufsize); 
   mr->set_blocksize(blocksize);
   mr->set_inputsize(inputsize);
   mr->set_maxmem(32);
@@ -125,6 +130,9 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 
 void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
   char tmp[1000];
+
+  char gbufsize[1024];
+  sprintf(gbufsize, "%dM", sbufsize*nprocs/1024);
   
   sprintf(tmp, "%s/mtmr.wc.%s.%s.%s.%s.%s.%d.%d.%d.txt", outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, commmode, nprocs, me); 
 

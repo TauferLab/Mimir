@@ -121,6 +121,8 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
   while((int64_t)one_type_bytes*MAX_COMM_SIZE<total_send_buf_size)
     one_type_bytes<<=1;
 
+  //printf("one_type_bytes=%d\n", one_type_bytes);
+
   //one_type_bytes=8;
   //comm_max_size=MAX_COMM_SIZE;
   //comm_unit_size=comm_max_size/size;
@@ -163,7 +165,7 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
     recvcounts[i] = 0;
   }
 
-  init(NULL);
+  //init(NULL);
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (local bufffer size=%ld, global buffer size=%ld)\n", rank, size, thread_buf_size, send_buf_size);
 
@@ -441,8 +443,16 @@ void Alltoall::exchange_kv(){
   //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_SIZE, sendcount);
 
+  //for(i=0; i<size; i++){
+  //  printf("%d->%d, send count=%d\n", rank, i, off[i]);
+  //}
+
   // exchange send and recv counts
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
+
+  //for(i=0; i<size; i++){
+  //  printf("%d->%d, recv count=%d\n", rank, i, recv_count[ibuf][i]);
+  //}
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALL);
 
@@ -524,6 +534,8 @@ void Alltoall::exchange_kv(){
 
     TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
     PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
+
+    //printf("ibuf=%d, recvcount=%d\n", ibuf, recvcount); fflush(stdout);
 
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
     if(recvcount > 0) { 
