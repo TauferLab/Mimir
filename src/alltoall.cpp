@@ -415,13 +415,16 @@ void Alltoall::wait(){
        //  reqs[i][j] = MPI_REQUEST_NULL;
        //}
 
+       TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
        MPI_Status mpi_st;
        MPI_Wait(&reqs[i], &mpi_st);
        reqs[i] = MPI_REQUEST_NULL;
 
+       TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
+
        uint64_t recvcount = recvcounts[i];
 
-       TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
        PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);      
@@ -440,7 +443,7 @@ void Alltoall::exchange_kv(){
   for(i=0; i<size; i++) sendcount += (uint64_t)off[i];
 
   // exchange send count
-  //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_SIZE, sendcount);
 
   //for(i=0; i<size; i++){
@@ -541,6 +544,8 @@ void Alltoall::exchange_kv(){
     if(recvcount > 0) { 
       SAVE_ALL_DATA(ibuf);
     }
+
+    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   }
 
 #if 0

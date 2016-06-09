@@ -1,21 +1,36 @@
-#settings=('io_c_process' 'io_c_thread' 'io_mpi_blocking' 'io_mpi_nonblocking')
-settings=('io_mpi_nonblocking')
+#/bin/bash
+#settings=( 'words_small_512M' 'wikipedia_small_512M' 'words_large_64M' 'wikipedia_large_64M')
+#settings=('words_small_512M')
+settings=('words_large_512M')
+#settings=('words_strong_scalable')
+#settings=( 'words_small_512M' 'wikipedia_small_512M')
 
-TIMES=1
-START=1
-END=1
+TIMES=10
+START=4
+END=16
 
-PRE=-1
+PREFIX="Submitted batch job "
 
-for setting in ${settings[@]}
+PRE=$1
+
+for((k=$START; k<=$END; k*=2))
 do
-  echo 'begin setting:'$setting'...'
-  for((k=$START; k<=$END; k*=2))
+  for setting in ${settings[@]}
   do
+    echo $setting
+    cd $setting
     for((i=1; i<=$TIMES; i++))
     do
-      PRE=$(sbatch --dependency=afterok:$PRE $setting/run_wc.$k.sub)
+      if [ $PRE == "none" ]
+      then
+        PRE=$(sbatch run.$k.sub)
+        PRE=${PRE#$PREFIX}        
+      else
+        PRE=$(sbatch --dependency=afterany:$PRE run.$k.sub)
+        PRE=${PRE#$PREFIX}
+      fi
+      echo $PRE
     done
+    cd ..
   done
-  echo 'end setting:'$setting'.'
 done

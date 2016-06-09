@@ -853,9 +853,9 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (File name to mymap)\n", me, nprocs);
   
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, \
     (data->blocksize)*(data->nblock));
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
   return _get_kv_count();
 }
