@@ -422,19 +422,13 @@ void Alltoall::wait(){
    // do exchange kv until all processes done
    do{
      exchange_kv();
-
    }while(pdone < size);
 
+#ifndef MTMR_COMM_BLOCKING
    // wait all pending communication
    for(int i = 0; i < nbuf; i++){
      if(reqs[i] != MPI_REQUEST_NULL){
        
-       //for(int j=0; j<comm_div_count; j++){
-       //  MPI_Status mpi_st;
-       //  MPI_Wait(&reqs[i][j], &mpi_st);
-       //  reqs[i][j] = MPI_REQUEST_NULL;
-       //}
-
        TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
        MPI_Status mpi_st;
@@ -453,6 +447,7 @@ void Alltoall::wait(){
        }
      }
    }
+#endif
 
    LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);
 }
@@ -512,14 +507,16 @@ void Alltoall::exchange_kv(){
   MPI_Type_contiguous(one_type_bytes, MPI_BYTE, &comm_type);
   MPI_Type_commit(&comm_type);
 
+#ifdef MTMR_COMM_BLOCKING
+  MPI_Alltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
+    recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm);
+  uint64_t recvcount = recvcounts[ibuf];
+  if(recvcount > 0) { 
+    SAVE_ALL_DATA(ibuf);
+  }
+#else 
   MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
-  recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
-  MPI_Type_free(&comm_type);  
-
-  delete [] a2a_s_count;
-  delete [] a2a_s_displs;
-  delete [] a2a_r_count;
-  delete [] a2a_r_displs;
+    recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_IALLTOALLV);
 
@@ -549,7 +546,18 @@ void Alltoall::exchange_kv(){
   // switch buffer
   buf = send_buffers[ibuf];
   off = send_offsets[ibuf];
+
+#endif  
+
   for(int i = 0; i < size; i++) off[i] = 0;
+
+  MPI_Type_free(&comm_type);  
+
+  delete [] a2a_s_count;
+  delete [] a2a_s_displs;
+  delete [] a2a_r_count;
+  delete [] a2a_r_displs;
+
 
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 
