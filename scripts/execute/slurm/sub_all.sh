@@ -1,13 +1,9 @@
 #/bin/bash
-#settings=( 'words_small_512M' 'wikipedia_small_512M' 'words_large_64M' 'wikipedia_large_64M')
-#settings=('words_small_512M')
-settings=('words_large_512M')
-#settings=('words_strong_scalable')
-#settings=( 'words_small_512M' 'wikipedia_small_512M')
+settings=('io_c_thread')
 
 TIMES=10
-START=4
-END=16
+START=1
+END=64
 
 PREFIX="Submitted batch job "
 

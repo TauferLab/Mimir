@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH --job-name="mtmr-mpi"  
+#SBATCH --output="mtmr-mpi.%j.%N.out"  
+#SBATCH --partition=compute  
+#SBATCH --nodes=32
+#SBATCH --ntasks-per-node=24
+#SBATCH --export=ALL  
+#SBATCH -t 04:00:00
+
+SUBDIR=n32
+
+source common.h
+export OMP_NUM_THREADS=$NTHRS
+ibrun -bp=none -v ./$EXE $INDIR/$SUBDIR $PREFIX $OUTDIR
