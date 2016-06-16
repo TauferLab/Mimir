@@ -464,9 +464,9 @@ void Alltoall::exchange_kv(){
   // exchange send and recv counts
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
-  for(i=0; i<size; i++){
-    printf("%d send count=%d, recv count=%d\n", i, off[i], recv_count[ibuf][i]);
-  }
+  //for(i=0; i<size; i++){
+  //  printf("%d send count=%d, recv count=%d\n", i, off[i], recv_count[ibuf][i]);
+  //}
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALL);
 
@@ -510,10 +510,16 @@ void Alltoall::exchange_kv(){
 #ifdef MTMR_COMM_BLOCKING
   MPI_Alltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
     recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm);
+
+  TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALLV);
+
   uint64_t recvcount = recvcounts[ibuf];
   if(recvcount > 0) { 
     SAVE_ALL_DATA(ibuf);
   }
+
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
 #else 
   MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
     recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);

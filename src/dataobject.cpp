@@ -74,13 +74,17 @@ DataObject::DataObject(
 
   id = DataObject::object_id++;
 
+#ifdef MTMR_MULTITHREAD  
   omp_init_lock(&lock_t);
+#endif
 
   LOG_PRINT(DBG_DATA, "DATA: DataObject create. (type=%d)\n", datatype);
  }
 
 DataObject::~DataObject(){
+#ifdef MTMR_MULTITHREAD  
   omp_destroy_lock(&lock_t);
+#endif
 
   if(outofcore){
     for(int i = 0; i < nblock; i++){
@@ -208,8 +212,10 @@ int DataObject::add_block(){
 #endif
 
   if(blockid >= maxblock){
+#ifdef MTMR_MULTITHREAD  
     int tid = omp_get_thread_num();
     LOG_ERROR("Error: block count is larger than max number %d, id=%d, tid=%d!\n", maxblock, id, tid);
+#endif
     return -1;
   }
 

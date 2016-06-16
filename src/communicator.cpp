@@ -106,7 +106,12 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
   kvtype = _kvtype;
   ksize = _ksize;
   vsize = _vsize;
+
+#ifdef MTMR_COMM_BLOCKING
+  nbuf = 1;
+#else
   nbuf = _nbuf;
+#endif
 
 #ifdef MTMR_MULTITHREAD 
   thread_buffers = new char*[tnum];

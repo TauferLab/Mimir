@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <mpi.h>
 #include <omp.h>
 
 #include <map>
@@ -21,6 +22,7 @@
 #define EVENT_COMM_ALLTOALL      "event_comm_alltoall"
 #define EVENT_COMM_WAIT          "event_comm_wait"
 #define EVENT_COMM_IALLTOALLV    "event_comm_ialltoallv"
+#define EVENT_COMM_ALLTOALLV     "event_comm_alltoallv"
 #define EVENT_COMM_ALLREDUCE     "event_comm_allreduce"
 #define EVENT_PFS_OPEN           "event_pfs_open"
 #define EVENT_PFS_SEEK           "event_pfs_seek"
@@ -54,6 +56,12 @@
 #define COUNTER_RDC_INPUT_KV     "counter_rdc_input_kv"
 #define COUNTER_RDC_OUTPUT_KV    "counter_rdc_output_kv"
 
+#ifdef MTMR_MULTITHREAD
+#define MR_GET_WTIME() omp_get_wtime()
+#else
+#define MR_GET_WTIME() MPI_Wtime()
+#endif
+
 // Profiler
 #ifndef ENABLE_PROFILER
 #define PROFILER_START(thread_count)
@@ -74,10 +82,10 @@ extern std::map<std::string,uint64_t> *profiler_event_counter;
   }
 
 #define PROFILER_RECORD_TIME_START \
-  double profiler_t_start=omp_get_wtime();
+  double profiler_t_start=MR_GET_WTIME();
 
 #define PROFILER_RECORD_TIME_END(thread_id, timer_type) \
-  double profiler_t_stop=omp_get_wtime();\
+  double profiler_t_stop=MR_GET_WTIME();\
   (profiler_event_timer[thread_id])[timer_type]+=(profiler_t_stop-profiler_t_start);
 
 #define PROFILER_RECORD_COUNT(thread_id, counter_type, count) \
@@ -129,15 +137,15 @@ extern tracker_thread_info *tracker_info;
   }
 
 #define TRACKER_TIMER_INIT(thread_id) \
-  tracker_info[thread_id].prev_wtime=omp_get_wtime();\
+  tracker_info[thread_id].prev_wtime=MR_GET_WTIME();\
   tracker_info[thread_id].overhead=0.0;
 
 #define TRACKER_RECORD_EVENT(thread_id, event_type) {\
-  double t_start=omp_get_wtime();\
+  double t_start=MR_GET_WTIME();\
   double t_prev=tracker_info[thread_id].prev_wtime;\
   tracker_event_timer[thread_id].push_back(\
    std::make_pair<std::string,double>(event_type, t_start-t_prev));\
-  double t_end=omp_get_wtime();\
+  double t_end=MR_GET_WTIME();\
   tracker_info[thread_id].prev_wtime=t_end;\
   tracker_info[thread_id].overhead+=t_end-t_start;}
 

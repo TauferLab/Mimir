@@ -96,8 +96,11 @@ Ptop::~Ptop(){
   //delete [] buf;
   //delete [] off;
 
+#ifdef MTMR_MULTITHREAD  
   for(int i = 0; i < size; i++)
     omp_destroy_lock((omp_lock_t*)GET_VAL(lock,i,onelocklen));
+#endif
+
   //delete [] lock;
   mem_aligned_free(lock);
 
@@ -148,7 +151,9 @@ void Ptop::init(DataObject *_data){
    //off[i] = 0;
 
     //omp_init_lock(&lock[i]);
+#ifdef MTMR_MULTITHREAD  
     omp_init_lock((omp_lock_t*)GET_VAL(lock, i, onelocklen));
+#endif
 
     for(int j=0; j<nbuf; j++)
       reqs[j][i] = MPI_REQUEST_NULL;

@@ -776,6 +776,7 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (File name to mymap)\n", me, nprocs);
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+  
   // Distribute files
   ifiles.clear();
   _disinputfiles(filepath, sharedflag, recurse);
@@ -818,14 +819,13 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 #pragma omp parallel shared(fp)
 {
   int tid = omp_get_thread_num();
+  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
 #else
   int tid = 0;
 #endif
 
   _tinit(tid);
  
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
-
   // create input file buffer
   uint64_t input_buffer_size=inputsize;
   int64_t input_char_size=0;
@@ -835,7 +835,12 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 
   // Process files
   int i;
+#ifdef MTMR_MULTITHREAD 
   while((i=__sync_fetch_and_add(&fp,1))<fcount){
+#else
+  while(fp<fcount){
+    fp+=1;
+#endif
 
     TRACKER_RECORD_EVENT(tid, EVENT_MAP_COMPUTING);
 
@@ -869,14 +874,20 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 
       if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
 
+#ifdef MTMR_MULTITHREAD 
       char *saveptr = NULL;
       char *word = strtok_r(text, whitespace, &saveptr);
       while(word){
-
         mymap(this, word, ptr);
-
         word = strtok_r(NULL,whitespace,&saveptr);
       }
+#else
+      char *word = strtok(text, whitespace);
+      while(word){
+        mymap(this, word, ptr);
+        word = strtok(NULL,whitespace);
+      }
+#endif
 
       foff += readsize;
 
@@ -1384,8 +1395,6 @@ end:
     kv->release_block(i);
   }
 
-  //printf("here!\n"); fflush(stdout);
-
   char *values;
   int nvalue, mvbytes, kmvsize, *valuesizes;
 
@@ -1547,13 +1556,13 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 #pragma omp parallel reduction(+:tmax_mem_bytes) 
 {
   int tid = omp_get_thread_num();
+  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE); 
 #else
   int tid = 0;
 #endif
+
   _tinit(tid);
 
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
- 
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
@@ -1605,6 +1614,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   PROFILER_RECORD_COUNT(tid, COUNTER_CVT_NUNIQUE, thread_info[tid].nitem);
   TRACKER_RECORD_EVENT(tid, EVENT_RDC_COMPUTING);
+
 #ifdef MTMR_MULTITHREAD 
 }
 #endif

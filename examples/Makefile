@@ -1,7 +1,9 @@
 CPP = mpicxx
-CFLAGS = -fopenmp -Wall -g -O1 -I../src
-LFLAGS = -fopenmp -L ../src 
- 
+#CFLAGS = -fopenmp -Wall -g -O1 -I../src
+#LFLAGS = -fopenmp -L ../src 
+CFLAGS = -Wall -g -O1 -I../src
+LFLAGS = -L ../src 
+  
 USERLIBS = -lmrmpi
 all: wordcount bfs bfs_mm octree_move_lg
 
