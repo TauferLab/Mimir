@@ -42,6 +42,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
   MPI_Comm_rank(comm,&me);
   MPI_Comm_size(comm,&nprocs);
 
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
 {
   int tid=omp_get_thread_num();
@@ -55,6 +56,13 @@ MapReduce::MapReduce(MPI_Comm _caller)
 #pragma omp barrier
   TRACKER_TIMER_INIT(tid);
 }
+#else
+  tnum=1;
+  TRACKER_START(tnum);
+  PROFILER_START(tnum);
+  thread_info=new thread_private_info[tnum];
+  TRACKER_TIMER_INIT(0);
+#endif
  
   _get_default_values(); 
   _bind_threads();
@@ -106,6 +114,7 @@ MapReduce::MapReduce(const MapReduce &_mr){
   c=NULL;
   ifiles.clear();
 
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
 {
   int tid=omp_get_thread_num();
@@ -120,6 +129,15 @@ MapReduce::MapReduce(const MapReduce &_mr){
   thread_info[tid].nitem=0;
   TRACKER_TIMER_INIT(tid);
 }
+#else
+  tnum=1;
+  TRACKER_START(tnum);
+  PROFILER_START(tnum);
+  thread_info=new thread_private_info[tnum];
+  thread_info[0].block=-1;
+  thread_info[0].nitem=0;
+  TRACKER_TIMER_INIT(0);
+#endif
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: copy\n", me, nprocs);
 }
@@ -175,6 +193,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
   }
 
   // begin traversal
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
@@ -186,6 +205,10 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
   
   if(_comm) c->twait(tid);
 }
+#else
+  _tinit(0);
+  _myinit(this, _ptr);
+#endif
   // wait all processes done
   if(_comm){
     c->wait();
@@ -270,16 +293,23 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   }
 
   KeyValue *inputkv = (KeyValue*)data;
+
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
+#else
+  int tid = 0;
+#endif
   _tinit(tid);  
 
   char *key, *value;
   int keybytes, valuebytes;
 
   int i;
+#ifdef MTMR_MULTITHREAD 
 #pragma omp for nowait
+#endif
   for(i = 0; i < inputkv->nblock; i++){
     int offset = 0;
 
@@ -297,10 +327,10 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     inputkv->release_block(i);
   }
 
+#ifdef MTMR_MULTITHREAD
   if(_comm) c->twait(tid);
-
 }
-
+#endif
 
   if(_comm){
     c->wait();
@@ -403,7 +433,9 @@ void MapReduce::scan(
 
   KeyValue *kv = (KeyValue*)data;
 
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel for
+#endif
   for(int i = 0; i < kv->nblock; i++){
 
      char *key, *value;
@@ -437,7 +469,11 @@ void MapReduce::scan(
    @return nothing
 */
 void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebytes){
+#ifdef MTMR_MULTITHREAD 
   int tid = omp_get_thread_num();
+#else
+  int tid = 0;
+#endif
   // invoked in map function
   if(mode == MapMode){
     // get target process
@@ -450,6 +486,7 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
       target = hid % (uint32_t)nprocs;
     }
 
+    //printf("%d send KV to %d key=%s\n", me, target, key); fflush(stdout);
     // send KV    
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
 
@@ -530,11 +567,16 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 #endif
 
   int64_t *tstart=new int64_t[tnum];
+
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
   _tinit(tid);
 }
+#else
+  _tinit(0);
+#endif
 
   int fcount = ifiles.size();
   for(int i = 0; i < fcount; i++){
@@ -648,9 +690,13 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 #endif
 
       // Process input buffer
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
 {
       int tid = omp_get_thread_num();
+#else
+      int tid = 0;
+#endif
 
       char *saveptr = NULL;
       char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
@@ -659,9 +705,10 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
         word = strtok_r(NULL,whitespace,&saveptr);
       }
 
+#ifdef MTMR_MULTITHREAD 
       if(_comm) c->tpoll(tid);
-
 }
+#endif
 
       // Prepare for next buffer
       foff += readsize;
@@ -690,6 +737,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   }
 
   // Wait thread end
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
@@ -697,6 +745,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   //printf("thread=%d begin wait\n", tid); fflush(stdout);
   if(_comm) c->twait(tid);
 }
+#endif
 
   // Free buffers
   delete [] tstart;
@@ -765,9 +814,14 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel shared(fp)
 {
   int tid = omp_get_thread_num();
+#else
+  int tid = 0;
+#endif
+
   _tinit(tid);
  
   TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
@@ -836,11 +890,15 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
 
   delete []  text;
 
+#ifdef MTMR_MULTITHREAD 
   if(_comm) c->twait(tid);
+#endif
 
   PROFILER_RECORD_COUNT(tid, COUNTER_MAP_KV_COUNT, thread_info[tid].nitem);
   TRACKER_RECORD_EVENT(tid, EVENT_MAP_COMPUTING);
+#ifdef MTMR_MULTITHREAD 
 }
+#endif
 
   // delete communicator
   if(_comm){
@@ -1484,9 +1542,14 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
   TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
 
   uint64_t tmax_mem_bytes=0;
+
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel reduction(+:tmax_mem_bytes) 
 {
   int tid = omp_get_thread_num();
+#else
+  int tid = 0;
+#endif
   _tinit(tid);
 
   TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
@@ -1542,7 +1605,9 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   PROFILER_RECORD_COUNT(tid, COUNTER_CVT_NUNIQUE, thread_info[tid].nitem);
   TRACKER_RECORD_EVENT(tid, EVENT_RDC_COMPUTING);
+#ifdef MTMR_MULTITHREAD 
 }
+#endif
 
   uint64_t nunique=0;
   for(int i=0; i<tnum; i++)
@@ -1562,9 +1627,13 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
 
   TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
 
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel 
 {
   int tid = omp_get_thread_num();
+#else
+  int tid = 0;
+#endif
   _tinit(tid);
 
   TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
@@ -1587,7 +1656,9 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
   char *kvbuf;
   int unique_pool_max_block=0;
 
+#ifdef MTMR_MULTITHREAD 
 #pragma omp for
+#endif
   for(int i=0; i<kv->nblock; i++){ 
     u->unique_pool->clear();
     u->nunique=0;
@@ -1754,7 +1825,9 @@ out:
   delete u;
 
   TRACKER_RECORD_EVENT(tid, EVENT_CPS_COMPUTING);
+#ifdef MTMR_MULTITHREAD 
 }
+#endif
 
   LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: compress end\n", me, nprocs);
 
@@ -1879,6 +1952,7 @@ void MapReduce::_get_default_values(){
 
 void MapReduce::_bind_threads(){
 
+#ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
 {
   int tid = omp_get_thread_num();
@@ -1910,6 +1984,9 @@ void MapReduce::_bind_threads(){
   if(show_binding){
     printf("Process count=%d, thread count=%d\n", nprocs, tnum);   
   }
+
+#endif
+
 }
 
 // thread init

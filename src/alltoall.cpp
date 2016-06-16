@@ -215,6 +215,7 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   while(1){
     // need communication
     if(switchflag != 0){
+#ifdef MTMR_MULTITHREAD 
       TRACKER_RECORD_EVENT(tid, EVENT_MAP_COMPUTING);
 #pragma omp barrier  
       TRACKER_RECORD_EVENT(tid, EVENT_OMP_BARRIER);
@@ -222,13 +223,17 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
       MPI_Is_thread_main(&flag);
       //printf("rank=%d, tid=%d, sendkv\n", rank, tid); fflush(stdout);
       if(flag){
+#endif
         exchange_kv();
         switchflag = 0;
+#ifdef MTMR_MULTITHREAD 
       }
 #pragma omp barrier
       TRACKER_RECORD_EVENT(tid, EVENT_OMP_BARRIER);
+#endif
     }
 
+#ifdef MTMR_MULTITHREAD 
     int loff = thread_offsets[tid][target];
     char *lbuf = thread_buffers[tid]+target*thread_buf_size+loff;
 
@@ -265,13 +270,26 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
         PROFILER_RECORD_TIME_END(tid, TIMER_MAP_ATOMIC);
       }
     }
+#else
+    //printf("sendKV to %d\n", target); fflush(stdout);
+    int goff=off[target];
+    if(goff+kvsize<=send_buf_size){
+      size_t global_buf_off=target*(size_t)send_buf_size+goff; 
+      char *gbuf=buf+global_buf_off;
+      PUT_KV_VARS(kvtype,gbuf,key,keysize,val,valsize,kvsize);
+      off[target]+=kvsize;
+      break;
+    }else{
+      switchflag=1;
+    }
+#endif
   }
 
   return 0;
 }
 
-
 void Alltoall::tpoll(int tid){
+#ifdef MTMR_MULTITHREAD 
   PROFILER_RECORD_TIME_START;
 #pragma omp atomic
   tdone++;
@@ -303,6 +321,7 @@ void Alltoall::tpoll(int tid){
 #pragma omp barrier
 
   TRACKER_RECORD_EVENT(tid, EVENT_OMP_BARRIER);
+#endif
 }
 
 /* send KV
@@ -314,7 +333,7 @@ void Alltoall::tpoll(int tid){
  *   valsize: value size
  */
 void Alltoall::twait(int tid){
-
+#ifdef MTMR_MULTITHREAD 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: thread %d begin wait.\n", rank, size, tid);
 
   // flush local buffer
@@ -391,6 +410,7 @@ void Alltoall::twait(int tid){
 
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: thread %d finish wait.\n", rank, size, tid);
+#endif
 }
 
 // wait all procsses done
@@ -446,25 +466,17 @@ void Alltoall::exchange_kv(){
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_SIZE, sendcount);
 
-  //for(i=0; i<size; i++){
-  //  printf("%d->%d, send count=%d\n", rank, i, off[i]);
-  //}
-
   // exchange send and recv counts
   MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
-  //for(i=0; i<size; i++){
-  //  printf("%d->%d, recv count=%d\n", rank, i, recv_count[ibuf][i]);
-  //}
+  for(i=0; i<size; i++){
+    printf("%d send count=%d, recv count=%d\n", i, off[i], recv_count[ibuf][i]);
+  }
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALL);
 
-  //for(i = 0; i < size; i++) send_displs[i] = i*(uint64_t)send_buf_size;
-
   recvcounts[ibuf] = (uint64_t)recv_count[ibuf][0];
-  //recv_displs[0] = 0;
   for(i = 1; i < size; i++){
-    //recv_displs[i] = recv_count[ibuf][i-1] + recv_displs[i-1];
     recvcounts[ibuf] += (uint64_t)recv_count[ibuf][i];
   }
 
@@ -500,11 +512,6 @@ void Alltoall::exchange_kv(){
   MPI_Type_contiguous(one_type_bytes, MPI_BYTE, &comm_type);
   MPI_Type_commit(&comm_type);
 
-  //for(i=0;i<size;i++){
-  //  printf("%d->%d s_count=%d, s_displs=%d, r_count=%d, r_displs=%d\n",\
-     rank, i, a2a_s_count[i], a2a_s_displs[i], a2a_r_count[i], a2a_r_displs[i]); fflush(stdout);
-  //}
-
   MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
   recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
   MPI_Type_free(&comm_type);  
@@ -516,18 +523,9 @@ void Alltoall::exchange_kv(){
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_IALLTOALLV);
 
-  //int origin_ibuf=ibuf;
   // wait data
   ibuf = (ibuf+1)%nbuf;
   if(reqs[ibuf] != MPI_REQUEST_NULL) {
-
-    //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-  
-    //for(i=0; i<comm_div_count; i++){
-    //  MPI_Status mpi_st;
-    //  MPI_Wait(&reqs[ibuf][i], &mpi_st);
-    //  reqs[ibuf][i] = MPI_REQUEST_NULL;
-    //}
 
     MPI_Status mpi_st;
     MPI_Wait(&reqs[ibuf], &mpi_st);
@@ -548,171 +546,14 @@ void Alltoall::exchange_kv(){
     TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   }
 
-#if 0
-  char *a2a_s_buf;
-  if(comm_div_count==1) a2a_s_buf=send_buffers[origin_ibuf];
-  else a2a_s_buf = send_buffers[ibuf];
-  char *a2a_r_buf = recv_buf[origin_ibuf];
-  int *a2a_s_count = new int[size];
-  int *a2a_s_remain = new int[size];
-  int *a2a_s_displs = new int[size];
-  int *a2a_r_count = new int[size];
-  int *a2a_r_remain = new int[size];
-  int *a2a_r_displs = new int[size];
-  for(i=0; i<size; i++){
-    a2a_s_count[i] = a2a_r_count[i] = 0;
-    a2a_s_remain[i] = off[i];
-    a2a_r_remain[i] = recv_count[origin_ibuf][i];
-  }
-
-  // start communication
-  for(int k=0; k<comm_div_count; k++){
-    int a2a_send_count=0, a2a_recv_count=0;    
-
-    for(i=0; i<size; i++){
-      if(a2a_s_remain[i] <= comm_unit_size){
-        a2a_s_count[i] = a2a_s_remain[i];
-        a2a_s_remain[i] = 0;
-      }else{
-        a2a_s_count[i] = comm_unit_size;
-        a2a_s_remain[i] -= comm_unit_size;
-      }
-      if(a2a_r_remain[i] <= comm_unit_size){
-        a2a_r_count[i] = a2a_r_remain[i];
-        a2a_r_remain[i] = 0;
-      }else{
-        a2a_r_count[i] = comm_unit_size;
-        a2a_r_remain[i] -= comm_unit_size;
-      }
-      a2a_send_count+=a2a_s_count[i];
-      a2a_recv_count+=a2a_r_count[i];
-    }
-
-    a2a_s_displs[0]=0;
-    a2a_r_displs[0]=0;
-    for(i=1; i< size; i++){
-      if(comm_div_count<=1) a2a_s_displs[i]=(int)send_displs[i];
-      else a2a_s_displs[i]=a2a_s_displs[i-1]+a2a_s_count[i-1];
-      a2a_r_displs[i]=a2a_r_displs[i-1]+a2a_r_count[i-1];
-    }
-
-    if(comm_div_count > 1){
-      for(i=0; i<size; i++){
-        memcpy(a2a_s_buf+a2a_s_displs[i], buf+send_displs[i], a2a_s_count[i]);
-      }
-    }
-
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-     
-    MPI_Ialltoallv(a2a_s_buf, a2a_s_count, a2a_s_displs, MPI_BYTE, a2a_r_buf, a2a_r_count, a2a_r_displs, MPI_BYTE, comm,  &reqs[origin_ibuf][k]);
-
-    TRACKER_RECORD_EVENT(0, EVENT_COMM_IALLTOALLV);
-
-    comm_recv_buf[k] = a2a_r_buf;
-    comm_recv_displs[k][0] = 0;
-    for(i=1; i<size; i++) comm_recv_displs[k][i]=comm_recv_displs[k][i-1]+a2a_r_count[i-1];
-
-    for(i=0; i<size; i++){
-      send_displs[i] += a2a_s_count[i];
-      comm_recv_count[k][i] = a2a_r_count[i];
-    }
-
-    a2a_s_buf+=a2a_send_count;
-    a2a_r_buf+=a2a_recv_count;
-  }
-
-  delete [] a2a_s_displs; 
-  delete [] a2a_s_remain;
-  delete [] a2a_r_remain;
-  delete [] a2a_s_count;
-  delete [] a2a_r_count;
-  delete [] a2a_r_displs;
-
-  if(comm_div_count > 1){
-    char *tmp = send_buffers[ibuf];
-    send_buffers[ibuf]=send_buffers[origin_ibuf];
-    send_buffers[origin_ibuf]=tmp;
-  }
-#endif
-
   // switch buffer
   buf = send_buffers[ibuf];
   off = send_offsets[ibuf];
   for(int i = 0; i < size; i++) off[i] = 0;
 
-  //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-  
   MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
 
-#if 0
-  // wait data
-  ibuf = (ibuf+1)%nbuf;
-  if(reqs[ibuf][0] != MPI_REQUEST_NULL) {
-
-#if GATHER_STAT
-    double t1 = omp_get_wtime();
-#endif
-    
-    for(i=0; i<comm_div_count; i++){
-      MPI_Status mpi_st;
-      MPI_Wait(&reqs[ibuf][i], &mpi_st);
-      reqs[ibuf][i] = MPI_REQUEST_NULL;
-    }
-
-#if GATHER_STAT
-    double t2 = omp_get_wtime();
-    st.inc_timer(0, TIMER_MAP_WAITDATA, t2-t1);
-#endif
-
-    int recvcount = recvcounts[ibuf];
-
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%d)\n", rank, size, recvcount);
-    if(recvcount > 0) {
-#if GATHER_STAT
-      st.inc_counter(0, COUNTER_RECV_BYTES, recvcount);
-#endif    
-      SAVE_ALL_DATA(ibuf);
-    }
-#if GATHER_STAT
-    double t3 = omp_get_wtime();
-    st.inc_timer(0, TIMER_MAP_COPYDATA, t3-t2);
-#endif
-  }
-
-#if GATHER_STAT
-  double t4 = omp_get_wtime();
-  st.inc_timer(0, TIMER_MAP_SAVEDATA, t4-t3);
-#endif
-#endif
-
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%ld, done count=%d)\n", rank, size, sendcount, pdone);
 }
-
-#if 0
-void Alltoall::save_data(int i){
-  if(blocks[0] == -1){
-    blocks[0] = data->add_block();
-  }
-
-  data->acquire_block(blocks[0]);
-
-  int offset=0;
-  for(int k = 0; k < size; k++){
-     if(recv_count[i][k] == 0) continue;
-
-     recv_bytes += recv_count[i][k];
-
-     while(data->adddata(blocks[0], recv_buf[i]+offset, recv_count[i][k]) == -1){
-       data->release_block(blocks[0]);
-       blocks[0] = data->add_block();
-       data->acquire_block(blocks[0]);
-     }
-
-     offset += recv_count[i][k];
-  }
-
-  data->release_block(blocks[0]);
-}
-#endif

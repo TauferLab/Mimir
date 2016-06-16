@@ -181,7 +181,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
 
   /* copy kv into local buffer */
   while(1){
-
+#ifdef MTMR_MULTITHREAD 
     int   loff=thread_offsets[tid][target];
     char *lbuf=thread_buffers[tid]+target*thread_buf_size+loff;
     
@@ -197,26 +197,12 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
         int flag;
         MPI_Is_thread_main(&flag);
         if(flag){
-#if GATHER_STAT
-          //double t1 = omp_get_wtime();
-#endif
           MAKE_PROGRESS;
-#if GATHER_STAT
-          //double t2 = omp_get_wtime();
-          //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
-#endif
         }
       }
 
-#if GATHER_STAT
-      //double t1 = omp_get_wtime();
-#endif
       omp_set_lock((omp_lock_t*)GET_VAL(lock, target, onelocklen));
-#if GATHER_STAT
-      //double t2 = omp_get_wtime();
-      //st.inc_timer(tid, TIMER_MAP_LOCK, t2-t1);
-#endif
-      // try to add the offset
+     // try to add the offset
       if(loff + *(int*)GET_VAL(off,target,oneintlen) <= send_buf_size){
         int goff=*(int*)GET_VAL(off,target,oneintlen);
         memcpy(*(char**)GET_VAL(buf,target,oneptrlen)+goff, thread_buffers[tid]+target*thread_buf_size, loff);
@@ -229,21 +215,20 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
       //omp_unset_lock(&lock[target]);
       omp_unset_lock((omp_lock_t*)GET_VAL(lock, target, onelocklen));
     }
+#else
+    int goff=*(int*)GET_VAL(off,target,oneintlen);
+    if(kvsize+goff<=send_buf_size){
+      char *gbuf=*(char**)GET_VAL(buf,target,oneptrlen)+goff; 
+      PUT_KV_VARS(kvtype,gbuf,key,keysize,val,valsize,kvsize);
+      *(int*)GET_VAL(off,target,oneintlen)+=kvsize;
+    }
+#endif
   }
-
-  //inc_counter(target); 
-
-  // do communication
-  //int flag;
-  //MPI_Is_thread_main(&flag);
-  //if(flag){
-  //  exchange_kv();
-  //}
-
   return 0;
 }
 
 void Ptop::tpoll(int tid){
+#ifdef MTMR_MULTITHREAD  
 #pragma omp atomic
   tdone++;
 
@@ -251,36 +236,30 @@ void Ptop::tpoll(int tid){
     int flag;
     MPI_Is_thread_main(&flag);
     if(flag){
-      //exchange_kv();  
-      //MAKE_PROGRESS;
-#if GATHER_STAT
-          //double t1 = omp_get_wtime();
-#endif
-          MAKE_PROGRESS;
-#if GATHER_STAT
-          //double t2 = omp_get_wtime();
-          //st.inc_timer(TIMER_MAP_SERIAL, t2-t1);
-#endif
-
+      MAKE_PROGRESS;
     }
   }while(tdone < tnum);
 
 #pragma omp barrier
   if(tid==0) tdone=0;
 #pragma omp barrier
+#endif
 }
 
 void Ptop::twait(int tid){
+#ifdef MTMR_MULTITHREAD  
   LOG_PRINT(DBG_COMM, "%d[%d] thread %d start wait\n", rank, size, tid);
 
   int i=0;
   while(i<size){
 
+#ifdef MTMR_MULTITHREAD 
     int loff = thread_offsets[tid][i];
     if(loff == 0){
       i++;
       continue;
     }
+#endif
 
     //printf("thread %d i=%d begin\n", tid, i); fflush(stdout);
 
@@ -304,6 +283,7 @@ void Ptop::twait(int tid){
 
     int k=i;
     //omp_set_lock(&lock[k]);
+#ifdef MTMR_MULTITHREAD 
     omp_set_lock((omp_lock_t*)GET_VAL(lock, k, onelocklen));
     int goff=*(int*)GET_VAL(off,i,oneintlen);
     if(goff+loff<=send_buf_size){
@@ -318,6 +298,7 @@ void Ptop::twait(int tid){
     }
     //omp_unset_lock(&lock[k]);
     omp_unset_lock((omp_lock_t*)GET_VAL(lock, k, onelocklen));
+#endif
     //printf("thread %d i=%d copy end\n", tid, i); fflush(stdout);
   }
 
@@ -343,7 +324,7 @@ void Ptop::twait(int tid){
 
     }
   }while(tdone < tnum);
-
+#endif
 }
 
 void Ptop::wait(){

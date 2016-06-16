@@ -85,11 +85,13 @@ protected:
   int64_t thread_buf_size, send_buf_size;
   int nbuf;
 
+#ifdef MTMR_MULTITHREAD 
   char **thread_buffers;   // local buffers for threads
   int  **thread_offsets;   // local offsets for threads
+#endif
 
-  char **send_buffers;  // global buffers
-  int  **send_offsets;  // global offsets
+  char **send_buffers;     // global buffers
+  int  **send_offsets;     // global offsets
 
 public:
   uint64_t send_bytes, recv_bytes;

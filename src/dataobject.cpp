@@ -117,12 +117,13 @@ void DataObject::_get_filename(int blockid, std::string &fname){
 int DataObject::acquire_block(int blockid){
   if(!outofcore) return 0;
 
+#ifdef MTMR_MULTITHREAD 
   if(threadsafe) omp_set_lock(&lock_t);
+#endif
   int bufferid = blocks[blockid].bufferid;
   if(bufferid == -1){
     int i;
     for(i = 0; i < nbuf; i++){
-      // the buffer is empty and the
       if(buffers[i].ref == 0){
         std::string filename;
 
@@ -160,7 +161,9 @@ int DataObject::acquire_block(int blockid){
   }
   buffers[bufferid].ref++;
   //omp_unset_lock(&lock_t);
+#ifdef MTMR_MULTITHREAD 
   if(threadsafe) omp_unset_lock(&lock_t);
+#endif
 
   return 0;
 }
@@ -176,7 +179,11 @@ void DataObject::release_block(int blockid){
   if(bufferid==-1)
     LOG_ERROR("%s", "Error: aquired block should have buffer!\n");
 
+#ifdef MTMR_MULTITHREAD 
   __sync_fetch_and_add(&buffers[bufferid].ref, -1);
+#else
+ buffers[bufferid].ref-=1; 
+#endif
 }
 
 /*
@@ -189,28 +196,22 @@ void DataObject::release_block(int blockid){
 int DataObject::add_block(){
   // add counter FOP
   int blockid = -1;
+#ifdef MTMR_MULTITHREAD  
   if(threadsafe)
     blockid = __sync_fetch_and_add(&nblock, 1);
   else{
+#endif
     blockid = nblock;
     nblock++;
+#ifdef MTMR_MULTITHREAD  
   }
-
+#endif
 
   if(blockid >= maxblock){
     int tid = omp_get_thread_num();
     LOG_ERROR("Error: block count is larger than max number %d, id=%d, tid=%d!\n", maxblock, id, tid);
     return -1;
   }
-
-  //printf("id=%d, blockid=%d\n",\
-    id, blockid); fflush(stdout);
-
-  //printf("blockid=%d, maxbuf=%d, outofcore=%d, threadsafe=%d\n", blockid, maxbuf, outofcore, threadsafe);
-
-  //printf("blockid=%d, maxbuf=%d\n", blockid, maxbuf);
-
-  //printf("blockid=%d, maxbuf=%d\n", blockid, maxbuf);
 
   // has enough buffer
   if(blockid < maxbuf){
@@ -237,20 +238,12 @@ int DataObject::add_block(){
       
     blocks[blockid].datasize = 0;
     blocks[blockid].bufferid = blockid;
-    //blocks[blockid].threadid = omp_get_thread_num();
-    //blocks[blockid].infile = 0;
-    //blocks[blockid].fileoff = 0;
-
     return blockid;
   }else{
     // FIXME: out of core support
     if(outofcore){
       blocks[blockid].datasize = 0;
       blocks[blockid].bufferid = -1;
-      //blocks[blockid].threadid = omp_get_thread_num();
-      //blocks[blockid].infile = 0;
-      //blocks[blockid].fileoff = 0;
-
       return blockid;
     }
   }
