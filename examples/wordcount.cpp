@@ -19,12 +19,12 @@ void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 void output(const char *filename, const char *outdir, \
   const char *prefix, MapReduce *mr);
 
-#define PPN 20
+#define PPN 24
 int me, nprocs;
 int commmode=0;
 const char* inputsize="128M";
 const char* blocksize="512M";
-int sbufsize=26624;
+int sbufsize=16384;
 //const char* gbufsize="512M";
 const char* lbufsize="4K";
 
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 
   //t2 = MPI_Wtime();
 
-  mr->reduce(countword, 1, NULL);
+  mr->reduce(countword, 0, NULL);
 
   //t3 = MPI_Wtime();
 

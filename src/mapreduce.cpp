@@ -8,7 +8,10 @@
 #include <sys/stat.h>
 
 #include <mpi.h>
+
+#ifdef MTMR_MULTITHREAD
 #include <omp.h>
+#endif
 
 #include <iostream>
 #include <string>

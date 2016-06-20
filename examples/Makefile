@@ -1,4 +1,6 @@
-CPP = mpicxx
+#CPP = mpicxx
+CPP =tau_cxx.sh
+#
 #CFLAGS = -fopenmp -Wall -g -O1 -I../src
 #LFLAGS = -fopenmp -L ../src 
 CFLAGS = -Wall -g -O1 -I../src

@@ -1,7 +1,11 @@
-CC = mpicc
-CPP = mpicxx
-CLINK = mpicc
-CPPLINK = mpicxx
+#CC = mpicc
+#CPP = mpicxx
+#CLINK = mpicc
+#CPPLINK = mpicxx
+CC = tau_cc.sh
+CPP = tau_cxx.sh
+CLINK = tau_cc.sh
+CPPLINK = tau_cxx.sh
 DEBUG = -g
 #local_CFLAGS = -fopenmp $(DEBUG) -O2  -DENABLE_PROFILER -DENABLE_TRACKER
 local_CFLAGS = $(DEBUG) -O2  -DENABLE_PROFILER -DENABLE_TRACKER

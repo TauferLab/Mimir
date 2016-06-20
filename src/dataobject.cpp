@@ -2,8 +2,10 @@
 #include <sys/stat.h>
 #include "dataobject.h"
 #include <mpi.h>
-#include <omp.h>
 
+#ifdef MTMR_MULTITHREAD
+#include <omp.h>
+#endif
 
 #include "log.h"
 #include "config.h"
