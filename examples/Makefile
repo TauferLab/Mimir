@@ -1,5 +1,9 @@
 #CPP = mpicxx
-CPP =tau_cxx.sh
+ifeq ($(CC),tau)
+  CPP =tau_cxx.sh
+else
+  CPP=mpicxx
+endif
 #
 #CFLAGS = -fopenmp -Wall -g -O1 -I../src
 #LFLAGS = -fopenmp -L ../src 
