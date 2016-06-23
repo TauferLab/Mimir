@@ -77,6 +77,8 @@ protected:
   // received data added into this object
   int *blocks;
   DataObject *data;
+  int blockid;
+  //int64_t spacesize;
 
   // kv type
   int kvtype, ksize, vsize;

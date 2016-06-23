@@ -17,7 +17,7 @@ using namespace MAPREDUCE_NS;
 
 #include "stat.h"
 
-#if 1
+#if 0
 #define SAVE_ALL_DATA(ii) \
 {\
   int offset=0;\
@@ -28,7 +28,47 @@ using namespace MAPREDUCE_NS;
 }
 #endif
 
-
+#define SAVE_ALL_DATA(ii) \
+{\
+  int k=0;\
+  int64_t spacesize=0;\
+  char *src_buf=NULL, *dst_buf=NULL;\
+  src_buf=recv_buf[ii];\
+  if(blockid!=-1){\
+    dst_buf=data->getblockbuffer(blockid);\
+    int64_t datasize=data->getdatasize(blockid);\
+    dst_buf += datasize;\
+    spacesize=data->blocksize-datasize;\
+  }else{\
+    blockid=data->add_block();\
+    data->acquire_block(blockid);\
+    dst_buf=data->getblockbuffer(blockid);\
+    spacesize=data->blocksize;\
+  }\
+  while(k<size){\
+    int64_t copysize=0;\
+    int padding=0;\
+    while(spacesize>=recv_count[ii][k]){\
+      copysize+=recv_count[ii][k];\
+      spacesize-=recv_count[ii][k];\
+      padding=recv_count[ii][k]&(0x1<<type_log_bytes-0x1);\
+      k++;\
+      if(padding !=0 )\
+        break;\
+    }\
+    memcpy(dst_buf, src_buf, copysize);\
+    dst_buf+=copysize;\
+    src_buf+=copysize;\
+    if(padding!=0){\
+      src_buf+=padding;\
+    }else{\
+      blockid=data->add_block();\
+      data->acquire_block(blockid);\
+      dst_buf=data->getblockbuffer(blockid);\
+      spacesize=data->blocksize;\
+    }\
+  }\
+}
 
 #if 0
 #define SAVE_ALL_DATA(ii)\

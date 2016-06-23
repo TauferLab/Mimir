@@ -54,6 +54,8 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
   send_offsets = NULL;
 
   blocks = new int[tnum];
+  blockid = -1;
+  //spacesize = 0;
 
   //init();
 
@@ -65,6 +67,8 @@ Communicator::~Communicator(){
   if(!data){
     for(int i=0; i<tnum; i++)
       if(blocks[i] !=- 1) data->release_block(blocks[i]);
+    if(blockid!=-1)
+      data->release_block(blockid);
   }
   delete [] blocks;
 
@@ -169,6 +173,6 @@ void Communicator::init(DataObject *_data){
   }
 
   for(int i = 0; i < tnum; i++) blocks[i] = -1;
+  blockid = -1;
+  //spacesize = 0;
 }
-
-
