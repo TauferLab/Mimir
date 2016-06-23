@@ -200,9 +200,9 @@ void DataObject::release_block(int blockid){
  * add an empty block and return the block id
  */
 int DataObject::add_block(){
-  // add counter FOP
-  int blockid = -1;
+  int blockid;
 #ifdef MTMR_MULTITHREAD  
+  // add counter FOP
   if(threadsafe)
     blockid = __sync_fetch_and_add(&nblock, 1);
   else{

@@ -49,7 +49,8 @@ private:
   int **recv_count;
   char **recv_buf;     
   uint64_t  *recvcounts;
-  int one_type_bytes;
+  //int one_type_bytes;
+  int type_log_bytes;
 
   //char **comm_recv_buf;
   //int  **comm_recv_count;

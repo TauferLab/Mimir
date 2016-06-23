@@ -23,10 +23,12 @@ using namespace MAPREDUCE_NS;
   int offset=0;\
   for(int k=0;k<size;k++){\
     SAVE_DATA(recv_buf[ii]+offset, recv_count[ii][k])\
-    offset+=(recv_count[ii][k]+one_type_bytes-1)/one_type_bytes*one_type_bytes;\
+    offset+=(recv_count[ii][k]+0x1<<type_log_bytes-1)>>type_log_bytes<<type_log_bytes;\
   }\
 }
 #endif
+
+
 
 #if 0
 #define SAVE_ALL_DATA(ii)\
@@ -57,10 +59,10 @@ using namespace MAPREDUCE_NS;
 
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   int provided;
-  MPI_Query_thread(&provided);
-  if(provided < MPI_THREAD_FUNNELED){
-    LOG_ERROR("%s", "Error: MPI_THREAD_FUNNELED mode should be supported!\n");
-  }
+  //MPI_Query_thread(&provided);
+  //if(provided < MPI_THREAD_FUNNELED){
+  //  LOG_ERROR("%s", "Error: MPI_THREAD_FUNNELED mode should be supported!\n");
+  //}
 
   switchflag = 0;
 
@@ -118,11 +120,15 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
 
   Communicator::setup(_tbufsize, _sbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
-  one_type_bytes=1;
+  //one_type_bytes=0x1;
   size_t total_send_buf_size=(size_t)send_buf_size*size;
 
-  while((int64_t)one_type_bytes*MAX_COMM_SIZE<total_send_buf_size)
-    one_type_bytes<<=1;
+  type_log_bytes=0;
+  int type_bytes=0x1;
+  while((int64_t)type_bytes*MAX_COMM_SIZE<total_send_buf_size){
+    type_bytes<<=1;
+    type_log_bytes++;
+  }
 
   //printf("one_type_bytes=%d\n", one_type_bytes);
 
@@ -484,9 +490,9 @@ void Alltoall::exchange_kv(){
   int *a2a_r_displs= new int[size];
 
   for(i=0; i<size; i++){
-    a2a_s_count[i]=(off[i]+one_type_bytes-1)/one_type_bytes;
-    a2a_r_count[i]=(recv_count[ibuf][i]+one_type_bytes-1)/one_type_bytes;
-    a2a_s_displs[i] = (i*send_buf_size)/one_type_bytes;
+    a2a_s_count[i]=(off[i]+(0x1<<type_log_bytes)-1)>>type_log_bytes;
+    a2a_r_count[i]=(recv_count[ibuf][i]+(0x1<<type_log_bytes)-1)>>type_log_bytes;
+    a2a_s_displs[i] = (i*send_buf_size)>>type_log_bytes;
   }
   a2a_r_displs[0] = 0;
   for(i=1; i<size; i++)
@@ -498,8 +504,8 @@ void Alltoall::exchange_kv(){
     send_padding_bytes+=a2a_s_count[i];
     recv_padding_bytes+=a2a_r_count[i];
   }
-  send_padding_bytes*=one_type_bytes;
-  recv_padding_bytes*=one_type_bytes;
+  send_padding_bytes<<=type_log_bytes;
+  recv_padding_bytes<<=type_log_bytes;
   send_padding_bytes-=sendcount;
   recv_padding_bytes-=recvcounts[ibuf];
 
@@ -507,7 +513,7 @@ void Alltoall::exchange_kv(){
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_PAD, recv_padding_bytes);
  
   MPI_Datatype comm_type;
-  MPI_Type_contiguous(one_type_bytes, MPI_BYTE, &comm_type);
+  MPI_Type_contiguous(0x1<<type_log_bytes, MPI_BYTE, &comm_type);
   MPI_Type_commit(&comm_type);
 
 #ifdef MTMR_COMM_BLOCKING
