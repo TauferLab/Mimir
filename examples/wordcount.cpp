@@ -19,12 +19,12 @@ void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 void output(const char *filename, const char *outdir, \
   const char *prefix, MapReduce *mr);
 
-#define PPN 2
+#define PPN 24
 int me, nprocs;
 int commmode=0;
-const char* inputsize="4K";
-const char* blocksize="4K";
-int sbufsize=4;
+const char* inputsize="512M";
+const char* blocksize="512M";
+int sbufsize=32768;
 //const char* gbufsize="512M";
 const char* lbufsize="4K";
 
