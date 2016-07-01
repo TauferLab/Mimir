@@ -5,7 +5,7 @@ module load impi
 
 cd ../../../../src
 make clean
-make CFLAGS+="-DUSE_MT_IO"
+make CFLAGS="-DUSE_MT_IO"
 
 cd ../examples
 make clean

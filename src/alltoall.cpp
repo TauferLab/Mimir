@@ -17,13 +17,15 @@ using namespace MAPREDUCE_NS;
 
 #include "stat.h"
 
-#if 1
+#if 0
 #define SAVE_ALL_DATA(ii) \
 {\
   int offset=0;\
   for(int k=0;k<size;k++){\
     SAVE_DATA(recv_buf[ii]+offset, recv_count[ii][k])\
-    offset+=(recv_count[ii][k]+0x1<<type_log_bytes-1)>>type_log_bytes<<type_log_bytes;\
+    int test=((0x1<<type_log_bytes)-1)>>type_log_bytes<<type_log_bytes;\
+    offset+=((recv_count[ii][k]+(0x1<<type_log_bytes)-1)\
+      >>type_log_bytes)<<type_log_bytes;\
   }\
 }
 #endif
@@ -49,19 +51,18 @@ using namespace MAPREDUCE_NS;
   while(k<size){\
     int copysize=0;\
     int padding=0;\
-    while(spacesize>=recv_count[ii][k]){\
+    while(k<size && spacesize>=recv_count[ii][k]){\
       copysize+=recv_count[ii][k];\
       spacesize-=recv_count[ii][k];\
-      padding=recv_count[ii][k]&(0x1<<type_log_bytes-0x1);\
+      padding=recv_count[ii][k]&((0x1<<type_log_bytes)-0x1);\
       k++;\
-      break;\
       if(padding !=0 ){\
-        LOG_ERROR("%d[%d] padding=%d\n", rank, size, padding);\
         break;\
       }\
     }\
-    fprintf(stdout, "%d[%d] copysize=%ld\n", rank, size, copysize);\
+    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);\
     memcpy(dst_buf, src_buf, copysize);\
+    TRACKER_RECORD_EVENT(0, EVENT_MEM_COPY);\
     int datasize=data->getdatasize(blockid);\
     data->setblockdatasize(blockid,datasize+copysize);\
     dst_buf+=copysize;\
@@ -78,6 +79,23 @@ using namespace MAPREDUCE_NS;
   }\
 }
 #endif
+
+#if 1
+#define SAVE_ALL_DATA(ii) \
+{\
+  char *src_buf=NULL, *dst_buf=NULL;\
+  blockid=data->add_block();\
+  data->acquire_block(blockid);\
+  dst_buf=data->getblockbuffer(blockid);\
+  src_buf=recv_buf[ii];\
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);\
+  memcpy(dst_buf, src_buf, recvcounts[ii]);\
+  TRACKER_RECORD_EVENT(0, EVENT_MEM_COPY);\
+  data->setblockdatasize(blockid,recvcounts[ii]);\
+  data->release_block(blockid);\
+}
+#endif
+
 
 #if 0
 #define SAVE_ALL_DATA(ii)\
@@ -561,11 +579,11 @@ void Alltoall::exchange_kv(){
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_PAD, send_padding_bytes);
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_PAD, recv_padding_bytes);
 
-  printf("type_log_bytes=%d, send_padding=%ld, recv_padding=%ld\n", \
+  //printf("type_log_bytes=%d, send_padding=%ld, recv_padding=%ld\n", \
     type_log_bytes, send_padding_bytes, recv_padding_bytes);
  
   MPI_Datatype comm_type;
-  MPI_Type_contiguous(0x1<<type_log_bytes, MPI_BYTE, &comm_type);
+  MPI_Type_contiguous((0x1<<type_log_bytes), MPI_BYTE, &comm_type);
   MPI_Type_commit(&comm_type);
 
 #ifdef MTMR_COMM_BLOCKING
@@ -575,6 +593,8 @@ void Alltoall::exchange_kv(){
   TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALLV);
 
   uint64_t recvcount = recvcounts[ibuf];
+  PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
+
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
   if(recvcount > 0) { 
     SAVE_ALL_DATA(ibuf);

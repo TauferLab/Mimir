@@ -15,9 +15,7 @@
 
 using namespace MAPREDUCE_NS;
 
-#if GATHER_STAT
 #include "stat.h"
-#endif
 
 #define CHECK_MPI_REQS \
 {\

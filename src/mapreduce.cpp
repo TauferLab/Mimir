@@ -43,7 +43,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
 {
   comm = _caller;
   MPI_Comm_rank(comm,&me);
-  MPI_Comm_size(comm,&nprocs);
+  MPI_Comm_size(comm,&nprocs);  
 
 #ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
@@ -1855,6 +1855,26 @@ void MapReduce::print_stat(FILE *out){
   fprintf(out, "rank:%d", me); 
   fprintf(out, ",size:%d", nprocs);
   fprintf(out, ",thread:%d", tnum);
+
+  char hostname[1024+1];
+  hostname[1024] = '\0';
+  gethostname(hostname, 1024);
+  fprintf(out, ",hostname:%s", hostname);
+
+  char cmd[1024+1];
+  char ret[1024+1];
+  sprintf(cmd, "grep MemTotal /proc/meminfo | awk '{print $2}'");
+  //char *result=system(cmd);
+  FILE *in;
+  if(!(in = popen(cmd, "r"))){
+    exit(1);
+  }
+  while(fgets(ret, sizeof(ret), in)!=NULL){
+    fprintf(out, ",memory:%s", ret);
+  }
+  pclose(in);
+  //sprintf(stdout, "%s\n", result);
+
 #ifdef ENABLE_PROFILER
   fprintf(out, ",profiler:enable");
 #endif

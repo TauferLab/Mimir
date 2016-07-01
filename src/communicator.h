@@ -20,7 +20,9 @@
     datasize=0;\
   }\
   char *databuf = data->getblockbuffer(blocks[0]);\
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);\
   memcpy(databuf+datasize, recvbuf, recvcount);\
+  TRACKER_RECORD_EVENT(0, EVENT_MEM_COPY);\
   data->setblockdatasize(blocks[0], datasize+recvcount);\
 }
 

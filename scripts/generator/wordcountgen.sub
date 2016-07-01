@@ -1,17 +1,24 @@
-#!/bin/sh -l
+#!/bin/bash
+#SBATCH --partition=compute  
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --export=ALL  
+#SBATCH --ntasks-per-core=1
+#SBATCH -v -t 00:20:00
 
-DATAHOME=/scratch/rice/g/gao381
-INPUTDIR=words/20GB
-FULLNAME=512M.0.txt
+
+DATAHOME=/oasis/scratch/comet/taogao/temp_project
+INPUTDIR=words/onde_node
+FULLNAME=1.3M
 
 FULLNAME=$DATAHOME/$INPUTDIR/$FULLNAME
 
-cd $PBS_O_WORKDIR
-module load python/2.7.2
+#cd $PBS_O_WORKDIR
+#module load python/2.7.2
 
 python wordcountgen.py tmp.config.txt > $FULLNAME
 
-for((i=1;i<40;i++))
-do
-  cp $FULLNAME $DATAHOME/$INPUTDIR/512M.$i.txt
-done
+#for((i=1;i<40;i++))
+#do
+#  cp $FULLNAME $DATAHOME/$INPUTDIR/512M.$i.txt
+#done

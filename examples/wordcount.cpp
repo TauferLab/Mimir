@@ -24,7 +24,7 @@ int me, nprocs;
 int commmode=0;
 const char* inputsize="512M";
 const char* blocksize="512M";
-int sbufsize=32768;
+int sbufsize=21844;
 //const char* gbufsize="512M";
 const char* lbufsize="4K";
 
@@ -84,18 +84,20 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //t1 = MPI_Wtime();
+  double t1 = MPI_Wtime();
 
   char whitespace[20] = " \n";
   mr->map_text_file(filedir, 1, 1, whitespace, map, NULL);
 
-  //t2 = MPI_Wtime();
+  double t2 = MPI_Wtime();
 
   mr->reduce(countword, 0, NULL);
 
-  //t3 = MPI_Wtime();
+  double t3 = MPI_Wtime();
 
   MPI_Barrier(MPI_COMM_WORLD);
+
+  fprintf(stdout, "t=%lf\n", t3-t1); fflush(stdout);
 
   output("mtmr.wc", outdir, prefix, mr);
  

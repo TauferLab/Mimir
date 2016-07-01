@@ -28,6 +28,7 @@
 #define EVENT_PFS_SEEK           "event_pfs_seek"
 #define EVENT_PFS_READ           "event_pfs_read"
 #define EVENT_PFS_CLOSE          "event_pfs_close"
+#define EVENT_MEM_COPY           "event_mem_copy"
 // Timers
 #define TIMER_MAP_FOP            "timer_map_fop"
 #define TIMER_MAP_ATOMIC         "timer_map_atomic"
