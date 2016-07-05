@@ -12,4 +12,4 @@ SUBDIR=n1
 
 source common.h
 export OMP_NUM_THREADS=$NTHRS
-ibrun -v -bp=none -bl=core ./$EXE $INDIR/$SUBDIR $PREFIX $OUTDIR
+ibrun -v -bp=none -bl=core ./$EXE $INDIR $PREFIX $OUTDIR

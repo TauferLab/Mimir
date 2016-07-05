@@ -188,6 +188,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
+    gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
     mode = MapMode;
@@ -288,6 +289,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   //Communicator *c=NULL;
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
+    gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
     mode = MapMode;
@@ -551,6 +553,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   // create communicator
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
+    gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
     mode = MapMode;
@@ -806,6 +809,7 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   //Communicator *c=NULL;
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
+    gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(data);
     mode = MapMode;

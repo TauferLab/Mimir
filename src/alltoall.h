@@ -47,7 +47,8 @@ private:
   //uint64_t *recv_displs;
 
   int **recv_count;
-  char **recv_buf;     
+  //recv_blockid=-1;
+  //char **recv_buf;     
   uint64_t  *recvcounts;
   //int one_type_bytes;
   int type_log_bytes;

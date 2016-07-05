@@ -140,7 +140,7 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   recv_count = NULL;
   //send_displs = recv_displs = NULL;
 
-  recv_buf = NULL;
+  //recv_buf = NULL;
   recvcounts = NULL;
   
   reqs = NULL;
@@ -150,7 +150,7 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
 
 Alltoall::~Alltoall(){
   for(int i = 0; i < nbuf; i++){
-    if(recv_buf && recv_buf[i]) free(recv_buf[i]);
+    //if(recv_buf && recv_buf[i]) free(recv_buf[i]);
     if(recv_count && recv_count[i]) free(recv_count[i]);
   }
 
@@ -163,7 +163,7 @@ Alltoall::~Alltoall(){
   //delete [] comm_recv_buf;
 
   if(recv_count) delete [] recv_count;
-  if(recv_buf) delete [] recv_buf;
+  //if(recv_buf) delete [] recv_buf;
 
   //if(send_displs) delete [] send_displs;
   //if(recv_displs) delete [] recv_displs;
@@ -205,11 +205,11 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
   //comm_div_count=send_buf_size/comm_unit_size;  
   //if(comm_div_count<=0) comm_div_count=1;
 
-  recv_buf = new char*[nbuf];
+  //recv_buf = new char*[nbuf];
   recv_count  = new int*[nbuf];
 
   for(int i = 0; i < nbuf; i++){
-    recv_buf[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, total_send_buf_size);
+    //recv_buf[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, total_send_buf_size);
     recv_count[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
   }
 
@@ -587,8 +587,12 @@ void Alltoall::exchange_kv(){
   MPI_Type_commit(&comm_type);
 
 #ifdef MTMR_COMM_BLOCKING
-  MPI_Alltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
-    recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm);
+  blockid=data->add_block();
+  data->acquire_block(blockid);
+  char *recv_buf=data->getblockbuffer(blockid);
+  MPI_Alltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type,    recv_buf, a2a_r_count, a2a_r_displs, comm_type, comm);
+  data->setblockdatasize(blockid, recvcounts[ibuf]);
+  data->release_block(blockid);
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALLV);
 
@@ -596,9 +600,9 @@ void Alltoall::exchange_kv(){
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
-  if(recvcount > 0) { 
-    SAVE_ALL_DATA(ibuf);
-  }
+  //if(recvcount > 0) { 
+  //  SAVE_ALL_DATA(ibuf);
+  //}
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
