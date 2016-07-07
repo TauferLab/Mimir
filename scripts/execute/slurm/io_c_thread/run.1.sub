@@ -3,7 +3,7 @@
 #SBATCH --output="mtmr-mpi.%j.%N.out"  
 #SBATCH --partition=compute  
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=24
+#SBATCH --ntasks-per-node=12
 #SBATCH --export=ALL  
 #SBATCH --ntasks-per-core=1
 #SBATCH -v -t 00:20:00

@@ -1,7 +1,7 @@
 #/bin/bash
 settings=('io_c_thread')
 
-TIMES=20
+TIMES=10
 START=1
 END=1
 
