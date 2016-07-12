@@ -5,11 +5,11 @@ module load impi
 
 cd ../../../../src
 make clean
-make CFLAGS="-DUSE_MT_IO"
+make CFLAGS="-DUSE_MT_IO" CC=tau
 
 cd ../examples
 make clean
-make wordcount
+make wordcount CC=tau
 #make bfs
 
 cp ./wordcount $DIR

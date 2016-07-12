@@ -590,7 +590,11 @@ void Alltoall::exchange_kv(){
   blockid=data->add_block();
   data->acquire_block(blockid);
   char *recv_buf=data->getblockbuffer(blockid);
+  //double t1=MPI_Wtime();
+  //memset(recv_buf, 0, data->blocksize);
   MPI_Alltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type,    recv_buf, a2a_r_count, a2a_r_displs, comm_type, comm);
+  //double t2=MPI_Wtime();
+  //fprintf(stdout, "t=%lf\n", t2-t1);
   data->setblockdatasize(blockid, recvcounts[ibuf]);
   data->release_block(blockid);
 

@@ -19,12 +19,12 @@ void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 void output(const char *filename, const char *outdir, \
   const char *prefix, MapReduce *mr);
 
-#define PPN 12
+#define PPN 24
 int me, nprocs;
 int commmode=0;
 const char* inputsize="512M";
 const char* blocksize="512M";
-int sbufsize=43688;
+int sbufsize=21844;
 const char* gbufsize="512M";
 const char* lbufsize="4K";
 
@@ -36,7 +36,8 @@ int main(int argc, char *argv[])
   //MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   //if (provided < MPI_THREAD_FUNNELED){
   //  fprintf(stderr, "MPI don't support multithread!");
-  //  MPI_Abort(MPI_COMM_WORLD, 1);
+
+ //  MPI_Abort(MPI_COMM_WORLD, 1);
   //}
 
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
