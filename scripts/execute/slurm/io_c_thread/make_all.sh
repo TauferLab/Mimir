@@ -1,17 +1,21 @@
 DIR=$(pwd)
 echo $DIR
 
-module load impi
+CC=
+
+#module load impi
+
+which mpicxx
 
 cd ../../../../src
 make clean
-make CFLAGS="-DUSE_MT_IO" CC=tau
+make CFLAGS="-DUSE_MT_IO" CC=$CC
 
 cd ../examples
 make clean
-make wordcount CC=tau
-#make bfs
+make wordcount CC=$CC
+make bfs CC=$CC
 
 cp ./wordcount $DIR
-#cp ./bfs $DIR
+cp ./bfs $DIR
 cd $DIR

@@ -10,10 +10,14 @@
 
 using namespace MAPREDUCE_NS;
 
+#define PPN 24
+int me, nprocs;
 int commmode=0;
-int blocksize=128;
-int gbufsize=1024;
-int lbufsize=16;
+const char* inputsize="512M";
+const char* blocksize="512M";
+int sbufsize=21844;
+const char* gbufsize="512M";
+const char* lbufsize="4K";
 
 
 #define TEST_TIMES 10
@@ -72,8 +76,6 @@ typedef struct _bfs_state{
 
 bfs_state bfs_st; 
 
-int me, nprocs;
-
 double wtime[TEST_TIMES], teps[TEST_TIMES];
 
 #define MAX_LEVEL 10
@@ -83,9 +85,10 @@ FILE *rf=NULL;
 
 int main(int narg, char **args)
 {
-  int provided;
-  MPI_Init_thread(&narg, &args, MPI_THREAD_FUNNELED, &provided);
-  if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
+  //int provided;
+  MPI_Init(&narg, &args);
+  //MPI_Init_thread(&narg, &args, MPI_THREAD_FUNNELED, &provided);
+  //if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
 
 //  MPI_Init(&narg, &args);
 
@@ -117,18 +120,18 @@ int main(int narg, char **args)
   g->nlocalverts = g->nglobalverts / nprocs;
 
   //printf("");
-  if(narg > 3){
-    commmode=atoi(args[3]);
-  }
-  if(narg > 4){
-    blocksize=atoi(args[4]);
-  }
-  if(narg > 5){
-    gbufsize=atoi(args[5]);
-  }
-  if(narg > 6){
-    lbufsize=atoi(args[6]);
-  }
+  //if(narg > 3){
+  //  commmode=atoi(args[3]);
+  //}
+  //if(narg > 4){
+  //  blocksize=atoi(args[4]);
+  //}
+  // if(narg > 5){
+  //  gbufsize=atoi(args[5]);
+  //}
+  //if(narg > 6){
+  //  lbufsize=atoi(args[6]);
+  //}
 
   // create mapreduce
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
@@ -156,7 +159,7 @@ int main(int narg, char **args)
 
   // read edge list
   char whitespace[10]={"\n"};
-  uint64_t nedges = mr->map(args[2],1,0,whitespace,fileread,&bfs_st);
+  uint64_t nedges = mr->map_text_file(args[2],1,0,whitespace,fileread,&bfs_st);
   g->nglobaledges = nedges;
 
   //mr->output();
@@ -223,7 +226,7 @@ int main(int narg, char **args)
     //if(me==0)
     //  fprintf(stdout, "Traversal %d start. (root=%ld)\n", index, visit_roots[index]);
 
-    mr->init_stat();
+    //mr->init_stat();
 
     double map_t=0.0, convert_t=0.0, reduce_t=0.0;
     double start_t = MPI_Wtime();  
@@ -238,7 +241,7 @@ int main(int narg, char **args)
  
     //uint64_t nactives = 0;
     //mr->set_KVtype(FixedKV, ksize, ksize);
-    uint64_t count = mr->map(rootvisit, &bfs_st);
+    uint64_t count = mr->init_key_value(rootvisit, &bfs_st);
     if(count == 0) continue;
 
     //mr->output(2);
@@ -253,12 +256,12 @@ int main(int narg, char **args)
 //      mr->reduce(shrink, 0, &bfs_st);
 //#else
       double t2 = MPI_Wtime();
-      mr->map(mr, shrink_mm, &bfs_st, 0);
+      mr->map_key_value(mr, shrink_mm, &bfs_st, 0);
 //#endif
 
       double t3 = MPI_Wtime();
       
-      nactives[level] = mr->map(mr, expand, &bfs_st);
+      nactives[level] = mr->map_key_value(mr, expand, &bfs_st);
 
       //printf("actives=%d\n", nactives[level]); fflush(stdout);
 
@@ -312,8 +315,7 @@ int main(int narg, char **args)
       if(teps[i] < min_teps) min_teps = teps[i];
     }
 
-    fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, 
-      avg_teps, max_teps, min_teps);
+    //fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, avg_teps, max_teps, min_teps);
 
     fprintf(stdout, "process count=%d, vertex count=%ld, edge count=%ld\n", nprocs, g->nglobalverts, g->nglobaledges);
     //fprintf(stdout, "Results: average=%g, max=%g, min=%g\n", avg_teps, max_teps, min_teps);
@@ -413,8 +415,8 @@ void fileread(MapReduce *mr, char *line, void *ptr){
     if(strcmp(v0, v1) != 0){
       //line += linesize;
       //continue;
-      mr->add(v0, strlen(v0)+1, v1, strlen(v1)+1);
-      mr->add(v1, strlen(v1)+1, v0, strlen(v0)+1);
+      mr->add_key_value(v0, strlen(v0)+1, v1, strlen(v1)+1);
+      mr->add_key_value(v1, strlen(v1)+1, v0, strlen(v0)+1);
     }
 
     //line += linesize;
@@ -455,12 +457,12 @@ void countedge(char *key, int keybytes, char *value, int valuebyte, void* ptr){
 
   //printf("countedge, key=%s, n=%d\n", key, nvalues);
 
-#pragma omp atomic
+//#pragma omp atomic
   g->nlocaledges++;
 
   int64_t v0 = atoi(key)-1;
 
-#pragma omp atomic
+//#pragma omp atomic
   g->rowstarts[v0%(g->nlocalverts)+1]++;
 }
 
@@ -479,7 +481,7 @@ void rootvisit(MapReduce *mr, void *ptr){
     for(size_t p = g->rowstarts[root_local]; p < p_end; p++){
       int64_t v = g->columns[p];
       //printf("%ld, %ld\n", v, st->root);
-      mr->add((char*)&v, sizeof(int64_t), (char*)&(st->root), sizeof(int64_t));
+      mr->add_key_value((char*)&v, sizeof(int64_t), (char*)&(st->root), sizeof(int64_t));
     } 
   }
 }
@@ -494,7 +496,7 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
   size_t p_end = g->rowstarts[v_local+1];
   for(size_t p = g->rowstarts[v_local]; p < p_end; p++){
     int64_t v1 = g->columns[p];
-    mr->add((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
+    mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
   }
 }
 
@@ -513,7 +515,7 @@ void shrink(MapReduce *mr, char *key, int keybytes,  MultiValueIterator *iter, v
     if(SET_VISITED(v_local, st->vis)==0){
       //printf("key=%s, keybytes=%d\n", key, keybytes);
       st->pred[v_local] = v0;
-      mr->add(key, keybytes, NULL, 0);
+      mr->add_key_value(key, keybytes, NULL, 0);
     }
   }
 }
@@ -531,7 +533,7 @@ void shrink_mm(MapReduce *mr, char *key, int keybytes, char *value, int valuebyt
     if(SET_VISITED(v_local, st->vis)==0){
       //printf("%ld\n", v);
       st->pred[v_local] = v0;
-      mr->add(key, keybytes, NULL, 0);
+      mr->add_key_value(key, keybytes, NULL, 0);
     }
   }
 }

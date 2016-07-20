@@ -7,12 +7,25 @@
 #SBATCH --export=ALL  
 #SBATCH --ntasks-per-core=1
 #SBATCH -v -t 00:20:00
+#SBATCH --res=mahidhar_279
 
 SUBDIR=n1
 
 source common.h
+
+#mpiexec -n 24 -bind-to core hpcrun --event WALLCLOCK@400000 ./test_mpi_alltoallv --tmp-buf-size $1 --data-size 33554432 --iters 2
+
+#mpiexec -n 24 -bind-to core hpcrun --event WALLCLOCK@400000 ./$EXE $INDIR $PREFIX $OUTDIR
+
+#mpiexec -n 24 -bind-to core hpcrun --tracestore memory --event MEMLEAK ./$EXE $INDIR $PREFIX $OUTDIR
+
+#export TAU_TRACK_HEAP=1 
+#export TAU_CALLPATH=1 
+#export TAU_CALLPATH_DEPTH=100 
+mpiexec -n 24 -bind-to core ./$EXE $INDIR $PREFIX $OUTDIR
+
 #export OMP_NUM_THREADS=$NTHRS
-export MV2_ENABLE_AFFINITY=1
-export MV2_CPU_BINDING_LEVEL=core
-export MV2_SHOW_CPU_BINDING=1
-ibrun -v -bp=none ./$EXE $INDIR $PREFIX $OUTDIR
+#export MV2_ENABLE_AFFINITY=1
+#export MV2_CPU_BINDING_LEVEL=core
+#export MV2_SHOW_CPU_BINDING=1
+#ibrun -v -bp=none ./$EXE $INDIR $PREFIX $OUTDIR

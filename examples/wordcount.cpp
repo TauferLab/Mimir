@@ -85,16 +85,16 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  double t1 = MPI_Wtime();
+  //double t1 = MPI_Wtime();
 
   char whitespace[20] = " \n";
   mr->map_text_file(filedir, 1, 1, whitespace, map, NULL);
 
-  double t2 = MPI_Wtime();
+  //double t2 = MPI_Wtime();
 
   mr->reduce(countword, 0, NULL);
 
-  double t3 = MPI_Wtime();
+  //double t3 = MPI_Wtime();
 
   MPI_Barrier(MPI_COMM_WORLD);
 
