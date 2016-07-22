@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 
   //double t2 = MPI_Wtime();
 
-  mr->reduce(countword, 0, NULL);
+  mr->reduce(countword, 1, NULL);
 
   //double t3 = MPI_Wtime();
 
