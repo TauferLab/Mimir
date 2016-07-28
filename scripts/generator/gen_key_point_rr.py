@@ -6,6 +6,8 @@ import sys
 import glob
 import os
 
+outdir="/oasis/scratch/comet/taogao/temp_project/octree/1S/"
+
 ###############generate different data configurations###########################
 ###############python gen_key_point_rr.py key 1024 (number of nodes) 1 (0 0 0 100 (number of points per node) normal) ## if num cluster =2, repeat the pars in ()##
 ###########parse command line arguments##############
@@ -74,7 +76,7 @@ def gen_key_from_coord(b0, b1, b2,range_min,range_max,num_digit):
 num_digit=15
 range_min=-4
 range_max=4
-stdiv=0.01
+stdiv=0.5
 
 ###################generate keys for each node (file)###############
 
@@ -89,10 +91,10 @@ for cluster in cluster_centers: #if there are multiple clusters in the data
     
     
     for node_id in range(0,num_nodes): #0,1,...1023
-        point_file=key_file_prefix+'points'+`node_id`+'.txt';
-        point_fid=open(point_file,'a');
-        key_file=key_file_prefix+'keys'+`node_id`+'.txt'; #index is the index of multiple cluster
-        key_fid=open(key_file,'a');
+        point_file=key_file_prefix+'.points'+`node_id`+'.txt';
+        point_fid=open(outdir+point_file,'a');
+        key_file=key_file_prefix+'.keys'+`node_id`+'.txt'; #index is the index of multiple cluster
+        key_fid=open(outdir+key_file,'a');
     
         point_count=0;
 

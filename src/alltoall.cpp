@@ -30,7 +30,7 @@ using namespace MAPREDUCE_NS;
 }
 #endif
 
-#if 0
+#if 1
 #define SAVE_ALL_DATA(ii) \
 {\
   int k=0;\
@@ -80,7 +80,7 @@ using namespace MAPREDUCE_NS;
 }
 #endif
 
-#if 1
+#if 0
 #define SAVE_ALL_DATA(ii) \
 {\
   char *src_buf=NULL, *dst_buf=NULL;\
@@ -518,9 +518,9 @@ void Alltoall::wait(){
        PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);      
-       if(recvcount > 0) {
-         SAVE_ALL_DATA(i);
-       }
+       //if(recvcount > 0) {
+       //  SAVE_ALL_DATA(i);
+       //}
      }
    }
 #endif
@@ -611,8 +611,15 @@ void Alltoall::exchange_kv(){
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
 #else 
+  blockid=data->add_block();
+  data->acquire_block(blockid);
+  char *recv_buf=data->getblockbuffer(blockid);
+
   MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
-    recv_buf[ibuf], a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
+    recv_buf, a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
+
+  data->setblockdatasize(blockid, recvcounts[ibuf]);
+  data->release_block(blockid);
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_IALLTOALLV);
 
@@ -632,9 +639,9 @@ void Alltoall::exchange_kv(){
     //printf("ibuf=%d, recvcount=%d\n", ibuf, recvcount); fflush(stdout);
 
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
-    if(recvcount > 0) { 
-      SAVE_ALL_DATA(ibuf);
-    }
+    //if(recvcount > 0) { 
+    //  SAVE_ALL_DATA(ibuf);
+    //}
 
     TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   }

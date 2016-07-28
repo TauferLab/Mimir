@@ -5,10 +5,10 @@ else
   CPP=mpicxx
 endif
 #
-#CFLAGS = -fopenmp -Wall -g -O1 -I../src
-#LFLAGS = -fopenmp -L ../src 
-CFLAGS = -Wall -g -O3 -I../src
-LFLAGS = -L ../src 
+CFLAGS = -fopenmp -Wall -g -O1 -I../src
+LFLAGS = -fopenmp -L ../src 
+#CFLAGS = -Wall -g -O3 -I../src
+#LFLAGS = -L ../src 
   
 USERLIBS = -lmrmpi
 all: wordcount bfs bfs_mm octree_move_lg

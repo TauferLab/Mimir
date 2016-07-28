@@ -588,6 +588,8 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   for(int i = 0; i < fcount; i++){
     int64_t input_char_size=0;
 
+    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
     // Open file
 #ifdef USE_MPI_IO
     int ibuf=0;
@@ -605,6 +607,8 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
     FILE *fp = fopen(ifiles[i].c_str(), "r");
 #endif
 
+    TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
+
     //TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
 
 #ifdef USE_MPI_IO
@@ -621,6 +625,8 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
     int64_t readsize=0;
 
     do{
+      TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
 #ifdef USE_MPI_IO
 
 #ifdef USE_MPI_ASYN_IO
@@ -646,6 +652,10 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
       fseek(fp, foff, SEEK_SET);   
       readsize = fread(text+boff, 1, input_buffer_size, fp);
 #endif
+
+      TRACKER_RECORD_EVENT(0, EVENT_PFS_READ);
+      PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_SIZE, readsize); 
+
       // read a block
       text[boff+readsize] = '\0';
       input_char_size = boff+readsize;
@@ -732,12 +742,16 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 
    }while(foff<fsize);
 
+    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
     // Close file
 #ifdef USE_MPI_IO
     MPI_File_close(&fp);
 #else   
     fclose(fp);
 #endif
+
+    TRACKER_RECORD_EVENT(0, EVENT_PFS_CLOSE);
 
     LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
   }
@@ -2081,7 +2095,10 @@ int64_t MapReduce::_stringtoint(const char *_str){
 
 // distribute input file list
 void MapReduce::_disinputfiles(const char *filepath, int sharedflag, int recurse){
+
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
   _getinputfiles(filepath, sharedflag, recurse);
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_GET_INPUT);
 
   if(sharedflag){
     int fcount = ifiles.size();

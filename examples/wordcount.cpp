@@ -19,13 +19,13 @@ void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 void output(const char *filename, const char *outdir, \
   const char *prefix, MapReduce *mr);
 
-#define PPN 24
+#define PPN 2
 int me, nprocs;
 int commmode=0;
 const char* inputsize="512M";
 const char* blocksize="512M";
-int sbufsize=21844;
-const char* gbufsize="512M";
+int sbufsize=21840;
+//const char* gbufsize="64M";
 const char* lbufsize="4K";
 
 int main(int argc, char *argv[])
@@ -82,6 +82,8 @@ int main(int argc, char *argv[])
 #endif
 
   mr->set_outofcore(0);
+
+  mr->set_KVtype(StringKV);
 
   MPI_Barrier(MPI_COMM_WORLD);
 

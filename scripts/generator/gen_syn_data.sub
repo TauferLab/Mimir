@@ -1,17 +1,19 @@
-#!/bin/sh -l
-#FILENAME:  mpi_hello.sub
+#!/bin/bash
+#SBATCH --job-name="mtmr-mpi"  
+#SBATCH --output="mtmr-mpi.%j.%N.out"  
+#SBATCH --partition=compute  
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --export=ALL  
+#SBATCH --ntasks-per-core=1
+#SBATCH -v -t 00:20:00
+#SBATCH --res=mahidhar_279
 
 NFILE=10
 COUNT=27769
 
 PREFIX=rr
 
-cd $PBS_O_WORKDIR
+python gen_key_point_rr.py $PREFIX $NFILE 1 0 0 0 $COUNT normal 
+./gen_syn_data.sh one_ligand.txt 0 $NFILE /oasis/scratch/comet/taogao/temp_project/octree/1S $PREFIX
 
-#curl http://textbelt.com/text -d number=3022900216 -d "message=ligand generate jobs on rice start!"
-
-python gen_key_point_rr.py $PREFIX. $NFILE 1 0 0 0 $COUNT normal 
-./gen_syn_data.sh one_ligand.txt 0 $NFILE ./ $PREFIX
-
-#curl http://textbelt.com/text -d number=3022900216 -d "message=ligand generate jobs on rice end!"
-`

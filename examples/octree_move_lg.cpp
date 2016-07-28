@@ -172,31 +172,31 @@ void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int va
   mr->add_key_value(key, level, NULL, 0);
 }
 
-void thread_generate_octkey(MapReduce *mr, char *fname, void *ptr){
-  struct stat stbuf;
-  int flag = stat(fname,&stbuf);
-  if (flag < 0) {
-    printf("ERROR: Could not query file size\n");
-    MPI_Abort(MPI_COMM_WORLD,1);
-  }
-  int filesize = stbuf.st_size;
+void thread_generate_octkey(MapReduce *mr, char *str, void *ptr){
+  //struct stat stbuf;
+  //int flag = stat(fname,&stbuf);
+  //if (flag < 0) {
+  //  printf("ERROR: Could not query file size\n");
+  //  MPI_Abort(MPI_COMM_WORLD,1);
+  //}
+  //int filesize = stbuf.st_size;
 
-  FILE *fp = fopen(fname,"r");
-  char *text = new char[filesize+1];
+  //FILE *fp = fopen(fname,"r");
+  //char *text = new char[filesize+1];
 
-  int nchar = fread(text,1,filesize,fp);
-  text[nchar] = '\0';
-  fclose(fp);
+  //int nchar = fread(text,1,filesize,fp);
+  //text[nchar] = '\0';
+  //fclose(fp);
 
-  char *saveptr = NULL;
-  char whitespace[20] = "\n";
-  char *word = strtok_r(text,whitespace,&saveptr);
-  while (word) {
-    generate_octkey(mr, word, ptr);
-    word = strtok_r(NULL,whitespace,&saveptr);
-  }
+  //char *saveptr = NULL;
+  //char whitespace[20] = "\n";
+  //char *word = strtok_r(text,whitespace,&saveptr);
+  //while (word) {
+  generate_octkey(mr, str, ptr);
+    //word = strtok_r(NULL,whitespace,&saveptr);
+  //}
 
-  delete [] text;
+  //delete [] text;
 }
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)

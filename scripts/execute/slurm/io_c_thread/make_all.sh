@@ -9,7 +9,7 @@ which mpicxx
 
 cd ../../../../src
 make clean
-make CFLAGS="-DUSE_MT_IO" CC=$CC
+make CC=$CC
 
 cd ../examples
 make clean

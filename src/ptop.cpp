@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef MTMR_MULTITHREAD
-#include <omp.h>
-#endif
-
 #include "log.h"
 #include "config.h"
 #include "ptop.h"
+
+#ifdef MTMR_MULTITHREAD
+#include <omp.h>
+#endif
 
 #include "const.h"
 
