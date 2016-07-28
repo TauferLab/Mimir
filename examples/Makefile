@@ -1,20 +1,22 @@
-#CPP = mpicxx
 ifeq ($(CC),tau)
   CPP =tau_cxx.sh
 else
   CPP=mpicxx
 endif
-#
-CFLAGS = -fopenmp -Wall -g -O1 -I../src
-LFLAGS = -fopenmp -L ../src 
-#CFLAGS = -Wall -g -O3 -I../src
-#LFLAGS = -L ../src 
-  
+CC=openmp
+ifeq ($(CC),mp)
+  CFLAGS = -fopenmp -Wall -g -O3 -I../src
+  LFLAGS = -fopenmp -L ../src 
+else
+  CFLAGS = -Wall -g -O3 -I../src
+  LFLAGS = -L ../src
+endif
+
 USERLIBS = -lmrmpi
 all: wordcount bfs bfs_mm octree_move_lg
 
 wordcount: wordcount.o
-	$(CPP) $(CFLAGS) $(LFLAGS) wordcount.o $(USERLIBS) -o wordcount 
+	$(CPP) $(CFLAGS) $(LFLAGS) wordcount.o $(USERLIBS) -o wordcount
 
 #wordcount_m: wordcount_m.o
 #	$(CPP) $(CFLAGS) $(LFLAGS) wordcount_m.o $(USERLIBS) -o wordcount_m

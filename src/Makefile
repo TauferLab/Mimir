@@ -10,8 +10,11 @@ else
   CPPLINK = mpicxx
 endif
 DEBUG = -g
-local_CFLAGS = -fopenmp $(DEBUG) -O2  -DENABLE_PROFILER -DENABLE_TRACKER
-#local_CFLAGS = $(DEBUG) -O3  -DENABLE_PROFILER -DENABLE_TRACKER
+ifeq ($(CC),mp)
+  local_CFLAGS = -fopenmp $(DEBUG) -O2  -DENABLE_PROFILER -DENABLE_TRACKER
+else
+  local_CFLAGS = $(DEBUG) -O3  -DENABLE_PROFILER -DENABLE_TRACKER
+endif
 #local_CFLAGS = $(DEBUG) -O2
 LFLAGS = 
 ARCHIEVE = ar

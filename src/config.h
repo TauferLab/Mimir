@@ -5,7 +5,7 @@
 //#define USE_MPI_IO
 //#define USE_MPI_ASYN_IO
 
-#define MTMR_MULTITHREAD
+//#define MTMR_MULTITHREAD
 //#define MTMR_COMM_BLOCKING
 
 #define UNIT_1G_SIZE  (1024*1024*1024)
