@@ -48,7 +48,9 @@ private:
 
   int **recv_count;
   //recv_blockid=-1;
-  //char **recv_buf;     
+#ifndef MTMR_ZERO_COPY
+  char **recv_bufs;
+#endif  
   uint64_t  *recvcounts;
   //int one_type_bytes;
   int type_log_bytes;

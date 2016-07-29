@@ -7,6 +7,7 @@
 
 //#define MTMR_MULTITHREAD
 //#define MTMR_COMM_BLOCKING
+//#define MTMR_ZERO_COPY
 
 #define UNIT_1G_SIZE  (1024*1024*1024)
 #define MAX_COMM_SIZE       0x40000000

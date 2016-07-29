@@ -163,7 +163,10 @@ Alltoall::~Alltoall(){
   //delete [] comm_recv_buf;
 
   if(recv_count) delete [] recv_count;
-  //if(recv_buf) delete [] recv_buf;
+
+#ifndef MTMR_ZERO_COPY
+  if(recv_bufs) delete [] recv_bufs;
+#endif
 
   //if(send_displs) delete [] send_displs;
   //if(recv_displs) delete [] recv_displs;
@@ -205,11 +208,15 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
   //comm_div_count=send_buf_size/comm_unit_size;  
   //if(comm_div_count<=0) comm_div_count=1;
 
-  //recv_buf = new char*[nbuf];
+#ifndef MTMR_ZERO_COPY
+  recv_bufs = new char*[nbuf];
+#endif
   recv_count  = new int*[nbuf];
 
   for(int i = 0; i < nbuf; i++){
-    //recv_buf[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, total_send_buf_size);
+#ifndef MTMR_ZERO_COPY
+    recv_buf[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, total_send_buf_size);
+#endif
     recv_count[i] = (int*)mem_aligned_malloc(MEMPAGE_SIZE, size*sizeof(int));
   }
 
@@ -518,9 +525,11 @@ void Alltoall::wait(){
        PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);      
-       //if(recvcount > 0) {
-       //  SAVE_ALL_DATA(i);
-       //}
+#ifndef MTMR_ZERO_COPY
+       if(recvcount > 0) {
+         SAVE_ALL_DATA(i);
+       }
+#endif
      }
    }
 #endif
@@ -587,16 +596,21 @@ void Alltoall::exchange_kv(){
   MPI_Type_commit(&comm_type);
 
 #ifdef MTMR_COMM_BLOCKING
+
+#ifdef MTMR_ZERO_COPY
   blockid=data->add_block();
   data->acquire_block(blockid);
   char *recv_buf=data->getblockbuffer(blockid);
-  //double t1=MPI_Wtime();
-  //memset(recv_buf, 0, data->blocksize);
+#else
+  char *recv_buf=recv_bufs[ibuf];
+#endif
+
   MPI_Alltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type,    recv_buf, a2a_r_count, a2a_r_displs, comm_type, comm);
-  //double t2=MPI_Wtime();
-  //fprintf(stdout, "t=%lf\n", t2-t1);
+
+#ifdef MTMR_ZERO_COPY
   data->setblockdatasize(blockid, recvcounts[ibuf]);
   data->release_block(blockid);
+#endif
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALLV);
 
@@ -604,22 +618,32 @@ void Alltoall::exchange_kv(){
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
   LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
-  //if(recvcount > 0) { 
-  //  SAVE_ALL_DATA(ibuf);
-  //}
+
+#ifndef MTMR_ZERO_COPY
+  if(recvcount > 0) { 
+    SAVE_ALL_DATA(ibuf);
+  }
+#endif
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
 #else 
+
+#ifdef MTMR_ZERO_COPY
   blockid=data->add_block();
   data->acquire_block(blockid);
   char *recv_buf=data->getblockbuffer(blockid);
+#else
+  char *recv_buf=recv_bufs[ibuf];
+#endif
 
   MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
     recv_buf, a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
 
+#ifdef MTMR_ZERO_COPY
   data->setblockdatasize(blockid, recvcounts[ibuf]);
   data->release_block(blockid);
+#endif
 
   TRACKER_RECORD_EVENT(0, EVENT_COMM_IALLTOALLV);
 
@@ -639,9 +663,12 @@ void Alltoall::exchange_kv(){
     //printf("ibuf=%d, recvcount=%d\n", ibuf, recvcount); fflush(stdout);
 
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
-    //if(recvcount > 0) { 
-    //  SAVE_ALL_DATA(ibuf);
-    //}
+
+#ifndef MTMR_ZERO_COPY
+    if(recvcount > 0) { 
+      SAVE_ALL_DATA(ibuf);
+    }
+#endif
 
     TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   }
