@@ -102,7 +102,7 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
   //}
 
   thread_buf_size = _tbufsize;
-  send_buf_size = _sbufsize;
+  send_buf_size = (_sbufsize/MEMPAGE_SIZE/size)*MEMPAGE_SIZE;
 
   if(thread_buf_size>send_buf_size){
     LOG_ERROR("Error: thread local buffer size (%ld per process) cannot be larger than send buffer size (%ld per process)!", \

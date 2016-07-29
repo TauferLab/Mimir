@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string>
 #include <vector>
 #include <mpi.h>
@@ -66,6 +67,9 @@ public:
   void set_blocksize(const char *_blocksize){
     blocksize = _stringtoint(_blocksize);
   }
+  void set_nbucket(int _nbucket){
+    nbucket = pow(2,_nbucket);
+  }
   void set_inputsize(const char *_inputsize){
     inputsize = _stringtoint(_inputsize);
   }
@@ -87,8 +91,12 @@ public:
   void set_outofcore(int _flag){
     outofcore = _flag;
   }
-  void set_commmode(int _commmode){
-    commmode = _commmode;
+  void set_commmode(const char* _commmode){
+    commmode = -1;
+    if(strcmp(_commmode,"a2a")==0)
+      commmode = 0;
+    else if(strcmp(_commmode, "p2p")==0)
+      commmode = 1;
   }
   void set_hash(int (*_myhash)(char *, int)){
     myhash = _myhash;

@@ -165,7 +165,7 @@ Alltoall::~Alltoall(){
   if(recv_count) delete [] recv_count;
 
 #ifndef MTMR_ZERO_COPY
-  if(recv_bufs) delete [] recv_bufs;
+  if(recv_buf) delete [] recv_buf;
 #endif
 
   //if(send_displs) delete [] send_displs;
@@ -209,7 +209,7 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
   //if(comm_div_count<=0) comm_div_count=1;
 
 #ifndef MTMR_ZERO_COPY
-  recv_bufs = new char*[nbuf];
+  recv_buf = new char*[nbuf];
 #endif
   recv_count  = new int*[nbuf];
 
@@ -600,12 +600,12 @@ void Alltoall::exchange_kv(){
 #ifdef MTMR_ZERO_COPY
   blockid=data->add_block();
   data->acquire_block(blockid);
-  char *recv_buf=data->getblockbuffer(blockid);
+  char *recvbuf=data->getblockbuffer(blockid);
 #else
-  char *recv_buf=recv_bufs[ibuf];
+  char *recvbuf=recv_buf[ibuf];
 #endif
 
-  MPI_Alltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type,    recv_buf, a2a_r_count, a2a_r_displs, comm_type, comm);
+  MPI_Alltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, recvbuf, a2a_r_count, a2a_r_displs, comm_type, comm);
 
 #ifdef MTMR_ZERO_COPY
   data->setblockdatasize(blockid, recvcounts[ibuf]);
@@ -632,13 +632,13 @@ void Alltoall::exchange_kv(){
 #ifdef MTMR_ZERO_COPY
   blockid=data->add_block();
   data->acquire_block(blockid);
-  char *recv_buf=data->getblockbuffer(blockid);
+  char *recvbuf=data->getblockbuffer(blockid);
 #else
-  char *recv_buf=recv_bufs[ibuf];
+  char *recvbuf=recv_buf[ibuf];
 #endif
 
   MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
-    recv_buf, a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
+    recvbuf, a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
 
 #ifdef MTMR_ZERO_COPY
   data->setblockdatasize(blockid, recvcounts[ibuf]);

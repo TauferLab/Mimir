@@ -21,12 +21,12 @@ void output(const char *filename, const char *outdir, \
 
 //#define PPN 2
 int me, nprocs;
-int commmode=0;
+int nbucket=17;
 const char* inputsize="512M";
-const char* blocksize="512M";
-int sbufsize=21840;
+const char* blocksize="64M";
 const char* gbufsize="64M";
 const char* lbufsize="4K";
+const char* commmode="a2a";
 
 int main(int argc, char *argv[])
 {
@@ -71,14 +71,12 @@ int main(int argc, char *argv[])
 
 #if 1
   mr->set_threadbufsize(lbufsize);
-  //char gbufsize[100];
-  //sbufsize=sbufsize/(nprocs/PPN);
-  //sprintf(gbufsize, "%dK", sbufsize);
   mr->set_sendbufsize(gbufsize); 
   mr->set_blocksize(blocksize);
   mr->set_inputsize(inputsize);
-  mr->set_maxmem(32);
   mr->set_commmode(commmode);
+  mr->set_nbucket(nbucket);
+  mr->set_maxmem(32);
 #endif
 
   mr->set_outofcore(0);
@@ -138,10 +136,11 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
   char tmp[1000];
 
-  char gbufsize[1024];
-  sprintf(gbufsize, "%dM", sbufsize*nprocs/1024);
+  //char gbufsize[1024];
+  //sprintf(gbufsize, "%dM", sbufsize*nprocs/1024);
   
-  sprintf(tmp, "%s/mtmr.wc.%s.%s.%s.%s.%s.%d.%d.%d.txt", outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, commmode, nprocs, me); 
+  sprintf(tmp, "%s/mtmrmpi-wc-%s-l%s-c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
+    outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, me); 
 
   FILE *fp = fopen(tmp, "w+");
   mr->print_stat(fp);
@@ -155,9 +154,11 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
     char timestr[1024];
     sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     char infile[1024+1];
-    sprintf(infile, "%s/mtmr.wc.%s.%s.%s.%s.%s.%d.%d.*.txt", outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, commmode, nprocs); 
+    sprintf(infile, "%s/mtmrmpi-wc-%s-l%s-c%s-b%s-i%s-h%d-%s.%d.*.txt", \
+      outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
     char outfile[1024+1];
-    sprintf(outfile, "%s/mtmr.wc.%s.%s.%s.%s.%s.%d.%d_%s.txt", outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, commmode, nprocs, timestr);  
+    sprintf(outfile, "%s/mtmrmpi-wc-%s-l%s-c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
+      outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, timestr);  
     char cmd[8192+1];
     sprintf(cmd, "cat %s>>%s", infile, outfile);
     system(cmd);

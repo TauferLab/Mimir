@@ -49,7 +49,7 @@ private:
   int **recv_count;
   //recv_blockid=-1;
 #ifndef MTMR_ZERO_COPY
-  char **recv_bufs;
+  char **recv_buf;
 #endif  
   uint64_t  *recvcounts;
   //int one_type_bytes;
