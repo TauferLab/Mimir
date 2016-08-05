@@ -126,10 +126,13 @@ using namespace MAPREDUCE_NS;
 
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
   int provided;
-  //MPI_Query_thread(&provided);
-  //if(provided < MPI_THREAD_FUNNELED){
-  //  LOG_ERROR("%s", "Error: MPI_THREAD_FUNNELED mode should be supported!\n");
-  //}
+
+#ifdef MTMR_MULTITHREAD 
+  MPI_Query_thread(&provided);
+  if(provided < MPI_THREAD_FUNNELED){
+    LOG_ERROR("%s", "Error: MPI_THREAD_FUNNELED mode should be supported!\n");
+  }
+#endif
 
   switchflag = 0;
 
@@ -187,6 +190,8 @@ Alltoall::~Alltoall(){
  *   nbuf: pipeline buffer count
  */
 int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
+
+  //printf("sbufsize=%ld\n", _sbufsize);
 
   Communicator::setup(_tbufsize, _sbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
@@ -285,13 +290,17 @@ int Alltoall::sendKV(int tid, int target, char *key, int keysize, char *val, int
   }
 #endif
 
+  //LOG_PRINT(DBG_COMM, "%d[%d] Comm: sendKV key=%s value=%s.\n", rank, size, key, val);
+
   int kvsize = 0;
   GET_KV_SIZE(kvtype, keysize, valsize, kvsize);
 
+#ifdef MTMR_MULTITHREAD
 #if SAFE_CHECK
   if(kvsize > thread_buf_size){
     LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%ld)\n", kvsize, thread_buf_size);
   }
+#endif
 #endif
 
   /* copy kv into local buffer */

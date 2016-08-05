@@ -6,14 +6,16 @@
 #SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL  
 #SBATCH --ntasks-per-core=1
-#SBATCH -v -t 00:20:00
+#SBATCH -v -t 01:00:00
 #SBATCH --res=mahidhar_279
 
-NFILE=10
-COUNT=27769
+NFILE=24
+COUNT=682666
 
 PREFIX=rr
+OUTDIR=/oasis/scratch/comet/taogao/temp_project/octree/1S/32M/
 
-python gen_key_point_rr.py $PREFIX $NFILE 1 0 0 0 $COUNT normal 
-./gen_syn_data.sh one_ligand.txt 0 $NFILE /oasis/scratch/comet/taogao/temp_project/octree/1S $PREFIX
-
+python gen_key_point_rr.py $PREFIX $OUTDIR $NFILE 1 0 0 0 $COUNT normal 
+./gen_syn_data.sh one_ligand.txt 0 $NFILE $OUTDIR $PREFIX
+rm $OUTDIR/$PREFIX.keys*
+rm $OUTDIR/$PREFIX.points*

@@ -101,6 +101,8 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
   //  LOG_ERROR("%s", "Error: the send buffer size should be divided into processes evently!");
   //}
 
+  //printf("sbufsize=%ld\n", _sbufsize);
+
   thread_buf_size = _tbufsize;
   send_buf_size = (_sbufsize/MEMPAGE_SIZE/size)*MEMPAGE_SIZE;
 

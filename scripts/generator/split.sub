@@ -1,13 +1,19 @@
-cd $PBS_O_WORKDIR
-
-#INPUT=/scratch/rice/g/gao381/wikipedia/wikipedia_300GB
-INPUT=/scratch/rice/g/gao381/wikipedia/wikipedia_300GB
-OUTPUT=/scratch/rice/g/gao381/wikipedia/512M_300GB
-PREFIX=512M
-FSIZE=512
+#!/bin/bash
+#SBATCH --job-name="mtmr-mpi"  
+#SBATCH --output="mtmr-mpi.%j.%N.out"  
+#SBATCH --partition=compute  
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --export=ALL  
+#SBATCH --ntasks-per-core=1
+#SBATCH -v -t 01:00:00
+#
+INPUT=/oasis/scratch/comet/taogao/temp_project/words/wikipedia/wikipedia_150GB
+OUTPUT=/oasis/scratch/comet/taogao/temp_project/words/wikipedia/onenode/96G
+PREFIX=1
+FSIZE=1431655834
 SIDX=0
-NFILE=1000
-THRS=20
+NFILE=72
+THRS=24
 
 OMP_NUM_THREADS=$THRS ./split_text_files $INPUT $OUTPUT $PREFIX $FSIZE $SIDX $NFILE
-

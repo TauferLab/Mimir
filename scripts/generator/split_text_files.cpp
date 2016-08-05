@@ -12,8 +12,8 @@
 #include <string>
 
 #define MAXLINE 2048
-#define CHUNK_UNIT (1024*1024)
-//#define CHUNK_UNIT 1
+//#define CHUNK_UNIT (1024*1024)
+#define CHUNK_UNIT 1
 
 // get file list
 void get_file_list(const char *filepath,int recurse);
@@ -29,7 +29,8 @@ int main(int argc, char *argv[]){
   char *filepath=argv[1];
   char *outpath=argv[2];
   char *outprefix=argv[3];
-  int chunksize=atoi(argv[4]);
+  //int64_t chunksize=atoi(argv[4]);
+  int64_t chunksize = strtoll(argv[4], NULL, 10);
   int startidx=atoi(argv[5]);
   int maxnfile=atoi(argv[6]);
 

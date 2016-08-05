@@ -1,6 +1,7 @@
 num_words:100000
+num_lines:4194304
 
-num_lines:5461
+words_dist:triangular
 
 length_mean:6
 length_sd:1

@@ -256,7 +256,7 @@ int DataObject::add_block(){
     }
   }
 
-  LOG_ERROR("%s", "Error: memory size is larger than max size!\n");
+  LOG_ERROR("Error: memory size is larger than max size!blockid=%d\n", blockid);
   return -1;
 }
 

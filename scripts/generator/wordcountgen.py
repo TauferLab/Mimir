@@ -5,6 +5,8 @@ import random
 import string
 import itertools
 
+# from itertools import combinations_with_replacement
+
 ### FUNCTIONS ###
 
 def get_dist_value(conf, var):
@@ -67,17 +69,29 @@ num_words = int(conf["num_words"])
 for i in xrange(num_words):
     wordlen = get_dist_value(conf, "length")
 
-    if wordlen not in word_combs:
-        word_combs[wordlen] = itertools.combinations_with_replacement(alphabet, wordlen)
+    #if wordlen not in word_combs:
+    #    word_combs[wordlen] = itertools.combinations_with_replacement(alphabet, wordlen)
 
-    words.append(word_combs[wordlen].next())
+    word = ""
+    while True:
+      for i in range(0,wordlen):
+        word+=alphabet[random.randint(0, len(alphabet)-1)]
+      if word not in words:
+        break
+
+    #words.append(word_combs[wordlen].next())
+    words.append(word)
+
+#print "generate unique words: ",len(words)
+
+words_dist=conf["words_dist"]
 
 # convert char tuples to strings
-for i in xrange(len(words)):
-    s = ""
-    for j in xrange(len(words[i])):
-        s += words[i][j]
-    words[i] = s
+#for i in xrange(len(words)):
+#    s = ""
+#    for j in xrange(len(words[i])):
+#        s += words[i][j]
+#    words[i] = s
 
 # generate file
 bytes_left = int(conf["num_lines"])*int(conf["chars_per_line_mean"])
@@ -89,7 +103,12 @@ while True:
 
     # fill line with words
     while curlen < chars_per_line:
-        w = words[random.randint(0, len(words)-1)] + " "
+        w = ""
+        if words_dist=="uniform":
+          w = words[random.randint(0, len(words)-1)] + " "
+          #print w
+        elif words_dist=='triangular':
+          w = words[int(round(random.triangular(0, len(words)-1, 0)))] + " "
         wlen = len(w)
         if curlen + wlen >= bytes_left:
             curline += w

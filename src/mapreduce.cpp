@@ -188,7 +188,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
-    gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
+    //gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
     mode = MapMode;
@@ -289,7 +289,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   //Communicator *c=NULL;
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
-    gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
+    //gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
     mode = MapMode;
@@ -553,7 +553,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   // create communicator
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
-    gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
+    //gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
     mode = MapMode;
@@ -710,9 +710,6 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 #pragma omp parallel
 {
       int tid = omp_get_thread_num();
-#else
-      int tid = 0;
-#endif
 
       char *saveptr = NULL;
       char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
@@ -721,9 +718,15 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
         word = strtok_r(NULL,whitespace,&saveptr);
       }
 
-#ifdef MTMR_MULTITHREAD 
       if(_comm) c->tpoll(tid);
 }
+#else
+      int tid = 0;
+      char *word = strtok(text+tstart[tid], whitespace);
+      while(word){
+        mymap(this, word, ptr);
+        word = strtok(NULL,whitespace);
+      }
 #endif
 
       // Prepare for next buffer
@@ -823,7 +826,7 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   //Communicator *c=NULL;
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
-    gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
+    //gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(data);
     mode = MapMode;

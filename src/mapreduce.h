@@ -78,6 +78,7 @@ public:
   }
   void set_sendbufsize(const char* _sbufsize){
     gbufsize = _stringtoint(_sbufsize);
+    //printf("gbufsize=%ld\n", gbufsize);
   }
   void set_maxblocks(int _nmaxblock){
     nmaxblock = _nmaxblock;

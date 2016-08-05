@@ -6,17 +6,17 @@ import sys
 import glob
 import os
 
-outdir="/oasis/scratch/comet/taogao/temp_project/octree/1S/"
-
 ###############generate different data configurations###########################
 ###############python gen_key_point_rr.py key 1024 (number of nodes) 1 (0 0 0 100 (number of points per node) normal) ## if num cluster =2, repeat the pars in ()##
 ###########parse command line arguments##############
 key_file_prefix=sys.argv[1]
-num_nodes=int(sys.argv[2])
-num_clusters=int(sys.argv[3])
+outdir=sys.argv[2]
+print outdir
+num_nodes=int(sys.argv[3])
+num_clusters=int(sys.argv[4])
 print ("the file prefix is:", key_file_prefix)
 print ("number of cluster is:", num_clusters)
-index=4
+index=5
 cluster_centers=[]
 points_num=[]
 distr=[]

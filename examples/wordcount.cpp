@@ -16,6 +16,10 @@ void map(MapReduce *mr, char *word, void *ptr);
 void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
 
 #define USE_LOCAL_DISK  0
+//#define OUTPUT_KV
+
+//#define PART_REDUCE
+
 void output(const char *filename, const char *outdir, \
   const char *prefix, MapReduce *mr);
 
@@ -81,7 +85,9 @@ int main(int argc, char *argv[])
 
   mr->set_outofcore(0);
 
+#ifdef KV_HINT
   mr->set_KVtype(StringKV);
+#endif
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -92,13 +98,22 @@ int main(int argc, char *argv[])
 
   //double t2 = MPI_Wtime();
 
+#ifdef PART_REDUCE
   mr->reduce(countword, 1, NULL);
-
+#else
+  mr->reduce(countword, 0, NULL);
+#endif
   //double t3 = MPI_Wtime();
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //fprintf(stdout, "t=%lf\n", t3-t1); fflush(stdout);
+#ifdef OUTPUT_KV
+  char tmpfile[100];
+  sprintf(tmpfile, "results%d.txt", me);
+  FILE *outfile=fopen(tmpfile, "w");
+  mr->output(0, outfile);
+  fclose(outfile);
+#endif
 
   output("mtmr.wc", outdir, prefix, mr);
  
