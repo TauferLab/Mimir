@@ -1,12 +1,43 @@
-settings=('io_c_process' 'io_c_thread' 'io_mpi_blocking' 'io_mpi_nonblocking')
-#settings=('io_mpi_nonblocking')
+DIR=$(pwd)
+echo $DIR
 
-module load impi
-for setting in ${settings[@]}
-do
-  echo $setting
-  cd $setting
-  ./make_wc.sh
-  cd ..
-done
+FLAGS=$1
 
+cd ../../src
+make clean-all
+make -f Makefile linux CC=$FLAGS
+
+cd $DIR
+
+cd ../../examples
+make -f Makefile.linux clean
+make -f Makefile.linux wordcount CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=64" CC=$FLAGS
+make -f Makefile.linux octree_move_lg CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=64" CC=$FLAGS
+
+cp ./wordcount $DIR/wordcount_p64
+cp ./octree_move_lg $DIR/octree_move_lg_p64
+
+cd ../../examples
+make -f Makefile.linux clean
+make -f Makefile.linux wordcount CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=128" CC=$FLAGS
+make -f Makefile.linux octree_move_lg CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=128" CC=$FLAGS
+
+cp ./wordcount $DIR/wordcount_p128
+cp ./octree_move_lg $DIR/octree_move_lg_p128
+
+cd ../../examples
+make -f Makefile.linux clean
+make -f Makefile.linux wordcount CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=256" CC=$FLAGS
+make -f Makefile.linux octree_move_lg CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=256" CC=$FLAGS
+
+cp ./wordcount $DIR/wordcount_p256
+cp ./octree_move_lg $DIR/octree_move_lg_p256
+
+make -f Makefile.linux clean
+make -f Makefile.linux wordcount CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=512" CC=$FLAGS
+make -f Makefile.linux octree_move_lg CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=512" CC=$FLAGS
+
+cp ./wordcount $DIR/wordcount_p512
+cp ./octree_move_lg $DIR/octree_move_lg_p512
+
+cd $DIR

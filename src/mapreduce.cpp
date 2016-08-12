@@ -308,6 +308,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 #endif
   _tinit(tid);  
 
+  //printf("start nitem=%d\n", thread_info[0].nitem);
+
   char *key, *value;
   int keybytes, valuebytes;
 
@@ -325,6 +327,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     while(offset != -1){
 
       _mymap(this, key, keybytes, value, valuebytes, _ptr);
+
+      //if(me==0) { printf("offset=%d nitem=%d\n", offset, thread_info[0].nitem); fflush(stdout);}
 
       offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
     }
@@ -348,6 +352,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   mode= NoneMode;
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (KV as input)\n", me, nprocs);
+
+  //printf("end nitem=%d\n", thread_info[0].nitem);
 
   return _get_kv_count();
 }
@@ -722,10 +728,11 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
 }
 #else
       int tid = 0;
-      char *word = strtok(text+tstart[tid], whitespace);
+      char *saveptr = NULL;
+      char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
       while(word){
         mymap(this, word, ptr);
-        word = strtok(NULL,whitespace);
+        word = strtok_r(NULL,whitespace, &saveptr);
       }
 #endif
 
@@ -906,10 +913,11 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
         word = strtok_r(NULL,whitespace,&saveptr);
       }
 #else
-      char *word = strtok(text, whitespace);
+      char *saveptr=NULL;
+      char *word = strtok_r(text, whitespace,&saveptr);
       while(word){
         mymap(this, word, ptr);
-        word = strtok(NULL,whitespace);
+        word = strtok_r(NULL,whitespace,&saveptr);
       }
 #endif
 
@@ -1576,6 +1584,9 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   uint64_t tmax_mem_bytes=0;
 
+  nunique=0;
+  uint64_t *tunique=new uint64_t[tnum];
+
 #ifdef MTMR_MULTITHREAD 
 #pragma omp parallel reduction(+:tmax_mem_bytes) 
 {
@@ -1629,7 +1640,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   //printf("T%d: %ld\n", tid, u->nunique);
 
-  thread_info[tid].nitem = u->nunique;
+  tunique[tid] = u->nunique;
 
   delete [] u->ubucket;
   delete u->unique_pool;
@@ -1643,9 +1654,10 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 }
 #endif
 
-  uint64_t nunique=0;
   for(int i=0; i<tnum; i++)
-    nunique += thread_info[i].nitem;
+    nunique += tunique[i];
+
+  delete [] tunique;
 
   //printf("nunique=%d, tnum=%d\n", nunique, tnum);
 
@@ -1868,32 +1880,32 @@ out:
   return 0;
 }
 
-void MapReduce::print_stat(FILE *out){
+void MapReduce::print_stat(MapReduce *mr, FILE *out){
 //#if GATHER_STAT  
   //st.print(verb, out);
 //#endif
  
-  fprintf(out, "rank:%d", me); 
-  fprintf(out, ",size:%d", nprocs);
-  fprintf(out, ",thread:%d", tnum);
+  fprintf(out, "rank:%d", mr->me); 
+  fprintf(out, ",size:%d", mr->nprocs);
+  fprintf(out, ",thread:%d", mr->tnum);
 
   char hostname[1024+1];
   hostname[1024] = '\0';
   gethostname(hostname, 1024);
   fprintf(out, ",hostname:%s", hostname);
 
-  char cmd[1024+1];
-  char ret[1024+1];
-  sprintf(cmd, "grep MemTotal /proc/meminfo | awk '{print $2}'");
+  //char cmd[1024+1];
+  //char ret[1024+1];
+  //sprintf(cmd, "grep MemTotal /proc/meminfo | awk '{print $2}'");
   //char *result=system(cmd);
-  FILE *in;
-  if(!(in = popen(cmd, "r"))){
-    exit(1);
-  }
-  while(fgets(ret, sizeof(ret), in)!=NULL){
-    fprintf(out, ",memory:%s", ret);
-  }
-  pclose(in);
+  //FILE *in;
+  //if(!(in = popen(cmd, "r"))){
+  //  exit(1);
+  //}
+  //while(fgets(ret, sizeof(ret), in)!=NULL){
+  //  fprintf(out, ",memory:%s", ret);
+  //}
+  //pclose(in);
   //sprintf(stdout, "%s\n", result);
 
 #ifdef ENABLE_PROFILER
@@ -1903,7 +1915,7 @@ void MapReduce::print_stat(FILE *out){
   fprintf(out, ",tracker:enable");
 #endif 
   fprintf(out, "\n");
-  for(int i=0;i<tnum; i++){
+  for(int i=0;i<mr->tnum; i++){
 #ifdef ENABLE_PROFILER
     fprintf(out, "action:profiler_start");
     std::map<std::string,double>::iterator timer_iter;

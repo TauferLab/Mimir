@@ -74,14 +74,14 @@
 #define PROFILER_END
 #define PROFILER_PRINT(out, thread_count)
 #else
-extern bool enable_profiler;
+extern int profiler_ref;
 extern std::map<std::string,double> *profiler_event_timer;
 extern std::map<std::string,uint64_t> *profiler_event_counter;
 #define PROFILER_START(thread_count) \
-  if(!enable_profiler){\
+  if(profiler_ref==0){\
     profiler_event_timer=new std::map<std::string,double>[thread_count];\
     profiler_event_counter=new std::map<std::string,uint64_t>[thread_count];\
-    enable_profiler=true;\
+    profiler_ref++;\
   }
 
 #define PROFILER_RECORD_TIME_START \
@@ -95,9 +95,11 @@ extern std::map<std::string,uint64_t> *profiler_event_counter;
   (profiler_event_counter[thread_id])[counter_type]+=count;
 
 #define PROFILER_END \
-  delete [] profiler_event_timer;\
-  delete [] profiler_event_counter;\
-  enable_profiler=false;
+  profiler_ref--;\
+  if(profiler_ref==0){\
+    delete [] profiler_event_timer;\
+    delete [] profiler_event_counter;\
+  }
 
 #define PROFILER_PRINT(out, thread_count) \
   for(int i=0; i<thread_count; i++){\
@@ -127,16 +129,15 @@ typedef struct _tracker_thread_info{
   double overhead;
 }tracker_thread_info;
 
-extern bool enable_tracker;
-
+extern int tracker_ref;
 extern std::vector<std::pair<std::string,double> > *tracker_event_timer;
 extern tracker_thread_info *tracker_info;
 
 #define TRACKER_START(thread_count)  \
-  if(!enable_tracker){\
+  if(tracker_ref==0){\
     tracker_info=new tracker_thread_info[thread_count];\
     tracker_event_timer=new std::vector<std::pair<std::string,double> >[thread_count];\
-    enable_tracker=true;\
+    tracker_ref++;\
   }
 
 #define TRACKER_TIMER_INIT(thread_id) \
@@ -153,9 +154,10 @@ extern tracker_thread_info *tracker_info;
   tracker_info[thread_id].overhead+=t_end-t_start;}
 
 #define TRACKER_END \
-  delete [] tracker_info;\
-  delete [] tracker_event_timer;\
-  enable_tracker=false;
+  if(tracker_ref==0){\
+    delete [] tracker_info;\
+    delete [] tracker_event_timer;\
+  }
 
 #endif
 

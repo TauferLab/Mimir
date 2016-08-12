@@ -12,106 +12,105 @@
 #include "string.h"
 #include <cmath>
 
-#define PPN 24
 int me, nprocs;
-int commmode=0;
+int nbucket=17;
+const char* commmode="a2a";
 const char* inputsize="512M";
-const char* blocksize="512M";
-int sbufsize=21844;
-const char* gbufsize="512M";
+const char* blocksize="64M";
+const char* gbufsize="64M";
 const char* lbufsize="4K";
 
 using namespace MAPREDUCE_NS;
 
-void thread_generate_octkey(MapReduce *, char *, void *);
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
-//void sum(MapReduce *, char *, int, int, char *, int *, void *);
 void sum(MapReduce *, char *, int,  MultiValueIterator *, void*);
 
 double slope(double[], double[], int);
-void explore_level(int, int, MapReduce * );
 
-//int me,nprocs;
+void output(const char *,const char *,const char *,float,MapReduce*,MapReduce *);
+
 int digits=15;
-int level;
-
 int thresh=5;
-
-double local_usertime=0.0, local_addtime=0.0;
-double wall_time=0.0, gen_time=0.0, search_time=0.0, tmap=0.0, tconvert=0.0, treduce=0.0;
+bool realdata = false;
+int level;
 
 int main(int argc, char **argv)
 {
-  int provided;
-  MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
-  if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
+  //int provided;
+  //MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
+  //if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
+
+  MPI_Init(&argc, &argv); 
 
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-  char *ipath = argv[1];
-  thresh = atoi(argv[2]);
+  if (argc <= 5) {
+    if (me == 0) printf("Syntax: octree_move_lg indir threshold prefix outdir tmpdir\n");
+    MPI_Abort(MPI_COMM_WORLD,1);
+  }
+
+  float density = atof(argv[1]);
+  char *indir = argv[2];
+  const char *prefix = argv[3];
+  const char *outdir = argv[4];
+  //const char *tmpdir = argv[5];
 
   int min_limit, max_limit;
   min_limit=0;
   max_limit=digits+1;
   level=floor((max_limit+min_limit)/2);
 
-  MapReduce *datamr = new MapReduce(MPI_COMM_WORLD);
+  MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
+  mr_convert->set_threadbufsize(lbufsize);
+  mr_convert->set_sendbufsize(gbufsize); 
+  mr_convert->set_blocksize(blocksize);
+  mr_convert->set_inputsize(inputsize);
+  mr_convert->set_commmode(commmode);
+  mr_convert->set_nbucket(nbucket);
+  mr_convert->set_maxmem(32);
 
-  //datamr->set_localbufsize(16);
-  //datamr->set_globalbufsize(16*1024);
-  //datamr->set_blocksize(512*1024);
-  //datamr->set_maxmem(32*1024*1024);
-  //datamr->set_commmode(0);
-  //datamr->set_outofcore(0);
-
-  double t1 = MPI_Wtime();
-
-  char whitespace[10] = "\n";
-  datamr->map_text_file(ipath, 1, 1, whitespace, thread_generate_octkey, NULL, 0);
-
-  //char whitespace[10] = "\n";
-  //datamr->map_local(ipath, 1, 1, whitespace, generate_octkey, NULL);
-  //local_usertime=datamr->get_timer(TIMER_MAP_PARALLEL)-datamr->get_timer(TIMER_MAP_ADD);
-  //local_addtime=datamr->get_timer(TIMER_MAP_ADD);
-
-  double t2 = MPI_Wtime();
-
-  MapReduce *mr=new MapReduce(MPI_COMM_WORLD);
-
-#if 1
-  mr->set_threadbufsize(lbufsize);
-  mr->set_sendbufsize(gbufsize);
-  mr->set_blocksize(blocksize); 
-  mr->set_maxmem(32);
-  mr->set_commmode(commmode);
-  mr->set_outofcore(0);
+#ifdef KV_HINT
+  mr_convert->set_KVtype(FixedKV, 15, 0);
 #endif
 
-  //mr->init_stat();
-  //mr->set_localbufsize(16);
-  //mr->set_globalbufsize(16*1024);
-  //mr->set_blocksize(512*1024);
-  //mr->set_maxmem(32*1024*1024);
-  //mr->set_commmode(0);
-  //mr->set_outofcore(0);
+  char whitespace[10] = "\n";
+  uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, 0);
+
+  thresh=nwords*density;
+  if(me==0){
+    printf("Command line: input path=%s, thresh=%d\n", indir, thresh);
+  }
+
+  MapReduce *mr_level=new MapReduce(MPI_COMM_WORLD);
+  mr_level->set_threadbufsize(lbufsize);
+  mr_level->set_sendbufsize(gbufsize); 
+  mr_level->set_blocksize(blocksize);
+  mr_level->set_inputsize(inputsize);
+  mr_level->set_commmode(commmode);
+  mr_level->set_nbucket(nbucket);
+  mr_level->set_maxmem(32);
 
   while ((min_limit+1) != max_limit){
+#ifdef KV_HINT
+    mr_level->set_KVtype(FixedKV, level, 0);
+#endif
+    mr_level->map_key_value(mr_convert, gen_leveled_octkey, NULL);
+#ifdef KV_HINT
+    mr_level->set_KVtype(FixedKV, level, sizeof(int));
+#endif
+#ifdef PART_REDUCE
+    uint64_t nkv = mr_level->reduce(sum, 1, NULL);
+#else
+    uint64_t nkv = mr_level->reduce(sum, 0, NULL);
+#endif
 
-    double t1 = MPI_Wtime();    
-    mr->map_key_value(datamr, gen_leveled_octkey, NULL);
-
-    double t2 = MPI_Wtime();
-
-    //mr->convert();
-
-    double t3 = MPI_Wtime();
-
-    uint64_t nkv = mr->reduce(sum);
-
-    double t4 = MPI_Wtime();
+    //uint64_t nkv = mr_level->reduce(sum);
+    //if(me==0) {
+    //  printf("min=%d,max=%d,level=%d\n",min_limit,max_limit,level);
+    //  printf("nkv=%ld\n", nkv);
+    //}
 
     if(nkv >0){
       min_limit=level;
@@ -120,38 +119,12 @@ int main(int argc, char **argv)
       max_limit=level;
       level =  floor((max_limit+min_limit)/2);
     }
-
-    tmap += t2-t1;
-    tconvert += t3-t2;
-    treduce += t4-t3;
   }
 
-  double t3 = MPI_Wtime();
+  output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level); 
 
-  wall_time=t3-t1;
-  gen_time=t2-t1;
-  search_time=t3-t2;
-
-  //if(me==0) {
-  //  double tpar=mr->get_timer(TIMER_MAP_PARALLEL);
-  //  double tsendkv=mr->get_timer(TIMER_MAP_SENDKV);
-  //  double tserial=mr->get_timer(TIMER_MAP_SERIAL);
-  //  double twait=mr->get_timer(TIMER_MAP_TWAIT);
-  //  double tkv2u=mr->get_timer(TIMER_REDUCE_KV2U);
-  //  double lcvt=mr->get_timer(TIMER_REDUCE_LCVT);
-
-  //  printf("%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,\n", 
-  //      wall_time, 
-  //      gen_time, local_usertime, local_addtime,
-  //      search_time, tmap, tconvert, treduce,
-  //      tpar, mr->get_timer(TIMER_MAP_WAIT),
-  //      tpar-tsendkv-twait, tsendkv-tserial, tserial, twait,
-  //      mr->get_timer(TIMER_MAP_LOCK),
-  //      tkv2u-lcvt, lcvt, mr->get_timer(TIMER_REDUCE_MERGE));
-  //}
-
-  delete mr;
-  delete datamr;
+  delete mr_convert;
+  delete mr_level;
 
   if(me==0) printf("level=%d\n", level);
 
@@ -160,10 +133,18 @@ int main(int argc, char **argv)
 
 
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
-//void sum(MapReduce *mr, char *key, int keysize, int nval, char *val, int *valsizes, void *ptr){
-  int sum=iter->getCount();
-  if (sum >= thresh)
+  //int sum=iter->getCount();
+
+  int sum=0;
+  for(iter->Begin(); !iter->Done(); iter->Next()){
+    sum+=atoi(iter->getValue());
+  }
+
+  //if(me==0) { printf("sum=%d, thresh=%d\n", sum, thresh); fflush(stdout); }
+  if (sum >= thresh){
+    //printf("sum=%d, thresh=%d\n", sum ,thresh);
     mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int));
+  }
 }
 
 
@@ -172,62 +153,27 @@ void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int va
   mr->add_key_value(key, level, NULL, 0);
 }
 
-void thread_generate_octkey(MapReduce *mr, char *str, void *ptr){
-  //struct stat stbuf;
-  //int flag = stat(fname,&stbuf);
-  //if (flag < 0) {
-  //  printf("ERROR: Could not query file size\n");
-  //  MPI_Abort(MPI_COMM_WORLD,1);
-  //}
-  //int filesize = stbuf.st_size;
-
-  //FILE *fp = fopen(fname,"r");
-  //char *text = new char[filesize+1];
-
-  //int nchar = fread(text,1,filesize,fp);
-  //text[nchar] = '\0';
-  //fclose(fp);
-
-  //char *saveptr = NULL;
-  //char whitespace[20] = "\n";
-  //char *word = strtok_r(text,whitespace,&saveptr);
-  //while (word) {
-  generate_octkey(mr, str, ptr);
-    //word = strtok_r(NULL,whitespace,&saveptr);
-  //}
-
-  //delete [] text;
-}
-
 void generate_octkey(MapReduce *mr, char *word, void *ptr)
 {
   double range_up=10.0, range_down=-10.0;
   char octkey[digits];
-  bool realdata = false;
-
   double coords[512];//hold x,y,z
   char ligand_id[256];
-  const int word_len = strlen(word);
-  char word2[word_len+2];
-  memcpy(word2, word, word_len);
-  word2[word_len]=' ';
-  word2[word_len+1]='\0';
-
   int num_coor=0;
+
   char *saveptr;
-  char *token = strtok_r(word2, " ", &saveptr);
+  char *token = strtok_r(word, " ", &saveptr);
   memcpy(ligand_id,token,strlen(token));
+
   while (token != NULL){
     token = strtok_r(NULL, " ", &saveptr);
     if (token){
       coords[num_coor] = atof(token);
-      //printf("%d:%lf\n", num_coor, coords[num_coor]);
       num_coor++;
     }
   }
 	
   const int num_atoms = floor((num_coor-2)/3);
-
   double x[num_atoms], y[num_atoms], z[num_atoms];
   /*x,y,z double arries store the cooridnates of ligands */
   for (int i=0; i!=(num_atoms); i++){
@@ -309,4 +255,36 @@ double slope(double x[], double y[], int num_atoms){
 
   slope = xybar / xxbar;
   return slope;	
+}
+
+void output(const char *filename, const char *outdir, const char *prefix, float density, MapReduce *mr1, MapReduce *mr2){
+  char tmp[1000];
+ 
+  sprintf(tmp, "%s/mtmrmpi-octree-%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
+    outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, me); 
+
+  FILE *fp = fopen(tmp, "w+");
+  //mr1->print_stat(fp);
+  MapReduce::print_stat(mr2, fp);
+  fclose(fp);
+  
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if(me==0){
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    char timestr[1024];
+    sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    char infile[1024+1];
+    sprintf(infile, "%s/mtmrmpi-octree-%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d.*.txt", \
+      outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
+    char outfile[1024+1];
+    sprintf(outfile, "%s/mtmrmpi-octree-%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
+      outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, timestr);  
+    char cmd[8192+1];
+    sprintf(cmd, "cat %s>>%s", infile, outfile);
+    system(cmd);
+    sprintf(cmd, "rm %s", infile);
+    system(cmd);
+  }
 }

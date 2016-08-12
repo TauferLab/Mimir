@@ -9,8 +9,8 @@
 #SBATCH -v -t 00:20:00
 
 DATAHOME=/oasis/scratch/comet/taogao/temp_project/
-INPUTDIR=words/triangular
-FULLNAME=1G.txt
+INPUTDIR=words/uniform
+FULLNAME=80G.txt
 
 FULLNAME=$DATAHOME/$INPUTDIR/$FULLNAME
 

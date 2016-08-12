@@ -154,11 +154,11 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
   //char gbufsize[1024];
   //sprintf(gbufsize, "%dM", sbufsize*nprocs/1024);
   
-  sprintf(tmp, "%s/mtmrmpi-wc-%s-l%s-c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
+  sprintf(tmp, "%s/%s-l%s-c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
     outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, me); 
 
   FILE *fp = fopen(tmp, "w+");
-  mr->print_stat(fp);
+  MapReduce::print_stat(mr, fp);
   fclose(fp);
   
   MPI_Barrier(MPI_COMM_WORLD);
@@ -169,10 +169,10 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
     char timestr[1024];
     sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     char infile[1024+1];
-    sprintf(infile, "%s/mtmrmpi-wc-%s-l%s-c%s-b%s-i%s-h%d-%s.%d.*.txt", \
+    sprintf(infile, "%s/%s-l%s-c%s-b%s-i%s-h%d-%s.%d.*.txt", \
       outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
     char outfile[1024+1];
-    sprintf(outfile, "%s/mtmrmpi-wc-%s-l%s-c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
+    sprintf(outfile, "%s/%s-l%s-c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
       outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, timestr);  
     char cmd[8192+1];
     sprintf(cmd, "cat %s>>%s", infile, outfile);

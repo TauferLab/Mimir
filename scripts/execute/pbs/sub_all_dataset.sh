@@ -21,7 +21,7 @@ PREFIX="Submitted batch job "
 
 for list in $DATALIST
 do
-  echo "datasize:"$list
+  echo "datasize:"$list  
   export DATASIZE=$list
   for setting in $SETLIST
   do
@@ -31,11 +31,9 @@ do
     do
       if [ $PRE == "none" ]
       then
-        PRE=$(sbatch $SUB)
-        PRE=${PRE#$PREFIX}        
+        PRE=$(qsub $SUB)
       else
-        PRE=$(sbatch --dependency=afterany:$PRE $SUB)
-        PRE=${PRE#$PREFIX}
+        PRE=$(qsub -W depend=afterany:$PRE $SUB)
       fi
       echo "jobid:"$PRE
     done

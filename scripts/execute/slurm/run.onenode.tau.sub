@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name="mr-mpi"  
+#SBATCH --output="mr-mpi.%j.%N.out"  
+#SBATCH --partition=compute  
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --export=ALL  
+#SBATCH -t 01:00:00
+
+source config.h
+echo "program:"$EXE
+echo "param:"$PARAM
+echo "input dir:"$INDIR
+echo "prefix":$PREFIX
+echo "output dir:"$OUTDIR
+echo "temp dir:"$TMPDIR
+echo "tau outfile:"$TAUFILE
+mpiexec -n $PPN -bind-to core ./$EXE $PARAM $INDIR $PREFIX.TAU $OUTDIR $TMPDIR
+pprof | grep "  Heap Memory Used (KB)" | awk -v np=$PPN -v data=$DATASIZE '{print data","np","i++","$2}' >> $TAUFILE
+rm profile.*

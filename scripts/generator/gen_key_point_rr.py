@@ -13,10 +13,11 @@ key_file_prefix=sys.argv[1]
 outdir=sys.argv[2]
 print outdir
 num_nodes=int(sys.argv[3])
-num_clusters=int(sys.argv[4])
+stdiv=float(sys.argv[4])
+num_clusters=int(sys.argv[5])
 print ("the file prefix is:", key_file_prefix)
 print ("number of cluster is:", num_clusters)
-index=5
+index=6
 cluster_centers=[]
 points_num=[]
 distr=[]
@@ -76,7 +77,6 @@ def gen_key_from_coord(b0, b1, b2,range_min,range_max,num_digit):
 num_digit=15
 range_min=-4
 range_max=4
-stdiv=0.5
 
 ###################generate keys for each node (file)###############
 
@@ -116,10 +116,3 @@ for cluster in cluster_centers: #if there are multiple clusters in the data
 
         point_fid.close();
         key_fid.close();
-
-
-
-
-
-
-

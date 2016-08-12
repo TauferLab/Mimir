@@ -57,7 +57,7 @@ public:
     char *value, int valuebytes);
   void output(int type=0, FILE *fp=stdout, int format=0);
   //void init_stat();
-  void print_stat(FILE *fp=stdout);
+  static void print_stat(MapReduce *mr, FILE *fp=stdout);
 
   void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
     kvtype = _kvtype;
@@ -109,6 +109,10 @@ public:
     
   uint64_t get_local_KVs(){
     return local_kvs_count;
+  }
+
+  uint64_t get_unique_count(){
+    return nunique;
   }
 
 private:
@@ -171,8 +175,7 @@ private:
 
 private:
   // Statatics Variables
-  uint64_t global_kvs_count, local_kvs_count;
-
+  uint64_t global_kvs_count, local_kvs_count, nunique;
 private:
   // Configuable parameters
   int kvtype, ksize, vsize;
@@ -248,6 +251,7 @@ struct thread_private_info{
   uint64_t _get_kv_count(){
     local_kvs_count=0;
     for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
+    //printf("local_kvs_count=%ld\n", local_kvs_count);
     MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
     TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
     return  global_kvs_count;

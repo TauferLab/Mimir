@@ -86,15 +86,15 @@ void KeyValue::print(int type, FILE *fp, int format){
     offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
 
     while(offset != -1){
-      if(type == 0) fprintf(fp, "%s", key);
-      else if(type == 1) fprintf(fp, "%d", *(int*)key);
-      else if(type == 2) fprintf(fp, "%ld", *(int64_t*)key);
-      else LOG_ERROR("%s", "Error undefined output type\n");
+      //if(type == 0) fprintf(fp, "%s", key);
+      //else if(type == 1) fprintf(fp, "%d", *(int*)key);
+      //else if(type == 2) fprintf(fp, "%ld", *(int64_t*)key);
+      //else LOG_ERROR("%s", "Error undefined output type\n");
 
       if(valuebytes != 0){
-        if(type == 0) fprintf(fp, " %s", value);
-        else if(type == 1) fprintf(fp, " %d", *(int*)value);
-        else if(type == 2) fprintf(fp, " %ld", *(int64_t*)value);
+        if(type == 0) fprintf(fp, "%s", value);
+        else if(type == 1) fprintf(fp, "%d", *(int*)value);
+        else if(type == 2) fprintf(fp, "%ld", *(int64_t*)value);
         else LOG_ERROR("%s", "Error undefined output type\n");
      }
      fprintf(fp, "\n");
