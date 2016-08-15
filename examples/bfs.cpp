@@ -3,541 +3,394 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-#include <omp.h>
-
 #include "mapreduce.h"
+#include "keyvalue.h"
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <cstdlib>
+#include "string.h"
+#include <cmath>
 
-using namespace MAPREDUCE_NS;
-
-#define PPN 24
-int me, nprocs;
-int commmode=0;
+int nbucket=17;
+const char* commmode="a2a";
 const char* inputsize="512M";
-const char* blocksize="512M";
-int sbufsize=21844;
-const char* gbufsize="512M";
+const char* blocksize="64M";
+const char* gbufsize="64M";
 const char* lbufsize="4K";
 
-
-#define TEST_TIMES 10
+using namespace MAPREDUCE_NS;
+#if GATHER_STAT 
+#include "stat.h" 
+extern int mrtype; 
+extern Stat st;
+#endif 
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
-
-#define TEST_VISITED(v, vis) (((vis)[(v)/LONG_BITS]) & (1UL << ((v)%LONG_BITS)))
-#define SET_VISITED(v, vis)  (__sync_fetch_and_or(&((vis)[(v)/LONG_BITS]), (1UL << ((v)%LONG_BITS))) & (1UL<<((v)%LONG_BITS)))
+#define TEST_VISITED(v, vis) \
+  ((vis[(v)/LONG_BITS]) & (1UL << ((v)%LONG_BITS)))
+#define SET_VISITED(v, vis)  \
+  ((vis[(v)/LONG_BITS]) |= (1UL << ((v)%LONG_BITS)))
 
 // graph partition
-int mypartition_str(char *, int);
-int mypartition_int(char *, int);
-
-// read file to edges
+int mypartition(char *, int);
+// read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
-void makegraph(MapReduce *, char *, int,  MultiValueIterator *, void*);
-//void makegraph(MapReduce *, char *, int, int, char *, int *, void *);
+void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*); 
 // count local edge number
-void countedge(char *, int, char *, int , void* ptr);
+void countedge(char *, int, char *, int,void *);
+ 
+// get root vertex
+int64_t getrootvert();
 // expand root vertex
-void rootvisit(MapReduce *, void *);
+void rootvisit(MapReduce* , void *);
 // expand vertex
 void expand(MapReduce *, char *, int, char *, int, void *);
+ 
 // shrink vertex
-void shrink(MapReduce *, char *, int,  MultiValueIterator *, void*);
-//void shrink(MapReduce *, char *, int, int, char *, int *,void *);
-void shrink_mm(MapReduce *, char *, int, char *, int,void *);
+void shrink(MapReduce *, char *, int, char *, int, void *);
+
+void output(const char *,const char *,const char *,MapReduce*);
+
 
 // CSR graph
-typedef struct _csr_graph{
-  int      lg_nglobalverts; 
-  int64_t  nglobalverts;     // global vertex count
-  int64_t  nlocalverts;      // local vertex count
-  int64_t  nglobaledges;     // global edge count
-  int64_t  nlocaledges;      // local edge count
-  size_t  *rowstarts;        // rowstarts
-  int64_t *columns;          // columns
+int me, nprocs;
+int64_t  nglobalverts;     // global vertex count
+int64_t  nglobaledges;     // global edge count
+int64_t  nlocalverts;      // local vertex count
+int64_t  nlocaledges;      // local edge count
+int64_t  nvertoffset;      // local vertex's offset
+int quot, rem;             // quotient and reminder of globalverts/nprocs 
 
-  size_t   *rowinserts;      // tmp buffer for construct csr
-}csr_graph;
+size_t   *rowstarts;       // rowstarts
+int64_t  *columns;         // columns
+unsigned long* vis;        // visited bitmap
+int64_t *pred;             // pred map
+int64_t root;              // root vertex
+size_t   *rowinserts;      // tmp buffer for construct csr
+
+#define MAX_LEVEL 100
 
 // print graph
-void printgraph(csr_graph *);
+//void printgraph(csr_graph *);
 // print results
-void printresult(int64_t *pred, size_t nlocalverts);
+//void printresult(int64_t *pred, size_t nlocalverts);
 
-// BFS state
-typedef struct _bfs_state{
-  csr_graph g;               // the graph
-  unsigned long* vis;        // visited bitmap
-  int64_t *pred;             // pred map
-  int64_t root;              // root vertex
-}bfs_state;
-
-bfs_state bfs_st; 
-
-double wtime[TEST_TIMES], teps[TEST_TIMES];
-
-#define MAX_LEVEL 10
 uint64_t nactives[MAX_LEVEL];
 
-FILE *rf=NULL;
+#ifdef OUTPUT_RESULT
+FILE *rf = NULL;
+#endif
 
-int main(int narg, char **args)
+int main(int argc, char **argv)
 {
-  //int provided;
-  MPI_Init(&narg, &args);
-  //MPI_Init_thread(&narg, &args, MPI_THREAD_FUNNELED, &provided);
-  //if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
-
-//  MPI_Init(&narg, &args);
-
+  // Initalize MPI
+  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-  // parse command-line args
-  if(narg < 3){
-    if(me == 0) printf("Syntax: bfs N infile1 {infile2...}");
+  if (argc <= 5) {
+    if (me == 0) printf("Syntax: bfs N indir prefix outdir tmpdir\n");
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
-  // set vertex count
-  csr_graph *g = &bfs_st.g;
-  g->lg_nglobalverts = atoi(args[1]);
-  g->nglobalverts = (1 << g->lg_nglobalverts);
+  nglobalverts = strtoull(argv[1], NULL, 0);
+  char *indir = argv[2];
+  const char *prefix = argv[3];
+  const char *outdir = argv[4];
+  const char *tmpdir = argv[5];
 
-  if(g->nglobalverts % nprocs != 0){
-    if(me == 0) printf("ERROR: process size %d must be the power of 2\n", nprocs);
-    MPI_Abort(MPI_COMM_WORLD,1);
+  srand(atoi(argv[6]));
+
+  if(nglobalverts<=0){
+    if (me == 0) printf("The global vertexs should be larger than zero\n");
+    MPI_Abort(MPI_COMM_WORLD,1); 
   }
 
-  if(me == 0){
+  if(me==0){
+    printf("global vertexs=%ld\n", nglobalverts);
+    printf("input dir=%s\n", indir);
+    printf("prefix=%s\n", prefix);
+    printf("output dir=%s\n", outdir);
+    printf("tmp dir=%s\n", tmpdir);
+  }
+
+  quot = nglobalverts/nprocs;
+  rem  = nglobalverts%nprocs;
+  if(me<rem) {
+    nlocalverts=quot+1;
+    nvertoffset=me*(quot+1);
+  }
+  else {
+    nlocalverts=quot;
+    nvertoffset=me*quot+rem;
+  }
+
+#ifdef OUTPUT_RESULT
+  if(me==0){
     char rfile[100];
-    sprintf(rfile, "mt_mr.result.%d.txt", g->lg_nglobalverts);
-    rf = fopen(rfile, "w");
+    sprintf(rfile, "%s_result.txt", prefix);
+    rf = fopen(rfile, "a+");
   }
-
-  g->nlocalverts = g->nglobalverts / nprocs;
-
-  //printf("");
-  //if(narg > 3){
-  //  commmode=atoi(args[3]);
-  //}
-  //if(narg > 4){
-  //  blocksize=atoi(args[4]);
-  //}
-  // if(narg > 5){
-  //  gbufsize=atoi(args[5]);
-  //}
-  //if(narg > 6){
-  //  lbufsize=atoi(args[6]);
-  //}
-
-  // create mapreduce
-  MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-
-  // set hash function
-  mr->set_hash(mypartition_str);
-
-#if 1
-  mr->set_threadbufsize(lbufsize);
-  mr->set_sendbufsize(gbufsize);
-  mr->set_blocksize(blocksize); 
-  mr->set_maxmem(32);
-  mr->set_commmode(commmode);
-  mr->set_outofcore(0);
 #endif
 
-  if(me==0) { fprintf(stdout, "make CSR graph start.\n"); fflush(stdout);}
+  MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
+  mr->set_threadbufsize(lbufsize);
+  mr->set_sendbufsize(gbufsize); 
+  mr->set_blocksize(blocksize);
+  mr->set_inputsize(inputsize);
+  mr->set_commmode(commmode);
+  mr->set_nbucket(nbucket);
+  mr->set_maxmem(32);
+  mr->set_hash(mypartition);
+
+  if(me==0) fprintf(stdout, "make CSR graph start.\n");
 
   // make graph
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //printf("begin map\n");
+#ifdef KV_HINT
+  mr->set_KVtype(FixedKV, sizeof(int64_t), sizeof(int64_t));
+#endif
 
-  //double g_t1=MPI_Wtime();
+  // partition file
+  char whitespace[10] = "\n";
+  uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread, NULL, 1);
+  nglobaledges = nedges;
 
-  // read edge list
-  char whitespace[10]={"\n"};
-  uint64_t nedges = mr->map_text_file(args[2],1,0,whitespace,fileread,&bfs_st);
-  g->nglobaledges = nedges;
-
-  //mr->output();
-
-  // initialize CSR structure
-  g->rowstarts = new size_t[g->nlocalverts+1]; 
-  g->rowinserts = new size_t[g->nlocalverts];
-  g->rowstarts[0] = 0;
-  for(int i = 0; i < g->nlocalverts; i++){
-    g->rowstarts[i+1] = 0;
-    g->rowinserts[i] =0;
+  //if(me==0) fprintf(stdout, "nlocalverts=%ld\n", nlocalverts);
+ 
+  rowstarts = new size_t[nlocalverts+1]; 
+  rowinserts = new size_t[nlocalverts];
+  rowstarts[0] = 0;
+  for(int i = 0; i < nlocalverts; i++){
+    rowstarts[i+1] = 0;
+    rowinserts[i] =0;
   }
+  nlocaledges = 0;
+  mr->scan(countedge,NULL);
+  //if(me==0) printf("nlocaledges=%ld\n", nlocaledges);
 
-  g->nlocaledges = 0;
+  for(int i = 0; i < nlocalverts; i++){
+    rowstarts[i+1] += rowstarts[i];
+  } 
+  columns=new int64_t[nlocaledges];
 
-  // single thread is used to gather information
-  mr->scan(countedge, &bfs_st);
+  if(me==0) fprintf(stdout, "begin make graph.\n");
 
-  for(int i = 0; i < g->nlocalverts; i++){
-    g->rowstarts[i+1] += g->rowstarts[i];
-  }
-  
-  g->columns   = new int64_t[g->nlocaledges];
-
-  //double g_t4=MPI_Wtime();
-
-  // begin to make CSR graph
-  mr->reduce(makegraph, 1, &bfs_st);
-
-  //double g_t5=MPI_Wtime();
-
-  delete [] g->rowinserts;
-
-  int64_t *visit_roots = new int64_t[TEST_TIMES];
-
-  srand(0);
-  for(int i = 0; i < TEST_TIMES; i++){
-    visit_roots[i] = rand() % (g->nglobalverts);
-  }
-
-  // print graph
-  //printgraph(g);
-
-  // begin do traversal
-  int bitmapsize = (g->nlocalverts + LONG_BITS - 1) / LONG_BITS;
-
-  // create structure
-  bfs_st.vis  = new unsigned long[bitmapsize];
-  bfs_st.pred = new int64_t[g->nlocalverts];
-
+#ifdef PART_REDUCE
+  mr->reduce(makegraph,1,NULL);
+#else
+  mr->reduce(makegraph,0,NULL);
+#endif
+  delete [] rowinserts;
 
   if(me==0) {
-    fprintf(stdout, "BFS traversal start.\n");        
+     fprintf(stdout, "make CSR graph end.\n");
   }
+  
+  // make data structure
+  int bitmapsize = (nlocalverts + LONG_BITS - 1) / LONG_BITS;
+  vis  = new unsigned long[bitmapsize];
+  pred = new int64_t[nlocalverts];
+
+  if(me==0) fprintf(stdout, "BFS traversal start.\n");
+
+  MPI_Barrier(MPI_COMM_WORLD);  
+
+  //int test_count = 0;
+
+  // initialize
+  root    = getrootvert();
+  memset(vis, 0, sizeof(unsigned long)*(bitmapsize));
+  for(int i = 0; i < nlocalverts; i++){
+    pred[i] = -1;
+  }
+
+  if(me==0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
+
+  // Inialize the root
+  mr->init_key_value(rootvisit, NULL);
+
+  // bfs search
+  int level = 0;
+  do{
+#ifdef KV_HINT
+    mr->set_KVtype(FixedKV, sizeof(int64_t), 0);
+#endif
+    mr->map_key_value(mr, shrink, NULL, 0);
+#ifdef KV_HINT
+    mr->set_KVtype(FixedKV, sizeof(int64_t), sizeof(int64_t));
+#endif
+    nactives[level] = mr->map_key_value(mr, expand, NULL);
+    //if(me==0) fprintf(stdout, "level %d: nactive=%ld\n", level, nactives[level]);
+    level++;
+  }while(nactives[level-1]);
+
+  if(me==0) {
+    fprintf(stdout, "BFS traversal end.\n");
+#ifdef OUTPUT_RESULT
+    fprintf(rf, "%ld\n", root);
+    for(int i=0;i<level;i++)
+      fprintf(rf, "%ld\n", nactives[i]);
+#endif
+  }
+
+  output("mtmr.bfs", outdir, prefix, mr); 
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //int ksize = (int)sizeof(int64_t);
-  //mr->set_blocksize(32*1024); 
-  mr->set_hash(mypartition_int);
+  delete [] vis;
+  delete [] pred;
 
-  int test_count = 0;
-  for(int index=0; index < TEST_TIMES; index++){
-    //if(me==0)
-    //  fprintf(stdout, "Traversal %d start. (root=%ld)\n", index, visit_roots[index]);
-
-    //mr->init_stat();
-
-    double map_t=0.0, convert_t=0.0, reduce_t=0.0;
-    double start_t = MPI_Wtime();  
-
-    // set root vertex
-    bfs_st.root = visit_roots[index];
-
-    memset(bfs_st.vis, 0, sizeof(unsigned long)*(bitmapsize));
-    for(int i = 0; i < g->nlocalverts; i++){
-      bfs_st.pred[i] = -1;
-    }
- 
-    //uint64_t nactives = 0;
-    //mr->set_KVtype(FixedKV, ksize, ksize);
-    uint64_t count = mr->init_key_value(rootvisit, &bfs_st);
-    if(count == 0) continue;
-
-    //mr->output(2);
-
-    int level = 0;
-    do{
-      double t1 = MPI_Wtime();
-
-//#ifndef BFS_MM
-//      double t2 = MPI_Wtime();
-      //mr->output(2);
-//      mr->reduce(shrink, 0, &bfs_st);
-//#else
-      double t2 = MPI_Wtime();
-      mr->map_key_value(mr, shrink_mm, &bfs_st, 0);
-//#endif
-
-      double t3 = MPI_Wtime();
-      
-      nactives[level] = mr->map_key_value(mr, expand, &bfs_st);
-
-      //printf("actives=%d\n", nactives[level]); fflush(stdout);
-
-      double t4 = MPI_Wtime();
-
-      map_t += (t4-t3);
-      convert_t += (t2-t1);
-      reduce_t += (t3-t2);
-
-      level++;
-    }while(nactives[level-1]);
-
-    double stop_t = MPI_Wtime();
-   
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    wtime[test_count] = stop_t - start_t;
-    test_count++;    
-
-    if(me==0){
-      fprintf(rf, "%ld\n", bfs_st.root);
-      fprintf(rf, "%d\n", level);
-
-      //printf("level=%d\n", level);
-
-      for(int k=0; k<level; k++){
-        //printf("nactives[%d]=%d\n", k, nactives[k]);
-        fprintf(rf, "%ld\n", nactives[k]);
-        //printf("k=%d, level=%d\n", k, level);
-      }
-      fprintf(rf, "\n");
-    }
-
-    //mr->init_stat();
-  }
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  //if(me==0) fprintf(stdout, "BFS traversal end.\n");
-
-  if(me==0){
-    double avg_teps=0.0;
-    for(int i=0; i<test_count; i++){
-      teps[i] = (g->nglobaledges)/wtime[i];
-      avg_teps += teps[i];
-    }
-    avg_teps /= test_count;
-
-    double max_teps=teps[0],min_teps=teps[0];
-    for(int i=1; i<test_count; i++){
-      if(teps[i] > max_teps) max_teps = teps[i];
-      if(teps[i] < min_teps) min_teps = teps[i];
-    }
-
-    //fprintf(stdout, "%d,%d,%d,%d,%g,%g,%g,\n", commmode, blocksize, gbufsize, lbufsize, avg_teps, max_teps, min_teps);
-
-    fprintf(stdout, "process count=%d, vertex count=%ld, edge count=%ld\n", nprocs, g->nglobalverts, g->nglobaledges);
-    //fprintf(stdout, "Results: average=%g, max=%g, min=%g\n", avg_teps, max_teps, min_teps);
-
-  }
-
-  delete [] visit_roots;
-
-  // delete buffers
-  delete [] bfs_st.vis;
-  delete [] bfs_st.pred; 
-
-  delete [] g->rowstarts;
-  delete [] g->columns;
-
-  //if(me==0) mr->show_stat();
-
+  delete [] rowstarts;
+  delete [] columns;
   delete mr;
 
-  //if(me==0){
-  //  fclose(rf);
-  //}
-
-  // close log file
-  //fclose(fp);
+#ifdef OUTPUT_RESULT
+  if(me==0){
+    fclose(rf);
+  }
+#endif
 
   MPI_Finalize();
 }
 
-int mypartition_str(char *key, int keybytes){
-  int64_t v = atoi(key) - 1;
-
-  return v/(bfs_st.g.nlocalverts);
+// partiton <key,value> based on the key
+int mypartition(char *key, int keybytes){
+  int64_t v = *(int64_t*)key;
+  if(v<quot*rem+rem)
+    return v/(quot+1);
+  else
+    return (v-rem)/quot;
 }
 
-int mypartition_int(char *key, int keybytes){
-  int64_t v = *(int64_t*)key; 
-
-  return v/(bfs_st.g.nlocalverts);
-}
-
-void fileread(MapReduce *mr, char *line, void *ptr){
-  //printf("line=%s\n", line);
-
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
-
-  //struct stat stbuf;
-  //int flag = stat(fname,&stbuf);
-  //if(flag < 0){
-  //  printf("ERROR: Counld not query file size\n");
-  //  MPI_Abort(MPI_COMM_WORLD, 1);
+void countedge(char *key, int keybytes, char *value, int valbytes,void *ptr){
+  nlocaledges += 1;
+  int64_t v0=*(int64_t*)key;
+  //if(me==0){
+  //  printf("v0=%ld\n", v0-nvertoffset+1); fflush(stdout);
   //}
-
-  //int filesize = stbuf.st_size;
-
-  //FILE *fp = fopen(fname, "r");
-  //char *text = new char[filesize+1];
-  //int nchar = fread(text,1,filesize,fp);
-  //text[nchar] = '\0';
-  //fclose(fp);
-
-  char *v0=NULL, *v1=NULL, *val;
-  
-  //char *line = text;
-  //int linesize;
-
-  //while(line && line[0]!='\0'){
-
-    //char *p = strchr(line, '\n');
-    //if(p) p[0]='\0';
-
-    // get line size
-    //int linesize = strlen(line)+1;
-
-    // get v0,v1,val
-    v0 = line;
-    v1 = strchr(v0, ' ');
-    v1[0] = '\0';
-    v1 = v1+1;
-    val = strchr(v1, ' ');
-    val[0] = '\0';
-    val = val +1;
-
-    if(atoi(v0)<=0 || atoi(v0) > g->nglobalverts){
-      fprintf(stderr, "Error: vertex %s is larger than max vertex index!\n", v0);
-      exit(1);
-    }
-
-    if(atoi(v1)<=0 || atoi(v1) > g->nglobalverts){
-      fprintf(stderr, "Error: vertex %s is larger than max vertex index!\n", v1);
-      exit(1);
-    }
-
-    //printf("%s,%s\n", v0, v1);
-
-    if(strcmp(v0, v1) != 0){
-      //line += linesize;
-      //continue;
-      mr->add_key_value(v0, strlen(v0)+1, v1, strlen(v1)+1);
-      mr->add_key_value(v1, strlen(v1)+1, v0, strlen(v0)+1);
-    }
-
-    //line += linesize;
-  //}
-
-  //delete [] text;
+  rowstarts[v0-nvertoffset+1] += 1;
 }
 
-void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
-  // get graph strcuture
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
 
+void fileread(MapReduce *mr, char *word, void *ptr)
+{
+  char sep[10] = " ";
+  char *v0, *v1, *val;
+  char *saveptr = NULL;
+  //if(me==0) printf("word=%s\n", word);
+  v0 = strtok_r(word,sep,&saveptr);
+  v1 = strtok_r(NULL,sep,&saveptr);
+  val = strtok_r(NULL,sep,&saveptr);
+
+  if(strcmp(v0, v1) == 0){
+    return;
+  }
+  int64_t int_v0 = strtoull(v0,NULL,0);
+  int64_t int_v1 = strtoull(v1,NULL,0);
+  if(int_v0>=nglobalverts || int_v1>=nglobalverts){
+    fprintf(stderr, "The vertex index <%ld,%ld> is larger than maximum value %ld!\n", int_v0, int_v1, nglobalverts);
+    exit(1);
+  }
+  //if(me==0) printf("(%ld,%ld)\n", int_v0, int_v1);
+  mr->add_key_value((char*)&int_v0,sizeof(int64_t),(char*)&int_v1,sizeof(int64_t));
+}
+
+void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   int64_t v0, v0_local, v1;
-  const char *value;
+  v0 = *(int64_t*)key;
+  v0_local = v0 - nvertoffset; 
 
-  v0 = atoi(key)-1;
-  v0_local = v0 % (g->nlocalverts);  
-
-  //printf("count=%d\n", iter->getCount());
-
-  // different threads handle different vertex
   for(iter->Begin(); !iter->Done(); iter->Next()){
-
-    value=iter->getValue();
-
-    //printf("key=%s, value=%s\n", key, value);
-
-    v1 = atoi(value)-1;
-    g->columns[g->rowstarts[v0_local]+g->rowinserts[v0_local]] = v1;
-    g->rowinserts[v0_local]++;
+    v1=*(int64_t*)(iter->getValue());
+    columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
+    rowinserts[v0_local]++;
   }
 }
 
-void countedge(char *key, int keybytes, char *value, int valuebyte, void* ptr){
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
-
-  //printf("countedge, key=%s, n=%d\n", key, nvalues);
-
-//#pragma omp atomic
-  g->nlocaledges++;
-
-  int64_t v0 = atoi(key)-1;
-
-//#pragma omp atomic
-  g->rowstarts[v0%(g->nlocalverts)+1]++;
-}
-
-void rootvisit(MapReduce *mr, void *ptr){
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
-
-  if((st->root)/(g->nlocalverts) == me){
-
-    int64_t root_local = (st->root)%(g->nlocalverts);
-    
-    st->pred[root_local] = st->root;
-    SET_VISITED(root_local, (st->vis));
-
-    size_t p_end = g->rowstarts[root_local+1];
-    for(size_t p = g->rowstarts[root_local]; p < p_end; p++){
-      int64_t v = g->columns[p];
-      //printf("%ld, %ld\n", v, st->root);
-      mr->add_key_value((char*)&v, sizeof(int64_t), (char*)&(st->root), sizeof(int64_t));
-    } 
+void rootvisit(MapReduce* mr, void *ptr){
+  if(mypartition((char*)&root,sizeof(int64_t)) == me){
+    int64_t root_local = root-nvertoffset;
+    pred[root_local] = root;
+    SET_VISITED(root_local, vis);
+    size_t p_end = rowstarts[root_local+1];
+    for(size_t p = rowstarts[root_local]; p < p_end; p++){
+      int64_t v1 = columns[p];
+      mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&root, sizeof(int64_t));
+    }
   }
 }
+
+/*
+void shrink(char *key, int keybytes, char *multivalue, int nvalues, int *valuebytes,KeyValue *kv, void *ptr){
+  bfs_state *st = (bfs_state*)ptr;
+  csr_graph *g = &(st->g);
+
+  int64_t v = *(int64_t*)key;
+  int64_t v_local = v % (g->nlocalverts);
+
+  int64_t v0 = *(int64_t*)multivalue;
+
+  if(!TEST_VISITED(v_local, st->vis)){  
+    SET_VISITED(v_local, st->vis);
+    st->pred[v_local] = v0;
+    kv->add(key, keybytes, NULL, 0);
+  }
+}*/
+
+void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
+  int64_t v = *(int64_t*)key;
+  int64_t v_local = v - nvertoffset;
+
+  int64_t v0 = *(int64_t*)value;
+
+  if(!TEST_VISITED(v_local, vis)){  
+    SET_VISITED(v_local, vis);
+    pred[v_local] = v0;
+    mr->add_key_value(key, keybytes, NULL, 0);
+  }
+}
+
 
 void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
  
   int64_t v = *(int64_t*)key;
-  int64_t v_local = v%(g->nlocalverts);
+  int64_t v_local = v-nvertoffset;
 
-  size_t p_end = g->rowstarts[v_local+1];
-  for(size_t p = g->rowstarts[v_local]; p < p_end; p++){
-    int64_t v1 = g->columns[p];
+  size_t p_end = rowstarts[v_local+1];
+  for(size_t p = rowstarts[v_local]; p < p_end; p++){
+    int64_t v1 = columns[p];
     mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
   }
 }
 
-void shrink(MapReduce *mr, char *key, int keybytes,  MultiValueIterator *iter, void* ptr){
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
-
-  int64_t v = *(int64_t*)key;
-  int64_t v_local = v % (g->nlocalverts);
-
-  //iter->Begin();
-
-  int64_t v0 = *(int64_t*)iter->getValue();
-
-  if(!TEST_VISITED(v_local, st->vis)){  
-    if(SET_VISITED(v_local, st->vis)==0){
-      //printf("key=%s, keybytes=%d\n", key, keybytes);
-      st->pred[v_local] = v0;
-      mr->add_key_value(key, keybytes, NULL, 0);
+int64_t getrootvert(){
+  int64_t myroot;
+   // Get a root
+  do{
+    if(me==0){
+      myroot = rand() % nglobalverts;
     }
-  }
+    MPI_Bcast((void*)&myroot, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+    int myroot_proc=mypartition((char*)&myroot, (int)sizeof(int64_t));
+    if(myroot_proc==me){
+      int64_t root_local=myroot-nvertoffset;
+      if(rowstarts[root_local+1]-rowstarts[root_local]==0){
+        myroot=-1;
+      }
+    }
+    MPI_Bcast((void*)&myroot, 1, MPI_INT64_T, myroot_proc, MPI_COMM_WORLD);
+  }while(myroot==-1);
+
+  return myroot;
 }
 
-void shrink_mm(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,void *ptr){
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
-
-  int64_t v = *(int64_t*)key;
-  int64_t v_local = v % (g->nlocalverts);
-
-  int64_t v0 = *(int64_t*)value;
- 
-  if(!TEST_VISITED(v_local, st->vis)){  
-    if(SET_VISITED(v_local, st->vis)==0){
-      //printf("%ld\n", v);
-      st->pred[v_local] = v0;
-      mr->add_key_value(key, keybytes, NULL, 0);
-    }
-  }
-}
-
+#if 0
 void printgraph(csr_graph *g){
   for(int i = 0; i < g->nlocalverts; i++){
     int64_t v0 = me*(g->nlocalverts)+i;
@@ -550,10 +403,43 @@ void printgraph(csr_graph *g){
     printf("\n");
   }
 }
+#endif
 
 void printresult(int64_t *pred, size_t nlocalverts){
   for(size_t i = 0; i < nlocalverts; i++){
     size_t v = nlocalverts*me+i;
     printf("%ld:%ld\n", v, pred[i]);
+  }
+}
+
+void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
+  char tmp[1000];
+ 
+  sprintf(tmp, "%s/%s-l%s-c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
+    outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, me); 
+
+  FILE *fp = fopen(tmp, "w+");
+  //mr->print_stat(fp);
+  MapReduce::print_stat(mr, fp);
+  fclose(fp);
+  
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if(me==0){
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    char timestr[1024];
+    sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    char infile[1024+1];
+    sprintf(infile, "%s/%s-l%s-c%s-b%s-i%s-h%d-%s.%d.*.txt", \
+      outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
+    char outfile[1024+1];
+    sprintf(outfile, "%s/%s-l%s-c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
+      outdir, prefix, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, timestr);  
+    char cmd[8192+1];
+    sprintf(cmd, "cat %s>>%s", infile, outfile);
+    system(cmd);
+    sprintf(cmd, "rm %s", infile);
+    system(cmd);
   }
 }

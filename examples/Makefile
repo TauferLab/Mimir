@@ -5,10 +5,10 @@ else
 endif
 CC=openmp
 ifeq ($(CC),mp)
-  LCFLAGS = -fopenmp -Wall -g -O3 -I../src
+  LCFLAGS = -fopenmp -g -O -DMPICH_IGNORE_CXX_SEEK -I../src
   LFLAGS = -fopenmp -L ../src 
 else
-  LCFLAGS = -Wall -g -O3 -I../src
+  LCFLAGS = -g -O -DMPICH_IGNORE_CXX_SEEK -I../src
   LFLAGS = -L ../src
 endif
 
@@ -27,11 +27,11 @@ bfs: bfs.o
 #bfs_mm: bfs_mm.o
 #	$(CPP) $(CFLAGS) $(LFLAGS) bfs_mm.o $(USERLIBS) -o bfs_mm
 
-octree_move_lg: octree_move_lg.o
-	$(CPP) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o $(USERLIBS) -o octree_move_lg
+octree: octree_move_lg.o
+	$(CPP) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o $(USERLIBS) -o octree
 
 clean:
-	rm *.o wordcount bfs bfs_mm octree_move_lg
+	rm *.o wordcount bfs octree
 
 #bfs.o: bfs.cpp
 #	$(CPP) $(CFLAGS) -c $<

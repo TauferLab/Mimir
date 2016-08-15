@@ -13,7 +13,7 @@ using namespace MAPREDUCE_NS;
 #include "stat.h"
 
 void map(MapReduce *mr, char *word, void *ptr);
-void countword(MapReduce *, char *, int,  MultiValueIterator *, void*);
+void countword(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
 
 #define USE_LOCAL_DISK  0
 //#define OUTPUT_KV
@@ -52,10 +52,15 @@ int main(int argc, char *argv[])
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
+  char *filedir=argv[1];
   const char *prefix = argv[2];
   const char *outdir = argv[3];
 
-  char *filedir=argv[1];
+  if(me==0){
+    printf("input dir=%s\n", filedir);
+    printf("prefix=%s\n", prefix);
+    printf("output dir=%s\n", outdir);
+  }
 
   // copy files
 #if USE_LOCAL_DISK
@@ -136,7 +141,7 @@ void map(MapReduce *mr, char *word, void *ptr){
     mr->add_key_value(word,len,one,2);
 }
 
-void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
+void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   uint64_t count=0;
   
   for(iter->Begin(); !iter->Done(); iter->Next()){

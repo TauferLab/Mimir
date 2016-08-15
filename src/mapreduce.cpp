@@ -368,7 +368,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 */
 uint64_t MapReduce::reduce(
   void (*_myreduce)(MapReduce *, char *, int, 
-  MultiValueIterator *, void*), 
+  MultiValueIterator *, int, void*), 
   int _compress, void* _ptr){
 
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
@@ -426,6 +426,8 @@ uint64_t MapReduce::reduce(
   TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_RDC_OUTPUT_KV, \
     (data->blocksize)*(data->nblock));
+
+  //printf("thread_info[0]=%d\n", thread_info[0].nitem);
 
   return _get_kv_count(); 
 }
@@ -1148,7 +1150,7 @@ end:
 }
 
 int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *ptr,
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *ptr,
   int shared){
 
   //DEFINE_KV_VARS;
@@ -1328,7 +1330,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 }
 
 void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,  
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *ptr, int shared){
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *ptr, int shared){
  
   //DEFINE_KV_VARS; 
   char *key, *value;
@@ -1444,7 +1446,7 @@ end:
     //printf("key=%s, nvalue=%d\n", key, nvalue); fflush(stdout);
  
     MultiValueIterator *iter = new MultiValueIterator(nvalue,valuesizes,values,kv->kvtype,kv->vsize);
-    myreduce(this, key, keybytes, iter, ptr);
+    myreduce(this, key, keybytes, iter, 1, ptr);
     delete iter;
 
 
@@ -1537,7 +1539,7 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
 }
 
 void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* ptr){
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void* ptr){
 
   int nunique=0;
   char *ubuf, *kmvbuf=NULL;
@@ -1559,7 +1561,7 @@ void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype,
 
       MultiValueIterator *iter = new MultiValueIterator(ukey, mv, kvtype);     
 
-      myreduce(this, ukey->key, ukey->keybytes, iter, ptr);
+      myreduce(this, ukey->key, ukey->keybytes, iter, 1, ptr);
       
       delete iter;
 
@@ -1576,7 +1578,7 @@ end:
 }
 
 uint64_t MapReduce::_convert_small(KeyValue *kv, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* ptr){
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void* ptr){
 
   LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) start.\n", me, nprocs);
 
@@ -1597,6 +1599,8 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 #endif
 
   _tinit(tid);
+
+  //if(me==0) printf("after init: thread_info[0]=%d\n", thread_info[0].nitem);
 
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
@@ -1627,6 +1631,8 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 
   LOG_PRINT(DBG_CVT, "%d KV2Unique end:first=%d\n", tid, isfirst);
 
+  //if(me==0) printf("kv2unique: thread_info[0]=%d\n", thread_info[0].nitem);
+
   if(isfirst){
     _unique2kmv(tid, kv, u, mv, myreduce, ptr);
   }else{
@@ -1637,6 +1643,8 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
     (mv->blocksize)*(mv->nblock));
 
   delete mv;
+
+  //if(me==0) printf("before end: thread_info[0]=%d\n", thread_info[0].nitem);
 
   //printf("T%d: %ld\n", tid, u->nunique);
 
@@ -1667,7 +1675,7 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 }
 
 uint64_t MapReduce::_convert_compress(KeyValue *kv, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void* ptr){
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void* ptr){
 
   LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: compress begin\n", me, nprocs);
 
@@ -1852,7 +1860,7 @@ out:
       GET_KMV_VARS(kv->kvtype, mv_buf, key, keybytes, nvalue, values, valuesizes, mvbytes, kmvsize, kv);
  
       MultiValueIterator *iter = new MultiValueIterator(nvalue,valuesizes,values,kv->kvtype,kv->vsize);
-      myreduce(this, key, keybytes, iter, ptr);
+      myreduce(this, key, keybytes, iter, 0, ptr);
       delete iter;
 
       offset += kmvsize;

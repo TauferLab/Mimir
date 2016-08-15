@@ -35,7 +35,7 @@ enum KVType{GeneralKV, StringKV, FixedKV, StringKeyOnly};
 typedef void (*UserInitKV)(MapReduce *, void *);
 typedef void (*UserMapFile) (MapReduce *, char *, void *);
 typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
-typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*);
+typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*);
 typedef void (*UserScan)(char *, int, char *, int ,void *);
 
 class MapReduce {
@@ -231,22 +231,22 @@ struct thread_private_info{
   void _unique2set(UniqueInfo *);
     
   int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *,
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *,
     int shared=1);
 
     
   void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
   void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*, int shared=1);
+  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void*, int shared=1);
 
   void _mv2kmv(DataObject *,UniqueInfo *,int,
-    void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void *);
+    void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *);
 
-  uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
+  uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void*);
   // FIXME: _convert_media and _convert_large hasn't been implemneted
-  uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
-  uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*), void*);
-  uint64_t _convert_compress(KeyValue *, void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, void*), void*);
+  uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void*);
+  uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void*);
+  uint64_t _convert_compress(KeyValue *, void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, int, void*), void*);
 
   uint64_t _get_kv_count(){
     local_kvs_count=0;

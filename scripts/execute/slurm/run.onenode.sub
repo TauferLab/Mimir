@@ -9,6 +9,7 @@
 
 source config.h
 
+echo "PPN:"$PPN
 echo "program:"$EXE
 echo "param:"$PARAM
 echo "input dir:"$INDIR
@@ -16,4 +17,4 @@ echo "prefix":$PREFIX
 echo "output dir:"$OUTDIR
 echo "temp dir:"$TMPDIR
 
-mpiexec -n $PPN -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR
+mpiexec -n $PPN -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR $1

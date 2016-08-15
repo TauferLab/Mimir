@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="mr-mpi"  
-#SBATCH --output="mr-mpi.%j.%N.out"  
+#SBATCH --job-name="mtmr-mpi"  
+#SBATCH --output="mtmr-mpi.%j.%N.out"  
 #SBATCH --partition=compute  
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
@@ -15,6 +15,6 @@ echo "prefix":$PREFIX
 echo "output dir:"$OUTDIR
 echo "temp dir:"$TMPDIR
 echo "tau outfile:"$TAUFILE
-mpiexec -n $PPN -bind-to core ./$EXE $PARAM $INDIR $PREFIX.TAU $OUTDIR $TMPDIR
+mpiexec -n $PPN -bind-to core ./$EXE $PARAM $INDIR $PREFIX.TAU $OUTDIR $TMPDIR $1
 pprof | grep "  Heap Memory Used (KB)" | awk -v np=$PPN -v data=$DATASIZE '{print data","np","i++","$2}' >> $TAUFILE
 rm profile.*

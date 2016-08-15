@@ -24,13 +24,13 @@ using namespace MAPREDUCE_NS;
 
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
-void sum(MapReduce *, char *, int,  MultiValueIterator *, void*);
+void sum(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
 
 double slope(double[], double[], int);
 
 void output(const char *,const char *,const char *,float,MapReduce*,MapReduce *);
 
-int digits=15;
+#define digits 15
 int thresh=5;
 bool realdata = false;
 int level;
@@ -57,6 +57,13 @@ int main(int argc, char **argv)
   const char *outdir = argv[4];
   //const char *tmpdir = argv[5];
 
+  if(me==0){
+    printf("density=%.2f\n", density);
+    printf("input dir=%s\n", indir);
+    printf("prefix=%s\n", prefix);
+    printf("output dir=%s\n", outdir);
+  }
+
   int min_limit, max_limit;
   min_limit=0;
   max_limit=digits+1;
@@ -72,7 +79,7 @@ int main(int argc, char **argv)
   mr_convert->set_maxmem(32);
 
 #ifdef KV_HINT
-  mr_convert->set_KVtype(FixedKV, 15, 0);
+  mr_convert->set_KVtype(FixedKV, digits, 0);
 #endif
 
   char whitespace[10] = "\n";
@@ -93,8 +100,14 @@ int main(int argc, char **argv)
   mr_level->set_maxmem(32);
 
   while ((min_limit+1) != max_limit){
+#ifdef PART_REDUCE
+#ifdef KV_HINT
+    mr_level->set_KVtype(FixedKV, level, sizeof(int));
+#endif
+#else
 #ifdef KV_HINT
     mr_level->set_KVtype(FixedKV, level, 0);
+#endif
 #endif
     mr_level->map_key_value(mr_convert, gen_leveled_octkey, NULL);
 #ifdef KV_HINT
@@ -132,25 +145,39 @@ int main(int argc, char **argv)
 }
 
 
-void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
-  //int sum=iter->getCount();
+void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
 
   int sum=0;
+#ifdef PART_REDUCE
+  //if(me==0) printf("count=%d\n", iter->getCount());
   for(iter->Begin(); !iter->Done(); iter->Next()){
-    sum+=atoi(iter->getValue());
+    sum+=*(int*)iter->getValue();
   }
+  //if(me==0) printf("sum=%d\n", sum);
 
-  //if(me==0) { printf("sum=%d, thresh=%d\n", sum, thresh); fflush(stdout); }
-  if (sum >= thresh){
-    //printf("sum=%d, thresh=%d\n", sum ,thresh);
-    mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int));
+  if (lastreduce){
+    if(sum>thresh){
+      //if(me==0) printf("sum=%d\n", sum);
+      mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int));
+    }
+  }else{
+    mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int)); 
   }
+#else
+  sum=iter->getCount();
+  if(sum>thresh)
+    mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int)); 
+#endif
 }
-
 
 void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
+#ifdef PART_REDUCE
+  int count=1;
+  mr->add_key_value(key, level, (char*)&count, (int)sizeof(int));
+#else
   mr->add_key_value(key, level, NULL, 0);
+#endif
 }
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)
@@ -174,13 +201,18 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
   }
 	
   const int num_atoms = floor((num_coor-2)/3);
-  double x[num_atoms], y[num_atoms], z[num_atoms];
+  double *x = new double[num_atoms];
+  double *y = new double[num_atoms];
+  double *z = new double[num_atoms];
   /*x,y,z double arries store the cooridnates of ligands */
   for (int i=0; i!=(num_atoms); i++){
     x[i] = coords[3*i];
     y[i] = coords[3*i+1];
     z[i] = coords[3*i+2];
   }
+  delete [] x;
+  delete [] y;
+  delete [] z;
 
   /*compute the b0, b1, b2 using linear regression*/
   double b0 = slope(x, y, num_atoms);
@@ -260,7 +292,7 @@ double slope(double x[], double y[], int num_atoms){
 void output(const char *filename, const char *outdir, const char *prefix, float density, MapReduce *mr1, MapReduce *mr2){
   char tmp[1000];
  
-  sprintf(tmp, "%s/mtmrmpi-octree-%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
+  sprintf(tmp, "%s/%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
     outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, me); 
 
   FILE *fp = fopen(tmp, "w+");
@@ -276,10 +308,10 @@ void output(const char *filename, const char *outdir, const char *prefix, float 
     char timestr[1024];
     sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     char infile[1024+1];
-    sprintf(infile, "%s/mtmrmpi-octree-%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d.*.txt", \
+    sprintf(infile, "%s/%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d.*.txt", \
       outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
     char outfile[1024+1];
-    sprintf(outfile, "%s/mtmrmpi-octree-%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
+    sprintf(outfile, "%s/%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
       outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, timestr);  
     char cmd[8192+1];
     sprintf(cmd, "cat %s>>%s", infile, outfile);
