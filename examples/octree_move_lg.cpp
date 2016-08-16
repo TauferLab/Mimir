@@ -100,19 +100,19 @@ int main(int argc, char **argv)
   mr_level->set_maxmem(32);
 
   while ((min_limit+1) != max_limit){
-#ifdef PART_REDUCE
+//#ifdef PART_REDUCE
 #ifdef KV_HINT
     mr_level->set_KVtype(FixedKV, level, sizeof(int));
 #endif
-#else
-#ifdef KV_HINT
-    mr_level->set_KVtype(FixedKV, level, 0);
-#endif
-#endif
+//#else
+//#ifdef KV_HINT
+//    mr_level->set_KVtype(FixedKV, level, 0);
+//#endif
+//#endif
     mr_level->map_key_value(mr_convert, gen_leveled_octkey, NULL);
-#ifdef KV_HINT
-    mr_level->set_KVtype(FixedKV, level, sizeof(int));
-#endif
+//#ifdef KV_HINT
+//    mr_level->set_KVtype(FixedKV, level, sizeof(int));
+//#endif
 #ifdef PART_REDUCE
     uint64_t nkv = mr_level->reduce(sum, 1, NULL);
 #else
@@ -172,12 +172,12 @@ void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int l
 
 void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
-#ifdef PART_REDUCE
+//#ifdef PART_REDUCE
   int count=1;
   mr->add_key_value(key, level, (char*)&count, (int)sizeof(int));
-#else
-  mr->add_key_value(key, level, NULL, 0);
-#endif
+//#else
+//  mr->add_key_value(key, level, NULL, 0);
+//#endif
 }
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)

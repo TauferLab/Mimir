@@ -37,12 +37,15 @@ do
   for DATATYPE in $DATATYPES
   do
     export INDIR=$BASEDIR/$BENCHMARK/$DATATYPE/$TESTTYPE/$list
-    export PREFIX=$VERSION-$BENCHMARK-$DATATYPE-$TESTTYPE-$list
     for setting in $SETLIST
     do
       echo "setting:"$setting
+      export PREFIX=$VERSION-$setting-$BENCHMARK-$DATATYPE-$TESTTYPE-$list
       export EXE=$BENCHMARK"_"$setting
-      export PARAM=${PARAMLIST[$idx]}
+      if [ $BENCHMARK != "wordcount" ]
+      then
+        export PARAM=${PARAMLIST[$idx]}
+      fi
       export TAUFILE=$VERSION-$setting-$BENCHMARK-$DATATYPE-$TESTTYPE-tau.txt
       for((i=1; i<=$NTIMES; i++))
       do
