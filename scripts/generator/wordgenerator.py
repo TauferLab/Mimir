@@ -1,14 +1,30 @@
 #!/usr/bin/python
-
 import sys
 import random
 import string
-import itertools
+import argparse
 
-# from itertools import combinations_with_replacement
+parser=argparse.ArgumentParser(description='Generate words.')
+parser.add_argument("dist",help="distribution")
+parser.add_argument("nunique",type=int,help="unique words")
+parser.add_argument("fsize",type=long,help="file size")
+parser.add_argument("fcount",type=int,help="file count")
+parser.add_argument("prefix",help="output file prefix, filename=prefix.i.txt")
+parser.add_argument("outdir",help="output directory")
+parser.add_argument("--config", nargs=1, default="wordgenerator.config", help="configuration file")
+args = parser.parse_args()
+
+print args
+
+dist=args.dist
+nunique=args.nunique
+fsize=args.fsize
+fcount=args.fcount
+prefix=args.prefix
+outdir=args.outdir
+cfile=args.config
 
 ### FUNCTIONS ###
-
 def get_dist_value(conf, var):
     res = -1
     if conf[var + "_dist"] == "uniform":
@@ -37,17 +53,11 @@ def get_dist_value(conf, var):
 
 ### SCRIPT ###
 
-usage = "./wordcountgen.py <config-file>"
-
-if len(sys.argv) < 2:
-    print "Usage:\n\t" + usage
-    exit(1)
-
 # seed for reproducibility
 random.seed(0)
 
 # read config file
-conffile = open(sys.argv[1]).readlines()
+conffile = open(cfile).readlines()
 confarr = []
 conf = None
 
@@ -65,39 +75,34 @@ alphabet = string.letters + string.digits
 # generate bank of words
 words = []
 word_combs = dict()
-num_words = int(conf["num_words"])
+num_words = nunique
 for i in xrange(num_words):
     wordlen = get_dist_value(conf, "length")
-
-    #if wordlen not in word_combs:
-    #    word_combs[wordlen] = itertools.combinations_with_replacement(alphabet, wordlen)
-
     word = ""
     while True:
       for i in range(0,wordlen):
         word+=alphabet[random.randint(0, len(alphabet)-1)]
       if word not in words:
         break
-
-    #words.append(word_combs[wordlen].next())
     words.append(word)
 
-#print "generate unique words: ",len(words)
+print "generate word bank with "+str(num_words)+" unique words\n"
 
-words_dist=conf["words_dist"]
+words_dist=dist
 
-# convert char tuples to strings
-#for i in xrange(len(words)):
-#    s = ""
-#    for j in xrange(len(words[i])):
-#        s += words[i][j]
-#    words[i] = s
+print "output to "+outdir+"\n"
+
+print "file count "+str(fcount)+"\n"
 
 # generate file
-bytes_left = int(conf["num_lines"])*int(conf["chars_per_line_mean"])
-curlen = 0
-curline = ""
-while True:
+for i in range(0,fcount):
+  print "output file:"+prefix+'.'+str(i)+'.txt\n'
+  fid=open(outdir+'/'+prefix+'.'+str(i)+'.txt','w')
+  bytes_left = fsize
+  curlen = 0
+  curline = ""
+  notstop = True
+  while notstop:
     # pick length of line
     chars_per_line = get_dist_value(conf, "chars_per_line")
 
@@ -106,7 +111,6 @@ while True:
         w = ""
         if words_dist=="uniform":
           w = words[random.randint(0, len(words)-1)] + " "
-          #print w
         elif words_dist=='triangular':
           w = words[int(round(random.triangular(0, len(words)-1, 0)))] + " "
         wlen = len(w)
@@ -115,15 +119,18 @@ while True:
             curlen += wlen
             if curlen > bytes_left:
                 curline = curline[:(bytes_left-curlen)]
-            sys.stdout.write(curline)
-            exit(0)
+            fid.write(curline)
+            #sys.stdout.write(curline)
+            notstop=False
         elif curlen + wlen >= chars_per_line:
             bytes_left -= (curlen + wlen)
             w = w[:-1] + "\n"
-            sys.stdout.write(curline + w)
+            fid.write(curline+w)
+            #sys.stdout.write(curline + w)
             curlen = 0
             curline = ""
             break
         else:
             curlen += wlen
             curline += w
+  fid.close()

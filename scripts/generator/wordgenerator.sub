@@ -8,13 +8,7 @@
 #SBATCH --ntasks-per-core=1
 #SBATCH -v -t 00:20:00
 
-DATAHOME=/oasis/scratch/comet/taogao/temp_project/
-INPUTDIR=words/uniform
-FULLNAME=80G.txt
+DATAHOME=/oasis/scratch/comet/taogao/temp_project/wordcount/uniform
+SUBDIR=weekscale/test
 
-FULLNAME=$DATAHOME/$INPUTDIR/$FULLNAME
-
-#cd $PBS_O_WORKDIR
-#module load python/2.7.2
-python wordcountgen.py tmp.config.txt > $FULLNAME
-ls -l $FULLNAME
+python wordgenerator.py uniform 100000 1398101 24 words $DATAHOME/$SUBDIR
