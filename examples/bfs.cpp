@@ -17,7 +17,7 @@ int nbucket=17;
 const char* commmode="a2a";
 const char* inputsize="512M";
 const char* blocksize="64M";
-const char* gbufsize="64M";
+const char* gbufsize="512M";
 const char* lbufsize="4K";
 
 using namespace MAPREDUCE_NS;

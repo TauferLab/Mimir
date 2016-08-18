@@ -5,9 +5,10 @@ import string
 import argparse
 
 parser=argparse.ArgumentParser(description='Generate words.')
-parser.add_argument("dist",help="distribution")
-parser.add_argument("nunique",type=int,help="unique words")
-parser.add_argument("fsize",type=long,help="file size")
+parser.add_argument("dist",help="distribution of word count")
+parser.add_argument("nunique",type=int,help="number of unique words")
+parser.add_argument("fsize",type=long,help="file size of each file")
+parser.add_argument("offset",type=int,help="file index offset")
 parser.add_argument("fcount",type=int,help="file count")
 parser.add_argument("prefix",help="output file prefix, filename=prefix.i.txt")
 parser.add_argument("outdir",help="output directory")
@@ -19,6 +20,7 @@ print args
 dist=args.dist
 nunique=args.nunique
 fsize=args.fsize
+offset=args.offset
 fcount=args.fcount
 prefix=args.prefix
 outdir=args.outdir
@@ -96,8 +98,8 @@ print "file count "+str(fcount)+"\n"
 
 # generate file
 for i in range(0,fcount):
-  print "output file:"+prefix+'.'+str(i)+'.txt\n'
-  fid=open(outdir+'/'+prefix+'.'+str(i)+'.txt','w')
+  print "output file:"+prefix+'.'+str(offset+i)+'.txt\n'
+  fid=open(outdir+'/'+prefix+'.'+str(offset+i)+'.txt','w')
   bytes_left = fsize
   curlen = 0
   curline = ""
