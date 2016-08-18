@@ -27,8 +27,8 @@ void output(const char *filename, const char *outdir, \
 int me, nprocs;
 int nbucket=17;
 const char* inputsize="512M";
-const char* blocksize="512M";
-const char* gbufsize="512M";
+const char* blocksize="64M";
+const char* gbufsize="64M";
 const char* lbufsize="4K";
 const char* commmode="a2a";
 

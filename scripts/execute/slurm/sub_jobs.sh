@@ -29,6 +29,8 @@ fi
 
 source config.h
 
+export USETAU="no"
+
 idx=0
 nnode=1
 for list in $DATALIST
@@ -38,8 +40,8 @@ do
   export NODE=$nnode
   for DATATYPE in $DATATYPES
   do
+    echo $DATATYPE
     export INDIR=$BASEDIR/$BENCHMARK/$DATATYPE/$TESTTYPE/$list
-    export PREFIX=$VERSION-$BENCHMARK-$DATATYPE-$TESTTYPE-$list
     for setting in $SETLIST
     do
       echo "setting:"$setting
@@ -48,6 +50,7 @@ do
       then
         export PARAM=${PARAMLIST[$idx]}
       fi
+      export PREFIX=$VERSION-$setting-$BENCHMARK-$DATATYPE-$TESTTYPE-$list
       export TAUFILE=$VERSION-$setting-$BENCHMARK-$DATATYPE-$TESTTYPE-tau.txt
       for((i=1; i<=$NTIMES; i++))
       do
