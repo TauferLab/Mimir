@@ -1,0 +1,33 @@
+#!/bin/bash
+#PBS -N mtmr-mpi
+#PBS -l walltime=00:20:00
+
+cd $PBS_O_WORKDIR
+
+source config.h
+
+echo "node:"$NODE
+echo "ppn:"$PPN
+echo "program:"$EXE
+echo "param:"$PARAM
+echo "input dir:"$INDIR
+echo "prefix":$PREFIX
+echo "output dir:"$OUTDIR
+echo "temp dir:"$TMPDIR
+echo "thread num:"$THRS
+echo "use tau:"$USETAU
+echo "tau file:"$TAUFILE
+
+let NPROC=PPN*NODE
+export OMP_NUM_THRADS=$THRS
+
+module load impi
+mpiexec -n $NPROC -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR $1
+
+if [ $USETAU == "true" ]
+then
+  pprof | grep "  Heap Memory Used (KB)" | \
+    awk -v np=$PPN -v data=$DATASIZE '{print data","np","i++","$2}' \
+    >> $TAUFILE
+  rm profile.*
+fi

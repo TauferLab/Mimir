@@ -3,41 +3,53 @@ echo $DIR
 
 FLAGS=$1
 
-cd ../../src
-make clean-all
-make -f Makefile linux CC=$FLAGS
+cd ../../../src
+make clean
+make CC=$FLAGS CFLAGS="-DMTMR_COMM_BLOCKING"
 
-cd $DIR
+cd ../examples
+make clean
+make wordcount CC=$FLAGS
+make octree CC=$FLAGS
+make bfs CC=$FLAGS CFLAGS="-DOUTPUT_RESULT"
+cp ./wordcount $DIR/wordcount_basic
+cp ./octree $DIR/octree_basic
+cp ./bfs $DIR/bfs_basic
 
-cd ../../examples
-make -f Makefile.linux clean
-make -f Makefile.linux wordcount CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=64" CC=$FLAGS
-make -f Makefile.linux octree_move_lg CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=64" CC=$FLAGS
+make clean
+make wordcount CC=$FLAGS CFLAGS="-DPART_REDUCE"
+make octree CC=$FLAGS CFLAGS="-DPART_REDUCE"
+make bfs CC=$FLAGS CFLAGS="-DPART_REDUCE -DOUTPUT_RESULT"
+cp ./wordcount $DIR/wordcount_partreduce
+cp ./octree $DIR/octree_partreduce
+cp ./bfs $DIR/bfs_partreduce
 
-cp ./wordcount $DIR/wordcount_p64
-cp ./octree_move_lg $DIR/octree_move_lg_p64
+make clean
+make wordcount CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT"
+make octree CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT"
+make bfs CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT -DOUTPUT_RESULT"
+cp ./wordcount $DIR/wordcount_partreducekvhint
+cp ./octree $DIR/octree_partreducekvhint
+cp ./bfs $DIR/bfs_partreducekvhint
 
-cd ../../examples
-make -f Makefile.linux clean
-make -f Makefile.linux wordcount CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=128" CC=$FLAGS
-make -f Makefile.linux octree_move_lg CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=128" CC=$FLAGS
+cd ../src
+make clean
+make CC=
+cd ../examples
+make clean
+make wordcount CC= CFLAGS="-DPART_REDUCE -DKV_HINT" 
+cp ./wordcount $DIR/wordcount_nb
 
-cp ./wordcount $DIR/wordcount_p128
-cp ./octree_move_lg $DIR/octree_move_lg_p128
+cd ../src
+make clean
+make CC=mp CFLAGS="-DMTMR_MULTITHREAD"
+cd ../examples
+make clean
+make wordcount CC=mp CFLAGS="-DPART_REDUCE -DKV_HINT -DMTMR_MULTITHREAD"
+cp ./wordcount $DIR/wordcount_mt
 
-cd ../../examples
-make -f Makefile.linux clean
-make -f Makefile.linux wordcount CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=256" CC=$FLAGS
-make -f Makefile.linux octree_move_lg CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=256" CC=$FLAGS
-
-cp ./wordcount $DIR/wordcount_p256
-cp ./octree_move_lg $DIR/octree_move_lg_p256
-
-make -f Makefile.linux clean
-make -f Makefile.linux wordcount CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=512" CC=$FLAGS
-make -f Makefile.linux octree_move_lg CFLAGS="-DGATHER_STAT=1 -DPAGESIZE=512" CC=$FLAGS
-
-cp ./wordcount $DIR/wordcount_p512
-cp ./octree_move_lg $DIR/octree_move_lg_p512
+make clean
+cd ../src
+make clean
 
 cd $DIR

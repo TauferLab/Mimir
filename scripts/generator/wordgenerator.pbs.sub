@@ -1,0 +1,15 @@
+#!/bin/bash
+#PBS -N wordgenerator
+#PBS -l walltime=00:20:00
+
+echo "distribute",$DIST
+echo "unique",$UNIQUE
+echo "fsize",$FSIZE
+echo "offset",$OFFSET
+echo "nfile",$NFILE
+echo "prefix",$PREFIX
+echo "outdir",$OUTDIR
+
+cd $PBS_O_WORKDIR
+
+python wordgenerator.py $DIST $UNIQUE $FSIZE $OFFSET $NFILE $PREFIX $OUTDIR

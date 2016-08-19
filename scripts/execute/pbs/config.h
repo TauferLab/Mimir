@@ -1,15 +1,5 @@
-PPN=24
-BENCHMARK=wordcount
-SETTING=onenode
-DATASET=uniform
-#DATASIZE=
-#EXE=wordcount
-PARAM=
+export PPN=20
+export BASEDIR=/scratch/rice/g/gao381
+export OUTDIR=$BASEDIR/results/rice/wordcount/
+export TMPDIR=/tmp
 
-BASEDIR=/oasis/scratch/comet/taogao/temp_project
-INDIR=$BASEDIR/$BENCHMARK/$DATASET/$SETTING/$DATASIZE
-PREFIX=mrmpi-$BENCHMARK-$SETTING-$DATASET-$DATASIZE
-OUTDIR=$BASEDIR/results/paper
-TMPDIR=/scratch/$USER/$SLURM_JOB_ID
-
-TAUFILE=mrmpi-$EXE-$BENCHMARK-$SETTING-$DATASET.txt
