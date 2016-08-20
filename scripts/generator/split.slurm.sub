@@ -7,13 +7,13 @@
 #SBATCH --export=ALL  
 #SBATCH --ntasks-per-core=1
 #SBATCH -v -t 01:00:00
-#
-INPUT=/oasis/scratch/comet/taogao/temp_project/words/wikipedia/wikipedia_150GB
-OUTPUT=/oasis/scratch/comet/taogao/temp_project/words/wikipedia/onenode/96G
-PREFIX=1
-FSIZE=1431655834
-SIDX=0
-NFILE=72
-THRS=24
+
+echo "thread number:"$THRS
+echo "input dir:"$INPUT
+echo "output dir:"$OUTPUT
+echo "prefix:"$PREFIX
+echo "file size:"$FSIZE
+echo "start index":$SIDX
+echo "file count":$NFILE
 
 OMP_NUM_THREADS=$THRS ./split_text_files $INPUT $OUTPUT $PREFIX $FSIZE $SIDX $NFILE

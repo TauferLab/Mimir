@@ -14,6 +14,6 @@ echo "fsize",$FSIZE
 echo "offset",$OFFSET
 echo "nfile",$NFILE
 echo "prefix",$PREFIX
-echo "outdir",$OURDIR
+echo "outdir",$OUTDIR
 
 python wordgenerator.py $DIST $UNIQUE $FSIZE $OFFSET $NFILE $PREFIX $OUTDIR

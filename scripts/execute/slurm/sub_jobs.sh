@@ -65,7 +65,7 @@ do
       done
     done
   done
-  if [ $TESTTYPE == "weekscale" ]
+  if [ $TESTTYPE == "weekscale512M" ] || [ $TESTTYPE == "weekscale4G" ]
   then
     let nnode=nnode*2
   fi

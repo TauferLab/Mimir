@@ -35,8 +35,6 @@ int main(int argc, char *argv[]){
   int maxnfile=atoi(argv[6]);
 
   int64_t maxfilesize=(int64_t)chunksize*(CHUNK_UNIT);
-  char *buf=(char*)malloc(maxfilesize+1);
-
   // get filelist
   get_file_list(filepath, 1);
   int fcount = ifiles.size();
@@ -55,6 +53,8 @@ int main(int argc, char *argv[]){
   // open output file
   int64_t outfilesize=0;
   out_fd=creat(tfilename, S_IRUSR|S_IWUSR);
+
+  char *buf=(char*)malloc(maxfilesize+1);
 
   //printf("tfilename=%s\n", tfilename);
  
@@ -118,9 +118,10 @@ int main(int argc, char *argv[]){
       if(readsize==0 || outfilesize==maxfilesize){
         close(out_fd);
         char tmp[100];
-        int i=__sync_fetch_and_add(&fid,1);
-        if(i<maxnfile){
-          sprintf(tmp, "%s/%s.%d.txt", outpath, outprefix, startidx+i);
+        int fidx=__sync_fetch_and_add(&fid,1);
+        if(fidx<maxnfile){
+          sprintf(tmp,"%s/%s.%d.txt",outpath,outprefix,startidx+fidx);
+          printf("thread %d mv %s to %s\n",tid,tfilename,tmp);
           rename(tfilename, tmp);
           outfilesize=0;
           out_fd=creat(tfilename, S_IRUSR|S_IWUSR);
@@ -128,6 +129,7 @@ int main(int argc, char *argv[]){
           //close(in_fd);
           end_flag=1;
           //goto end;
+          remove(tfilename); 
           break;
         }
       }
@@ -138,10 +140,10 @@ int main(int argc, char *argv[]){
     //if(end_flag) break;
   } 
   close(out_fd);
+
+  free(buf); 
 }
 
-  free(buf);
- 
   return 0;
 }
 

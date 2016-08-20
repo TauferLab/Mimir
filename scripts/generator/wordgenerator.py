@@ -78,14 +78,22 @@ alphabet = string.letters + string.digits
 words = []
 word_combs = dict()
 num_words = nunique
-for i in xrange(num_words):
+
+print "begin to generate word bank with "+str(num_words)+" unique words\n"
+
+#print xrange(num_words)
+
+for i in range(0, num_words):
     wordlen = get_dist_value(conf, "length")
     word = ""
     while True:
-      for i in range(0,wordlen):
+      for j in range(0,wordlen):
         word+=alphabet[random.randint(0, len(alphabet)-1)]
+      print word
       if word not in words:
         break
+    print i
+    #print word
     words.append(word)
 
 print "generate word bank with "+str(num_words)+" unique words\n"
@@ -93,7 +101,6 @@ print "generate word bank with "+str(num_words)+" unique words\n"
 words_dist=dist
 
 print "output to "+outdir+"\n"
-
 print "file count "+str(fcount)+"\n"
 
 # generate file
@@ -108,13 +115,19 @@ for i in range(0,fcount):
     # pick length of line
     chars_per_line = get_dist_value(conf, "chars_per_line")
 
-    # fill line with words
+    print chars_per_line
+
+    # fill line with words 
     while curlen < chars_per_line:
         w = ""
         if words_dist=="uniform":
           w = words[random.randint(0, len(words)-1)] + " "
         elif words_dist=='triangular':
           w = words[int(round(random.triangular(0, len(words)-1, 0)))] + " "
+        else:
+          print "distribution error:"+dist
+          exit(1)
+        #print w
         wlen = len(w)
         if curlen + wlen >= bytes_left:
             curline += w
@@ -122,12 +135,15 @@ for i in range(0,fcount):
             if curlen > bytes_left:
                 curline = curline[:(bytes_left-curlen)]
             fid.write(curline)
+            #print curline
             #sys.stdout.write(curline)
             notstop=False
+            break
         elif curlen + wlen >= chars_per_line:
             bytes_left -= (curlen + wlen)
             w = w[:-1] + "\n"
             fid.write(curline+w)
+            #print curline
             #sys.stdout.write(curline + w)
             curlen = 0
             curline = ""

@@ -1,31 +1,32 @@
 #!/bin/bash
 
-export UNIQUE=100000
-export PREFIX=words
-
-DIST=""
-DATALIST=()
-PREFIX=""
-OUTPUT=""
+export THRS=1
 FSIZEMAX=1073741824
+
+INDIR=""
+PREFIX=""
+OUTDIR=""
+DATALIST=()
+FSIZELIST=()
+NFILELIST=()
 FPT=""
 LANCHER="pbs"
 
 if [ $# == 8 ]
 then
-  DIST=$1
+  INDIR=$1
   PREFIX=$2
-  OUTPUT=$3
+  OUTDIR=$3
   DATALIST=($4)
   FSIZELIST=($5)
   NFILELIST=($6)
   FPT=$7
   LANCHER=$8
 else
-  echo "./exe [distribution] [prefix] [outdir] [data list] [fsize list] [nfile list] [file per task] [lancher]"
+  echo "./exe [indir] [prefix] [outdir] [data list] [fsize list] [nfile list] [file per task] [lancher]"
 fi
 
-export DIST=$DIST
+export INPUT=$INDIR
 export PREFIX=$PREFIX
 
 idx=0
@@ -44,9 +45,9 @@ do
   echo "fsize",$fsize
   echo "nfile",$nfile
   echo "sizepfile",$sizepfile
-  mkdir $OUTPUT/$datasize
+  mkdir $OUTDIR/$datasize
   export FSIZE=$sizepfile
-  export OUTDIR=$OUTPUT/$datasize
+  export OUTPUT=$OUTDIR/$datasize
   ifile=0
   while [ $ifile -lt $nfile ];do
     lfile=$FPT
@@ -54,14 +55,14 @@ do
     if [ $last -gt $nfile ];then
       let lfile=nfile-ifile
     fi
-    export OFFSET=$ifile
+    export SIDX=$ifile
     export NFILE=$lfile
     echo "offset",$ifile
     echo "lfile",$lfile
     if [ $LANCHER == "pbs" ];then
-      qsub -V wordgenerator.pbs.sub 
+      qsub -V split.pbs.sub 
     elif [ $LANCHER == "slurm" ];then
-      sbatch wordgenerator.slurm.sub
+      sbatch split.slurm.sub
     fi
     let ifile=ifile+lfile
   done
