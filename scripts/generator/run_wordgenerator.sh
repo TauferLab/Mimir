@@ -6,7 +6,7 @@
 
 BASEDIR=/oasis/scratch/comet/taogao/temp_project/
 #BASEDIR=/scratch/rice/g/gao381/
-datasets="uniform triangular"
+datasets="uniform"
 #for dataset in $datasets
 #do
 #  ./sub_wordgenerator.sh $dataset words "$BASEDIR/wordcount/$dataset/weekscale512M" \
