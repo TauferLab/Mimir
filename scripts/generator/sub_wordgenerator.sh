@@ -33,19 +33,19 @@ for datasize in "${DATALIST[@]}"
 do
   fsize=${FSIZELIST[$idx]}
   nfile=${NFILELIST[$idx]}
-  let sizepfile=fsize/nfile
-  let ntimes=$sizepfile/$FSIZEMAX 
-  if [ $ntimes != 0 ];then
-    let ntimes+=1
-    let sizepfile=sizepfile/ntimes
-    let nfile=nfile*ntimes
-  fi
+  #let sizepfile=fsize/nfile
+  #let ntimes=$sizepfile/$FSIZEMAX 
+  #if [ $ntimes != 0 ];then
+  #  let ntimes+=1
+  #  let sizepfile=sizepfile/ntimes
+  #  let nfile=nfile*ntimes
+  #fi
   echo "datasize",$datasize
   echo "fsize",$fsize
   echo "nfile",$nfile
-  echo "sizepfile",$sizepfile
+  #echo "sizepfile",$sizepfile
   mkdir $OUTPUT/$datasize
-  export FSIZE=$sizepfile
+  export FSIZE=$fsize
   export OUTDIR=$OUTPUT/$datasize
   ifile=0
   while [ $ifile -lt $nfile ];do

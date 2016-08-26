@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="mtmr-mpi-wc"  
-#SBATCH --output="mtmr-mpi-wc.%j.%N.out"  
+#SBATCH --job-name="mtmr-mpi"  
+#SBATCH --output="mtmr-mpi.%j.%N.out"  
 #SBATCH --partition=compute
 #SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL  
@@ -23,7 +23,7 @@ echo "tau file:"$TAUFILE
 let NPROC=PPN*NODE
 
 export OMP_NUM_THRADS=$THRS
-mpiexec -n $NPROC -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR $1
+mpiexec -n $NPROC -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR $TESTINDEX
 
 if [ $USETAU == "true" ]
 then

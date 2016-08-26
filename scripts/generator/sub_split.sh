@@ -34,37 +34,40 @@ for datasize in "${DATALIST[@]}"
 do
   fsize=${FSIZELIST[$idx]}
   nfile=${NFILELIST[$idx]}
-  let sizepfile=fsize/nfile
-  let ntimes=$sizepfile/$FSIZEMAX 
-  if [ $ntimes != 0 ];then
-    let ntimes+=1
-    let sizepfile=sizepfile/ntimes
-    let nfile=nfile*ntimes
-  fi
+  #let sizepfile=fsize/nfile
+  #let ntimes=$sizepfile/$FSIZEMAX 
+  #if [ $ntimes != 0 ];then
+  #  let ntimes+=1
+  #  let sizepfile=sizepfile/ntimes
+  #  let nfile=nfile*ntimes
+  #fi
   echo "datasize",$datasize
   echo "fsize",$fsize
   echo "nfile",$nfile
-  echo "sizepfile",$sizepfile
+  #echo "sizepfile",$sizepfile
   mkdir $OUTDIR/$datasize
-  export FSIZE=$sizepfile
+  export FSIZE=$fsize
   export OUTPUT=$OUTDIR/$datasize
   ifile=0
-  while [ $ifile -lt $nfile ];do
-    lfile=$FPT
-    let last=ifile+lfile
-    if [ $last -gt $nfile ];then
-      let lfile=nfile-ifile
-    fi
-    export SIDX=$ifile
-    export NFILE=$lfile
-    echo "offset",$ifile
-    echo "lfile",$lfile
+  #while [ $ifile -lt $nfile ];do
+  #  lfile=$FPT
+  #  let last=ifile+lfile
+  #  if [ $last -gt $nfile ];then
+  #    let lfile=nfile-ifile
+  #  fi
+  #  export SIDX=$ifile
+  #  export NFILE=$lfile
+  #  echo "offset",$ifile
+  #  echo "lfile",$lfile
+  export SIDX=0
+  export NFILE=$nfile
+  #echo "nfile"
     if [ $LANCHER == "pbs" ];then
       qsub -V split.pbs.sub 
     elif [ $LANCHER == "slurm" ];then
       sbatch split.slurm.sub
     fi
     let ifile=ifile+lfile
-  done
+  #done
   let idx+=1
 done

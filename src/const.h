@@ -6,6 +6,8 @@
 //#define ALIGNV  ALIGNKV
 //#define ALIGNT  ALIGNKV
 
+//#define INTMAX 0x7FFFFFFF
+
 #define NIN(A,B) ((A) < (B)) ? (A) : (B)
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)
 

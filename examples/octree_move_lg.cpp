@@ -13,7 +13,7 @@
 #include <cmath>
 
 int me, nprocs;
-int nbucket=17;
+int nbucket=17, estimate=0, factor=1;
 const char* commmode="a2a";
 const char* inputsize="512M";
 const char* blocksize="64M";
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
   mr_convert->set_blocksize(blocksize);
   mr_convert->set_inputsize(inputsize);
   mr_convert->set_commmode(commmode);
-  mr_convert->set_nbucket(nbucket);
+  mr_convert->set_nbucket(estimate,nbucket,factor);
   mr_convert->set_maxmem(32);
 
 #ifdef KV_HINT
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
   mr_level->set_blocksize(blocksize);
   mr_level->set_inputsize(inputsize);
   mr_level->set_commmode(commmode);
-  mr_level->set_nbucket(nbucket);
+  //mr_level->set_nbucket(nbucket);
   mr_level->set_maxmem(32);
 
   while ((min_limit+1) != max_limit){
@@ -290,10 +290,17 @@ double slope(double x[], double y[], int num_atoms){
 }
 
 void output(const char *filename, const char *outdir, const char *prefix, float density, MapReduce *mr1, MapReduce *mr2){
+  char header[1000];
   char tmp[1000];
- 
-  sprintf(tmp, "%s/%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
-    outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, me); 
+
+  if(estimate)
+    sprintf(header, "%s/%s_d%.2f-c%s-b%s-i%s-f%d-%s.%d", \
+      outdir, prefix, density, gbufsize, blocksize, inputsize, factor, commmode, nprocs);
+  else
+    sprintf(header, "%s/%s_d%.2f-c%s-b%s-i%s-h%d-%s.%d", \
+      outdir, prefix, density, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs);
+
+  sprintf(tmp, "%s.%d.txt", header, me); 
 
   FILE *fp = fopen(tmp, "w+");
   //mr1->print_stat(fp);
@@ -308,11 +315,9 @@ void output(const char *filename, const char *outdir, const char *prefix, float 
     char timestr[1024];
     sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     char infile[1024+1];
-    sprintf(infile, "%s/%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d.*.txt", \
-      outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
+    sprintf(infile, "%s.*.txt", header);
     char outfile[1024+1];
-    sprintf(outfile, "%s/%s-d%.2f-l%s-c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
-      outdir, prefix, density, lbufsize, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, timestr);  
+    sprintf(outfile, "%s_%s.txt", header, timestr);
     char cmd[8192+1];
     sprintf(cmd, "cat %s>>%s", infile, outfile);
     system(cmd);

@@ -376,7 +376,18 @@ uint64_t MapReduce::reduce(
     (data->blocksize)*(data->nblock));
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce start.\n", me, nprocs);
+
+  //printf("estimate_kv_count=%ld\n", estimate_kv_count);
   
+  if(estimate){
+    uint64_t estimate_kv_count = global_kvs_count/nprocs;
+    nbucket=1;
+    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
+      factor*nbucket<estimate_kv_count)
+      nbucket*=2;
+    nset=nbucket;
+  }
+
   KeyValue *kv = (KeyValue*)data;
   int kvtype=kv->getKVtype();
 
@@ -2020,6 +2031,8 @@ void MapReduce::_get_default_values(){
 
   nbucket=pow(2, BUCKET_SIZE);
   nset = nbucket;
+  estimate = 0;
+  factor = 1;
 
   ukeyoffset = sizeof(Unique);
 }

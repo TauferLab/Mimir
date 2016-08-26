@@ -5,6 +5,8 @@ inpath=$4
 outpath=$5
 prefix=$6
 
+let end_id=start_id+end_id
+
 ligand=`cat $ligand_file`
 #path=/home/bzhang/mrmpi-7Apr14/benchmark_lg/data_config/2s_rr/
 file_id=0

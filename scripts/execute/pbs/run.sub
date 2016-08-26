@@ -22,7 +22,7 @@ let NPROC=PPN*NODE
 export OMP_NUM_THRADS=$THRS
 
 module load impi
-mpiexec -n $NPROC -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR $1
+mpiexec -n $NPROC -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR $TESTINDEX
 
 if [ $USETAU == "true" ]
 then

@@ -25,10 +25,10 @@ void output(const char *filename, const char *outdir, \
 
 //#define PPN 2
 int me, nprocs;
-int nbucket=17;
+int nbucket=17, estimate=0, factor=32;
 const char* inputsize="512M";
 const char* blocksize="64M";
-const char* gbufsize="512M";
+const char* gbufsize="64M";
 const char* lbufsize="4K";
 const char* commmode="a2a";
 
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
   mr->set_blocksize(blocksize);
   mr->set_inputsize(inputsize);
   mr->set_commmode(commmode);
-  mr->set_nbucket(nbucket);
+  mr->set_nbucket(estimate,nbucket,factor);
   mr->set_maxmem(32);
 #endif
 
@@ -155,13 +155,17 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 }
 
 void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
+  char header[1000];
   char tmp[1000];
 
-  //char gbufsize[1024];
-  //sprintf(gbufsize, "%dM", sbufsize*nprocs/1024);
-  
-  sprintf(tmp, "%s/%s_c%s-b%s-i%s-h%d-%s.%d.%d.txt", \
-    outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, me); 
+  if(estimate)
+    sprintf(header, "%s/%s_c%s-b%s-i%s-f%d-%s.%d", \
+      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, nprocs); 
+  else
+    sprintf(header, "%s/%s_c%s-b%s-i%s-h%d-%s.%d", \
+      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
+
+  sprintf(tmp, "%s.%d.txt", header, me);
 
   FILE *fp = fopen(tmp, "w+");
   MapReduce::print_stat(mr, fp);
@@ -175,11 +179,9 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
     char timestr[1024];
     sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     char infile[1024+1];
-    sprintf(infile, "%s/%s_c%s-b%s-i%s-h%d-%s.%d.*.txt", \
-      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
+    sprintf(infile, "%s.*.txt", header);
     char outfile[1024+1];
-    sprintf(outfile, "%s/%s_c%s-b%s-i%s-h%d-%s.%d_%s.txt", \
-      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs, timestr);  
+    sprintf(outfile, "%s_%s.txt", header, timestr);
     char cmd[8192+1];
     sprintf(cmd, "cat %s>>%s", infile, outfile);
     system(cmd);

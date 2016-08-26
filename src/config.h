@@ -31,6 +31,7 @@
 
 // convert
 #define BUCKET_SIZE               17
+#define MAX_BUCKET_SIZE           27
 
 // type 
 #define KV_TYPE                    0

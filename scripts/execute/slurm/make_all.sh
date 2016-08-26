@@ -38,7 +38,7 @@ make CC=
 cd ../examples
 make clean
 make wordcount CC= CFLAGS="-DPART_REDUCE -DKV_HINT" 
-cp ./wordcount $DIR/wordcount_nb
+cp ./wordcount $DIR/wordcount_ptkvnb
 
 cd ../src
 make clean
@@ -46,7 +46,7 @@ make CC=mp CFLAGS="-DMTMR_MULTITHREAD"
 cd ../examples
 make clean
 make wordcount CC=mp CFLAGS="-DPART_REDUCE -DKV_HINT -DMTMR_MULTITHREAD"
-cp ./wordcount $DIR/wordcount_mt
+cp ./wordcount $DIR/wordcount_ptkvnbmt
 
 make clean
 cd ../src

@@ -67,9 +67,13 @@ public:
   void set_blocksize(const char *_blocksize){
     blocksize = _stringtoint(_blocksize);
   }
-  void set_nbucket(int _nbucket){
+  void set_nbucket(int _estimate, int _nbucket, int _factor){
+    estimate = _estimate;
     nbucket = pow(2,_nbucket);
+    nset = nbucket;
+    factor = _factor;
   }
+  
   void set_inputsize(const char *_inputsize){
     inputsize = _stringtoint(_inputsize);
   }
@@ -190,7 +194,7 @@ private:
   std::string tmpfpath;
   int (*myhash)(char *, int);
 
-  int nbucket, nset;
+  int estimate, nbucket, factor, nset;
 private:
   // MPI Commincator
   MPI_Comm comm;

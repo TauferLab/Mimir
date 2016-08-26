@@ -26,10 +26,10 @@ int main(int argc, char *argv[]){
     printf("Usage: ./split inputpath outputfile outprefix filesize(MB) startidx maxnfile\n");
     exit(1);
   }
+
   char *filepath=argv[1];
   char *outpath=argv[2];
   char *outprefix=argv[3];
-  //int64_t chunksize=atoi(argv[4]);
   int64_t chunksize = strtoll(argv[4], NULL, 10);
   int startidx=atoi(argv[5]);
   int maxnfile=atoi(argv[6]);

@@ -12,12 +12,13 @@ import os
 key_file_prefix=sys.argv[1]
 outdir=sys.argv[2]
 print outdir
-num_nodes=int(sys.argv[3])
-stdiv=float(sys.argv[4])
-num_clusters=int(sys.argv[5])
+start_idx=int(sys.argv[3])
+num_nodes=start_idx+int(sys.argv[4])
+stdiv=float(sys.argv[5])
+num_clusters=int(sys.argv[6])
 print ("the file prefix is:", key_file_prefix)
 print ("number of cluster is:", num_clusters)
-index=6
+index=7
 cluster_centers=[]
 points_num=[]
 distr=[]
@@ -90,7 +91,7 @@ for cluster in cluster_centers: #if there are multiple clusters in the data
     dist=distr.pop(0);
     
     
-    for node_id in range(0,num_nodes): #0,1,...1023
+    for node_id in range(start_idx,num_nodes): #0,1,...1023
         point_file=key_file_prefix+'.points'+`node_id`+'.txt';
         point_fid=open(outdir+point_file,'a');
         key_file=key_file_prefix+'.keys'+`node_id`+'.txt'; #index is the index of multiple cluster
