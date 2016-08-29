@@ -14,12 +14,24 @@
 #include <cmath>
 
 
-int nbucket=17, estimate=0, factor=1;
-const char* commmode="a2a";
-const char* inputsize="512M";
-const char* blocksize="64M";
-const char* gbufsize="64M";
+//int nbucket=17, estimate=0, factor=1;
+//const char* commmode="a2a";
+//const char* inputsize="512M";
+//const char* blocksize="64M";
+//const char* gbufsize="64M";
+//const char* lbufsize="4K";
+
+// MR_BUCKET_SIZE
+// MR_INBUF_SIZE
+// MR_PAGE_SIZE
+// MR_COMM_SIZE
+int nbucket, estimate=0, factor=32;
+const char* inputsize;
+const char* blocksize;
+const char* gbufsize;
 const char* lbufsize="4K";
+const char* commmode="a2a";
+
 
 using namespace MAPREDUCE_NS;
 #if GATHER_STAT 
@@ -118,6 +130,17 @@ int main(int argc, char **argv)
     printf("output dir=%s\n", outdir);
     printf("tmp dir=%s\n", tmpdir);
   }
+
+  char *bucket_str = getenv("MR_BUCKET_SIZE");
+  const char* inputsize = getenv("MR_INBUF_SIZE");
+  const char* blocksize = getenv("MR_PAGE_SIZE");
+  const char* gbufsize = getenv("MR_COMM_SIZE");
+  if(bucket_str==NULL || inputsize==NULL\
+    || blocksize==NULL || gbufsize==NULL){
+    if(me==0) printf("Please set correct environment variables!\n");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+  int nbucket = atoi(bucket_str);
 
   quot = nglobalverts/nprocs;
   rem  = nglobalverts%nprocs;
