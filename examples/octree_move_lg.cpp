@@ -76,9 +76,9 @@ int main(int argc, char **argv)
   }
 
   char *bucket_str = getenv("MR_BUCKET_SIZE");
-  const char* inputsize = getenv("MR_INBUF_SIZE");
-  const char* blocksize = getenv("MR_PAGE_SIZE");
-  const char* gbufsize = getenv("MR_COMM_SIZE");
+  inputsize = getenv("MR_INBUF_SIZE");
+  blocksize = getenv("MR_PAGE_SIZE");
+  gbufsize = getenv("MR_COMM_SIZE");
   if(bucket_str==NULL || inputsize==NULL\
     || blocksize==NULL || gbufsize==NULL){
     if(me==0) printf("Please set correct environment variables!\n");
