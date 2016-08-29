@@ -11,6 +11,7 @@ PARAMLIST=""
 NTIMES=0
 SCRIPT="run.sub"
 PREJOB="none"
+nnode=1
 
 if [ $# == 8 ]
 then
@@ -32,7 +33,6 @@ source config.h
 export USETAU="no"
 
 idx=0
-nnode=1
 for list in $DATALIST
 do
   echo "datasize:"$list
@@ -65,7 +65,7 @@ do
       done
     done
   done
-  if [ $TESTTYPE == "weekscale512M" ] || [ $TESTTYPE == "weekscale4G" ]
+  if [[ $TESTTYPE == "weekscale"* ]]
   then
     let nnode=nnode*2
   fi
