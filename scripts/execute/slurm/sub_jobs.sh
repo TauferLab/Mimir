@@ -13,11 +13,6 @@ SCRIPT="run.sub"
 PREJOB="none"
 nnode=1
 
-export MR_BUCKET_SIZE=17
-export MR_INBUF_SIZE="512M"
-export MR_PAGE_SIZE="64M"
-export MR_COMM_SIZE="64M"
-
 if [ $# == 8 ]
 then
   BENCHMARK=$1
