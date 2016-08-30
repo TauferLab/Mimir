@@ -1,3 +1,12 @@
+/**
+ * @file   mapreduce.cpp
+ * @Author Tao Gao (taogao@udel.edu)
+ * @date   September 1st, 2016
+ * @brief  This file provides interfaces to application programs.
+ *
+ * This file includes two classes: MapReduce and MultiValueIter.
+ * @todo Test
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h>
@@ -162,12 +171,7 @@ MapReduce::~MapReduce()
 }
 
 /**
-   Map function without input
- 
-   @param[in]  _mymap user-defined map function
-   @param[in]  _ptr   user-defined pointer
-   @param[in]  _comm  communication or not
-   @return output <key,value> count
+   Map function without input 
 */
 uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
   void *_ptr, int _comm){
@@ -230,10 +234,6 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 /**
    Map function without input
  
-   @param[in]  _filename file name or file path
-   @param[in]  _ptr   user-defined pointer
-   @param[in]  _comm  communication or not
-   @return output <key,value> count
 */
 uint64_t MapReduce::map_text_file(char *_filename, int _shared, 
                         int _recur, char *_whitespace, 
@@ -254,11 +254,6 @@ uint64_t MapReduce::map_text_file(char *_filename, int _shared,
 /**
    Map function KV input
  
-   @param[in]  _mr MapReduce Object pointer
-   @param[in]  _mymap user-defined map function
-   @param[in]  _ptr   user-defined pointer
-   @param[in]  _comm  communication or not
-   @return output <key,value> count
 */
 
 uint64_t MapReduce::map_key_value(MapReduce *_mr, 
@@ -359,17 +354,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 }
 
 /**
-   Map function without input
- 
-   @param[in]  _myreduce user-defined reduce function
-   @param[in]  _compress if apply compress
-   @param[in]  _ptr user-defined pointer
-   @return output <key,value> count
+   Map function without input 
 */
-uint64_t MapReduce::reduce(
-  void (*_myreduce)(MapReduce *, char *, int, 
-  MultiValueIterator *, int, void*), 
-  int _compress, void* _ptr){
+uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
 
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
   PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, \
@@ -405,11 +392,11 @@ uint64_t MapReduce::reduce(
 
   // Reduce without compress
   if(!_compress){
-    local_kvs_count = _convert_small(kv, _myreduce, _ptr);
+    local_kvs_count = _reduce(kv, _myreduce, _ptr);
     DataObject::subRef(kv);
   // Reduce with compress
   }else{
-    _convert_compress(kv, _myreduce, _ptr);
+    _reduce_compress(kv, _myreduce, _ptr);
     DataObject::subRef(kv);
 
     PROFILER_RECORD_COUNT(0, COUNTER_CPS_OUTPUT_KV, \
@@ -425,7 +412,7 @@ uint64_t MapReduce::reduce(
                   tmpfpath);
     outkv->setKVsize(ksize, vsize);
     data=outkv;
-    local_kvs_count = _convert_small(tmpkv, _myreduce, _ptr);
+    local_kvs_count = _reduce(tmpkv, _myreduce, _ptr);
     DataObject::subRef(tmpkv);
   }
 
@@ -1160,9 +1147,19 @@ end:
   return;
 }
 
-int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *ptr,
-  int shared){
+/**
+   Convert KVs to unique struct
+
+   @param[in]     tid thread id
+   @param[in]     kv input KV object
+   @param[in]     u unqiue information
+   @param[in]     mv multiple values
+   @param[in]     myreduce user-defined reduce function
+   @param[in]     ptr user-defined pointer
+   @param[in]     shared if shared by others
+   @return return number of output KVs
+*/
+int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv, UserReduce myreduce, void *ptr, int shared){
 
   //DEFINE_KV_VARS;
   char *key, *value;
@@ -1340,8 +1337,15 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
   return isfirst;
 }
 
-void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,  
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *ptr, int shared){
+/**
+   General internal reduce function. 
+
+   @param[in]     kv input KV object
+   @param[in]     myreduce user-defined reduce function
+   @param[in]     ptr user-defined pointer
+   @return return number of output KVs
+*/
+void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,UserReduce myreduce, void *ptr, int shared){
  
   //DEFINE_KV_VARS; 
   char *key, *value;
@@ -1467,6 +1471,14 @@ end:
   mv->release_block(mv_block_id);
 }
 
+/**
+   General internal reduce function. 
+
+   @param[in]     kv input KV object
+   @param[in]     myreduce user-defined reduce function
+   @param[in]     ptr user-defined pointer
+   @return return number of output KVs
+*/
 void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, DataObject *mv, int shared){
   char *key, *value;
   int keybytes, valuebytes, kvsize;
@@ -1549,8 +1561,16 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
   mv->release_block(mv_blockid);
 }
 
+/**
+   General internal reduce function. 
+
+   @param[in]     kv input KV object
+   @param[in]     myreduce user-defined reduce function
+   @param[in]     ptr user-defined pointer
+   @return return number of output KVs
+*/
 void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void* ptr){
+  UserReduce myreduce, void* ptr){
 
   int nunique=0;
   char *ubuf, *kmvbuf=NULL;
@@ -1588,10 +1608,17 @@ end:
   //kmv->release_block(kmv_blockid);
 }
 
-uint64_t MapReduce::_convert_small(KeyValue *kv, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void* ptr){
+/**
+   General internal reduce function. 
 
-  LOG_PRINT(DBG_CVT, "%d[%d] Convert(small) start.\n", me, nprocs);
+   @param[in]     kv input KV object
+   @param[in]     myreduce user-defined reduce function
+   @param[in]     ptr user-defined pointer
+   @return return number of output KVs
+*/
+uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
+
+  LOG_PRINT(DBG_CVT, "%d[%d] _reduce start.\n", me, nprocs);
 
   TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
 
@@ -1610,8 +1637,6 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
 #endif
 
   _tinit(tid);
-
-  //if(me==0) printf("after init: thread_info[0]=%d\n", thread_info[0].nitem);
 
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
@@ -1685,8 +1710,16 @@ uint64_t MapReduce::_convert_small(KeyValue *kv,
   return nunique;
 }
 
-uint64_t MapReduce::_convert_compress(KeyValue *kv, 
-  void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void* ptr){
+/**
+   Reduce function with compress.
+ 
+   @param[in]  kv input KV object
+   @param[in]  myreduce user-defined reduce
+   @param[in]  ptr user-defined pointer
+   @return output <key,value> count
+*/
+uint64_t MapReduce::_reduce_compress(KeyValue *kv, 
+  UserReduce myreduce, void* ptr){
 
   LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: compress begin\n", me, nprocs);
 
@@ -1710,6 +1743,9 @@ uint64_t MapReduce::_convert_compress(KeyValue *kv,
   u->nunique=0;
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
+  /// \file mapreduce.cpp
+  /// \bug If the KMV size is larger than KV size, the KMV buffer
+  /// will overflow!
   char *kmv_buf=(char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
   int kmv_off=0; 
 
@@ -2235,3 +2271,95 @@ void MapReduce::_getinputfiles(const char *filepath, int sharedflag, int recurse
     }
   }  
 }
+
+inline uint64_t MapReduce::_get_kv_count(){
+    local_kvs_count=0;
+    for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
+    MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+    TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
+    return  global_kvs_count;
+  }
+
+
+MultiValueIterator::MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize){
+    nvalue=_nvalue;
+    valuebytes=_valuebytes;
+    values=_values;
+    kvtype=_kvtype;
+    vsize=_vsize;
+    
+    mode=0;
+
+    Begin();
+}
+
+MultiValueIterator::MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv, int _kvtype){
+    mv=_mv;
+    ukey=_ukey;
+
+    nvalue=ukey->nvalue;
+    kvtype=_kvtype;
+    vsize=mv->vsize;
+    pset=NULL;
+
+    mode=1;
+
+    Begin();
+}
+
+void MultiValueIterator::Begin(){
+    ivalue=0;
+    value_start=0;
+    isdone=0;
+    if(ivalue >= nvalue) isdone=1;
+    else{
+      if(mode==1){
+         pset=ukey->firstset;
+         mv->acquire_block(pset->pid);
+         char *tmpbuf = mv->getblockbuffer(pset->pid);
+         pset->soffset = (int*)(tmpbuf + pset->s_off);
+         pset->voffset = tmpbuf + pset->v_off;        
+ 
+         valuebytes=pset->soffset;
+         values=pset->voffset;
+
+         value_end=pset->nvalue;
+      }
+      value=values;
+      if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
+      else if(kvtype==1) valuesize=strlen(value)+1;
+      else if(kvtype==2) valuesize=vsize;
+   }
+}
+
+void MultiValueIterator::Next(){
+    ivalue++;
+    if(ivalue >= nvalue) {
+      isdone=1;
+      if(mode==1 && pset){
+         mv->release_block(pset->pid);
+      }
+    }else{
+      if(mode==1 && ivalue >=value_end){
+        value_start += pset->nvalue;
+        mv->release_block(pset->pid);
+        pset=pset->next;
+        mv->acquire_block(pset->pid);
+        char *tmpbuf = mv->getblockbuffer(pset->pid);
+        pset->soffset = (int*)(tmpbuf + pset->s_off);
+        pset->voffset = tmpbuf + pset->v_off;
+
+        valuebytes=pset->soffset;
+        values=pset->voffset;
+
+        value=values;
+        value_end+=pset->nvalue;
+      }else{
+        value+=valuesize;
+      }
+      if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
+      else if(kvtype==1) valuesize=strlen(value)+1;
+      else if(kvtype==2) valuesize=vsize;
+    }
+}
+

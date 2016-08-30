@@ -1,3 +1,11 @@
+/**
+ * @file   keyvalue.h
+ * @Author Tao Gao (taogao@udel.edu)
+ * @date   September 1st, 2016
+ * @brief  This file includes <Key,Value> object.
+ *
+ * 
+ */
 #ifndef KEY_VALUE_H
 #define KEY_VALUE_H
 

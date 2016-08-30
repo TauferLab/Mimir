@@ -29,6 +29,9 @@ libmrmpi: $(OBJS)
 mapreduce.o: mapreduce.cpp mapreduce.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c mapreduce.cpp
 
+#multivalueiterator.o: multivalueiterator.cpp multivalueiterator.h
+#	$(CPP) $(local_CFLAGS) $(CFLAGS) -c multivalueiterator.o
+
 dataobject.o: dataobject.cpp dataobject.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c dataobject.cpp
 

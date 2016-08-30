@@ -1,4 +1,4 @@
-# README #
+# Test #
 
 This repository contains the source code (src), benchmarks (benchmarks), documentations (doc), and relevant publications (publications) of the multithreaded MapReduce project.
 

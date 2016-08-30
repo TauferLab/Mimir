@@ -1,3 +1,11 @@
+/**
+ * @file   dataobject.h
+ * @Author Tao Gao (taogao@udel.edu)
+ * @date   September 1st, 2016
+ * @brief  This file provides interfaces to handle data objects.
+ *
+ * Detail description.
+ */
 #ifndef DATA_OBJECT_H
 #define DATA_OBJECT_H
 

@@ -1,10 +1,10 @@
 /**
- * @file   example_action.h
- * @Author Me (me@example.com)
- * @date   September, 2008
- * @brief  Brief description of file.
+ * @file   mapreduce.h
+ * @Author Tao Gao (taogao@udel.edu)
+ * @date   September 1st, 2016
+ * @brief  This file provides interfaces to application programs.
  *
- * Detailed description of file.
+ * This file includes two classes: MapReduce and MultiValueIter.
  */
 #ifndef MAP_REDUCE_H
 #define MAP_REDUCE_H
@@ -30,59 +30,183 @@ namespace MAPREDUCE_NS {
 class MapReduce;
 class MultiValueIterator;
 
+/// KVType represents KV Type
 enum KVType{GeneralKV, StringKV, FixedKV, StringKeyOnly};
 
+/// User-defined map function to init KV
 typedef void (*UserInitKV)(MapReduce *, void *);
+
+/// User-defined map function to map files
 typedef void (*UserMapFile) (MapReduce *, char *, void *);
+
+/// User-defined map function to map KV object
 typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
+
+/// User-defined reduce function
 typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*);
+
+/// User-defined scan function
 typedef void (*UserScan)(char *, int, char *, int ,void *);
 
+/// MapReduce
 class MapReduce {
 public:
-  MapReduce(MPI_Comm);
+  /**
+    Constructor function.
+
+    @param[in]  comm MPI communicator
+    @return MapReduce object pointer
+  */
+  MapReduce(MPI_Comm comm);
+
+  /**
+    Copy function.
+ 
+    @param[in]  mr MapReduce object
+    @return MapReduce object pointer
+  */
   MapReduce(const MapReduce &mr);
+
+  /**
+    Destructor function.
+  */
   ~MapReduce();
 
+  /**
+    Map function without input.
+ 
+    @param[in]  myinit user-defined map function
+    @param[in]  ptr    user-defined pointer (default: NULL)
+    @param[in]  comm   with communication or not (default: 1)
+    @return output <key,value> count
+  */
   uint64_t init_key_value(
-    UserInitKV _myinit, void *ptr=NULL, int comm=1);
-  uint64_t map_text_file(char *, int, int, char *, 
-    UserMapFile _mymap, void *ptr=NULL, int comm=1);
-  uint64_t map_key_value(MapReduce *, 
-    UserMapKV _mymap, void *ptr=NULL, int comm=1);
+    UserInitKV myinit, void *ptr=NULL, int comm=1);
+ 
+  /**
+    Map function with text files.
+ 
+    @param[in]  filename  input file name or directory
+    @param[in]  shared    if the input files in shared file system
+    @param[in]  recurse   if read subdirectory recursely
+    @param[in]  seperator seperator string, for exampel "\n"
+    @param[in]  myinit user-defined map function
+    @param[in]  ptr    user-defined pointer (default: NULL)
+    @param[in]  comm   with communication or not (default: 1)  
+    @return output <key,value> count
+  */
+  uint64_t map_text_file(char *filename, int shared, int recurse, 
+    char *seperator, UserMapFile mymap, void *ptr=NULL, int comm=1);
+  
+  /**
+    Map function with MapReduce object as input.
+ 
+    @param[in]  mr MapReduce Object pointer
+    @param[in]  mymap user-defined map function
+    @param[in]  ptr   user-defined pointer (default: NULL)
+    @param[in]  comm  communication or not (default: 1)  
+    @return output <key,value> count
+  */
+  uint64_t map_key_value(MapReduce *mr, 
+    UserMapKV mymap, void *ptr=NULL, int comm=1);
+  
+  /**
+    Reduce function.
+ 
+    @param[in]  myreduce user-defined reduce function
+    @param[in]  compress if apply compress (default: 0)
+    @param[in]  ptr user-defined pointer (default: NULL)
+    @return output <key,value> count
+  */
   uint64_t reduce(UserReduce _myreduce, int compress=0, 
     void* ptr=NULL);
-  void scan(UserScan _myscan, void * ptr=NULL);
+
+  /**
+    Scan function.
+ 
+    @param[in]  myscan user-defined scan function
+    @param[in]  ptr user-defined pointer (default: NULL)
+  */ 
+  void scan(UserScan myscan, void * ptr=NULL);
+
+  /**
+    Add <key,value>. This function only can be invoked in user-defined map or reduce functions.
+ 
+    @param[in]  key key pointer
+    @param[in]  keybytes key size
+    @param[in]  value value pointer
+    @param[in]  valubytes value size
+    @return nothing
+  */
   void add_key_value(char *key, int keybytes, 
     char *value, int valuebytes);
+  
+  
   void output(int type=0, FILE *fp=stdout, int format=0);
   //void init_stat();
   static void print_stat(MapReduce *mr, FILE *fp=stdout);
 
+  /**
+    Set <key,value> type. The KV type can be GeneralKV, StringKV, FixedKV.
+ 
+    @param[in]  _kvtype <key,value> type (GeneralKV, StringKV, FixedKV)
+    @param[in]  _ksize  key size (only valid for FixedKV type)
+    @param[in]  _vsize  value size (only valid for Fixed type)
+  */
   void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
     kvtype = _kvtype;
     ksize = _ksize;
     vsize = _vsize;
   }
+
+  /**
+    Set page size. (G,GB,M,MB,K,KB)
+ 
+    @param[in]  _blocksize page size
+  */
   void set_blocksize(const char *_blocksize){
     blocksize = _stringtoint(_blocksize);
   }
+
+  /**
+    Set hash bucket size.
+ 
+    @param[in]  _estimate uses estimated bucket size
+    @param[in] _nbucket  hash bucket size 2^nbucket
+    @param[in] _factor   calculate the hash bucket size <key,value>/_factor (only valid if estimate is set)
+  */
   void set_nbucket(int _estimate, int _nbucket, int _factor){
     estimate = _estimate;
     nbucket = pow(2,_nbucket);
     nset = nbucket;
     factor = _factor;
   }
-  
+
+  /**
+    Set input buffer size. (G,GB,M,MB,K,KB)
+ 
+    @param[in]  _inputsize input buffer size
+  */
   void set_inputsize(const char *_inputsize){
     inputsize = _stringtoint(_inputsize);
   }
+
+  /**
+    Set thread local buffer size. (G,GB,M,MB,K,KB)
+ 
+    @param[in]  _tbufsize thread buffer size
+  */
   void set_threadbufsize(const char* _tbufsize){
     lbufsize = _stringtoint(_tbufsize);
   }
+
+  /**
+    Set send buffer size. (G,GB,M,MB,K,KB)
+ 
+    @param[in]  _sbufsize send buffer size
+  */
   void set_sendbufsize(const char* _sbufsize){
     gbufsize = _stringtoint(_sbufsize);
-    //printf("gbufsize=%ld\n", gbufsize);
   }
   void set_maxblocks(int _nmaxblock){
     nmaxblock = _nmaxblock;
@@ -103,6 +227,11 @@ public:
     else if(strcmp(_commmode, "p2p")==0)
       commmode = 1;
   }
+  /**
+    Set hash function.
+ 
+    @param[in]  _myhash user-defined hash function
+  */
   void set_hash(int (*_myhash)(char *, int)){
     myhash = _myhash;
   }
@@ -120,54 +249,67 @@ public:
   }
 
 private:
-  friend class MultiValueIterator; 
+  friend class MultiValueIterator;
+
+  /** \enum OpMode
+   * \brief Operation Mode, used in add_key_value function.
+   *
+   * NoneMode: add_key_value invoked outside any map/reduce functions. \n
+   * MapMode: add_key_value invoked in map function with communication. \n
+   * MapLocalMode: add_key_value invoked in map function without communication. \n
+   * ReduceMode: add_key_value invoked in reduce function.
+   */  
   enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
 
-  /**** Structure used for converting ****/
+  /// \brief The set is the partial KMV within one page
+  /// The set is the partial KMV within one pages
   struct Set
   {
-    int       myid;
-    int       nvalue;
-    int       mvbytes;
-    int      *soffset;
-    char     *voffset;
-    int       s_off;
-    int       v_off;
-    int       pid;        // Partition ID
-    Set      *next;
+    int       myid;    ///< set id
+    int       nvalue;  ///< number of values
+    int       mvbytes; ///< bytes of multiple values
+    int      *soffset; ///< start pointer of value size array
+    char     *voffset; ///< start pointer of values
+    int       s_off;   ///< offset in the page of value size array
+    int       v_off;   ///< offset in the page pf values
+    int       pid;     ///< partition id to generate this set
+    Set      *next;    ///< Set pointer in the next page
   };
 
+  /// \brief Partition is a range of a KV object 
   struct Partition
   {
-    int     start_blockid;
-    int     start_offset;
-    int     end_blockid;
-    int     end_offset;
-    int     start_set;
-    int     end_set;
+    int     start_blockid; ///< start block
+    int     start_offset;  ///< start offset
+    int     end_blockid;   ///< end block
+    int     end_offset;    ///< end offset
+    int     start_set;     ///< start set 
+    int     end_set;       ///< end set
   };
 
+  /// \brief Unique is used to record unique key
   struct Unique
   {
-    char      *key;
-    int        keybytes;
-    int        nvalue;
-    int        mvbytes;
-    int       *soffset;
-    char      *voffset;
-    Set       *firstset;
-    Set       *lastset;
-    int        flag;
-    Unique    *next;
+    char      *key;        ///< key data
+    int        keybytes;   ///< key bytes
+    int        nvalue;     ///< number of value
+    int        mvbytes;    ///< multiple value bytes
+    int       *soffset;    ///< start pointer of value size array
+    char      *voffset;    ///< start pointer of values
+    Set       *firstset;   ///< first set 
+    Set       *lastset;    ///< last set
+    int        flag;       ///< flag
+    Unique    *next;       ///< next key
   };
 
+  /// \brief UniqueInfo is used to convert KVs to KMVs
   struct UniqueInfo
   {
-    int        nunique;
-    int        nset;
-    Unique   **ubucket;
-    Spool     *unique_pool;
-    Spool     *set_pool;
+    int        nunique;       ///< number of unique key
+    int        nset;          ///< number of set
+    Unique   **ubucket;       ///< hash bucket
+    Spool     *unique_pool;   ///< memory pool of unique keys
+    Spool     *set_pool;      ///< memory pool of sets
   };
 
 private:
@@ -246,24 +388,69 @@ struct thread_private_info{
   void _mv2kmv(DataObject *,UniqueInfo *,int,
     void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *);
 
-  uint64_t _convert_small(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void*);
-  // FIXME: _convert_media and _convert_large hasn't been implemneted
-  uint64_t _convert_media(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void*);
-  uint64_t _convert_large(KeyValue *, void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void*);
-  uint64_t _convert_compress(KeyValue *, void (*myreduce)(MapReduce *, char *, int, MultiValueIterator *iter, int, void*), void*);
+  uint64_t _reduce(KeyValue *, UserReduce, void*);
+  uint64_t _reduce_compress(KeyValue *, UserReduce, void*);
 
-  uint64_t _get_kv_count(){
+  uint64_t _get_kv_count();
+#if 0
+  {
     local_kvs_count=0;
     for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
-    //printf("local_kvs_count=%ld\n", local_kvs_count);
     MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
     TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
     return  global_kvs_count;
   }
+#endif
 };//class MapReduce
 
+#if 1
 class MultiValueIterator{
 public:
+
+  MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize);
+  MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv, int _kvtype);
+  ~MultiValueIterator(){
+  }
+
+  int Done(){
+    return isdone;
+  }
+  void Begin();
+  void Next();
+  const char *getValue(){
+    return value;
+  }
+  int getSize(){
+    return valuesize;
+  }
+  int getCount(){
+    return nvalue;
+  }
+
+private:
+  int mode,kvtype,vsize;
+
+  int  nvalue;
+  int *valuebytes;
+  char *values;
+
+  int ivalue;
+  int value_start;
+  int value_end;
+
+  DataObject *mv;
+  MapReduce::Unique *ukey;
+  MapReduce::Set *pset;
+
+  int isdone;
+  char *value;
+  int valuesize;
+};
+#endif
+
+}//namespace
+
+#if 0
   MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize){
     nvalue=_nvalue;
     valuebytes=_valuebytes;
@@ -289,15 +476,9 @@ public:
 
     Begin();
   }
-
-  ~MultiValueIterator(){
-  }
-
-  int Done(){
-    return isdone;
-  }
-
-  void Begin(){
+#endif
+#if 0
+  {
     ivalue=0;
     value_start=0;
     isdone=0;
@@ -321,7 +502,9 @@ public:
       else if(kvtype==2) valuesize=vsize;
    }
   }
+#endif
 
+#if 0
   void Next(){
     ivalue++;
     if(ivalue >= nvalue) {
@@ -352,39 +535,7 @@ public:
       else if(kvtype==2) valuesize=vsize;
     }
   }
+#endif
 
-  const char *getValue(){
-    return value;
-  }
-
-  int getSize(){
-    return valuesize;
-  }
-
-  int getCount(){
-    return nvalue;
-  }
-
-private:
-  int mode,kvtype,vsize;
-
-  int  nvalue;
-  int *valuebytes;
-  char *values;
-
-  int ivalue;
-  int value_start;
-  int value_end;
-
-  DataObject *mv;
-  MapReduce::Unique *ukey;
-  MapReduce::Set *pset;
-
-  int isdone;
-  char *value;
-  int valuesize;
-};
-
-}//namespace
 
 #endif
