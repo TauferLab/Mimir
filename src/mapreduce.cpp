@@ -5,7 +5,9 @@
  * @brief  This file provides interfaces to application programs.
  *
  * This file includes two classes: MapReduce and MultiValueIter.
- * @todo Test
+ *
+ * \todo multithreading probelm: delete buffers of processed page before competing all pages's
+ * processing
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -1744,8 +1746,7 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
   /// \file mapreduce.cpp
-  /// \bug If the KMV size is larger than KV size, the KMV buffer
-  /// will overflow!
+  /// \todo Repair when KMV size > KV size
   char *kmv_buf=(char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
   int kmv_off=0; 
 
@@ -1888,6 +1889,7 @@ out:
       ukey->mvbytes+=valuebytes;
     }
 
+    kv->delete_block(i);
     kv->release_block(i);
 
     if(u->unique_pool->nblock>unique_pool_max_block)

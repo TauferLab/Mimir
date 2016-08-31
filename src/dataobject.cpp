@@ -1,3 +1,11 @@
+/**
+ * @file   dataobject.cpp
+ * @Author Tao Gao (taogao@udel.edu)
+ * @date   September 1st, 2016
+ * @brief  This file provides implementation to handle data objects.
+ *
+ * Detail description.
+ */
 #include <string.h>
 #include <sys/stat.h>
 #include "dataobject.h"
@@ -47,15 +55,12 @@ DataObject::DataObject(
   blocksize = _blocksize;
   maxblock = _maxblock;
 
-  //printf("maxmemsize=%d\n", _maxmemsize);
-
   maxmemsize = (uint64_t)_maxmemsize * UNIT_1G_SIZE;
   outofcore = _outofcore;
   threadsafe = _threadsafe;
   filepath = _filepath;
 
   maxbuf = (int)(maxmemsize / blocksize);
-  //printf("maxmemsize=%ld, blocksize=%ld, maxbuf=%d\n", maxmemsize, blocksize, maxbuf);
 
   nitem = nblock = nbuf = 0;
 
@@ -191,6 +196,17 @@ void DataObject::release_block(int blockid){
  buffers[bufferid].ref-=1; 
 #endif
 }
+
+/**
+  Currently, just simplily delete the buffer of a block.
+  */
+void DataObject::delete_block(int blockid){
+  int bufferid = blocks[blockid].bufferid; 
+  free(buffers[bufferid].buf);
+  buffers[bufferid].buf=NULL;
+  blocks[blockid].dataset=0;
+}
+
 
 /*
  * get block empty space

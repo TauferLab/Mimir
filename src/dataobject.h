@@ -5,6 +5,8 @@
  * @brief  This file provides interfaces to handle data objects.
  *
  * Detail description.
+ * \todo 1. Out-of-core sopport isn't tested.
+ * \todo 2. Multithreading support isn't tested.
  */
 #ifndef DATA_OBJECT_H
 #define DATA_OBJECT_H
@@ -18,26 +20,69 @@
 
 namespace MAPREDUCE_NS {
 
-// Datatype
+/// Datatype
 enum DataType{ByteType, KVType, KMVType};
 
 class DataObject{
 public:
-  /**** Create and Destory DataObject****/
-  DataObject(DataType,
+  /**
+    Constructor function.
+
+    @param[in]  type data type
+    @param[in]  blocksize page size
+    @param[in]  maxblock maximum number of pages
+    @param[in]  memsize maximum memory size
+    @param[in]  outofcore if support outofcore
+    @param[in]  tmpdir temp directory to exchange intermedia data
+    @param[in]  threadsafe support thread safety?
+    @return MapReduce object pointer
+  */
+  DataObject(DataType type,
     int64_t blocksize=1, 
     int maxblock=4, 
     int memsize=4, 
     int outofcore=0, 
-    std::string a5=std::string(""),
+    std::string tmpdir=std::string(""),
     int threadsafe=1);
 
+  /**
+    Destructor function.
+  */
   virtual ~DataObject();
 
-  /**** Core Interfaces ****/
-  int  acquire_block(int);
-  void release_block(int);
+  /**
+    Acquire a block. If the block isn't in-memory, ensure it's in-memmory after invoking this function.
+
+    @param[in]  blockid block id
+    @return 0 if success, otherwise error. 
+  */
+  int  acquire_block(int blockid);
+
+  /**
+    Release a block. If the memory isn't enough, this block may be spilled into disk.
+
+    @param[in]  blockid block id
+    @return no return
+  */ 
+  void release_block(int blockid);
+
+  /**
+    Delete a block. Free the buffer of this block. 
+    Note: this function doesn't support out-of-core and multithreading currently.
+
+    @param[in]  blockid block id
+    @return no return
+  */ 
+  void delete_block(int blockid);
+
+  /**
+    Add en empty block.
+
+    @return added block id
+  */  
   int add_block();
+
+
   void clear(){
     if(outofcore){
       for(int i = 0; i < nblock; i++){
@@ -49,51 +94,80 @@ public:
     nblock=0;
   }
 
+  /**
+    Output DataObject. 
+
+    @param[in] type output type
+    @param[in] fp output file pointer, also can be stdout, stderr
+    @param[in] format output format
+    @return added block id
+  */
   virtual void print(int type = 0, FILE *fp=stdout, int format=0); 
 
-  /**** Set and Get Information ****/
+  /**
+    Set key and value size for FixedKV type
+
+    @param[in] _ksize key size
+    @param[in] _vsize value size
+    @return no return
+  */
   void setKVsize(int _ksize, int _vsize){
     ksize = _ksize;
     vsize = _vsize;
   }
 
-  //uint64_t getfreespace(int blockid){
-  //  return (blocksize - blocks[blockid].datasize);
-  //}
+  /**
+    Get data size in a page.
 
+    @param[in] blockid block id
+    @return data size in this page
+  */
   int getdatasize(int blockid){
     return blocks[blockid].datasize;
   }
 
+  /**
+    Get buffer pointer of a page.
+
+    @param[in] blockid block id
+    @return buffer pointer
+  */ 
   char *getblockbuffer(int blockid){
     int bufferid = blocks[blockid].bufferid; 
     return buffers[bufferid].buf;
   }
 
+  /**
+    Set data size of a page.
+
+    @param[in] blockid block id
+    @param[in] data size in this page
+    @return no return
+  */ 
   void setblockdatasize(int blockid, int datasize){
     blocks[blockid].datasize = datasize;
   }
 
-  DataType datatype;    // 0 for bytes, 1 for kv, 2 for kmv
-  int ksize, vsize;
-  int nblock;
-  int64_t blocksize;   // block size
-  uint64_t maxmemsize;  // max memory size
+  DataType datatype;    ///< data type
+  int ksize, vsize;     ///< key and value size
+  int nblock;           ///< number of page
+  int64_t blocksize;    ///< page size
+  uint64_t maxmemsize;  ///< maximum memory size
 
 protected:
   void _get_filename(int, std::string &);
 
-  // Internal state
-  int            id;
-  int          nbuf;
-  int         nitem;     // item count
-  int      maxblock;     // max block
-  int        maxbuf;
-  std::string filepath;
-  int outofcore, threadsafe, ref;
-  omp_lock_t lock_t;
+  int            id;            ///< id of data object
+  int          nbuf;            ///< number of buffer
+  int         nitem;            ///< number of item in this data object
+  int      maxblock;            ///< maximum number of page
+  int        maxbuf;            ///< maximum number of buffer
+  std::string filepath;         ///< intermediate file path
+  int outofcore;                ///< if support out-of-core
+  int threadsafe;               ///< if support thread safety
+  int ref;                      ///< reference counter
+  omp_lock_t lock_t;            ///< lock for multithreading
 
-  // Internal Structure
   struct Block{
     uint64_t  datasize;   
     int       bufferid; 
