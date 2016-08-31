@@ -1,3 +1,11 @@
+/**
+ * @file   bfs.cpp
+ * @Author Tao Gao (taogao@udel.edu)
+ * @date   September 1st, 2016
+ * @brief  This file provides interfaces to application programs.
+ *
+ * This file includes two classes: MapReduce and MultiValueIter.
+ */
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
