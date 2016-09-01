@@ -32,21 +32,21 @@ cp ./wordcount $DIR/wordcount_partreducekvhint
 cp ./octree $DIR/octree_partreducekvhint
 cp ./bfs $DIR/bfs_partreducekvhint
 
-cd ../src
-make clean
-make CC=
-cd ../examples
-make clean
-make wordcount CC= CFLAGS="-DPART_REDUCE -DKV_HINT" 
-cp ./wordcount $DIR/wordcount_ptkvnb
+#cd ../src
+#make clean
+#make CC=
+#cd ../examples
+#make clean
+#make wordcount CC= CFLAGS="-DPART_REDUCE -DKV_HINT" 
+#cp ./wordcount $DIR/wordcount_ptkvnb
 
-cd ../src
-make clean
-make CC=mp CFLAGS="-DMTMR_MULTITHREAD"
-cd ../examples
-make clean
-make wordcount CC=mp CFLAGS="-DPART_REDUCE -DKV_HINT -DMTMR_MULTITHREAD"
-cp ./wordcount $DIR/wordcount_ptkvnbmt
+#cd ../src
+#make clean
+#make CC=mp CFLAGS="-DMTMR_MULTITHREAD"
+#cd ../examples
+#make clean
+#make wordcount CC=mp CFLAGS="-DPART_REDUCE -DKV_HINT -DMTMR_MULTITHREAD"
+#cp ./wordcount $DIR/wordcount_ptkvnbmt
 
 make clean
 cd ../src

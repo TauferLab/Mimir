@@ -30,7 +30,7 @@ fi
 
 source config.h
 
-export USETAU="no"
+export USETAU="false"
 
 idx=0
 for list in $DATALIST

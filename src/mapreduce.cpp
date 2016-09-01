@@ -6,8 +6,8 @@
  *
  * This file includes two classes: MapReduce and MultiValueIter.
  *
- * \todo multithreading probelm: delete buffers of processed page before competing all pages's
- * processing
+ * \todo multithreading probelm: delete buffers of processed page before competing all pages's processing
+ * \todo input buffer problem: if the string length is larger than the configured value, how to hanlde it?
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,7 +54,9 @@ MapReduce::MapReduce(MPI_Comm _caller)
 {
   comm = _caller;
   MPI_Comm_rank(comm,&me);
-  MPI_Comm_size(comm,&nprocs);  
+  MPI_Comm_size(comm,&nprocs);
+
+  //record_memory_usage("init");
 
 #ifdef MTMR_MULTITHREAD 
 #pragma omp parallel
@@ -264,8 +266,14 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", me, nprocs);
 
+  //if(data!=NULL)
+  //  printf("block=%d, ref=%d\n", data->nblock, data->ref);
+  //record_memory_usage("before map");
+
   DataObject::addRef(_mr->data);
   DataObject::subRef(data);
+
+  //record_memory_usage("before map 1");
 
   // save original data object
   DataObject *data = _mr->data;
@@ -352,6 +360,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
   //printf("end nitem=%d\n", thread_info[0].nitem);
 
+  //record_memory_usage("end map");
+
   return _get_kv_count();
 }
 
@@ -398,8 +408,12 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
     DataObject::subRef(kv);
   // Reduce with compress
   }else{
+    //record_memory_usage("before compress");
+
     _reduce_compress(kv, _myreduce, _ptr);
     DataObject::subRef(kv);
+
+    //record_memory_usage("after compress");
 
     PROFILER_RECORD_COUNT(0, COUNTER_CPS_OUTPUT_KV, \
       (outkv->blocksize)*(outkv->nblock));
@@ -414,11 +428,18 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
                   tmpfpath);
     outkv->setKVsize(ksize, vsize);
     data=outkv;
+
+    //printf("tmp block=%d ref=%d\n", tmpkv->nblock, tmpkv->ref);
+
     local_kvs_count = _reduce(tmpkv, _myreduce, _ptr);
-    DataObject::subRef(tmpkv);
+    delete tmpkv;
+    //DataObject::subRef(tmpkv);
+
+    //record_memory_usage("after reduce");
   }
 
   DataObject::addRef(data);
+  //printf("reduce result block=%d, ref=%d\n", data->nblock, data->ref);
   mode = NoneMode;
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce end.\n", me, nprocs);
@@ -577,7 +598,8 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
     input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
   }
 #else
-  char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
+  //char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
+  char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 #endif
 
   int64_t *tstart=new int64_t[tnum];
@@ -786,7 +808,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   for(int i=0; i<INPUT_BUF_COUNT; i++) mem_aligned_free(input_file_buffers[i]);
   delete [] input_file_buffers;
 #else
-  delete []  text;
+  mem_aligned_free(text);
 #endif
 
   // delete communicator
@@ -862,7 +884,8 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
   // create input file buffer
   uint64_t input_buffer_size=inputsize;
   int64_t input_char_size=0;
-  char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
+  //char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
+  char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
   PROFILER_RECORD_COUNT(tid, COUNTER_MAP_INPUT_SIZE, input_buffer_size);
 
@@ -933,7 +956,8 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recu
     TRACKER_RECORD_EVENT(tid, EVENT_PFS_CLOSE);
   }
 
-  delete []  text;
+  //delete []  text;
+  mem_aligned_free(text);
 
 #ifdef MTMR_MULTITHREAD 
   if(_comm) c->twait(tid);
@@ -1867,7 +1891,12 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
       }
     }
 
+    //printf("kmv offset=%d, blocksize=%d\n", kmv_off, blocksize);
+
 out:
+    if(kmv_off > blocksize){
+      LOG_ERROR("Error: kmv size %d is larger than the buffer size %ld\n", kmv_off, blocksize);
+    }
 
     kvbuf=kv->getblockbuffer(i);
     kvbuf_end=kvbuf+datasize;
@@ -1949,7 +1978,7 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   char hostname[1024+1];
   hostname[1024] = '\0';
   gethostname(hostname, 1024);
-  fprintf(out, ",hostname:%s", hostname);
+  fprintf(out, ",hostname:%s,peakmem:%ld", hostname, peakmem);
 
   //char cmd[1024+1];
   //char ret[1024+1];

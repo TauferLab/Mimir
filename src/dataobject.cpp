@@ -36,6 +36,7 @@ void DataObject::subRef(DataObject *data){
   if(data){
     data->ref--;
     if(data->ref==0){
+      //printf("delete data\n"); fflush(stdout);
       delete data;
     }
   }
@@ -102,7 +103,7 @@ DataObject::~DataObject(){
   }
 
   for(int i = 0; i < nbuf; i++){
-    if(buffers[i].buf) mem_aligned_free(buffers[i].buf);
+    if(buffers[i].buf != NULL) mem_aligned_free(buffers[i].buf);
   }
   delete [] buffers;
   delete [] blocks;
@@ -125,7 +126,12 @@ void DataObject::_get_filename(int blockid, std::string &fname){
   fname = str;
 }
 
+/**
+ *
+ */
 int DataObject::acquire_block(int blockid){
+
+  //printf("outofcore=%d\n", outofcore);
   if(!outofcore) return 0;
 
 #ifdef MTMR_MULTITHREAD 
@@ -179,8 +185,9 @@ int DataObject::acquire_block(int blockid){
   return 0;
 }
 
-/*
- * release a block according to block id
+
+/**
+ *
  */
 void DataObject::release_block(int blockid){
   if(!outofcore) return;
@@ -202,15 +209,11 @@ void DataObject::release_block(int blockid){
   */
 void DataObject::delete_block(int blockid){
   int bufferid = blocks[blockid].bufferid; 
-  free(buffers[bufferid].buf);
+  mem_aligned_free(buffers[bufferid].buf);
   buffers[bufferid].buf=NULL;
-  blocks[blockid].dataset=0;
+  blocks[blockid].datasize=0;
 }
 
-
-/*
- * get block empty space
- */
 
 /*
  * add an empty block and return the block id

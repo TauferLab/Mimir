@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name="mtmr-mpi"  
 #SBATCH --output="mtmr-mpi.%j.%N.out"  
-#SBATCH --partition=compute
+#SBATCH --partition=debug
 #SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL  
-#SBATCH -t 01:00:00
+#SBATCH -t 00:30:00
 
 source config.h
 
@@ -22,13 +22,17 @@ echo "tau file:"$TAUFILE
 
 let NPROC=PPN*NODE
 
+export TAU_TRACK_HEAP=1
+export TAU_CALLPATH=1
+export TAU_CALLPATH_DEPTH=100
+
 export OMP_NUM_THRADS=$THRS
 mpiexec -n $NPROC -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR $TESTINDEX
 
 if [ $USETAU == "true" ]
 then
-  pprof | grep "  Heap Memory Used (KB)" | \
+  pprof | grep "  Heap Memory Used (KB) at Exit" | \
     awk -v np=$PPN -v data=$DATASIZE '{print data","np","i++","$2}' \
     >> $TAUFILE
-  rm profile.*
+  #rm profile.*
 fi

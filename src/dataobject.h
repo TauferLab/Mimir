@@ -154,7 +154,8 @@ public:
   int64_t blocksize;    ///< page size
   uint64_t maxmemsize;  ///< maximum memory size
 
-protected:
+//protected:
+public:
   void _get_filename(int, std::string &);
 
   int            id;            ///< id of data object

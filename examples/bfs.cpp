@@ -179,6 +179,8 @@ int main(int argc, char **argv)
   mr->set_maxmem(32);
   mr->set_hash(mypartition);
 
+  mr->set_outofcore(0);
+
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
 
   // make graph

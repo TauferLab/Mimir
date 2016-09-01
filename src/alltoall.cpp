@@ -153,8 +153,10 @@ Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
 
 Alltoall::~Alltoall(){
   for(int i = 0; i < nbuf; i++){
-    //if(recv_buf && recv_buf[i]) free(recv_buf[i]);
-    if(recv_count && recv_count[i]) free(recv_count[i]);
+#ifndef MTMR_ZERO_COPY
+    if(recv_buf !=NULL && recv_buf[i]) mem_aligned_free(recv_buf[i]);
+#endif
+    if(recv_count !=NULL && recv_count[i]) mem_aligned_free(recv_count[i]);
   }
 
   //for(int i = 0; i< comm_div_count; i++){
@@ -165,7 +167,7 @@ Alltoall::~Alltoall(){
   //delete [] comm_recv_displs;
   //delete [] comm_recv_buf;
 
-  if(recv_count) delete [] recv_count;
+  if(recv_count != NULL) delete [] recv_count;
 
 #ifndef MTMR_ZERO_COPY
   if(recv_buf) delete [] recv_buf;

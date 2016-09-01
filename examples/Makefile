@@ -1,7 +1,9 @@
 ifeq ($(CC),tau)
-  CPP =tau_cxx.sh
+  CPP=tau_cxx.sh
+  CPPLINK=tau_cxx.sh
 else
   CPP=mpicxx
+  CPPLINK=mpicxx
 endif
 CC=openmp
 ifeq ($(CC),mp)
@@ -13,7 +15,8 @@ else
 endif
 
 USERLIBS = -lmrmpi
-all: wordcount bfs bfs_mm octree_move_lg
+
+all: wordcount bfs octree_move_lg
 
 wordcount: wordcount.o
 	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) wordcount.o $(USERLIBS) -o wordcount
@@ -28,7 +31,7 @@ bfs: bfs.o
 #	$(CPP) $(CFLAGS) $(LFLAGS) bfs_mm.o $(USERLIBS) -o bfs_mm
 
 octree: octree_move_lg.o
-	$(CPP) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o $(USERLIBS) -o octree
+	$(CPPLINK) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o $(USERLIBS) -o octree
 
 clean:
 	rm *.o wordcount bfs octree

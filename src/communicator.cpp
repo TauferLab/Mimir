@@ -64,7 +64,7 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
 
 Communicator::~Communicator(){
 
-  if(!data){
+  if(data != NULL){
     for(int i=0; i<tnum; i++)
       if(blocks[i] !=- 1) data->release_block(blocks[i]);
     if(blockid!=-1)
@@ -75,14 +75,14 @@ Communicator::~Communicator(){
 #ifdef MTMR_MULTITHREAD 
   for(int i = 0; i < tnum; i++){
     //printf("free: buffers[%d]=%p\n", i, local_buffers[i]);
-    if(thread_buffers && thread_buffers[i]) mem_aligned_free(thread_buffers[i]);
-    if(thread_offsets && thread_offsets[i]) mem_aligned_free(thread_offsets[i]);
+    if(thread_buffers !=NULL && thread_buffers[i]) mem_aligned_free(thread_buffers[i]);
+    if(thread_offsets !=NULL && thread_offsets[i]) mem_aligned_free(thread_offsets[i]);
   }
 #endif
 
   for(int i = 0; i < nbuf; i++){
-    if(send_buffers && send_buffers[i]) mem_aligned_free(send_buffers[i]);
-    if(send_offsets && send_offsets[i]) mem_aligned_free(send_offsets[i]);
+    if(send_buffers != NULL && send_buffers[i]) mem_aligned_free(send_buffers[i]);
+    if(send_offsets !=NULL && send_offsets[i]) mem_aligned_free(send_offsets[i]);
   }
 
 #ifdef MTMR_MULTITHREAD 

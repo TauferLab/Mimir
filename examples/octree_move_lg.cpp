@@ -108,6 +108,8 @@ int main(int argc, char **argv)
   mr_convert->set_nbucket(estimate,nbucket,factor);
   mr_convert->set_maxmem(32);
 
+  mr_convert->set_outofcore(0);
+
 #ifdef KV_HINT
   mr_convert->set_KVtype(FixedKV, digits, 0);
 #endif
@@ -126,8 +128,10 @@ int main(int argc, char **argv)
   mr_level->set_blocksize(blocksize);
   mr_level->set_inputsize(inputsize);
   mr_level->set_commmode(commmode);
-  //mr_level->set_nbucket(nbucket);
+  mr_level->set_nbucket(estimate,nbucket,factor);
   mr_level->set_maxmem(32);
+
+  mr_level->set_outofcore(0);
 
   while ((min_limit+1) != max_limit){
 //#ifdef PART_REDUCE
@@ -143,6 +147,9 @@ int main(int argc, char **argv)
 //#ifdef KV_HINT
 //    mr_level->set_KVtype(FixedKV, level, sizeof(int));
 //#endif
+
+    //printf("level=%d\n", level);
+
 #ifdef PART_REDUCE
     uint64_t nkv = mr_level->reduce(sum, 1, NULL);
 #else
