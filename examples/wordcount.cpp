@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
     if(me==0) printf("Please set correct environment variables!\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  int nbucket = atoi(bucket_str);
+  nbucket = atoi(bucket_str);
 
   // copy files
 #if USE_LOCAL_DISK
