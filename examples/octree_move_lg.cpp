@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 #endif
 
   char whitespace[10] = "\n";
-  uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, 0);
+  uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, 0, NULL, NULL, 0);
 
   thresh=nwords*density;
   if(me==0){

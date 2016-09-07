@@ -4,7 +4,7 @@
 #SBATCH --partition=compute
 #SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL  
-#SBATCH -t 04:00:00
+#SBATCH -t 00:10:00
 
 source config.h
 

@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
   //double t1 = MPI_Wtime();
 
   char whitespace[20] = " \n";
-  mr->map_text_file(filedir, 1, 1, whitespace, map, NULL);
+  mr->map_text_file(filedir, 1, 1, whitespace, map, 0, NULL, NULL);
 
   //double t2 = MPI_Wtime();
 

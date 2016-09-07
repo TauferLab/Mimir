@@ -192,7 +192,7 @@ int main(int argc, char **argv)
 
   // partition file
   char whitespace[10] = "\n";
-  uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread, NULL, 1);
+  uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread, 0, NULL, NULL, 1);
   nglobaledges = nedges;
 
   //if(me==0) fprintf(stdout, "nlocalverts=%ld\n", nlocalverts);

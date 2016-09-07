@@ -241,7 +241,8 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 */
 uint64_t MapReduce::map_text_file(char *_filename, int _shared, 
                         int _recur, char *_whitespace, 
-                        UserMapFile _mymap, 
+                        UserMapFile _mymap, int compress,
+                        UserCompress mycompress, 
                         void *_ptr, int _comm){
   if(strlen(_whitespace) == 0){
     LOG_ERROR("%s", "Error: the white space should not be empty string!\n");

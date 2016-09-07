@@ -10,11 +10,11 @@ BASEDIR=/oasis/scratch/comet/taogao/temp_project/
 #    "24 48 96 192 384 768 1536" 6 slurm
 #done
 
-./sub_split.sh "$BASEDIR/wordcount/wikipedia/wikipedia_300GB" words \
-  "$BASEDIR/wordcount/wikipedia/weekscale4G" \
-  "4G 8G 16G 32G 64G 128G 256G" \
-  "178956971 178956971 178956971 178956971 178956971 178956971 178956971" \
-  "24 48 96 192 384 768 1536" 24 slurm
+./sub_split.sh "$BASEDIR/wordcount/wikipedia/wikipedia_50GB" words \
+  "$BASEDIR/wordcount/wikipedia/weekscale512M" \
+  "512M 1G 2G 4G 8G 16G 32G" \
+  "22369621 22369621 22369621 22369621 22369621 22369621 22369621" \
+  "24 48 96 192 384 768 1536" 192 slurm
 
 #./sub_split.sh "$BASEDIR/wordcount/wikipedia/wikipedia_50GB" words \
 #  "$BASEDIR/wordcount/wikipedia/weekscale512M" \
