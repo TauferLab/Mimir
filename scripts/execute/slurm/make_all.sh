@@ -25,7 +25,7 @@ cp ./octree $DIR/octree_partreduce
 cp ./bfs $DIR/bfs_partreduce
 
 make clean
-make wordcount CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT"
+make wordcount CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT -DOUTPUT_KV"
 make octree CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT"
 make bfs CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT -DOUTPUT_RESULT"
 cp ./wordcount $DIR/wordcount_partreducekvhint

@@ -122,9 +122,9 @@ int main(int argc, char *argv[])
 
   mr->set_outofcore(0);
 
-#ifdef KV_HINT
-  mr->set_KVtype(StringKV);
-#endif
+//#ifdef KV_HINT
+  mr->set_KVtype(StringKFixedV, -1, sizeof(int));
+//#endif
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
   char tmpfile[100];
   sprintf(tmpfile, "results%d.txt", me);
   FILE *outfile=fopen(tmpfile, "w");
-  mr->output(0, outfile);
+  mr->output(1, outfile);
   fclose(outfile);
 #endif
 
@@ -167,22 +167,25 @@ int main(int argc, char *argv[])
 
 void map(MapReduce *mr, char *word, void *ptr){
   int len=strlen(word)+1;
-  char one[10]={"1"};
+  //char one[10]={"1"};
 
+  int one=1;
   if(len <= 8192)
-    mr->add_key_value(word,len,one,2);
+    mr->add_key_value(word,len,(char*)&one,sizeof(one));
 }
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
-  uint64_t count=0;
+  int count=0;
   
   for(iter->Begin(); !iter->Done(); iter->Next()){
-    count+=atoi(iter->getValue());
+    count+=*(int*)iter->getValue();
   }
   
-  char count_str[100];
-  sprintf(count_str, "%lu", count);
-  mr->add_key_value(key, keysize, count_str, strlen(count_str)+1);
+  //char count_str[100];
+  //sprintf(count_str, "%lu", count);
+  //mr->add_key_value(key, keysize, count_str, strlen(count_str)+1);
+  //printf("%s,%d\n", key, count); fflush(stdout);
+  mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
 void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){

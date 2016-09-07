@@ -1203,7 +1203,9 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
   Set *sets=NULL, *pset = NULL;
 
-  // scan all KVs
+  /**
+    Scan <key,value> one by one.
+   */
   for(int i=0; i<kv->nblock; i++){
 
     kv->acquire_block(i);
@@ -1599,6 +1601,8 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
 void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype, 
   UserReduce myreduce, void* ptr){
 
+  LOG_PRINT(DBG_CVT, "%d[%d] _mv2kmv start (kvtype=%d).\n", me, nprocs, kvtype);
+
   int nunique=0;
   char *ubuf, *kmvbuf=NULL;
   int uoff=0, kmvoff=0;
@@ -1633,6 +1637,7 @@ end:
   ;
   //kmv->setblockdatasize(kmv_blockid, kmvoff);
   //kmv->release_block(kmv_blockid);
+  LOG_PRINT(DBG_CVT, "%d[%d] _mv2kmv end.\n", me, nprocs);
 }
 
 /**
@@ -2360,7 +2365,7 @@ void MultiValueIterator::Begin(){
       value=values;
       if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
       else if(kvtype==1) valuesize=strlen(value)+1;
-      else if(kvtype==2) valuesize=vsize;
+      else if(kvtype==2 || kvtype==3) valuesize=vsize;
    }
 }
 
@@ -2391,7 +2396,7 @@ void MultiValueIterator::Next(){
       }
       if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
       else if(kvtype==1) valuesize=strlen(value)+1;
-      else if(kvtype==2) valuesize=vsize;
+      else if(kvtype==2 || kvtype==3) valuesize=vsize;
     }
 }
 

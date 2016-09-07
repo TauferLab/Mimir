@@ -76,6 +76,8 @@ void KeyValue::print(int type, FILE *fp, int format){
   char *key, *value;
   int keybytes, valuebytes;
 
+  printf("type=%d\n", type);
+
   //fprintf(fp, "KV Object:\n");
 
   for(int i = 0; i < nblock; i++){

@@ -52,8 +52,9 @@
     key = kvbuf;\
     keybytes = strlen(key)+1;\
     kvbuf += keybytes;\
-    valuebytes = 0;\
-    value = NULL;\
+    valuebytes = data->vsize;\
+    value = kvbuf;\
+    kvbuf += valuebytes;\
     kvsize=kvbuf-kvbuf_start;\
   }else LOG_ERROR("Undefined type %d!", kvtype);\
 }
@@ -71,6 +72,7 @@
     buf+=valuebytes;\
   }else if(kvtype==3){\
     buf+=keybytes;\
+    buf+=valuebytes;\
   }\
   else LOG_ERROR("Undefined KV type %d!\n", kvtype);\
   kvsize=buf-buf_start;\
@@ -96,6 +98,8 @@
   }else if(kvtype==3){\
     memcpy(kvbuf, key, keybytes);\
     kvbuf += keybytes;\
+    memcpy(kvbuf, value, valuebytes);\
+    kvbuf += valuebytes;\
   }\
   kvsize=kvbuf-kvbuf_start;\
 }
@@ -116,7 +120,7 @@
     kvbuf+=keybytes;\
     values=kvbuf;\
     kvbuf+=mvbytes;\
-  }else if(kmvtype==1 || kmvtype==2){\
+  }else if(kmvtype==1 || kmvtype==2 || kmvtype==3){\
     keybytes=*(int*)kvbuf;\
     kvbuf+=oneintlen;\
     mvbytes=*(int*)kvbuf;\
@@ -128,7 +132,12 @@
     kvbuf+=keybytes;\
     values=kvbuf;\
     kvbuf+=mvbytes;\
-  }else if(kmvtype==3){\
+  }else LOG_ERROR("Undefined KV type %d!\n", kmvtype);\
+  kmvsize=kvbuf-kvbuf_start;\
+}
+
+#if 0
+  else if(kmvtype==3){\
     keybytes=*(int*)kvbuf;\
     kvbuf+=oneintlen;\
     mvbytes=*(int*)kvbuf;\
@@ -139,9 +148,8 @@
     key=kvbuf;\
     kvbuf+=keybytes;\
     values=NULL;\
-  }else LOG_ERROR("Undefined KV type %d!\n", kmvtype);\
-  kmvsize=kvbuf-kvbuf_start;\
-}
+  }
+#endif
 
 extern int oneintlen;
 extern int twointlen;

@@ -106,10 +106,12 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
   thread_buf_size = _tbufsize;
   send_buf_size = (_sbufsize/MEMPAGE_SIZE/size)*MEMPAGE_SIZE;
 
+#ifdef MTMR_MULTITHREAD 
   if(thread_buf_size>send_buf_size){
     LOG_ERROR("Error: thread local buffer size (%ld per process) cannot be larger than send buffer size (%ld per process)!", \
      thread_buf_size, send_buf_size);
   }
+#endif
   //fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", thread_buf_size, send_buf_size);fflush(stdout);
 
   kvtype = _kvtype;

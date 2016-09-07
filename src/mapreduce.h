@@ -31,7 +31,7 @@ class MapReduce;
 class MultiValueIterator;
 
 /// KVType represents KV Type
-enum KVType{GeneralKV, StringKV, FixedKV, FixedValue};
+enum KVType{GeneralKV, StringKV, FixedKV, StringKFixedV};
 
 /// User-defined map function to init KV
 typedef void (*UserInitKV)(MapReduce *, void *);
