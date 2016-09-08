@@ -103,6 +103,10 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
 
   //printf("sbufsize=%ld\n", _sbufsize);
 
+  if(_sbufsize < MEMPAGE_SIZE*size){
+    LOG_ERROR("Error: send buffer %ld should be larger than page size!\n", _sbufsize);
+  }
+
   thread_buf_size = _tbufsize;
   send_buf_size = (_sbufsize/MEMPAGE_SIZE/size)*MEMPAGE_SIZE;
 

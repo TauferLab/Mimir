@@ -1621,7 +1621,7 @@ void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype,
       nunique++;
       if(nunique > u->nunique) goto end;
 
-      MultiValueIterator *iter = new MultiValueIterator(ukey, mv, kvtype);     
+      MultiValueIterator *iter = new MultiValueIterator(ukey, mv, kvtype); 
 
       myreduce(this, ukey->key, ukey->keybytes, iter, 1, ptr);
       
@@ -1688,6 +1688,8 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
              outofcore, 
              tmpfpath.c_str(),
              0);
+  mv->setKVsize(kv->ksize, kv->vsize);
+
 
   int isfirst = _kv2unique(tid, kv, u, mv, myreduce, ptr, 1);
 
@@ -2160,7 +2162,11 @@ void MapReduce::_tinit(int tid){
 int64_t MapReduce::_stringtoint(const char *_str){
   std::string str=_str;
   int64_t num=0;
-  if(str[str.size()-1]=='k'||str[str.size()-1]=='K'||\
+  if(str[str.size()-1]=='b'||str[str.size()-1]=='B'){
+    str=str.substr(0, str.size()-1);
+    num=atoi(str.c_str());
+    num*=1;
+  }else if(str[str.size()-1]=='k'||str[str.size()-1]=='K'||\
     (str[str.size()-1]=='b'&&str[str.size()-2]=='k')||\
     (str[str.size()-1]=='B'&&str[str.size()-2]=='K')){
     if(str[str.size()-1]=='b'||str[str.size()-1]=='B'){
@@ -2192,7 +2198,7 @@ int64_t MapReduce::_stringtoint(const char *_str){
     num*=1024*1024*1024; 
   }else{
     LOG_ERROR("Error: set buffer size %s error! \
-      The buffer size should end with k,K,kb,KB,m,M,mb,MB,g,G,gb,GB", _str);
+      The buffer size should end with b,B,k,K,kb,KB,m,M,mb,MB,g,G,gb,GB", _str);
   }
   if(num==0){
     LOG_ERROR("Error: buffer size %s should not be zero!", _str);
@@ -2341,6 +2347,8 @@ MultiValueIterator::MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv
 
     mode=1;
 
+    //printf("vsize=%d\n", vsize); fflush(stdout);
+
     Begin();
 }
 
@@ -2367,6 +2375,9 @@ void MultiValueIterator::Begin(){
       else if(kvtype==1) valuesize=strlen(value)+1;
       else if(kvtype==2 || kvtype==3) valuesize=vsize;
    }
+
+  // printf("ivalue=%d,value=%p,valuesize=%d\n", ivalue, value, valuesize); fflush(stdout);
+
 }
 
 void MultiValueIterator::Next(){
@@ -2398,5 +2409,6 @@ void MultiValueIterator::Next(){
       else if(kvtype==1) valuesize=strlen(value)+1;
       else if(kvtype==2 || kvtype==3) valuesize=vsize;
     }
+    //printf("ivalue=%d,value=%p,valuesize=%d\n", ivalue, value, valuesize); fflush(stdout);
 }
 

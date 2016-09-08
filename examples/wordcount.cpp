@@ -77,12 +77,6 @@ int main(int argc, char *argv[])
   const char *prefix = argv[2];
   const char *outdir = argv[3];
 
-  if(me==0){
-    printf("input dir=%s\n", filedir);
-    printf("prefix=%s\n", prefix);
-    printf("output dir=%s\n", outdir);
-  }
-
   char *bucket_str = getenv("MR_BUCKET_SIZE");
   inputsize = getenv("MR_INBUF_SIZE");
   blocksize = getenv("MR_PAGE_SIZE");
@@ -94,6 +88,14 @@ int main(int argc, char *argv[])
   }
   nbucket = atoi(bucket_str);
 
+  if(me==0){
+    printf("input dir=%s\n", filedir);
+    printf("prefix=%s\n", prefix);
+    printf("output dir=%s\n", outdir);
+    printf("inputsize=%s\n", inputsize);
+    printf("blocksize=%s\n", blocksize);
+    printf("gbufsize=%s\n", gbufsize);
+  }
   // copy files
 #if USE_LOCAL_DISK
   char dir[100];
@@ -169,6 +171,8 @@ void map(MapReduce *mr, char *word, void *ptr){
   int len=strlen(word)+1;
   //char one[10]={"1"};
 
+  //printf("word=%s\n", word); fflush(stdout);
+
   int one=1;
   if(len <= 8192)
     mr->add_key_value(word,len,(char*)&one,sizeof(one));
@@ -176,6 +180,8 @@ void map(MapReduce *mr, char *word, void *ptr){
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   int count=0;
+
+  //printf("count=%d\n", iter->getCount());
   
   for(iter->Begin(); !iter->Done(); iter->Next()){
     count+=*(int*)iter->getValue();
@@ -185,6 +191,7 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   //sprintf(count_str, "%lu", count);
   //mr->add_key_value(key, keysize, count_str, strlen(count_str)+1);
   //printf("%s,%d\n", key, count); fflush(stdout);
+
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
