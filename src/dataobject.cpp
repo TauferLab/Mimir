@@ -208,12 +208,13 @@ void DataObject::release_block(int blockid){
   Currently, just simplily delete the buffer of a block.
   */
 void DataObject::delete_block(int blockid){
-  int bufferid = blocks[blockid].bufferid; 
-  mem_aligned_free(buffers[bufferid].buf);
-  buffers[bufferid].buf=NULL;
-  blocks[blockid].datasize=0;
+  if(ref<=1){
+    int bufferid = blocks[blockid].bufferid; 
+    mem_aligned_free(buffers[bufferid].buf);
+    buffers[bufferid].buf=NULL;
+    blocks[blockid].datasize=0;
+  }
 }
-
 
 /*
  * add an empty block and return the block id

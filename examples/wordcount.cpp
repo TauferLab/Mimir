@@ -124,16 +124,21 @@ int main(int argc, char *argv[])
 
   mr->set_outofcore(0);
 
-//#ifdef KV_HINT
+#ifdef KV_HINT
   mr->set_KVtype(StringKFixedV, -1, sizeof(int));
-//#endif
+#endif
 
   MPI_Barrier(MPI_COMM_WORLD);
 
   //double t1 = MPI_Wtime();
 
   char whitespace[20] = " \n";
-  mr->map_text_file(filedir, 1, 1, whitespace, map, 0, NULL, NULL);
+#ifndef COMPRESS
+  mr->map_text_file(filedir, 1, 1, whitespace, map, NULL);
+#else
+  mr->map_text_file(filedir, 1, 1, whitespace, map, NULL, 0);
+  mr->compress(countword, NULL);
+#endif
 
   //double t2 = MPI_Wtime();
 

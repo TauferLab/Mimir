@@ -31,7 +31,7 @@ class MapReduce;
 class MultiValueIterator;
 
 /// KVType represents KV Type
-enum KVType{GeneralKV, StringKV, FixedKV, StringKFixedV};
+enum KVType{GeneralKV, StringKV, FixedKV, StringKFixedV, FixedKStringV};
 
 /// User-defined map function to init KV
 typedef void (*UserInitKV)(MapReduce *, void *);
@@ -39,8 +39,8 @@ typedef void (*UserInitKV)(MapReduce *, void *);
 /// User-defined map function to map files
 typedef void (*UserMapFile) (MapReduce *, char *, void *);
 
-/// User-defined compress function to compress KVs
-typedef char* (*UserCompress) (char *val1, char *val2);
+/// User-defined compress function 
+typedef void (*UserCompress)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*);
 
 /// User-defined map function to map KV object
 typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
@@ -94,14 +94,12 @@ public:
     @param[in]  recurse    if read subdirectory recursely
     @param[in]  seperator  seperator string, for exampel "\n"
     @param[in]  mymap      user-defined map function
-    @param[in]  compress   if apply compress (default: 0)
-    @param[in]  mycompress user-defined compress function (default: NULL)
     @param[in]  ptr        user-defined pointer (default: NULL)
     @param[in]  comm       with communication or not (default: 1)  
     @return output <key,value> count
   */
   uint64_t map_text_file(char *filename, int shared, int recurse, 
-    char *seperator, UserMapFile mymap, int compress=0, UserCompress mycompress=NULL, void *ptr=NULL, int comm=1);
+    char *seperator, UserMapFile mymap, void *ptr=NULL, int comm=1);
   
   /**
     Map function with MapReduce object as input.
@@ -114,7 +112,17 @@ public:
   */
   uint64_t map_key_value(MapReduce *mr, 
     UserMapKV mymap, void *ptr=NULL, int comm=1);
-  
+
+  /**
+    Compress local <key,value>
+ 
+    @param[in]  mycompress user-defined compress function
+    @param[in]  ptr        user-defined pointer (default: NULL)
+    @param[in]  comm       communication or not (default: 1)
+    @return output <key,value> count
+  */
+  uint64_t compress(UserCompress mycompress, void *ptr=NULL, int comm=1);
+ 
   /**
     Reduce function.
  

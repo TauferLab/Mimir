@@ -32,6 +32,14 @@ cp ./wordcount $DIR/wordcount_partreducekvhint
 cp ./octree $DIR/octree_partreducekvhint
 cp ./bfs $DIR/bfs_partreducekvhint
 
+make clean
+make wordcount CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT -DCOMPRESS"
+#make octree CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT"
+#make bfs CC=$FLAGS CFLAGS="-DPART_REDUCE -DKV_HINT -DOUTPUT_RESULT"
+cp ./wordcount $DIR/wordcount_partreducekvhintcps
+#cp ./octree $DIR/octree_partreducekvhint
+#cp ./bfs $DIR/bfs_partreducekvhint
+
 #cd ../src
 #make clean
 #make CC=
