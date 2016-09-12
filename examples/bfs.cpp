@@ -215,11 +215,13 @@ int main(int argc, char **argv)
 
   if(me==0) fprintf(stdout, "begin make graph.\n");
 
-#ifdef PART_REDUCE
-  mr->reduce(makegraph,1,NULL);
-#else
-  mr->reduce(makegraph,0,NULL);
-#endif
+//#ifdef PART_REDUCE
+//  mr->reduce(makegraph,1,NULL);
+//#else
+//  mr->reduce(makegraph,0,NULL);
+//#endif
+  mr->map_key_value(mr, makegraph, NULL, 0);
+
   delete [] rowinserts;
 
   if(me==0) {
@@ -335,6 +337,7 @@ void fileread(MapReduce *mr, char *word, void *ptr)
   mr->add_key_value((char*)&int_v0,sizeof(int64_t),(char*)&int_v1,sizeof(int64_t));
 }
 
+#if 0
 void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;
@@ -345,6 +348,17 @@ void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
     columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
     rowinserts[v0_local]++;
   }
+}
+#endif
+void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
+  int64_t v0, v0_local, v1;
+  v0 = *(int64_t*)key;
+  v0_local = v0 - nvertoffset; 
+
+  //for(iter->Begin(); !iter->Done(); iter->Next()){
+  v1=*(int64_t*)value;
+  columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
+  rowinserts[v0_local]++;
 }
 
 void rootvisit(MapReduce* mr, void *ptr){
