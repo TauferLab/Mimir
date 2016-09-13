@@ -102,7 +102,7 @@ public:
     @return output <key,value> count
   */
   uint64_t map_text_file(char *filename, int shared, int recurse, 
-    char *seperator, UserMapFile mymap, UserCompress mycompress=NULL, 
+    char *seperator, UserMapFile mymap, UserBiReduce myreduce=NULL, 
     void *ptr=NULL, int compress=0, int comm=1);
   
   /**
@@ -296,7 +296,7 @@ private:
    * MapLocalMode: add_key_value invoked in map function without communication. \n
    * ReduceMode: add_key_value invoked in reduce function.
    */  
-  enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode, CompressMode};
+  enum OpMode{NoneMode, CommMode, LocalMode, MergeMode, CompressMode};
 
   /// \brief The set is the partial KMV within one page
   /// The set is the partial KMV within one pages
@@ -409,9 +409,12 @@ struct thread_private_info{
   uint64_t _map_master_io(char *, int, int, char *, 
     UserMapFile, UserCompress mycompress, 
     void *ptr=NULL, int compress=0, int comm=1);
+
+#if 0
   uint64_t _map_multithread_io(char *, int, int, char *, 
     UserMapFile, UserCompress mycompress, 
     void *ptr=NULL, int compress=0, int comm=1);
+#endif
 
   void _tinit(int); // thread initialize
   void _disinputfiles(const char *, int, int);

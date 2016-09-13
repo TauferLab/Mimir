@@ -199,9 +199,9 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
     c=Communicator::Create(comm, tnum, commmode);
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
-    mode = MapMode;
+    mode = CommMode;
   }else{
-    mode = MapLocalMode;
+    mode = LocalMode;
   }
 
   // begin traversal
@@ -238,6 +238,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
   return _get_kv_count();
 }
 
+#if 0
 /**
    Map function without input
  
@@ -265,6 +266,7 @@ uint64_t MapReduce::map_text_file(char *_filename, int _shared,
     _recur, _whitespace, _mymap, _mycompress, _ptr, _compress, _comm);
 #endif
 }
+#endif
 
 /**
    Map function KV input
@@ -301,9 +303,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     c=Communicator::Create(comm, tnum, commmode);
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
-    mode = MapMode;
+    mode = CommMode;
   }else{
-    mode = MapLocalMode;
+    mode = LocalMode;
   }
 
   KeyValue *inputkv = (KeyValue*)data;
@@ -395,9 +397,9 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
     c=Communicator::Create(comm, tnum, commmode);
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
-    mode = MapLocalMode;
+    mode = LocalMode;
   }else{
-    mode = MapLocalMode;
+    mode = LocalMode;
   }
  
   _reduce_compress(kv, _mycompress, _ptr);
@@ -534,7 +536,7 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   outkv->setKVsize(ksize, vsize);
   data=outkv;
 
-  mode = ReduceMode;
+  mode = LocalMode;
 
   //printf("nunique=%d\n", u->nunique);
 
@@ -607,7 +609,7 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
   outkv->setKVsize(ksize, vsize);
   data=outkv;
 
-  mode = ReduceMode;
+  mode = LocalMode;
 
   // Reduce without compress
   if(!_compress){
@@ -715,9 +717,8 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
 #else
   int tid = 0;
 #endif
-  // invoked in map function
-  if(mode == MapMode){
-    // get target process
+  // Communication Mode
+  if(mode == CommMode){
     int target = 0;
     if(myhash != NULL){
       target=myhash(key, keybytes);
@@ -727,14 +728,14 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
       target = hid % (uint32_t)nprocs;
     }
 
-    //printf("%d send KV to %d key=%s\n", me, target, key); fflush(stdout);
     // send KV    
     c->sendKV(tid, target, key, keybytes, value, valuebytes);
 
     thread_info[tid].nitem++;
  
     return;
-   }else if(mode == MapLocalMode || mode == ReduceMode){
+   // Local Mode
+   }else if(mode == LocalMode){
 
     // add KV into data object 
     KeyValue *kv = (KeyValue*)data;
@@ -753,7 +754,8 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
 
     kv->release_block(thread_info[tid].block);
     thread_info[tid].nitem++;
-  }else if(mode==CompressMode){
+  // MergeMode
+  }else if(mode==MergeMode){
     if(valuebytes > maxvaluebytes){
       LOG_ERROR("The value bytes %d is larger than the max %d\n", \
         valuebytes, maxvaluebytes);
@@ -761,6 +763,8 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
     memcpy(cur_ukey->voffset, value, valuebytes);
     cur_ukey->mvbytes=valuebytes;
     cur_ukey->nvalue++;
+  }else if(mode==CompressMode){
+        
   }
 
 #if 0
@@ -793,11 +797,27 @@ else if(mode==CompressMode){
  *   Master thread is used to read files in multithring mode.
  *
  */
-uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, 
-  int recurse, char *whitespace, UserMapFile mymap, 
-  UserCompress _mycompress, void *_ptr, int compress, int _comm){
+uint64_t MapReduce::map_text_file(char *filepath, int sharedflag, 
+                        int recurse, char *whitespace, 
+                        UserMapFile mymap, UserBiReduce _myreduce,
+                        void *_ptr, int compress, int _comm){
+//uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, 
+//  int recurse, char *whitespace, UserMapFile mymap, 
+//  UserCompress _mycompress, void *_ptr, int compress, int _comm){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file start.\n", me, nprocs);
+
+  if(strlen(whitespace) == 0){
+    LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
+  }
+  if(estimate){
+    uint64_t estimate_kv_count = global_kvs_count/nprocs;
+    nbucket=1;
+    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
+      factor*nbucket<estimate_kv_count)
+      nbucket*=2;
+    nset=nbucket;
+  }
 
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
 
@@ -840,9 +860,9 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag,
     //ptr=_ptr;
     mode=CompressMode;
   }else if(_comm){
-    mode = MapMode;
+    mode = CommMode;
   }else{
-    mode = MapLocalMode; 
+    mode = LocalMode; 
   }
 
   // create input file buffer
@@ -1070,20 +1090,20 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag,
   if(compress){
     //delete tmpdata;
     if(_comm){
-      mode = MapMode;
+      mode = CommMode;
     }else{
-      mode = MapLocalMode;
+      mode = LocalMode;
     }
-    KeyValue *outkv = new KeyValue(kvtype, 
-                blocksize, 
-                nmaxblock, 
-                maxmemsize, 
-                outofcore, 
-                tmpfpath);
-    outkv->setKVsize(ksize, vsize);
-    data=outkv;
-    local_kvs_count = _reduce(kv, _mycompress, _ptr);
-    delete kv;
+    //KeyValue *outkv = new KeyValue(kvtype, 
+    //            blocksize, 
+    //            nmaxblock, 
+    //            maxmemsize, 
+    //            outofcore, 
+    //            tmpfpath);
+    //outkv->setKVsize(ksize, vsize);
+    //data=outkv;
+    //local_kvs_count = _reduce(kv, _mycompress, _ptr);
+    //delete kv;
   }
 
   // delete communicator
@@ -1103,6 +1123,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag,
   return _get_kv_count();
 }
 
+#if 0
 uint64_t MapReduce::_map_multithread_io(char *filepath, \
   int sharedflag, int recurse, 
   char *whitespace, UserMapFile mymap, UserCompress mycompress, 
@@ -1140,9 +1161,9 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, \
     //gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(data);
-    mode = MapMode;
+    mode = CommMode;
   }else{
-    mode = MapLocalMode;
+    mode = LocalMode;
   }
 
   int fp=0;
@@ -1266,7 +1287,7 @@ uint64_t MapReduce::_map_multithread_io(char *filepath, \
 
   return _get_kv_count();
 }
-
+#endif
 
 #if 0
 /*
