@@ -22,6 +22,7 @@ using namespace MAPREDUCE_NS;
 
 void map(MapReduce *mr, char *word, void *ptr);
 void countword(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
+void mergeword(MapReduce *, char *, int, char *, int, char *, int, void*);
 
 #define USE_LOCAL_DISK  0
 //#define OUTPUT_KV
@@ -143,7 +144,7 @@ int main(int argc, char *argv[])
   //double t2 = MPI_Wtime();
 
 #ifdef PART_REDUCE
-  mr->reduce(countword, 1, NULL);
+  mr->reducebykey(mergeword, NULL);
 #else
   mr->reduce(countword, 0, NULL);
 #endif
@@ -185,20 +186,21 @@ void map(MapReduce *mr, char *word, void *ptr){
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   int count=0;
-
-  //printf("count=%d\n", iter->getCount());
-  
+ 
   for(iter->Begin(); !iter->Done(); iter->Next()){
     count+=*(int*)iter->getValue();
   }
   
-  //char count_str[100];
-  //sprintf(count_str, "%lu", count);
-  //mr->add_key_value(key, keysize, count_str, strlen(count_str)+1);
-  //printf("%s,%d\n", key, count); fflush(stdout);
-
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
+
+void mergeword(MapReduce *mr, char *key, int keysize, \
+  char *val1, int val1size, char *val2, int val2size, void* ptr){
+  int count=*(int*)(val1)+*(int*)(val2);
+  
+  mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
+}
+
 
 void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
   char header[1000];

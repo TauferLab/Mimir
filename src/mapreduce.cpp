@@ -441,6 +441,127 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
   return _get_kv_count(); 
 }
 
+uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
+  KeyValue *kv = (KeyValue*)data;
+  int kvtype=kv->getKVtype();
+
+  // init counters
+  int tid=0;
+  _tinit(tid);
+
+  mode = CompressMode;
+
+  // init data structure
+  UniqueInfo *u=new UniqueInfo();
+  u->ubucket = new Unique*[nbucket];
+  u->unique_pool=new Spool(nbucket*sizeof(Unique));
+  u->nunique=0;
+  memset(u->ubucket, 0, nbucket*sizeof(Unique*));
+
+  char *ubuf=u->unique_pool->add_block();
+  char *ubuf_end=ubuf+u->unique_pool->blocksize;
+
+  char *key, *value;
+  int keybytes, valuebytes, kvsize;
+  char *kvbuf;
+  for(int i=0; i<kv->nblock; i++){ 
+    // build unique structure
+    kv->acquire_block(i);
+
+    kvbuf=kv->getblockbuffer(i);
+    int datasize=kv->getdatasize(i);
+    char *kvbuf_end=kvbuf+datasize;
+    while(kvbuf<kvbuf_end){
+      GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
+
+      //kv_count++;
+    
+      uint32_t hid = hashlittle(key, keybytes, 0);
+      int ibucket = hid % nbucket;
+     
+      Unique *ukey, *pre;
+      ukey = _findukey(u->ubucket, ibucket, key, keybytes, pre);
+      if(ukey){
+        cur_ukey=ukey;
+        _myreduce(this, ukey->key, ukey->keybytes, \
+      ukey->voffset, ukey->mvbytes, value, valuebytes, _ptr);
+      }else{
+        if(ubuf_end-ubuf<ukeyoffset+keybytes){
+          memset(ubuf, 0, ubuf_end-ubuf);
+          ubuf=u->unique_pool->add_block();
+          ubuf_end=ubuf+u->unique_pool->blocksize;
+        }
+
+        ukey=(Unique*)(ubuf);
+        ubuf += ukeyoffset;
+
+        // add to the list
+        ukey->next = NULL;
+        if(pre == NULL)
+          u->ubucket[ibucket] = ukey;
+        else
+          pre->next = ukey;
+
+        // copy key
+        ukey->key = ubuf;
+        ukey->keybytes=keybytes;
+        memcpy(ubuf, key, keybytes);
+        ubuf += keybytes;
+
+        // copy value
+        ukey->voffset=ubuf;
+        ukey->nvalue=1;
+        ukey->mvbytes=valuebytes;
+        memcpy(ubuf, value, valuebytes);
+        ubuf += maxvaluebytes;
+
+        u->nunique++;
+      }//END if
+    }//END while
+    kv->release_block(i);
+  }//END for
+
+  // create new data object
+  DataObject::subRef(kv);
+  KeyValue *outkv = new KeyValue(kvtype, 
+                      blocksize, 
+                      nmaxblock, 
+                      maxmemsize, 
+                      outofcore, 
+                      tmpfpath);
+  outkv->setKVsize(ksize, vsize);
+  data=outkv;
+
+  mode = CompressMode;
+
+  int nunique=0;
+  Spool *unique_pool=u->unique_pool;
+  for(int j=0; j<unique_pool->nblock; j++){
+    char *ubuf=unique_pool->blocks[j];
+    char *ubuf_end=ubuf+unique_pool->blocksize;
+      
+    while(ubuf < ubuf_end){
+      Unique *ukey = (Unique*)(ubuf);
+      if((ubuf_end-ubuf < sizeof(Unique)) || (ukey->key==NULL))
+        break;
+
+      nunique++;
+      if(nunique>u->nunique) goto out;
+
+      add_key_value(ukey->key, ukey->keybytes, ukey->voffset, ukey->mvbytes);     
+    }
+  }
+out:
+  delete [] u->ubucket;
+  delete u->unique_pool;
+  delete u;
+
+  DataObject::subRef(data);
+
+  mode=NoneMode;
+
+  return _get_kv_count(); 
+}
 
 /**
    Map function without input 
@@ -621,6 +742,17 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
     kv->release_block(thread_info[tid].block);
     thread_info[tid].nitem++;
   }else if(mode==CompressMode){
+    if(valuebytes > maxvaluebytes){
+      LOG_ERROR("The value bytes %d is larger than the max %d\n", \
+        valuebytes, maxvaluebytes);
+    }
+    memcpy(cur_ukey->voffset, value, valuebytes);
+    cur_ukey->mvbytes=valuebytes;
+    cur_ukey->nvalue++;
+  }
+
+#if 0
+else if(mode==CompressMode){
     KeyValue *kv = (KeyValue*)tmpdata;
     kv->acquire_block(0);
     int kvsize = 0;
@@ -640,6 +772,7 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
     }
     kv->release_block(0);
   }
+#endif
   return;
 }
 
@@ -683,16 +816,16 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag,
   }
   // set mode
   if(compress){
-    tmpdata = new KeyValue(kvtype, 
-                           blocksize, 
-                           nmaxblock, 
-                           maxmemsize, 
-                           outofcore, 
-                           tmpfpath);
-    tmpdata->setKVsize(ksize,vsize);
-    tmpdata->add_block();
-    mycompress=_mycompress;
-    ptr=_ptr;
+    //tmpdata = new KeyValue(kvtype, 
+    //                       blocksize, 
+    //                       nmaxblock, 
+    //                       maxmemsize, 
+    //                       outofcore, 
+    //                       tmpfpath);
+    //tmpdata->setKVsize(ksize,vsize);
+    //tmpdata->add_block();
+    //mycompress=_mycompress;
+    //ptr=_ptr;
     mode=CompressMode;
   }else if(_comm){
     mode = MapMode;
@@ -923,7 +1056,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag,
 #endif
 
   if(compress){
-    delete tmpdata;
+    //delete tmpdata;
     if(_comm){
       mode = MapMode;
     }else{
@@ -2244,6 +2377,9 @@ void MapReduce::_get_default_values(){
   factor = 1;
 
   ukeyoffset = sizeof(Unique);
+  
+  maxkeybytes=MAX_KEY_SIZE;
+  maxvaluebytes=MAX_VALUE_SIZE;
 }
 
 void MapReduce::_bind_threads(){

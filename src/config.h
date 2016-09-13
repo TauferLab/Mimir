@@ -43,6 +43,9 @@
 // others
 #define MAXLINE                  2048
 
+#define MAX_KEY_SIZE             8192
+#define MAX_VALUE_SIZE              8
+
 //#define GATHER_STAT                 1
 #define SAFE_CHECK                  1
 #define SHOW_BINDING                0

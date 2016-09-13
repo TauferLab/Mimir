@@ -48,6 +48,9 @@ typedef void (*UserCompress)(MapReduce *, char *, int,  MultiValueIterator *iter
 /// User-defined reduce function
 typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*);
 
+/// User-defined reduce function
+typedef void (*UserBiReduce)(MapReduce *, char *, int,  char *, int, char *, int, void*);
+
 /// User-defined scan function
 typedef void (*UserScan)(char *, int, char *, int ,void *);
 
@@ -135,6 +138,15 @@ public:
   */
   uint64_t reduce(UserReduce _myreduce, int compress=0, 
     void* ptr=NULL);
+
+  /**
+    Reduce function.
+ 
+    @param[in]  myreduce user-defined reduce function
+    @param[in]  ptr user-defined pointer (default: NULL)
+    @return output <key,value> count
+  */
+  uint64_t reducebykey(UserBiReduce _myreduce, void* ptr=NULL);
 
   /**
     Scan function.
@@ -349,9 +361,12 @@ private:
   int64_t blocksize; // MB
   int64_t inputsize; // MB
   std::string tmpfpath;
+
   int (*myhash)(char *, int);
 
   int estimate, nbucket, factor, nset;
+
+  int maxstringbytes,maxkeybytes,maxvaluebytes;
 private:
   // MPI Commincator
   MPI_Comm comm;
@@ -368,8 +383,9 @@ struct thread_private_info{
 
   //uint64_t *nitems;
   //int *blocks;
-  DataObject  *data,*tmpdata;
-  UserCompress mycompress;
+  DataObject  *data/*,*tmpdata*/;
+  Unique *cur_ukey;
+  //UserCompress mycompress;
   void *ptr;
   Communicator *c;
   std::vector<std::string> ifiles;
