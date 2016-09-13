@@ -103,7 +103,7 @@ public:
   */
   uint64_t map_text_file(char *filename, int shared, int recurse, 
     char *seperator, UserMapFile mymap, UserBiReduce myreduce=NULL, 
-    void *ptr=NULL, int compress=0, int comm=1);
+    void *ptr=NULL, int comm=1);
   
   /**
     Map function with MapReduce object as input.
@@ -115,8 +115,8 @@ public:
     @return output <key,value> count
   */
   uint64_t map_key_value(MapReduce *mr, 
-    UserMapKV mymap,  UserCompress mycompress=NULL, \
-    void *ptr=NULL, int compress=0, int comm=1);
+    UserMapKV mymap,  UserBiReduce mycompress=NULL, \
+    void *ptr=NULL, int comm=1);
 
   /**
     Compress local <key,value>
@@ -344,6 +344,8 @@ private:
   {
     int        nunique;       ///< number of unique key
     int        nset;          ///< number of set
+    char       *ubuf;
+    char       *ubuf_end;
     Unique   **ubucket;       ///< hash bucket
     Spool     *unique_pool;   ///< memory pool of unique keys
     Spool     *set_pool;      ///< memory pool of sets
@@ -384,18 +386,18 @@ private:
   OpMode mode;
   int ukeyoffset; 
 
-struct thread_private_info{
-  uint64_t nitem;
-  int      block;
-};
+  struct thread_private_info{
+    uint64_t nitem;
+    int      block;
+  };
 
   thread_private_info *thread_info;
 
-  //uint64_t *nitems;
-  //int *blocks;
-  DataObject  *data/*,*tmpdata*/;
-  Unique *cur_ukey;
-  //UserCompress mycompress;
+  DataObject  *data; ///< number of unique key
+  Unique *cur_ukey;  ///< number of unique key
+  UniqueInfo *u;
+  //User
+  UserBiReduce mycompress;
   void *ptr;
   Communicator *c;
   std::vector<std::string> ifiles;
@@ -420,14 +422,12 @@ struct thread_private_info{
   void _disinputfiles(const char *, int, int);
   void _getinputfiles(const char *, int, int);
 
-
   MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre);
   void _unique2set(UniqueInfo *);
     
   int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
   void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *,
     int shared=1);
-
     
   void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
   void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *, 
@@ -436,22 +436,16 @@ struct thread_private_info{
   void _mv2kmv(DataObject *,UniqueInfo *,int,
     void (*myreduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*), void *);
 
+  uint64_t _cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char *value, int valuebytes, UserBiReduce, void *);
+  uint64_t _cps_unique2kv(UniqueInfo *u);
+  
   uint64_t _reduce(KeyValue *, UserReduce, void*);
   uint64_t _reduce_compress(KeyValue *, UserReduce, void*);
 
   uint64_t _get_kv_count();
-#if 0
-  {
-    local_kvs_count=0;
-    for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
-    MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-    TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
-    return  global_kvs_count;
-  }
-#endif
 };//class MapReduce
 
-#if 1
+
 class MultiValueIterator{
 public:
 
@@ -494,96 +488,7 @@ private:
   char *value;
   int valuesize;
 };
-#endif
 
 }//namespace
-
-#if 0
-  MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize){
-    nvalue=_nvalue;
-    valuebytes=_valuebytes;
-    values=_values;
-    kvtype=_kvtype;
-    vsize=_vsize;
-    
-    mode=0;
-
-    Begin();
-  }
-
-  MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv, int _kvtype){
-    mv=_mv;
-    ukey=_ukey;
-
-    nvalue=ukey->nvalue;
-    kvtype=_kvtype;
-    vsize=mv->vsize;
-    pset=NULL;
-
-    mode=1;
-
-    Begin();
-  }
-#endif
-#if 0
-  {
-    ivalue=0;
-    value_start=0;
-    isdone=0;
-    if(ivalue >= nvalue) isdone=1;
-    else{
-      if(mode==1){
-         pset=ukey->firstset;
-         mv->acquire_block(pset->pid);
-         char *tmpbuf = mv->getblockbuffer(pset->pid);
-         pset->soffset = (int*)(tmpbuf + pset->s_off);
-         pset->voffset = tmpbuf + pset->v_off;        
- 
-         valuebytes=pset->soffset;
-         values=pset->voffset;
-
-         value_end=pset->nvalue;
-      }
-      value=values;
-      if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
-      else if(kvtype==1) valuesize=strlen(value)+1;
-      else if(kvtype==2) valuesize=vsize;
-   }
-  }
-#endif
-
-#if 0
-  void Next(){
-    ivalue++;
-    if(ivalue >= nvalue) {
-      isdone=1;
-      if(mode==1 && pset){
-         mv->release_block(pset->pid);
-      }
-    }else{
-      if(mode==1 && ivalue >=value_end){
-        value_start += pset->nvalue;
-        mv->release_block(pset->pid);
-        pset=pset->next;
-        mv->acquire_block(pset->pid);
-        char *tmpbuf = mv->getblockbuffer(pset->pid);
-        pset->soffset = (int*)(tmpbuf + pset->s_off);
-        pset->voffset = tmpbuf + pset->v_off;
-
-        valuebytes=pset->soffset;
-        values=pset->voffset;
-
-        value=values;
-        value_end+=pset->nvalue;
-      }else{
-        value+=valuesize;
-      }
-      if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
-      else if(kvtype==1) valuesize=strlen(value)+1;
-      else if(kvtype==2) valuesize=vsize;
-    }
-  }
-#endif
-
 
 #endif

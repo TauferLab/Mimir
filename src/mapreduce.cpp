@@ -274,8 +274,8 @@ uint64_t MapReduce::map_text_file(char *_filename, int _shared,
 */
 
 uint64_t MapReduce::map_key_value(MapReduce *_mr, 
-    UserMapKV _mymap, UserCompress mycompress, 
-    void *_ptr, int compress,int _comm){
+    UserMapKV _mymap, UserBiReduce _mycompress, 
+    void *_ptr, int _comm){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", \
     me, nprocs);
@@ -303,9 +303,23 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     c=Communicator::Create(comm, tnum, commmode);
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
+  }
+
+  if(_mycompress!=NULL){
+    u=new UniqueInfo();
+    u->ubucket = new Unique*[nbucket];
+    u->unique_pool=new Spool(nbucket*sizeof(Unique));
+    u->nunique=0;
+    u->ubuf=u->unique_pool->add_block();
+    u->ubuf_end=u->ubuf+u->unique_pool->blocksize; 
+    memset(u->ubucket, 0, nbucket*sizeof(Unique*));
+    mycompress=_mycompress;
+    ptr=_ptr;
+    mode=CompressMode;
+  }else if(_comm){
     mode = CommMode;
   }else{
-    mode = LocalMode;
+    mode = LocalMode; 
   }
 
   KeyValue *inputkv = (KeyValue*)data;
@@ -347,6 +361,20 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   if(_comm) c->twait(tid);
 }
 #endif
+
+  if(_mycompress != NULL){
+    if(_comm){
+      mode = CommMode;
+    }else{
+      mode = LocalMode;
+    }
+
+    _cps_unique2kv(u);
+
+    delete [] u->ubucket;
+    delete u->unique_pool;
+    delete u;
+  }
 
   if(_comm){
     c->wait();
@@ -446,6 +474,9 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
 uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reducebykey start.\n", me, nprocs);
 
+  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+  PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, data->gettotalsize());
+ 
   KeyValue *kv = (KeyValue*)data;
   int kvtype=kv->getKVtype();
 
@@ -462,8 +493,8 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   u->nunique=0;
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
-  char *ubuf=u->unique_pool->add_block();
-  char *ubuf_end=ubuf+u->unique_pool->blocksize;
+  u->ubuf=u->unique_pool->add_block();
+  u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
 
   char *key, *value;
   int keybytes, valuebytes, kvsize;
@@ -478,49 +509,10 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
     while(kvbuf<kvbuf_end){
       GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
 
+      _cps_kv2unique(u, key, keybytes, value, valuebytes, _myreduce, _ptr);
+
       //kv_count++;
     
-      uint32_t hid = hashlittle(key, keybytes, 0);
-      int ibucket = hid % nbucket;
-     
-      Unique *ukey, *pre;
-      ukey = _findukey(u->ubucket, ibucket, key, keybytes, pre);
-      if(ukey){
-        cur_ukey=ukey;
-        _myreduce(this, ukey->key, ukey->keybytes, \
-      ukey->voffset, ukey->mvbytes, value, valuebytes, _ptr);
-      }else{
-        if(ubuf_end-ubuf<ukeyoffset+keybytes+maxvaluebytes){
-          memset(ubuf, 0, ubuf_end-ubuf);
-          ubuf=u->unique_pool->add_block();
-          ubuf_end=ubuf+u->unique_pool->blocksize;
-        }
-
-        ukey=(Unique*)(ubuf);
-        ubuf += ukeyoffset;
-
-        // add to the list
-        ukey->next = NULL;
-        if(pre == NULL)
-          u->ubucket[ibucket] = ukey;
-        else
-          pre->next = ukey;
-
-        // copy key
-        ukey->key = ubuf;
-        ukey->keybytes=keybytes;
-        memcpy(ubuf, key, keybytes);
-        ubuf += keybytes;
-
-        // copy value
-        ukey->voffset=ubuf;
-        ukey->nvalue=1;
-        ukey->mvbytes=valuebytes;
-        memcpy(ubuf, value, valuebytes);
-        ubuf += maxvaluebytes;
-
-        u->nunique++;
-      }//END if
     }//END while
     kv->release_block(i);
   }//END for
@@ -538,8 +530,72 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
 
   mode = LocalMode;
 
+  _cps_unique2kv(u);
   //printf("nunique=%d\n", u->nunique);
 
+//out:
+  delete [] u->ubucket;
+  delete u->unique_pool;
+  delete u;
+
+  DataObject::subRef(data);
+
+  mode=NoneMode;
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reducebykey end.\n", me, nprocs);
+
+  TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
+  PROFILER_RECORD_COUNT(0, COUNTER_RDC_OUTPUT_KV, data->gettotalsize());
+
+  return _get_kv_count(); 
+}
+
+uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char *value, int valuebytes, UserBiReduce _myreduce, void *_ptr){
+  uint32_t hid = hashlittle(key, keybytes, 0);
+  int ibucket = hid % nbucket;
+
+  Unique *ukey, *pre;
+  ukey = _findukey(u->ubucket, ibucket, key, keybytes, pre);
+  if(ukey){
+    cur_ukey=ukey;
+    _myreduce(this, ukey->key, ukey->keybytes, \
+    ukey->voffset, ukey->mvbytes, value, valuebytes, _ptr);
+  }else{
+    if(u->ubuf_end-u->ubuf<ukeyoffset+keybytes+maxvaluebytes){
+      memset(u->ubuf, 0, u->ubuf_end-u->ubuf);
+      u->ubuf=u->unique_pool->add_block();
+        u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
+    }
+
+    ukey=(Unique*)(u->ubuf);
+    u->ubuf += ukeyoffset;
+
+    // add to the list
+    ukey->next = NULL;
+    if(pre == NULL)
+      u->ubucket[ibucket] = ukey;
+    else
+      pre->next = ukey;
+
+    // copy key
+    ukey->key = u->ubuf;
+    ukey->keybytes=keybytes;
+    memcpy(u->ubuf, key, keybytes);
+    u->ubuf += keybytes;
+
+    // copy value
+    ukey->voffset=u->ubuf;
+    ukey->nvalue=1;
+    ukey->mvbytes=valuebytes;
+    memcpy(u->ubuf, value, valuebytes);
+    u->ubuf += maxvaluebytes;
+
+    u->nunique++;
+  }//END if
+}
+
+
+uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
   int nunique=0;
   Spool *unique_pool=u->unique_pool;
   for(int j=0; j<unique_pool->nblock; j++){
@@ -554,7 +610,7 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
       nunique++;
       if(nunique>u->nunique) goto out;
 
-      //printf("add key=%s\n", ukey->key);
+      printf("key=%s\n", ukey->key); fflush(stdout);
       add_key_value(ukey->key, ukey->keybytes, ukey->voffset, ukey->mvbytes);    
 
       ubuf+=ukeyoffset;
@@ -563,19 +619,8 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
     }
   }
 out:
-  delete [] u->ubucket;
-  delete u->unique_pool;
-  delete u;
-
-  DataObject::subRef(data);
-
-  mode=NoneMode;
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reducebykey end.\n", me, nprocs);
-
-
-  return _get_kv_count(); 
-}
+  return 0;
+} 
 
 /**
    Map function without input 
@@ -764,7 +809,9 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
     cur_ukey->mvbytes=valuebytes;
     cur_ukey->nvalue++;
   }else if(mode==CompressMode){
-        
+    mode=MergeMode;
+    _cps_kv2unique(u, key, keybytes, value, valuebytes, mycompress, ptr);
+    mode=CompressMode;
   }
 
 #if 0
@@ -799,17 +846,19 @@ else if(mode==CompressMode){
  */
 uint64_t MapReduce::map_text_file(char *filepath, int sharedflag, 
                         int recurse, char *whitespace, 
-                        UserMapFile mymap, UserBiReduce _myreduce,
-                        void *_ptr, int compress, int _comm){
+                        UserMapFile mymap, UserBiReduce _mycompress,
+                        void *_ptr, int _comm){
 //uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, 
 //  int recurse, char *whitespace, UserMapFile mymap, 
 //  UserCompress _mycompress, void *_ptr, int compress, int _comm){
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file start.\n", me, nprocs);
-
   if(strlen(whitespace) == 0){
     LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
   }
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file start\nfilepath=%s,_mycompress=%p\n", \
+    me, nprocs, filepath, _mycompress);
+
   if(estimate){
     uint64_t estimate_kv_count = global_kvs_count/nprocs;
     nbucket=1;
@@ -847,17 +896,16 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
     c->init(kv);
   }
   // set mode
-  if(compress){
-    //tmpdata = new KeyValue(kvtype, 
-    //                       blocksize, 
-    //                       nmaxblock, 
-    //                       maxmemsize, 
-    //                       outofcore, 
-    //                       tmpfpath);
-    //tmpdata->setKVsize(ksize,vsize);
-    //tmpdata->add_block();
-    //mycompress=_mycompress;
-    //ptr=_ptr;
+  if(_mycompress!=NULL){
+    u=new UniqueInfo();
+    u->ubucket = new Unique*[nbucket];
+    u->unique_pool=new Spool(nbucket*sizeof(Unique));
+    u->nunique=0;
+    u->ubuf=u->unique_pool->add_block();
+    u->ubuf_end=u->ubuf+u->unique_pool->blocksize; 
+    memset(u->ubucket, 0, nbucket*sizeof(Unique*));
+    mycompress=_mycompress;
+    ptr=_ptr;
     mode=CompressMode;
   }else if(_comm){
     mode = CommMode;
@@ -1087,23 +1135,19 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   mem_aligned_free(text);
 #endif
 
-  if(compress){
+  if(_mycompress != NULL){
     //delete tmpdata;
     if(_comm){
       mode = CommMode;
     }else{
       mode = LocalMode;
     }
-    //KeyValue *outkv = new KeyValue(kvtype, 
-    //            blocksize, 
-    //            nmaxblock, 
-    //            maxmemsize, 
-    //            outofcore, 
-    //            tmpfpath);
-    //outkv->setKVsize(ksize, vsize);
-    //data=outkv;
-    //local_kvs_count = _reduce(kv, _mycompress, _ptr);
-    //delete kv;
+
+    _cps_unique2kv(u);
+
+    delete [] u->ubucket;
+    delete u->unique_pool;
+    delete u;
   }
 
   // delete communicator
