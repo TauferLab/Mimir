@@ -76,10 +76,6 @@ void KeyValue::print(int type, FILE *fp, int format){
   char *key, *value;
   int keybytes, valuebytes;
 
-  //printf("type=%d\n", type);
-
-  //fprintf(fp, "KV Object:\n");
-
   for(int i = 0; i < nblock; i++){
     int offset = 0;
 
@@ -88,6 +84,8 @@ void KeyValue::print(int type, FILE *fp, int format){
     offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
 
     while(offset != -1){
+      fprintf(fp, "%s", key);
+ 
       //if(type == 0) fprintf(fp, "%s", key);
       //else if(type == 1) fprintf(fp, "%d", *(int*)key);
       //else if(type == 2) fprintf(fp, "%ld", *(int64_t*)key);

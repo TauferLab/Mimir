@@ -88,7 +88,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
 
   mode = NoneMode;
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: create. (thread number=%d)\n", me, nprocs, tnum);
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: create.\n", me, nprocs);
 }
 
 /**
@@ -442,6 +442,8 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
 }
 
 uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reducebykey start.\n", me, nprocs);
+
   KeyValue *kv = (KeyValue*)data;
   int kvtype=kv->getKVtype();
 
@@ -486,7 +488,7 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
         _myreduce(this, ukey->key, ukey->keybytes, \
       ukey->voffset, ukey->mvbytes, value, valuebytes, _ptr);
       }else{
-        if(ubuf_end-ubuf<ukeyoffset+keybytes){
+        if(ubuf_end-ubuf<ukeyoffset+keybytes+maxvaluebytes){
           memset(ubuf, 0, ubuf_end-ubuf);
           ubuf=u->unique_pool->add_block();
           ubuf_end=ubuf+u->unique_pool->blocksize;
@@ -532,7 +534,9 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   outkv->setKVsize(ksize, vsize);
   data=outkv;
 
-  mode = CompressMode;
+  mode = ReduceMode;
+
+  //printf("nunique=%d\n", u->nunique);
 
   int nunique=0;
   Spool *unique_pool=u->unique_pool;
@@ -548,7 +552,12 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
       nunique++;
       if(nunique>u->nunique) goto out;
 
-      add_key_value(ukey->key, ukey->keybytes, ukey->voffset, ukey->mvbytes);     
+      //printf("add key=%s\n", ukey->key);
+      add_key_value(ukey->key, ukey->keybytes, ukey->voffset, ukey->mvbytes);    
+
+      ubuf+=ukeyoffset;
+      ubuf+=ukey->keybytes;
+      ubuf+=maxvaluebytes;
     }
   }
 out:
@@ -559,6 +568,9 @@ out:
   DataObject::subRef(data);
 
   mode=NoneMode;
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reducebykey end.\n", me, nprocs);
+
 
   return _get_kv_count(); 
 }

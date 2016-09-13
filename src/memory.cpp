@@ -15,7 +15,7 @@ void record_memory_usage(){
   pid_t pid=getpid();
 
   int64_t vmpeak,vmsize;
-  sprintf(procname,"/proc/%ld/status", pid);
+  sprintf(procname,"/proc/%ld/status", (long)pid);
   FILE *fp=fopen(procname,"r");
   
   while(fgets(line, 100, fp)){

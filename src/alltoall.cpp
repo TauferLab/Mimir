@@ -518,7 +518,7 @@ void Alltoall::wait(){
      exchange_kv();
    }while(pdone < size);
 
-#ifndef MTMR_COMM_BLOCKING
+#ifdef MTMR_COMM_NBLOCKING
    // wait all pending communication
    for(int i = 0; i < nbuf; i++){
      if(reqs[i] != MPI_REQUEST_NULL){
@@ -606,7 +606,7 @@ void Alltoall::exchange_kv(){
   MPI_Type_contiguous((0x1<<type_log_bytes), MPI_BYTE, &comm_type);
   MPI_Type_commit(&comm_type);
 
-#ifdef MTMR_COMM_BLOCKING
+#ifndef MTMR_COMM_NBLOCKING
 
 #ifdef MTMR_ZERO_COPY
   blockid=data->add_block();

@@ -197,7 +197,8 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 void mergeword(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
   int count=*(int*)(val1)+*(int*)(val2);
-  
+ 
+  //printf("key=%s\n", key);
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 

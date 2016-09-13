@@ -168,8 +168,18 @@ public:
   void add_key_value(char *key, int keybytes, 
     char *value, int valuebytes);
   
-  
+   /**
+    Add <key,value>. This function only can be invoked in user-defined map or reduce functions.
+ 
+    @param[in]  key key pointer
+    @param[in]  keybytes key size
+    @param[in]  value value pointer
+    @param[in]  valubytes value size
+    @return nothing
+  */ 
   void output(int type=0, FILE *fp=stdout, int format=0);
+
+
   //void init_stat();
   static void print_stat(MapReduce *mr, FILE *fp=stdout);
 
