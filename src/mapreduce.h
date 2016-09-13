@@ -39,11 +39,11 @@ typedef void (*UserInitKV)(MapReduce *, void *);
 /// User-defined map function to map files
 typedef void (*UserMapFile) (MapReduce *, char *, void *);
 
-/// User-defined compress function 
-typedef void (*UserCompress)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*);
-
 /// User-defined map function to map KV object
 typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
+
+/// User-defined compress function 
+typedef void (*UserCompress)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*);
 
 /// User-defined reduce function
 typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, int, void*);
@@ -99,7 +99,8 @@ public:
     @return output <key,value> count
   */
   uint64_t map_text_file(char *filename, int shared, int recurse, 
-    char *seperator, UserMapFile mymap, void *ptr=NULL, int comm=1);
+    char *seperator, UserMapFile mymap, UserCompress mycompress=NULL, 
+    void *ptr=NULL, int compress=0, int comm=1);
   
   /**
     Map function with MapReduce object as input.
@@ -111,7 +112,8 @@ public:
     @return output <key,value> count
   */
   uint64_t map_key_value(MapReduce *mr, 
-    UserMapKV mymap, void *ptr=NULL, int comm=1);
+    UserMapKV mymap,  UserCompress mycompress=NULL, \
+    void *ptr=NULL, int compress=0, int comm=1);
 
   /**
     Compress local <key,value>
@@ -272,7 +274,7 @@ private:
    * MapLocalMode: add_key_value invoked in map function without communication. \n
    * ReduceMode: add_key_value invoked in reduce function.
    */  
-  enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode};
+  enum OpMode{NoneMode, MapMode, MapLocalMode, ReduceMode, CompressMode};
 
   /// \brief The set is the partial KMV within one page
   /// The set is the partial KMV within one pages
@@ -366,7 +368,9 @@ struct thread_private_info{
 
   //uint64_t *nitems;
   //int *blocks;
-  DataObject  *data;
+  DataObject  *data,*tmpdata;
+  UserCompress mycompress;
+  void *ptr;
   Communicator *c;
   std::vector<std::string> ifiles;
 
@@ -377,9 +381,11 @@ struct thread_private_info{
   int64_t _stringtoint(const char *);
 
   uint64_t _map_master_io(char *, int, int, char *, 
-    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
+    UserMapFile, UserCompress mycompress, 
+    void *ptr=NULL, int compress=0, int comm=1);
   uint64_t _map_multithread_io(char *, int, int, char *, 
-    void (*mymap) (MapReduce *, char *, void *), void *ptr=NULL, int comm=1);
+    UserMapFile, UserCompress mycompress, 
+    void *ptr=NULL, int compress=0, int comm=1);
 
   void _tinit(int); // thread initialize
   void _disinputfiles(const char *, int, int);

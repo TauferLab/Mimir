@@ -80,6 +80,8 @@ DataObject::DataObject(
 
   ref=0;
 
+  totalsize=0;
+
   id = DataObject::object_id++;
 
 #ifdef MTMR_MULTITHREAD  
@@ -129,6 +131,7 @@ void DataObject::_get_filename(int blockid, std::string &fname){
 /**
  *
  */
+#if 0
 int DataObject::acquire_block(int blockid){
 
   //printf("outofcore=%d\n", outofcore);
@@ -203,6 +206,7 @@ void DataObject::release_block(int blockid){
  buffers[bufferid].ref-=1; 
 #endif
 }
+#endif
 
 /**
   Currently, just simplily delete the buffer of a block.

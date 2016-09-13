@@ -7,6 +7,7 @@
  * Detail description.
  * \todo 1. Out-of-core sopport isn't tested.
  * \todo 2. Multithreading support isn't tested.
+ * \todo 3. Out-of-core support is deleted.
  */
 #ifndef DATA_OBJECT_H
 #define DATA_OBJECT_H
@@ -56,7 +57,9 @@ public:
     @param[in]  blockid block id
     @return 0 if success, otherwise error. 
   */
-  int  acquire_block(int blockid);
+  int  acquire_block(int blockid){
+    return 0;
+  }
 
   /**
     Release a block. If the memory isn't enough, this block may be spilled into disk.
@@ -64,7 +67,8 @@ public:
     @param[in]  blockid block id
     @return no return
   */ 
-  void release_block(int blockid);
+  void release_block(int blockid){
+  }
 
   /**
     Delete a block. Free the buffer of this block. 
@@ -148,10 +152,18 @@ public:
     blocks[blockid].datasize = datasize;
   }
 
+  uint64_t gettotalsize(){
+    totalsize=0;
+    for(int i=0;i<nblock;i++)
+      totalsize+=blocks[i].datasize;
+    return totalsize;
+  }
+
   DataType datatype;    ///< data type
   int ksize, vsize;     ///< key and value size
   int nblock;           ///< number of page
   int64_t blocksize;    ///< page size
+  uint64_t totalsize;   ///< datasize
   uint64_t maxmemsize;  ///< maximum memory size
 
 //protected:

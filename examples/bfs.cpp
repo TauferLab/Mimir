@@ -60,7 +60,8 @@ int mypartition(char *, int);
 // read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
-void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*); 
+//void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*); 
+void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr);
 // count local edge number
 void countedge(char *, int, char *, int,void *);
  
@@ -192,7 +193,7 @@ int main(int argc, char **argv)
 
   // partition file
   char whitespace[10] = "\n";
-  uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread, NULL, 1);
+  uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread);
   nglobaledges = nedges;
 
   //if(me==0) fprintf(stdout, "nlocalverts=%ld\n", nlocalverts);
@@ -220,7 +221,7 @@ int main(int argc, char **argv)
 //#else
 //  mr->reduce(makegraph,0,NULL);
 //#endif
-  mr->map_key_value(mr, makegraph, NULL, 0);
+  mr->map_key_value(mr, makegraph, NULL, NULL, 0, 0);
 
   delete [] rowinserts;
 
@@ -257,11 +258,11 @@ int main(int argc, char **argv)
 #ifdef KV_HINT
     mr->set_KVtype(FixedKV, sizeof(int64_t), 0);
 #endif
-    mr->map_key_value(mr, shrink, NULL, 0);
+    mr->map_key_value(mr, shrink, NULL, NULL, 0, 0);
 #ifdef KV_HINT
     mr->set_KVtype(FixedKV, sizeof(int64_t), sizeof(int64_t));
 #endif
-    nactives[level] = mr->map_key_value(mr, expand, NULL);
+    nactives[level] = mr->map_key_value(mr, expand);
     //if(me==0) fprintf(stdout, "level %d: nactive=%ld\n", level, nactives[level]);
     level++;
   }while(nactives[level-1]);
@@ -350,7 +351,7 @@ void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   }
 }
 #endif
-void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
+void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;
   v0_local = v0 - nvertoffset; 

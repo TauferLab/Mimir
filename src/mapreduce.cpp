@@ -244,17 +244,25 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 */
 uint64_t MapReduce::map_text_file(char *_filename, int _shared, 
                         int _recur, char *_whitespace, 
-                        UserMapFile _mymap, 
-                        void *_ptr, int _comm){
+                        UserMapFile _mymap, UserCompress _mycompress,
+                        void *_ptr, int _compress, int _comm){
   if(strlen(_whitespace) == 0){
     LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
+  }
+  if(estimate){
+    uint64_t estimate_kv_count = global_kvs_count/nprocs;
+    nbucket=1;
+    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
+      factor*nbucket<estimate_kv_count)
+      nbucket*=2;
+    nset=nbucket;
   }
 #ifdef USE_MT_IO
   return _map_multithread_io(_filename, _shared, 
     _recur, _whitespace, _mymap, _ptr, _comm);
 #else
-  return _map_master_io(_filename, _shared, 
-    _recur, _whitespace, _mymap, _ptr, _comm);
+  uint64_t ret = _map_master_io(_filename, _shared, 
+    _recur, _whitespace, _mymap, _mycompress, _ptr, _compress, _comm);
 #endif
 }
 
@@ -264,8 +272,8 @@ uint64_t MapReduce::map_text_file(char *_filename, int _shared,
 */
 
 uint64_t MapReduce::map_key_value(MapReduce *_mr, 
-    UserMapKV _mymap, 
-    void *_ptr, int _comm){
+    UserMapKV _mymap, UserCompress mycompress, 
+    void *_ptr, int compress,int _comm){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", \
     me, nprocs);
@@ -361,8 +369,7 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: compress start.\n", me, nprocs);
 
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-  PROFILER_RECORD_COUNT(0, COUNTER_CPS_INPUT_KV, \
-    (data->blocksize)*(data->nblock));
+  PROFILER_RECORD_COUNT(0, COUNTER_CPS_INPUT_KV, data->gettotalsize());
 
   if(estimate){
     uint64_t estimate_kv_count = global_kvs_count/nprocs;
@@ -394,9 +401,12 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
   }
  
   _reduce_compress(kv, _mycompress, _ptr);
-  DataObject::subRef(kv);
-  KeyValue *tmpkv=outkv;
+  PROFILER_RECORD_COUNT(0, COUNTER_CPS_PR_OUTKV, outkv->gettotalsize());
 
+  DataObject::subRef(kv);
+
+#if 0
+  KeyValue *tmpkv=outkv;
   outkv = new KeyValue(kvtype, 
                 blocksize, 
                 nmaxblock, 
@@ -412,6 +422,7 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
   local_kvs_count = _reduce(tmpkv, _mycompress, _ptr);
   //DataObject::subRef(kv);
   delete tmpkv;
+#endif
 
   if(_comm){
     c->wait();
@@ -423,8 +434,7 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
   mode = NoneMode;
 
   TRACKER_RECORD_EVENT(0, EVENT_CPS_COMPUTING);
-  PROFILER_RECORD_COUNT(0, COUNTER_CPS_OUTPUT_KV, \
-    (data->blocksize)*(data->nblock));
+  PROFILER_RECORD_COUNT(0, COUNTER_CPS_OUTPUT_KV, data->gettotalsize());
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: compress end.\n", me, nprocs);
 
@@ -440,8 +450,7 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce start.\n", me, nprocs);
 
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-  PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, \
-    (data->blocksize)*(data->nblock));
+  PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, data->gettotalsize());
  
   if(estimate){
     uint64_t estimate_kv_count = global_kvs_count/nprocs;
@@ -480,8 +489,7 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
 
     //record_memory_usage("after compress");
 
-    PROFILER_RECORD_COUNT(0, COUNTER_PR_OUTPUT_KV, \
-      (outkv->blocksize)*(outkv->nblock));
+    PROFILER_RECORD_COUNT(0, COUNTER_PR_OUTPUT_KV, outkv->gettotalsize());
 
     KeyValue *tmpkv=outkv;
 
@@ -508,8 +516,7 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
   mode = NoneMode;
 
   TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
-  PROFILER_RECORD_COUNT(0, COUNTER_RDC_OUTPUT_KV, \
-    (data->blocksize)*(data->nblock));
+  PROFILER_RECORD_COUNT(0, COUNTER_RDC_OUTPUT_KV, data->gettotalsize());
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce end.\n", me, nprocs);
 
@@ -613,18 +620,41 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
 
     kv->release_block(thread_info[tid].block);
     thread_info[tid].nitem++;
+  }else if(mode==CompressMode){
+    KeyValue *kv = (KeyValue*)tmpdata;
+    kv->acquire_block(0);
+    int kvsize = 0;
+    GET_KV_SIZE(kv->kvtype, keybytes, valuebytes, kvsize);
+    int datasize = kv->getdatasize(0);
+    if(datasize + kvsize <= kv->blocksize){
+      char *buf = kv->getblockbuffer(0)+datasize;
+      PUT_KV_VARS(kv->kvtype,buf,key,keybytes,value,valuebytes,kvsize);
+      kv->setblockdatasize(0,datasize+kvsize);
+    }else{
+      mode=MapLocalMode;
+      _reduce_compress(kv, mycompress, ptr);
+      char *buf = kv->getblockbuffer(0);
+      PUT_KV_VARS(kv->kvtype,buf,key,keybytes,value,valuebytes,kvsize);
+      kv->setblockdatasize(0,kvsize);
+      mode=CompressMode;
+    }
+    kv->release_block(0);
   }
   return;
 }
 
+/**
+ * This function map text files.
+ *   Master thread is used to read files in multithring mode.
+ *
+ */
+uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, 
+  int recurse, char *whitespace, UserMapFile mymap, 
+  UserCompress _mycompress, void *_ptr, int compress, int _comm){
 
-
-uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse, 
-    char *whitespace, void (*mymap) (MapReduce *, char *, void *), void *ptr, int _comm){
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file start.\n", me, nprocs);
 
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (main thread read file)\n", me, nprocs);
 
   // delete data
   DataObject::subRef(data);
@@ -642,19 +672,32 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
                               maxmemsize, 
                               outofcore, 
                               tmpfpath);
-  data=kv;
-  DataObject::addRef(data);
   kv->setKVsize(ksize,vsize);
+  data=kv;
 
   // create communicator
   if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
-    //gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
+  }
+  // set mode
+  if(compress){
+    tmpdata = new KeyValue(kvtype, 
+                           blocksize, 
+                           nmaxblock, 
+                           maxmemsize, 
+                           outofcore, 
+                           tmpfpath);
+    tmpdata->setKVsize(ksize,vsize);
+    tmpdata->add_block();
+    mycompress=_mycompress;
+    ptr=_ptr;
+    mode=CompressMode;
+  }else if(_comm){
     mode = MapMode;
   }else{
-    mode = MapLocalMode;
+    mode = MapLocalMode; 
   }
 
   // create input file buffer
@@ -686,6 +729,7 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
     int64_t input_char_size=0;
 
     TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+    PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_COUNT, 1);
 
     // Open file
 #ifdef USE_MPI_IO
@@ -878,6 +922,25 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
   mem_aligned_free(text);
 #endif
 
+  if(compress){
+    delete tmpdata;
+    if(_comm){
+      mode = MapMode;
+    }else{
+      mode = MapLocalMode;
+    }
+    KeyValue *outkv = new KeyValue(kvtype, 
+                blocksize, 
+                nmaxblock, 
+                maxmemsize, 
+                outofcore, 
+                tmpfpath);
+    outkv->setKVsize(ksize, vsize);
+    data=outkv;
+    local_kvs_count = _reduce(kv, _mycompress, _ptr);
+    delete kv;
+  }
+
   // delete communicator
  if(_comm){
    c->wait();
@@ -885,17 +948,20 @@ uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag, int recurse,
    c = NULL;
  }
 
+  DataObject::addRef(data);
   mode = NoneMode;
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (main thread read file)\n", me, nprocs);
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
   return _get_kv_count();
 }
 
-uint64_t MapReduce::_map_multithread_io(char *filepath, int sharedflag, int recurse, 
-    char *whitespace, void (*mymap) (MapReduce *, char *, void *), void *ptr, int _comm){
+uint64_t MapReduce::_map_multithread_io(char *filepath, \
+  int sharedflag, int recurse, 
+  char *whitespace, UserMapFile mymap, UserCompress mycompress, 
+  void *ptr, int compress, int _comm){
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (File name to mymap)\n", me, nprocs);
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);

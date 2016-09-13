@@ -134,9 +134,9 @@ int main(int argc, char *argv[])
 
   char whitespace[20] = " \n";
 #ifndef COMPRESS
-  mr->map_text_file(filedir, 1, 1, whitespace, map, NULL);
+  mr->map_text_file(filedir, 1, 1, whitespace, map);
 #else
-  mr->map_text_file(filedir, 1, 1, whitespace, map, NULL, 0);
+  mr->map_text_file(filedir, 1, 1, whitespace, map, NULL,NULL, 0, 0);
   mr->compress(countword, NULL);
 #endif
 

@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 #endif
 
   char whitespace[10] = "\n";
-  uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, 0);
+  uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, NULL, 0, 0);
 
   thresh=nwords*density;
   if(me==0){
@@ -143,7 +143,7 @@ int main(int argc, char **argv)
 //    mr_level->set_KVtype(FixedKV, level, 0);
 //#endif
 //#endif
-    mr_level->map_key_value(mr_convert, gen_leveled_octkey, NULL);
+    mr_level->map_key_value(mr_convert, gen_leveled_octkey);
 //#ifdef KV_HINT
 //    mr_level->set_KVtype(FixedKV, level, sizeof(int));
 //#endif
