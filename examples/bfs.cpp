@@ -221,7 +221,7 @@ int main(int argc, char **argv)
 //#else
 //  mr->reduce(makegraph,0,NULL);
 //#endif
-  mr->map_key_value(mr, makegraph, NULL, NULL, 0, 0);
+  mr->map_key_value(mr, makegraph, NULL, NULL, 0);
 
   delete [] rowinserts;
 
@@ -258,7 +258,7 @@ int main(int argc, char **argv)
 #ifdef KV_HINT
     mr->set_KVtype(FixedKV, sizeof(int64_t), 0);
 #endif
-    mr->map_key_value(mr, shrink, NULL, NULL, 0, 0);
+    mr->map_key_value(mr, shrink, NULL, NULL, 0);
 #ifdef KV_HINT
     mr->set_KVtype(FixedKV, sizeof(int64_t), sizeof(int64_t));
 #endif

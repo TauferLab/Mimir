@@ -564,7 +564,7 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
     if(u->ubuf_end-u->ubuf<ukeyoffset+keybytes+maxvaluebytes){
       memset(u->ubuf, 0, u->ubuf_end-u->ubuf);
       u->ubuf=u->unique_pool->add_block();
-        u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
+      u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
     }
 
     ukey=(Unique*)(u->ubuf);

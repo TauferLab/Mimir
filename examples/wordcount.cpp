@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 #ifndef COMPRESS
   mr->map_text_file(filedir, 1, 1, whitespace, map);
 #else
-  mr->map_text_file(filedir, 1, 1, whitespace, map, mergeword, NULL, 1);
+  mr->map_text_file(filedir, 1, 1, whitespace, map, mergeword, NULL);
   //mr->compress(countword, NULL);
 #endif
 
