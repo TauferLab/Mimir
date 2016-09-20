@@ -94,8 +94,8 @@ for cluster in cluster_centers: #if there are multiple clusters in the data
     for node_id in range(start_idx,num_nodes): #0,1,...1023
         point_file=key_file_prefix+'.points'+`node_id`+'.txt';
         point_fid=open(outdir+point_file,'a');
-        key_file=key_file_prefix+'.keys'+`node_id`+'.txt'; #index is the index of multiple cluster
-        key_fid=open(outdir+key_file,'a');
+        #key_file=key_file_prefix+'.keys'+`node_id`+'.txt'; #index is the index of multiple cluster
+        #key_fid=open(outdir+key_file,'a');
     
         point_count=0;
 
@@ -110,10 +110,10 @@ for cluster in cluster_centers: #if there are multiple clusters in the data
                 point_coord = point_coord+' '+`dig`;
                 coords.append(dig);
             
-            key=gen_key_from_coord(coords.pop(0), coords.pop(0), coords.pop(0), range_min,range_max,num_digit); #key is a string
+            #key=gen_key_from_coord(coords.pop(0), coords.pop(0), coords.pop(0), range_min,range_max,num_digit); #key is a string
             point_fid.write(point_coord+'\n');
-            key_fid.write(key+'\n');
+            #key_fid.write(key+'\n');
             point_count=point_count+1;
 
         point_fid.close();
-        key_fid.close();
+        #key_fid.close();

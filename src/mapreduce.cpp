@@ -484,7 +484,7 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   int tid=0;
   _tinit(tid);
 
-  mode = CompressMode;
+  mode = MergeMode;
 
   // init data structure
   UniqueInfo *u=new UniqueInfo();
@@ -514,6 +514,7 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
       //kv_count++;
     
     }//END while
+    kv->delete_block(i);
     kv->release_block(i);
   }//END for
 
@@ -531,9 +532,10 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   mode = LocalMode;
 
   _cps_unique2kv(u);
-  //printf("nunique=%d\n", u->nunique);
 
-//out:
+  PROFILER_RECORD_COUNT(0, COUNTER_PR_UNIQUE_SIZE, \
+    (u->unique_pool->nblock)*(u->unique_pool->blocksize));
+
   delete [] u->ubucket;
   delete u->unique_pool;
   delete u;
@@ -610,7 +612,7 @@ uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
       nunique++;
       if(nunique>u->nunique) goto out;
 
-      printf("key=%s\n", ukey->key); fflush(stdout);
+      //printf("key=%s\n", ukey->key); fflush(stdout);
       add_key_value(ukey->key, ukey->keybytes, ukey->voffset, ukey->mvbytes);    
 
       ubuf+=ukeyoffset;

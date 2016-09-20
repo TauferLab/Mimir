@@ -221,22 +221,28 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
 {
   double range_up=10.0, range_down=-10.0;
   char octkey[digits];
-  double coords[512];//hold x,y,z
-  char ligand_id[256];
-  int num_coor=0;
+  //double coords[512];//hold x,y,z
+  //char ligand_id[256];
+  //int num_coor=0;
 
+  double b0, b1, b2;
   char *saveptr;
   char *token = strtok_r(word, " ", &saveptr);
-  memcpy(ligand_id,token,strlen(token));
+  b0=atof(token);
+  token = strtok_r(word, " ", &saveptr);
+  b1=atof(token);
+  token = strtok_r(word, " ", &saveptr);
+  b2=atof(token);
 
-  while (token != NULL){
-    token = strtok_r(NULL, " ", &saveptr);
-    if (token){
-      coords[num_coor] = atof(token);
-      num_coor++;
-    }
-  }
-	
+  //while (token != NULL){
+  //  token = strtok_r(NULL, " ", &saveptr);
+  //  if (token){
+  //    coords[num_coor] = atof(token);
+  //    num_coor++;
+  //  }
+  //}
+
+#if 0	
   const int num_atoms = floor((num_coor-2)/3);
   double *x = new double[num_atoms];
   double *y = new double[num_atoms];
@@ -255,6 +261,7 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
   double b0 = slope(x, y, num_atoms);
   double b1 = slope(y, z, num_atoms);
   double b2 = slope(x, z, num_atoms);
+#endif
 
   /*compute octkey, "digit" many digits*/
   int count=0;//count how many digits are in the octkey
@@ -292,15 +299,15 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
     ++count;
   }
 
-  if (realdata == false){
-    double realkey = coords[num_coor - 1];
-    char tmp[100];
-    sprintf(tmp, "%f", realkey);
+  //if (realdata == false){
+  //  double realkey = coords[num_coor - 1];
+  //  char tmp[100];
+  //  sprintf(tmp, "%f", realkey);
     //printf("octkey=%s\n", tmp);
-    mr->add_key_value(tmp, digits, NULL, 0);
-  }else{
-    mr->add_key_value(octkey, digits, NULL, 0);
-  }
+  //  mr->add_key_value(tmp, digits, NULL, 0);
+  //}else{
+  mr->add_key_value(octkey, digits, NULL, 0);
+  //}
 }
 
 

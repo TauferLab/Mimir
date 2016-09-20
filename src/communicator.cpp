@@ -122,7 +122,7 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
   ksize = _ksize;
   vsize = _vsize;
 
-#ifdef MTMR_COMM_BLOCKING
+#ifndef MTMR_COMM_NBLOCKING
   nbuf = 1;
 #else
   nbuf = _nbuf;

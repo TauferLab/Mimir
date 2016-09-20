@@ -60,8 +60,8 @@ int mypartition(char *, int);
 // read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
-//void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*); 
-void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr);
+void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*); 
+//void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr);
 // count local edge number
 void countedge(char *, int, char *, int,void *);
  
@@ -74,6 +74,9 @@ void expand(MapReduce *, char *, int, char *, int, void *);
  
 // shrink vertex
 void shrink(MapReduce *, char *, int, char *, int, void *);
+
+// compress function
+void compress(MapReduce *, char *, int, char *, int, char *, int, void*);
 
 void output(const char *,const char *,const char *,MapReduce*);
 
@@ -207,7 +210,8 @@ int main(int argc, char **argv)
   }
   nlocaledges = 0;
   mr->scan(countedge,NULL);
-  //if(me==0) printf("nlocaledges=%ld\n", nlocaledges);
+  
+  if(me==0) printf("nlocaledges=%ld\n", nlocaledges);
 
   for(int i = 0; i < nlocalverts; i++){
     rowstarts[i+1] += rowstarts[i];
@@ -216,12 +220,12 @@ int main(int argc, char **argv)
 
   if(me==0) fprintf(stdout, "begin make graph.\n");
 
-//#ifdef PART_REDUCE
-//  mr->reduce(makegraph,1,NULL);
-//#else
-//  mr->reduce(makegraph,0,NULL);
-//#endif
-  mr->map_key_value(mr, makegraph, NULL, NULL, 0);
+#ifdef PART_REDUCE
+  mr->reduce(makegraph,1,NULL);
+#else
+  mr->reduce(makegraph,0,NULL);
+#endif
+  //mr->map_key_value(mr, makegraph, NULL, NULL, 0);
 
   delete [] rowinserts;
 
@@ -262,8 +266,12 @@ int main(int argc, char **argv)
 #ifdef KV_HINT
     mr->set_KVtype(FixedKV, sizeof(int64_t), sizeof(int64_t));
 #endif
+#ifdef COMPRESS
+    nactives[level] = mr->map_key_value(mr, expand, compress);
+#else
     nactives[level] = mr->map_key_value(mr, expand);
-    //if(me==0) fprintf(stdout, "level %d: nactive=%ld\n", level, nactives[level]);
+#endif
+    if(me==0) fprintf(stdout, "level %d: nactive=%ld\n", level, nactives[level]);
     level++;
   }while(nactives[level-1]);
 
@@ -338,7 +346,7 @@ void fileread(MapReduce *mr, char *word, void *ptr)
   mr->add_key_value((char*)&int_v0,sizeof(int64_t),(char*)&int_v1,sizeof(int64_t));
 }
 
-#if 0
+#if 1
 void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;
@@ -351,6 +359,7 @@ void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   }
 }
 #endif
+#if 0
 void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;
@@ -361,6 +370,7 @@ void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebyt
   columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
   rowinserts[v0_local]++;
 }
+#endif
 
 void rootvisit(MapReduce* mr, void *ptr){
   if(mypartition((char*)&root,sizeof(int64_t)) == me){
@@ -370,6 +380,7 @@ void rootvisit(MapReduce* mr, void *ptr){
     size_t p_end = rowstarts[root_local+1];
     for(size_t p = rowstarts[root_local]; p < p_end; p++){
       int64_t v1 = columns[p];
+      printf("v1=%ld\n", v1); fflush(stdout);
       mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&root, sizeof(int64_t));
     }
   }
@@ -405,7 +416,6 @@ void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
   }
 }
 
-
 void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
  
   int64_t v = *(int64_t*)key;
@@ -416,6 +426,12 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
     int64_t v1 = columns[p];
     mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
   }
+}
+
+void compress(MapReduce *mr, char *key, int keysize, \
+  char *val1, int val1size, char *val2, int val2size, void* ptr){
+ 
+  mr->add_key_value(key, keysize, val1, val1size);
 }
 
 int64_t getrootvert(){
@@ -435,7 +451,6 @@ int64_t getrootvert(){
     }
     MPI_Bcast((void*)&myroot, 1, MPI_INT64_T, myroot_proc, MPI_COMM_WORLD);
   }while(myroot==-1);
-
   return myroot;
 }
 
