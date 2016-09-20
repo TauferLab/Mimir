@@ -117,8 +117,8 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-  if (argc <= 5) {
-    if (me == 0) printf("Syntax: bfs N indir prefix outdir tmpdir\n");
+  if (argc < 7) {
+    if (me == 0) printf("Syntax: bfs N indir prefix outdir tmpdir seed\n");
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
@@ -140,7 +140,7 @@ int main(int argc, char **argv)
     printf("input dir=%s\n", indir);
     printf("prefix=%s\n", prefix);
     printf("output dir=%s\n", outdir);
-    printf("tmp dir=%s\n", tmpdir);
+    printf("tmp dir=%s\n", tmpdir); fflush(stdout);
   }
 
   char *bucket_str = getenv("MR_BUCKET_SIZE");
@@ -211,7 +211,7 @@ int main(int argc, char **argv)
   nlocaledges = 0;
   mr->scan(countedge,NULL);
   
-  if(me==0) printf("nlocaledges=%ld\n", nlocaledges);
+  //if(me==0) printf("nlocaledges=%ld\n", nlocaledges);
 
   for(int i = 0; i < nlocalverts; i++){
     rowstarts[i+1] += rowstarts[i];
@@ -271,7 +271,7 @@ int main(int argc, char **argv)
 #else
     nactives[level] = mr->map_key_value(mr, expand);
 #endif
-    if(me==0) fprintf(stdout, "level %d: nactive=%ld\n", level, nactives[level]);
+    //if(me==0) fprintf(stdout, "level %d: nactive=%ld\n", level, nactives[level]);
     level++;
   }while(nactives[level-1]);
 
@@ -354,6 +354,7 @@ void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 
   for(iter->Begin(); !iter->Done(); iter->Next()){
     v1=*(int64_t*)(iter->getValue());
+    //printf("v0=%ld, v1=%ld\n", v0, v1); fflush(stdout);
     columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
     rowinserts[v0_local]++;
   }
@@ -380,7 +381,7 @@ void rootvisit(MapReduce* mr, void *ptr){
     size_t p_end = rowstarts[root_local+1];
     for(size_t p = rowstarts[root_local]; p < p_end; p++){
       int64_t v1 = columns[p];
-      printf("v1=%ld\n", v1); fflush(stdout);
+      //printf("v0=%ld,v1=%ld\n", root, v1); fflush(stdout);
       mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&root, sizeof(int64_t));
     }
   }
@@ -408,6 +409,8 @@ void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
   int64_t v_local = v - nvertoffset;
 
   int64_t v0 = *(int64_t*)value;
+
+  //printf("shrink: v0=%ld\n", v0); fflush(stdout);
 
   if(!TEST_VISITED(v_local, vis)){  
     SET_VISITED(v_local, vis);
@@ -455,9 +458,9 @@ int64_t getrootvert(){
 }
 
 #if 0
-void printgraph(csr_graph *g){
-  for(int i = 0; i < g->nlocalverts; i++){
-    int64_t v0 = me*(g->nlocalverts)+i;
+void printgraph(){
+  for(int i = 0; i < nlocalverts; i++){
+    int64_t v0 = me*(nlocalverts)+i;
     printf("%ld", v0);
     size_t p_end = g->rowstarts[i+1];
     for(size_t p = g->rowstarts[i]; p < p_end; p++){

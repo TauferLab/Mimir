@@ -282,9 +282,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
 
+  DataObject::addRef(_mr->data);
   DataObject::subRef(data);
 
-  //DataObject::addRef(_mr->data);
   DataObject *data = _mr->data;
 
   // create new data object
