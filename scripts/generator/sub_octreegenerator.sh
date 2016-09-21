@@ -15,7 +15,7 @@ then
   PREFIX=$3
   OUTPUT=$4
   DATALIST=($5)
-  NLIGANDS=$6
+  NLIGANDS=($6)
   NFILELIST=($7)
   FPT=$8
   LANCHER=$9
@@ -26,17 +26,17 @@ fi
 export DIST=$DIST
 export PREFIX=$PREFIX
 export STDIV=$STDIV
-export COUNT=$NLIGANDS
 
 idx=0
 for datasize in "${DATALIST[@]}"
 do
   nfile=${NFILELIST[$idx]}
+  export COUNT=${NLIGANDS[$idx]}
   echo "datasize",$datasize
   echo "nfile",$nfile
   mkdir $OUTPUT/$datasize
-  mkdir $OUTPUT/$datasize.points
-  export POINTDIR=$OUTPUT/$datasize.points/ 
+  #mkdir $OUTPUT/$datasize.points
+  #export POINTDIR=$OUTPUT/$datasize.points/ 
   export OUTDIR=$OUTPUT/$datasize/
   ifile=0
   while [ $ifile -lt $nfile ];do

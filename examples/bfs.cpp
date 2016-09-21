@@ -60,8 +60,8 @@ int mypartition(char *, int);
 // read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
-void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*); 
-//void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr);
+//void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*); 
+void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr);
 // count local edge number
 void countedge(char *, int, char *, int,void *);
  
@@ -220,12 +220,12 @@ int main(int argc, char **argv)
 
   if(me==0) fprintf(stdout, "begin make graph.\n");
 
-#ifdef PART_REDUCE
-  mr->reduce(makegraph,1,NULL);
-#else
-  mr->reduce(makegraph,0,NULL);
-#endif
-  //mr->map_key_value(mr, makegraph, NULL, NULL, 0);
+//#ifdef PART_REDUCE
+//  mr->reduce(makegraph,1,NULL);
+//#else
+//  mr->reduce(makegraph,0,NULL);
+//#endif
+  mr->map_key_value(mr, makegraph, NULL, NULL, 0);
 
   delete [] rowinserts;
 
@@ -346,7 +346,7 @@ void fileread(MapReduce *mr, char *word, void *ptr)
   mr->add_key_value((char*)&int_v0,sizeof(int64_t),(char*)&int_v1,sizeof(int64_t));
 }
 
-#if 1
+#if 0
 void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;
@@ -360,7 +360,7 @@ void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
   }
 }
 #endif
-#if 0
+#if 1
 void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;

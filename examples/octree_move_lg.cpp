@@ -43,8 +43,9 @@ using namespace MAPREDUCE_NS;
 
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
+void mergeword(MapReduce *, char *, int, char *, int, char *, int, void*);
 void sum(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
-
+void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
 double slope(double[], double[], int);
 
 void output(const char *,const char *,const char *,float,MapReduce*,MapReduce *);
@@ -56,10 +57,6 @@ int level;
 
 int main(int argc, char **argv)
 {
-  //int provided;
-  //MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
-  //if (provided < MPI_THREAD_FUNNELED) MPI_Abort(MPI_COMM_WORLD, 1);
-
   MPI_Init(&argc, &argv); 
 
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
@@ -143,7 +140,11 @@ int main(int argc, char **argv)
 //    mr_level->set_KVtype(FixedKV, level, 0);
 //#endif
 //#endif
+#ifndef COMPRESS
     mr_level->map_key_value(mr_convert, gen_leveled_octkey);
+#else
+    mr_level->map_key_value(mr_convert, gen_leveled_octkey, mergeword);
+#endif
 //#ifdef KV_HINT
 //    mr_level->set_KVtype(FixedKV, level, sizeof(int));
 //#endif
@@ -151,7 +152,9 @@ int main(int argc, char **argv)
     //printf("level=%d\n", level);
 
 #ifdef PART_REDUCE
-    uint64_t nkv = mr_level->reduce(sum, 1, NULL);
+    uint64_t nkv = mr_level->reducebykey(mergeword, NULL);
+    nkv = mr_level->map_key_value(mr_level, sum_map);
+    //uint64_t nkv = mr_level->reduce(sum, 1, NULL);
 #else
     uint64_t nkv = mr_level->reduce(sum, 0, NULL);
 #endif
@@ -181,6 +184,19 @@ int main(int argc, char **argv)
   MPI_Finalize();	
 }
 
+void mergeword(MapReduce *mr, char *key, int keysize, \
+  char *val1, int val1size, char *val2, int val2size, void* ptr){
+  int count=*(int*)(val1)+*(int*)(val2);
+ 
+  mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
+}
+
+void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
+{
+  int count=*(int*)val;
+  if(count > thresh)
+    mr->add_key_value(key, keysize, (char*)&count, (int)sizeof(int));
+}
 
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
 
@@ -201,7 +217,9 @@ void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int l
     mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int)); 
   }
 #else
-  sum=iter->getCount();
+  for(iter->Begin(); !iter->Done(); iter->Next()){
+    sum+=*(int*)iter->getValue();
+  }
   if(sum>thresh)
     mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int)); 
 #endif
@@ -219,7 +237,7 @@ void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int va
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)
 {
-  double range_up=10.0, range_down=-10.0;
+  double range_up=4.0, range_down=-4.0;
   char octkey[digits];
   //double coords[512];//hold x,y,z
   //char ligand_id[256];
@@ -294,8 +312,8 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
 		
     /*calculate the octant using the formula m0*2^0+m1*2^1+m2*2^2*/
     int bit=m0+(m1*2)+(m2*4);
-    char bitc=(char)(((int)'0') + bit); //int 8 => char '8'
-    octkey[count] = bitc;
+    //char bitc=(char)(((int)'0') + bit); //int 8 => char '8'
+    octkey[count] = bit & 0x7f;
     ++count;
   }
 

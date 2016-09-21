@@ -1,15 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name="generate-octree"  
 #SBATCH --output="generate-octree.%j.%N.out"  
-#SBATCH --partition=compute  
+#SBATCH --partition=debug
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --export=ALL  
 #SBATCH --ntasks-per-core=1
-#SBATCH -v -t 04:00:00
+#SBATCH -v -t 00:30:00
 
 echo "prefix,"$PREFIX
-echo "point dir",$POINTDIR
 echo "out dir",$OUTDIR
 echo "distribution",$DIST
 echo "stdiv",$STDIV
@@ -17,5 +16,5 @@ echo "file count",$NFILE
 echo "ligand counts",$COUNT
 echo "start index",$SIDX
 
-python gen_key_point_rr.py $PREFIX $POINTDIR $SIDX $NFILE $STDIV  1 0 0 0 $COUNT $DIST
-./gen_syn_data.sh one_ligand.txt $SIDX $NFILE $POINTDIR $OUTDIR $PREFIX
+python gen_key_point_rr.py $PREFIX $OUTDIR $SIDX $NFILE $STDIV  1 0 0 0 $COUNT $DIST
+#./gen_syn_data.sh one_ligand.txt $SIDX $NFILE $POINTDIR $OUTDIR $PREFIX
