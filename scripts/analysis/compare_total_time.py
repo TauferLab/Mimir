@@ -9,27 +9,48 @@ import seaborn as sns
 
 from pandas import Series, DataFrame
 
-'''
-Constant variables
-'''
-#curdir=os.path.dirname(os.path.realpath(__file__))
-colorlist=['red', 'blue', 'green', 'yellow', 'cyan', 'lightgreen', 'lightblue', 'olive']
-col_str=['dataset', 'second', 'setting']
+plt.switch_backend('agg')
 
-parser=argparse.ArgumentParser(description='Draw time compare\' count.')
-parser.add_argument("filelist", help='input file file list')
-parser.add_argument("labellist", help='input file label list')
-parser.add_argument("datalist", help='dataset list')
-parser.add_argument("upperlist", help='upper list')
-parser.add_argument("outfile", help='output file')
-parser.add_argument("ppn", type=int, help='process per node')
-parser.add_argument("nnode", type=int, help='number of node')
-parser.add_argument('--indir', nargs=1, default=['../data/comet/'], help='input directory')
-parser.add_argument('--outdir', nargs=1, default=['../figures/'], help='output directory')
-parser.add_argument('--plottype', nargs=1, default='point', help='plot type')
-parser.add_argument('--xtickettype', nargs=1, default='dataset', help='x ticket type')
-parser.add_argument('--ylim', metavar='int', type=int, nargs=2, default=0, help='y low')
-parser.add_argument('--coloroff', metavar='int', type=int, nargs=1, default=0, help='offset in color list')
+"""
+Constant variables
+"""
+col_str=['dataset', 'testtime', 'second', 'setting']
+
+"""
+Input Parameters
+"""
+parser=argparse.ArgumentParser(\
+  description='Draw total execution time comparison')
+parser.add_argument("filelist", \
+  help='list for input files, seperated by "," ')
+parser.add_argument("labellist", \
+  help='list for labels, sperated by "," ')
+parser.add_argument("datalist", \
+  help='list for dataset, seperated by "," ')
+parser.add_argument("xticklist", \
+  help='list for xticket, seperated by "," ')
+parser.add_argument("upperlist", \
+  help='list for upper bound in datalist, seperated by "," ')
+parser.add_argument("outfile", \
+  help='output file name')
+parser.add_argument('--indir', nargs=1, \
+  default=['../data/comet/'], help='directory for input files \
+  (defualt: ../data/comet/)')
+parser.add_argument('--outdir', nargs=1, \
+  default=['../figures/'], help='directory for output files \
+  (defualt: ../figures)')
+parser.add_argument('--plottype', nargs=1, \
+  default=['point'], help='type of plot (bar, point)')
+parser.add_argument('--xlabelname', nargs=1, default=['dataset size'], \
+   help='name of x axis')
+parser.add_argument('--colorlist', nargs=1, \
+  default=["red,blue,green,yellow,cyan,lightgreen,lightblue,olive,orange"], \
+  help='list for colors, seperated by ","')
+parser.add_argument('--marklist', nargs=1, \
+  default=["x,+,o,s,D,d,h"], \
+  help='list for markers, seperated by ","')
+parser.add_argument('--ylim', metavar='int', type=int, nargs=2, \
+  default=[0.0,0.0], help='range in y axis')
 args = parser.parse_args()
 
 print args
@@ -37,43 +58,32 @@ print args
 filelist=args.filelist.split(',')
 labellist=args.labellist.split(',')
 datasets=args.datalist.split(',')
+xticklist=args.xticklist.split(',')
 upperlist=args.upperlist.split(',')
-outfile=args.outfile
-ppn=args.ppn
-node=args.nnode
-plottype=args.plottype[0]
-xtickettype=args.xtickettype[0]
-yrange=[args.ylim[0], args.ylim[1]]
-indir=args.indir[0]
-outdir=args.outdir[0]
-#coloroff=args.coloroff[0]
-#if coloroff !=0 :
-#  colorlist=colorlist[coloroff:]
+colorlist=args.colorlist[0].split(',')
+marklist=args.marklist[0].split(',')
 
-print filelist
-
+"""
+Draw figures
+"""
 def draw_figure():
-  fig_data=DataFrame(columns=col_str)
 
+  """
+  Get figure data
+  """
+  fig_data=DataFrame(columns=col_str)
   idx=0
   for filename in filelist:
-    if filename.find("-mt-")!=-1:
-      ppn=2
-    #prefix,suffix=filename.split('*')
     print "open input file ",filename
-    data=pd.read_csv(indir+filename)
+    data=pd.read_csv(args.indir[0]+filename)
 
     for dataset in datasets:
       if dataset==upperlist[idx]:
         break
       print "dataset ",dataset
       infile=filename
-      #if os.path.isfile(indir+infile)==False:
-      #  break
-      #item_data=data[data['size']==ppn*node]
       item_data=data
       item_data=item_data[item_data['dataset']==dataset]
-      #print item_data
       if item_data.empty:
         continue
       max_index=int(item_data['index'].max())+1
@@ -84,47 +94,42 @@ def draw_figure():
           mytime=index_data['total'].mean()
         else:
           mytime=index_data['total'].mean()
-          #mytime=index_data['map'].add(index_data['comm'])\
-          #  .add(index_data['convert'])\
-          #  .add(index_data['reduce']).mean()
-        fig_data.loc[len(fig_data)]=[dataset, mytime, labellist[idx]]
+        fig_data.loc[len(fig_data)]=[dataset,\
+          index_data['testtime'].iloc[0],mytime,labellist[idx]]
     idx+=1
 
-  print fig_data
+  """
+  Draw figures
+  """
   sns.set_style("ticks")
-  if plottype=='point':
+  if args.plottype[0]=='point':
     ax=sns.pointplot(x='dataset', y='second', hue='setting', \
-      data=fig_data, palette=colorlist)
-  elif plottype=='bar':
+      data=fig_data, palette=colorlist, markers=marklist, dodge=True, linestyles='-')
+  elif args.plottype[0]=='bar':
     ax=sns.barplot(x='dataset', y='second', hue='setting', \
       data=fig_data, palette=colorlist)
-  elif plottype=='box':
+  elif args.plottype[0]=='box':
     ax=sns.boxplot(x='dataset', y='second', hue='setting', \
-      data= fig_data, palette=colorlist)
-  #unique=data.dataset.unique()
-  #xticketlist=[i*i for i in range(unique)]
-  #print xticketlist
-  ax.set_ylim(yrange)
-  #print ax.get_xtickets()
-  #[for i*i in range(0,len(ax.get_xtickets()))]
-  if xtickettype=='node':
-    #ax.set_xticket([1,2,4,8,16,32,64])
-    unique=data.dataset.unique()
-    ax.set_xticklabels([2**i for i in range(0,len(unique))])
-    ax.set_xlabel("number of node", fontsize=18)
-  elif xtickettype=='dataset':
-    ax.set_xlabel("dataset size", fontsize=18)
-  ax.tick_params(labelsize=16)
-  ax.set_ylabel("execution time (seconds)", fontsize=18)
-  plt.tight_layout()
-  print outdir+outfile
-  plt.savefig(outdir+outfile)
+      data= fig_data, palette=colorlist, linewidth=0.1)
+  else:
+    print "plot type error!"
 
-'''
-main function
-'''
-def main():
-  draw_figure()
+  """
+  Set figure properties
+  """ 
+  ax.set_ylim(args.ylim)
+  ax.tick_params(labelsize=18)
+  ax.legend(loc=2,prop={'size':12},ncol=2)
+  ax.set_xlabel(args.xlabelname[0], fontsize=18, fontweight="bold")
+  ax.set_ylabel("execution time (seconds)", \
+    fontsize=18, fontweight="bold")
+
+  """
+  Save figure
+  """
+  plt.tight_layout()
+  plt.savefig(args.outdir[0]+args.outfile)
 
 if __name__ == "__main__":
-  main() 
+  draw_figure()
+

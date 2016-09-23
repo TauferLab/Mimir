@@ -10,24 +10,47 @@ import seaborn as sns
 
 from pandas import Series, DataFrame
 
-'''
+plt.switch_backend('agg')
+
+"""
 Constant variables
-'''
-#curdir=os.path.dirname(os.path.realpath(__file__))
-colorlist=['red', 'blue', 'green', 'yellow', 'cyan', 'lightgreen', 'lightblue', 'olive']
+"""
+colorlist=['red', 'blue', 'green', 'yellow', \
+           'cyan', 'lightgreen', 'lightblue', 'olive', 'black']
 col_str=['dataset', 'memory', 'setting']
 
-parser=argparse.ArgumentParser(description='Draw time compare\' count.')
-parser.add_argument("filelist", help='input file file list')
-parser.add_argument("labellist", help='input file label list')
-parser.add_argument("datalist", help='dataset list')
-parser.add_argument("upperlist", help='upper list')
-parser.add_argument("outfile", help='output file')
-parser.add_argument("ppn", type=int, help='process per node')
-parser.add_argument("nnode", type=int, help='number of node')
-parser.add_argument('--indir', nargs=1, default=['../data/'], help='input directory')
-parser.add_argument('--outdir', nargs=1, default=['../figures/'], help='output directory')
-parser.add_argument('--top', nargs=1, default=['off'], help='y low')
+"""
+Input Parameters
+"""
+parser=argparse.ArgumentParser(\
+  description='Draw total execution time comparison')
+parser.add_argument("filelist", \
+  help='list for input files, seperated by "," ')
+parser.add_argument("labellist", \
+  help='list for labels, sperated by "," ')
+parser.add_argument("datalist", \
+  help='list for dataset, seperated by "," ')
+parser.add_argument("xticklist", \
+  help='list for xticket, seperated by "," ')
+parser.add_argument("upperlist", \
+  help='list for upper bound in datalist, seperated by "," ')
+parser.add_argument("outfile", \
+  help='output file name')
+parser.add_argument('--indir', nargs=1, \
+  default=['../data/comet/'], help='directory for input files \
+  (defualt: ../data/comet/)')
+parser.add_argument('--outdir', nargs=1, \
+  default=['../figures/'], help='directory for output files \
+  (defualt: ../figures)')
+parser.add_argument('--plottype', nargs=1, \
+  default=['point'], help='type of plot (bar, point)')
+parser.add_argument('--xlabelname', nargs=1, default=['dataset size'], \
+   help='name of x axis')
+parser.add_argument('--colorlist', nargs=1, \
+  default=["red,blue,green,yellow,cyan,lightgreen,lightblue,olive,orange"], \
+  help='list for colors, seperated by ","')
+parser.add_argument('--ylim', metavar='int', type=float, nargs=2, \
+  default=[0.0,5.3], help='range in y axis')
 args = parser.parse_args()
 
 print args
@@ -35,80 +58,65 @@ print args
 filelist=args.filelist.split(',')
 labellist=args.labellist.split(',')
 datasets=args.datalist.split(',')
+xticklist=args.xticklist.split(',')
 upperlist=args.upperlist.split(',')
-outfile=args.outfile
-ppn=args.ppn
-node=args.nnode
-indir=args.indir[0]
-outdir=args.outdir[0]
-top=args.top[0]
+colorlist=args.colorlist[0].split(',')
 
-#print "input dir:"
-
-datasizes=[]
-for dataset in datasets:
-  datasize=0
-  if dataset[-1:]=='M':
-    datasize=float(dataset[0:-1])*1024*1024
-  elif dataset[-1:]=='G':
-    datasize=float(dataset[0:-1])*1024*1024*1024
-  datasizes.append(datasize)
-
+"""
+Draw figure
+"""
 def draw_figure():
+  """
+  Get figure data
+  """
   fig_data=DataFrame(columns=col_str)
-
   idx=0
   print filelist
-  for filename in filelist: 
+  for filename in filelist:
     print 'read data from ',filename
-    data=pd.read_csv(indir+filename)
-    #print data 
+    data=pd.read_csv(args.indir[0]+filename)
     for dataset in datasets:
       if dataset==upperlist[idx]:
         break
       print 'read data ',dataset
       item_data=data[data['dataset']==dataset]
-      #print item_data
+      max_index=int(item_data['index'].max())
+      for i in range(0,max_index+1):
+        index_data=item_data[item_data['index']==i]
+        if index_data['peakmem'].iloc[0] > 0:
+          item_data=index_data
+          break
       max_index=len(item_data.index)
-      #print max_index
-      #print idx
       for i in range(0,max_index):
-        fig_data.loc[len(fig_data)]=[dataset, item_data['maxmem'].iloc[i]/1024/1024, labellist[idx]]
+        fig_data.loc[len(fig_data)]=[dataset, item_data['peakmem'].iloc[i]/1024/1024, labellist[idx]] 
     idx+=1
 
   #print fig_data
+  """
+  Draw figure
+  """ 
   sns.set_style("ticks")
   ax=sns.barplot(x='dataset', y='memory', hue='setting', \
     data=fig_data, palette=colorlist, linewidth=1)
 
-  if top=='on':
-    i=0
-    for p in ax.patches:
-      height = p.get_height()
-      if math.isnan(height):
-        i=0
-        continue
-      #print datasizes
-      elif i==len(datasizes):
-        i=0
-      #print i
-      ax.text(p.get_x(), height+0.6, '%2.2f%%'%(datasizes[i]/1024/1024/1024/(ppn*node)/height*100), rotation=90)
-      i += 1
+  """
+  Set figure property
+  """ 
+  ax.tick_params(labelsize=18)
+  ax.set_xticklabels(xticklist)
+  ax.legend(loc=2,prop={'size':12}, ncol=2) 
+  #ax.legend().set_visible(False)
+  ax.set_xlabel(args.xlabelname[0], fontsize=18, fontweight="bold")
+  ax.set_ylabel("peak memory usage per process (GB)", \
+    fontsize=18, fontweight="bold")
+  ax.set_ylim(args.ylim)
 
-  ax.tick_params(labelsize=16)
-  ax.set_xlabel("dataset size", fontsize=18)
-  ax.set_ylabel("maximum heap memory size (GB)", fontsize=18)
-  ax.set_ylim([0, 5.3])
+  """
+  Save figure
+  """ 
   plt.tight_layout()
-  print outdir
-  print outfile
-  plt.savefig(outdir+outfile)
-
-'''
-main function
-'''
-def main():
-  draw_figure()
+  plt.savefig(args.outdir[0]+args.outfile)
 
 if __name__ == "__main__":
-  main()
+  draw_figure()
+

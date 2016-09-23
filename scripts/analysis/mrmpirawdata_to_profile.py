@@ -27,10 +27,10 @@ elif prefix.find('weekscale') != -1:
   testtype='weekscale'
 
 col_str=['testtime','dataset','size','index','rank',\
-  'total','general','map','comm','convert','reduce',\
+  'total','general','map','compress','comm','convert','reduce',\
   'pfstime','rtime','wtime','MPI_Alltoall','MPI_Alltoallv',\
   'MPI_Allreduce','MPI_Reducescatter','rsize','wsize',\
-  'npagemax','sendsize','recvsize','a2acount', 'rcount','wcount']
+  'npagemax','sendsize','recvsize','peakmem','a2acount', 'rcount','wcount']
 
 int_mapper={
   "nprocs":2,
@@ -38,44 +38,46 @@ int_mapper={
 };
 
 float_mapper={
-  "readsize":18,
-  "writesize":19,
-  "npagemax":20,
-  "send_size":21,
-  "recv_size":22
+  "readsize":19,
+  "writesize":20,
+  "npagemax":21,
+  "send_size":22,
+  "recv_size":23,
+  "peakmem":24,
 };
 
 event_mapper={
   "mr_general":6,
   "mr_map":7,
-  "mr_aggregate":8,
-  "mr_convert":9,
-  "mr_reduce":10,
+  "mr_compress":8,
+  "mr_aggregate":9,
+  "mr_convert":10,
+  "mr_reduce":11,
   "mr_find_file":7,
   "mr_bcast_file":7,
-  "mr_comm_alltoall":14,
-  "mr_comm_alltoallv":15,
-  "mr_comm_allreduce":16,
-  "mr_comm_reducescatter":17,
-  "mr_file_stat":11,
-  "mr_file_open":11,
-  "mr_file_read":11,
-  "mr_file_write":11,
-  "mr_file_close":11,
-  "mr_kv_page_open":12,
-  "mr_kv_page_close":12,
-  "mr_kv_page_seek":12,
-  "mr_kv_page_read":12,
-  "mr_kv_page_write":13,
-  "mr_kmv_page_open":12,
-  "mr_kmv_page_close":12,
-  "mr_kmv_page_seek":12,
-  "mr_kmv_page_read":12,
-  "mr_kmv_page_write":13,
-  "mr_spool_page_open":12,
-  "mr_spool_page_close":12,
-  "mr_spool_page_read":12,
-  "mr_spool_page_write":13
+  "mr_comm_alltoall":15,
+  "mr_comm_alltoallv":16,
+  "mr_comm_allreduce":17,
+  "mr_comm_reducescatter":18,
+  "mr_file_stat":12,
+  "mr_file_open":12,
+  "mr_file_read":12,
+  "mr_file_write":12,
+  "mr_file_close":12,
+  "mr_kv_page_open":13,
+  "mr_kv_page_close":13,
+  "mr_kv_page_seek":13,
+  "mr_kv_page_read":13,
+  "mr_kv_page_write":14,
+  "mr_kmv_page_open":13,
+  "mr_kmv_page_close":13,
+  "mr_kmv_page_seek":13,
+  "mr_kmv_page_read":13,
+  "mr_kmv_page_write":14,
+  "mr_spool_page_open":13,
+  "mr_spool_page_close":13,
+  "mr_spool_page_read":13,
+  "mr_spool_page_write":14
 };
 
 #zero_item=[0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0]
@@ -128,8 +130,10 @@ def to_phases_data(outfile):
         lines = f.readlines()
         # handle one line
         for i in range(len(lines)):
-          item_data=[testtime,dataset,0,idx,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,\
-                     0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,0]
+          item_data=[testtime,dataset,0,idx,0,0.0,0.0,0.0,\
+                     0.0,0.0,0.0,0.0,0.0,\
+                     0.0,0.0,0.0,0.0,0.0,\
+                     0.0,0,0,0,0,0,0,0,0,0]
           phase=-1
           phase_flag=0
           timer_flag=0
@@ -175,7 +179,7 @@ def to_phases_data(outfile):
                   item_data[5]+=float(token[1])
                   #ptime[phase]+=float(token[1])
             #item_data[5]=ptime
-          item_data[23]=a2acount
+          item_data[25]=a2acount
           data.loc[len(data)]=item_data
       idx+=1
     itest+=1

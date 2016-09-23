@@ -29,7 +29,7 @@ elif prefix.find('weekscale') != -1:
 #curdir=os.path.dirname(os.path.realpath(__file__))
 
 #col_str=['size','index','rank','map','comm','convert','reduce', 'rsize', 'wsize', 'rcount', 'wcount', 'rtime', 'wtime']
-col_str=['testtime', 'hostname', 'memsize', 'dataset', 'size', 'index', 'rank', 'tnum', 'tid', 'total', 'map', 'reduce', \
+col_str=['testtime', 'hostname', 'memsize', 'peakmem', 'dataset', 'size', 'index', 'rank', 'tnum', 'tid', 'total', 'map', 'reduce', \
   'tidle', 'tbarrier', 'alltoall', 'wait', 'ialltoallv', 'alltoallv', 'allreduce', \
   'pfsopen', 'pfsseek', 'pfsread', 'pfsclose', 'memcpy', 'fop', 'atomic',\
   'sendbufsize', 'recvbufsize', 'mapinputsize', 'mapoutkv', \
@@ -39,44 +39,44 @@ col_str=['testtime', 'hostname', 'memsize', 'dataset', 'size', 'index', 'rank', 
   'sendsize', 'recvsize', 'sendpadding', 'recvpadding', \
   'nfile', 'filesize', 'kvcount', 'nunique', 'a2acount']
 
-event_mapper={'event_omp_idle':12,\
-              'event_omp_barrier':13,\
-              'event_comm_alltoall':14,\
-              'event_comm_wait':15,\
-              'event_comm_ialltoallv':16,\
-              'event_comm_alltoallv':17,\
-              'event_comm_allreduce':18,\
-              'event_pfs_open':19,\
-              'event_pfs_seek':20,\
-              'event_pfs_read':21,\
-              'event_pfs_close':22,\
-              'event_mem_copy':23}
+event_mapper={'event_omp_idle':13,\
+              'event_omp_barrier':14,\
+              'event_comm_alltoall':15,\
+              'event_comm_wait':16,\
+              'event_comm_ialltoallv':17,\
+              'event_comm_alltoallv':18,\
+              'event_comm_allreduce':19,\
+              'event_pfs_open':20,\
+              'event_pfs_seek':21,\
+              'event_pfs_read':22,\
+              'event_pfs_close':23,\
+              'event_mem_copy':24}
 
-timer_mapper={'timer_map_fop':24,\
-              'timer_map_atomic':25}
+timer_mapper={'timer_map_fop':25,\
+              'timer_map_atomic':26}
 
-counter_mapper={'counter_comm_send_buf':26,\
-                'counter_comm_recv_buf':27,\
-                'counter_map_input_size':28,\
-                'counter_map_output_kv':29,\
-                'counter_cps_bucket_size':30,\
-                'counter_cps_unique_size':31,\
-                'counter_cps_kmv_size':32,\
-                'counter_cps_output_kv':33,\
-                'counter_cvt_bucket_size':34,\
-                'counter_cvt_unique_size':35,\
-                'counter_cvt_set_size':36,\
-                'counter_cvt_kmv_size':37,\
-                'counter_rdc_input_kv':38,\
-                'counter_rdc_output_kv':39,\
-                'counter_comm_send_size':40,\
-                'counter_comm_recv_size':41,\
-                'counter_comm_send_padding':42,\
-                'counter_comm_recv_padding':43,\
-                'counter_map_file_count':44,\
-                'counter_map_file_size':45,\
-                'counter_map_kv_count':46,\
-                'counter_cvt_nunique':47}
+counter_mapper={'counter_comm_send_buf':27,\
+                'counter_comm_recv_buf':28,\
+                'counter_map_input_size':29,\
+                'counter_map_output_kv':30,\
+                'counter_cps_bucket_size':31,\
+                'counter_cps_unique_size':32,\
+                'counter_cps_kmv_size':33,\
+                'counter_cps_output_kv':34,\
+                'counter_cvt_bucket_size':35,\
+                'counter_cvt_unique_size':36,\
+                'counter_cvt_set_size':37,\
+                'counter_cvt_kmv_size':38,\
+                'counter_rdc_input_kv':39,\
+                'counter_rdc_output_kv':40,\
+                'counter_comm_send_size':41,\
+                'counter_comm_recv_size':42,\
+                'counter_comm_send_padding':43,\
+                'counter_comm_recv_padding':44,\
+                'counter_map_file_count':45,\
+                'counter_map_file_size':46,\
+                'counter_map_kv_count':47,\
+                'counter_cvt_nunique':48}
 
 def main():
   to_phases_data(outdir+prefix.replace("-*","").replace("*", "")+'.ppn'+str(ppn)+'_phases.txt')
@@ -142,6 +142,7 @@ def to_phases_data(outfile):
           profiler='disable'
           tracker='disable'
           hostname=''
+          peakmem=''
           memsize=''
             # process meta-information of one process
           for j in range(len(elems)):
@@ -161,6 +162,8 @@ def to_phases_data(outfile):
               hostname=token[1]
             elif token[0]=='memory':
               memsize=int(token[1])
+            elif token[0]=='peakmem':
+              peakmem=int(token[1])
           #print hostname
           i+=1
           a2acount=0
@@ -168,7 +171,7 @@ def to_phases_data(outfile):
             #print tracker
             # process information of one process
           for j in range(tnum):
-            item_data=[testtime, hostname, memsize, \
+            item_data=[testtime, hostname, memsize, peakmem,\
                    dataset, size, idx, rank, tnum, 0, 0.0, 0.0, 0.0, \
                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, \
                    0.0, 0.0, 0.0, 0.0, 0.0,\
@@ -199,7 +202,7 @@ def to_phases_data(outfile):
                 elif token[0] == 'event_mr_general':
                   phases+=1
                 else:
-                  item_data[9]+=float(token[1])
+                  item_data[10]+=float(token[1])
                   #item_data[9+phases]+=float(token[1])
                   pass
                 if token[0] in event_mapper:
@@ -208,7 +211,7 @@ def to_phases_data(outfile):
                   item_data[event_mapper[token[0]]]+=float(token[1])
               i+=1
             item_data[8]=j
-            item_data[48]=a2acount
+            item_data[49]=a2acount
             #print item_data
             data.loc[len(data)]=item_data
       idx+=1

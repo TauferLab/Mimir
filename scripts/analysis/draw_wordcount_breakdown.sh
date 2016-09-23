@@ -1,23 +1,52 @@
 #!/bin/bash
 
-#benchmark="wordcount"
-#datasets="wikipedia"
+benchmark="wordcount"
 
-#python compare_time_breakdown.py \
-#  "mtmrmpi-partreducekvhint-wordcount-wikipedia-onenode_c64M-b64M-i512M-h17-a2a.ppn24_phases.txt"\
-#  "MR-MPI++(partial-reduction;KV-hint)"\
-#  "32M,64M,128M,256M,512M,1G,2G,4G,8G,16G,32G,64G" \
-#  onenode-mtmrmpi-wordcount-wikipedia-breakdown 24 1 --plottype point --datatype median --normalize false --ylim 0 400
+datatype=''
+if [ $# == 1 ]
+then
+  datatype=$1
+else
+  echo "./exe datatype [onenode|weakscale512M|weakscale4G|weakscale64G]"
+fi
 
-python compare_time_breakdown.py \
-  "mtmrmpi-ptkvnb-wordcount-uniform-weekscale4G_c64M-b64M-i512M-h17-a2a.ppn24_phases.txt"\
-  "MR-MPI++"\
-  "4G,8G,16G,32G,64G,128G,256G" \
-  onenode-mtmrmpi-wordcount-uniform-breakdown 24 1 --plottype point --datatype max --normalize false --ylim 0 100
+# Draw wordcount onenode data
+if [ $datatype == "onenode" ];then
+  datasets=""
+  settings="p512"
+  config="a2a"
+  testtype="onenode"
+  datalist="256M,512M,1G,2G,4G,8G,16G"
+  nodelist="1"
+  for dataset in $datasets
+  do
+    for setting in $settings
+    do
+      python compare_time_breakdown.py \
+        "mrmpi-$setting-$benchmark-$dataset-$testtype"_"$config.ppn24_phases.txt"\
+        "MR-MPI"\
+        $datalist $datalist \
+        comet-$testtype-$benchmark-$dataset-$setting-breakdown 24 $nodelist \
+        --plottype point --datatype median --normalize true --style simple --ylim 0 100
+    done
+  done
 
-#python compare_time_breakdown.py \
-#  "mrmpi-octree-onenode_1S-d0.01-p512M-a2a.ppn24_phases.txt"\
-#  "MR-MPI(512M page size)"\
-#  "1G,2G,4G,8G,16G,32G,64G,128G,256G,512G,1T,2T" \
-#  onenode-mrmpi-octree-1S-p512M-breakdown 24 1 --plottype point --datatype mean --normalize false --ylim 0 5000
-
+  datasets="wikipedia"
+  settings="prkvhint"
+  config="c64M-b64M-i64M-h22-a2a"
+  testtype="onenode"
+  datalist="32G,64G"
+  nodelist="1"
+  for dataset in $datasets
+  do
+    for setting in $settings
+    do
+      python compare_time_breakdown.py \
+        "mtmrmpi-$setting-$benchmark-$dataset-$testtype"_"$config.ppn24_phases.txt"\
+        "MR-MPI"\
+        $datalist $datalist\
+        $testtype-mtmrmpi-$setting-$benchmark-$dataset-breakdown 24 $nodelist \
+        --plottype point --datatype max --normalize false --style detail --ylim 0 100
+    done
+  done
+fi

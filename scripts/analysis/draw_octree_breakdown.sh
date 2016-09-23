@@ -1,17 +1,21 @@
-python compare_time_breakdown.py \
-  "mrmpi-p64-octree-1S-onenode_d0.01-a2a.ppn24_phases.txt"\
-  "MR-MPI(64M page size)"\
-  "1G,2G,4G,8G,16G,32G,64G,128G,256G,512G,1T,2T" \
-  onenode-mrmpi-octree-1S-p64M-breakdown 24 1 --plottype point --datatype mean --normalize false --ylim 0 5000
+#!/bin/bash
 
-python compare_time_breakdown.py \
-  "mrmpi-p64-octree-1S-onenode_d0.01-a2a.ppn24_phases.txt"\
-  "MR-MPI(512M page size)"\
-  "1G,2G,4G,8G,16G,32G,64G,128G,256G,512G,1T,2T" \
-  onenode-mrmpi-octree-1S-p512M-breakdown 24 1 --plottype point --datatype mean --normalize false --ylim 0 5000
-
-#python compare_breakdown_onenode.py \
-#  "mtmrmpi-octree-basic_onenode_1S-d0.01-l4K-c64M-b64M-i512M-h17-a2a.ppn24_phases.txt"\
-#  "MR-MPI++"\
-#  "32M,64M,128M,256M,512M,1G,2G,4G,8G,16G,32G,64G,128G,256G,512G" \
-#  onenode-mtmrmpi-basic-octree-1S-breakdown 24 1 --plottype point --ylim 0 2000
+benchmark="octree"
+datasets="1S"
+settings="p512"
+config="d0.01-a2a"
+testtype="onenode"
+datalist="1G,2G,4G,8G,16G,32G,64G,128G,256G,512G,1T,2T"
+nodelist="1"
+for dataset in $datasets
+do
+  for setting in $settings
+  do
+    python compare_time_breakdown.py \
+      "mrmpi-$setting-$benchmark-$dataset-$testtype"_"$config.ppn24_phases.txt"\
+      "MR-MPI"\
+      $datalist \
+      $testtype-mrmpi-$setting-$benchmark-$dataset-breakdown 24 $nodelist \
+      --plottype point --datatype mean --normalize true --style simple --ylim 0 50
+  done
+done
