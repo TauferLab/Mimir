@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name="mtmr-mpi"  
 #SBATCH --output="mtmr-mpi.%j.%N.out"  
-#SBATCH --partition=debug
+#SBATCH --partition=compute
 #SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL  
-#SBATCH -t 00:10:00
+#SBATCH -t 00:30:00
 
 source config.h
 

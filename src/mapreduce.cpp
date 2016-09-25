@@ -1166,6 +1166,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_KV, data->gettotalsize());
   return _get_kv_count();
 }
 

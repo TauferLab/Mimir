@@ -56,6 +56,7 @@
 #define COUNTER_MAP_FILE_SIZE    "counter_map_file_size"
 #define COUNTER_MAP_INPUT_SIZE   "counter_map_input_size"
 #define COUNTER_MAP_OUTPUT_KV    "counter_map_output_kv"
+#define COUNTER_MAP_FILE_KV      "counter_map_file_kv"
 #define COUNTER_MAP_KV_COUNT     "counter_map_kv_count"
 #define COUNTER_CPS_INPUT_KV     "counter_cps_input_kv"
 #define COUNTER_CPS_PR_OUTKV     "counter_cps_pr_output_kv"
