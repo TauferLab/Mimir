@@ -917,14 +917,14 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 
   // create input file buffer
   uint64_t input_buffer_size=inputsize;
+#if 0
 #ifdef USE_MPI_IO
   char **input_file_buffers = new char*[INPUT_BUF_COUNT];
   for(int i=0; i<INPUT_BUF_COUNT; i++){
     input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
   }
 #else
-  //char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
-  char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
+#endif
 #endif
 
   int64_t *tstart=new int64_t[tnum];
@@ -946,6 +946,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
     TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
     PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_COUNT, 1);
 
+#if 0
     // Open file
 #ifdef USE_MPI_IO
     int ibuf=0;
@@ -958,23 +959,30 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #ifdef USE_MPI_ASYN_IO
     MPI_File_iread_at(fp, 0, input_file_buffers[ibuf], input_buffer_size, MPI_BYTE, &reqs[ibuf]);
 #endif
-
 #else
-    FILE *fp = fopen(ifiles[i].c_str(), "r");
 #endif
+#endif
+    FILE *fp = fopen(ifiles[i].c_str(), "r");
 
     TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
 
     //TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
 
+#if 0
 #ifdef USE_MPI_IO
     MPI_Offset fsize;
     MPI_File_get_size(fp, &fsize);
 #else
+#endif
+#endif
     struct stat stbuf;
     stat(ifiles[i].c_str(), &stbuf);
     int64_t fsize = stbuf.st_size;
-#endif
+
+    if(fsize<=inputsize) input_buffer_size=fsize;
+    else input_buffer_size=inputsize;
+    char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
+
 
     // Process file
     int64_t foff = 0, boff = 0;
@@ -983,6 +991,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
     do{
       TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
+#if 0
 #ifdef USE_MPI_IO
 
 #ifdef USE_MPI_ASYN_IO
@@ -1005,9 +1014,11 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #endif
    
 #else
+#endif
+#endif
       fseek(fp, foff, SEEK_SET);   
       readsize = fread(text+boff, 1, input_buffer_size, fp);
-#endif
+//#endif
 
       TRACKER_RECORD_EVENT(0, EVENT_PFS_READ);
       PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_SIZE, readsize); 
@@ -1052,6 +1063,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 
       if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
 
+#if 0
 #ifdef USE_MPI_ASYN_IO
       ibuf=(ibuf+1)%INPUT_BUF_COUNT;
       if(foff+readsize<fsize){
@@ -1059,6 +1071,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
         //printf("offset=%lld, length=%d\n", offset, input_buffer_size); fflush(stdout);
         MPI_File_iread_at(fp, offset, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
       }
+#endif
 #endif
 
       // Process input buffer
@@ -1089,6 +1102,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
       // Prepare for next buffer
       foff += readsize;
 
+#if 0
 #ifdef USE_MPI_IO
 #ifdef USE_MPI_ASYN_IO
       for(int j =0; j < boff; j++) input_file_buffers[ibuf][j]=text[input_char_size-boff+j];
@@ -1097,19 +1111,23 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #endif
 
 #else
-      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
 #endif
+#endif
+      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
 
    }while(foff<fsize);
 
     TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
+#if 0
     // Close file
 #ifdef USE_MPI_IO
     MPI_File_close(&fp);
-#else   
-    fclose(fp);
+#else 
+#endif  
 #endif
+    fclose(fp);
+    mem_aligned_free(text);
 
     TRACKER_RECORD_EVENT(0, EVENT_PFS_CLOSE);
 
@@ -1130,11 +1148,12 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   // Free buffers
   delete [] tstart;
 
+#if 0
 #ifdef USE_MPI_IO 
   for(int i=0; i<INPUT_BUF_COUNT; i++) mem_aligned_free(input_file_buffers[i]);
   delete [] input_file_buffers;
 #else
-  mem_aligned_free(text);
+#endif
 #endif
 
   if(_mycompress != NULL){
