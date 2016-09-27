@@ -7,6 +7,10 @@
 #include "log.h"
 #include "memory.h"
 
+#include <malloc.h>
+#ifdef BGQ
+#include <spi/include/kernel/memory.h>
+#endif
 
 int64_t peakmem=0;
 
@@ -17,6 +21,30 @@ void record_memory_usage(){
 #if 1
   char procname[100], line[100];
 
+#ifdef BGQ
+  long unsigned int shared = 0;
+  long unsigned int persist = 0;
+  long unsigned int heapavail = 0;
+  long unsigned int stackavail = 0;
+  long unsigned int stacksize = 0;
+  long unsigned int heap = 0;
+  long unsigned int guard = 0;
+  long unsigned int mmap = 0;
+
+  Kernel_GetMemorySize(KERNEL_MEMSIZE_GUARD, &guard);
+  Kernel_GetMemorySize(KERNEL_MEMSIZE_SHARED, &shared);
+  Kernel_GetMemorySize(KERNEL_MEMSIZE_PERSIST, &persist);
+  Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAPAVAIL, &heapavail);
+  Kernel_GetMemorySize(KERNEL_MEMSIZE_STACKAVAIL, &stackavail);
+  Kernel_GetMemorySize(KERNEL_MEMSIZE_STACK, &stacksize);
+  Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAP, &heap);
+  Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
+
+  if ((heap + stacksize) > peakmem) {
+      peakmem = heap + stacksize;
+  }
+
+#else
   pid_t pid=getpid();
 
   int64_t vmpeak,vmsize;
@@ -38,14 +66,15 @@ void record_memory_usage(){
   }
 
   fclose(fp);
+  if(vmpeak>peakmem) peakmem=vmpeak;
 #endif
 
 #if 0
   struct mallinfo mi = mallinfo();
-  int64_t vmsize = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
+  int64_t vmpeak = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
+  if(vmsize>peakmem) peakmem=vmsize;
 #endif
 
-  if(vmsize>peakmem) peakmem=vmsize;
 
   //printf("%s: %ld %ld\n", str, vmpeak, vmsize);
 }
@@ -57,7 +86,7 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
   //posix_memalign(&ptr, alignment, align_size);
   ptr=malloc(align_size);
   if(!ptr){
-    LOG_ERROR("Error: malloc memory with alignment %ld and size %ld error!\n", alignment, size);
+    LOG_ERROR("Error: malloc memory with alignment %ld and size %ld error!, peakmem=%ld\n", alignment, size, peakmem);
     return NULL;
   }
 

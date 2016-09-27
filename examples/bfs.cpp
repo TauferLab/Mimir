@@ -513,9 +513,9 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
     // system(cmd);
     // sprintf(cmd, "rm %s", infile);
     // system(cmd);
-    FILE* finalize_script = fopen("finalize.sh", "w");
+    FILE* finalize_script = fopen(prefix, "w");
     fprintf(finalize_script, "#!/bin/zsh\n");
-    fprintf(finalize_script, "cat %s>>%s\b", infile, outfile);
+    fprintf(finalize_script, "cat %s>>%s\n", infile, outfile);
     fprintf(finalize_script, "rm %s\n", infile);
     fclose(finalize_script);
   }

@@ -6,12 +6,14 @@ else
   CPPLINK=mpicxx
 endif
 CC=openmp
+SPI_CFLAGS=-DBGQ=1 -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
+SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib -lSPI_cnk
 ifeq ($(CC),mp)
-  LCFLAGS = -fopenmp -g -O -DMPICH_IGNORE_CXX_SEEK -I../src
-  LFLAGS = -fopenmp -L ../src 
+  LCFLAGS = -fopenmp -g -O -DMPICH_IGNORE_CXX_SEEK -I../src $(SPI_CFLAGS)
+  LFLAGS = -fopenmp -L ../src  $(SPI_LDFALGS)
 else
-  LCFLAGS = -g -O -DMPICH_IGNORE_CXX_SEEK -I../src
-  LFLAGS = -L ../src
+  LCFLAGS = -g -O -DMPICH_IGNORE_CXX_SEEK -I../src $(SPI_CFLAGS)
+  LFLAGS = -L ../src $(SPI_LDFLAGS)
 endif
 
 USERLIBS = -lmrmpi

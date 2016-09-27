@@ -10,13 +10,15 @@ else
   CPPLINK = mpicxx
 endif
 DEBUG = -g
+SPI_CFLAGS=-DBGQ=1 -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
+SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib -lSPI_cnk
 ifeq ($(CC),mp)
-  local_CFLAGS = -fopenmp $(DEBUG) -O2  -DENABLE_PROFILER -DENABLE_TRACKER
+  local_CFLAGS = -fopenmp $(DEBUG) -O2  -DENABLE_PROFILER -DENABLE_TRACKER $(SPI_CFLAGS)
 else
-  local_CFLAGS = $(DEBUG) -O3  -DENABLE_PROFILER -DENABLE_TRACKER
+  local_CFLAGS = $(DEBUG) -O3  -DENABLE_PROFILER -DENABLE_TRACKER $(SPI_CFLAGS)
 endif
 #local_CFLAGS = $(DEBUG) -O2
-LFLAGS = 
+LFLAGS = $(SPI_LDFLAGS)
 ARCHIEVE = ar
 AFLAGS =  -rcv
 OBJS = mapreduce.o dataobject.o keyvalue.o keymultivalue.o communicator.o alltoall.o  ptop.o hash.o spool.o const.o memory.o stat.o  
