@@ -26,6 +26,8 @@ using namespace MAPREDUCE_NS;
 
 
 int DataObject::object_id = 0;
+int DataObject::cur_page_count=0;
+int DataObject::max_page_count=0;
 
 void DataObject::addRef(DataObject *data){
   if(data)
@@ -109,6 +111,8 @@ DataObject::~DataObject(){
   }
   delete [] buffers;
   delete [] blocks;
+
+  DataObject::cur_page_count-=nblock;
 
   LOG_PRINT(DBG_DATA, "DATA: DataObject destory. (type=%d)\n", datatype);
 }
@@ -213,7 +217,7 @@ void DataObject::release_block(int blockid){
   */
 void DataObject::delete_block(int blockid){
   if(ref<=1){
-    int bufferid = blocks[blockid].bufferid; 
+    int bufferid = blocks[blockid].bufferid;
     mem_aligned_free(buffers[bufferid].buf);
     buffers[bufferid].buf=NULL;
     blocks[blockid].datasize=0;
@@ -270,6 +274,11 @@ int DataObject::add_block(){
       
     blocks[blockid].datasize = 0;
     blocks[blockid].bufferid = blockid;
+
+    DataObject::cur_page_count++;
+    if(DataObject::cur_page_count>DataObject::max_page_count)
+      DataObject::max_page_count=DataObject::cur_page_count;
+ 
     return blockid;
   }else{
     // FIXME: out of core support

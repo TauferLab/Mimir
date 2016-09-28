@@ -198,6 +198,8 @@ public:
 
 public:
   static int object_id;
+  static int cur_page_count;
+  static int max_page_count;
   static void addRef(DataObject *);
   static void subRef(DataObject *);
 };

@@ -11,8 +11,11 @@
 
 int64_t peakmem=0;
 
+//int64_t maxmem=0;
+//int64_t curmem=0;
+
 void record_memory_usage(){
-#if 0
+#if 1
   char procname[100], line[100];
 
   pid_t pid=getpid();
@@ -38,10 +41,12 @@ void record_memory_usage(){
   fclose(fp);
 #endif
 
+#if 0
   struct mallinfo mi = mallinfo();
-  int64_t vmpeak = mi.arena + mi.hblkhd+mi.usmblks + mi.uordblks+mi.fsmblks + mi.fordblks;
+  int64_t vmpeak = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
+#endif
 
-  if(vmpeak>peakmem) peakmem=vmpeak;
+  if(vmsize>peakmem) peakmem=vmsize;
 
   //printf("%s: %ld %ld\n", str, vmpeak, vmsize);
 }
@@ -59,12 +64,14 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
 
   record_memory_usage();
 
+  //curmem += size;
+  //if(curmem > maxmem) maxmem = curmem;
+ 
   return ptr;
 }
 
 void *mem_aligned_free(void *ptr){
   free(ptr);
-
   record_memory_usage();
 
   return NULL;

@@ -382,11 +382,14 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     c = NULL;
   }
 
-  //DataObject::subRef(data);
+  DataObject::subRef(data);
 
   mode= NoneMode;
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_PAGE, data->nblock);
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (KV as input)\n", \
     me, nprocs);
@@ -983,6 +986,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
     else input_buffer_size=inputsize;
     char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
+    PROFILER_RECORD_COUNT(0, COUNTER_MAP_INPUT_BUF, input_buffer_size);
 
     // Process file
     int64_t foff = 0, boff = 0;
@@ -1184,8 +1188,8 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (main thread read file)\n", me, nprocs);
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
   PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_KV, data->gettotalsize());
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_PAGE, data->nblock);
   return _get_kv_count();
 }
 
@@ -2353,6 +2357,7 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   hostname[1024] = '\0';
   gethostname(hostname, 1024);
   fprintf(out, ",hostname:%s,peakmem:%ld", hostname, peakmem);
+  fprintf(out, ",maxpagecount:%d", DataObject::max_page_count);
 
   //char cmd[1024+1];
   //char ret[1024+1];
