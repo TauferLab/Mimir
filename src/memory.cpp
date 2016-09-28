@@ -7,9 +7,12 @@
 #include "memory.h"
 #include "log.h"
 
+#include <malloc.h>
+
 int64_t peakmem=0;
 
 void record_memory_usage(){
+#if 0
   char procname[100], line[100];
 
   pid_t pid=getpid();
@@ -33,6 +36,10 @@ void record_memory_usage(){
   }
 
   fclose(fp);
+#endif
+
+  struct mallinfo mi = mallinfo();
+  int64_t vmpeak = mi.arena + mi.hblkhd+mi.usmblks + mi.uordblks+mi.fsmblks + mi.fordblks;
 
   if(vmpeak>peakmem) peakmem=vmpeak;
 
