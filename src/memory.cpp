@@ -18,7 +18,6 @@ int64_t peakmem=0;
 //int64_t curmem=0;
 
 void record_memory_usage(){
-#if 1
   char procname[100], line[100];
 
 #ifdef BGQ
