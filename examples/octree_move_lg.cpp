@@ -67,6 +67,11 @@ int main(int argc, char **argv)
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
+  //if(me==0){
+  //  printf("start:");
+  //  MapReduce::print_memsize();
+  //}
+
   float density = atof(argv[1]);
   char *indir = argv[2];
   const char *prefix = argv[3];
@@ -97,6 +102,7 @@ int main(int argc, char **argv)
   level=floor((max_limit+min_limit)/2);
 
   MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
+
   mr_convert->set_threadbufsize(lbufsize);
   mr_convert->set_sendbufsize(gbufsize); 
   mr_convert->set_blocksize(blocksize);
@@ -130,6 +136,13 @@ int main(int argc, char **argv)
 
   mr_level->set_outofcore(0);
 
+  //if(me==0){
+  //  printf("start search:");
+  //  MapReduce::print_memsize();
+  //}
+
+#if 1
+
   while ((min_limit+1) != max_limit){
 //#ifdef PART_REDUCE
 #ifdef KV_HINT
@@ -149,6 +162,11 @@ int main(int argc, char **argv)
 //    mr_level->set_KVtype(FixedKV, level, sizeof(int));
 //#endif
 
+    //if(me==0){
+    //  printf("after map:");
+    //  MapReduce::print_memsize();
+    //}
+
     //printf("level=%d\n", level);
 
 #ifdef PART_REDUCE
@@ -158,6 +176,11 @@ int main(int argc, char **argv)
 #else
     uint64_t nkv = mr_level->reduce(sum, 0, NULL);
 #endif
+
+    //if(me==0){
+    //   printf("after reduce:");
+    //   MapReduce::print_memsize();
+    //}
 
     //uint64_t nkv = mr_level->reduce(sum);
     //if(me==0) {
@@ -175,9 +198,17 @@ int main(int argc, char **argv)
   }
 
   output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level); 
-
-  delete mr_convert;
+#endif
   delete mr_level;
+  //if(me==0){
+  //   printf("after first delete:");
+  //   MapReduce::print_memsize();
+  //}
+  delete mr_convert;
+  //if(me==0){
+  //   printf("after second delete:");
+  //   MapReduce::print_memsize();
+  //}
 
   if(me==0) printf("level=%d\n", level);
 

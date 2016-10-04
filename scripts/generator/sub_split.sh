@@ -29,6 +29,8 @@ fi
 export INPUT=$INDIR
 export PREFIX=$PREFIX
 
+echo ${DATALIST[@]}
+
 idx=0
 for datasize in "${DATALIST[@]}"
 do

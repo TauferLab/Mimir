@@ -164,7 +164,7 @@ MapReduce::MapReduce(const MapReduce &_mr){
 MapReduce::~MapReduce()
 {
   DataObject::subRef(data);
-  
+
   if(c) delete c;
   delete [] thread_info;
 
@@ -2344,6 +2344,12 @@ out:
   return 0;
 }
 
+void MapReduce::print_memsize(){  
+  struct mallinfo mi = mallinfo();
+  int64_t vmsize = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
+  printf("memory usage:%ld\n", vmsize);
+}
+
 void MapReduce::print_stat(MapReduce *mr, FILE *out){
 //#if GATHER_STAT  
   //st.print(verb, out);
@@ -2358,6 +2364,28 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   gethostname(hostname, 1024);
   fprintf(out, ",hostname:%s,peakmem:%ld", hostname, peakmem);
   fprintf(out, ",maxpagecount:%d", DataObject::max_page_count);
+
+#if 0
+#define BUFSIZE 1024
+  char str[BUFSIZ];
+  setbuf(stderr, str);
+  malloc_stats();
+  //printf("%s", str;
+  int64_t maxmmap;
+  char *p, *temp;
+  //printf("str=%s\n", str);
+  p = strtok_r(str, "\n", &temp);
+  do {
+    //printf("current line = %s", p);
+    if(strncmp(p, "max mmap bytes   =", 18) == 0){
+      char *word = p + 18;
+      while(isspace(*word)) ++word;
+      maxmmap=strtoull(word, NULL, 0); 
+    }
+    p = strtok_r(NULL, "\n", &temp);
+  } while (p != NULL);
+  fprintf(out, ",maxmmap:%ld", maxmmap);
+#endif
 
   //char cmd[1024+1];
   //char ret[1024+1];

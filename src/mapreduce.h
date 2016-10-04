@@ -183,6 +183,8 @@ public:
   //void init_stat();
   static void print_stat(MapReduce *mr, FILE *fp=stdout);
 
+  static void print_memsize();
+
   /**
     Set <key,value> type. The KV type can be GeneralKV, StringKV, FixedKV.
  
@@ -194,6 +196,11 @@ public:
     kvtype = _kvtype;
     ksize = _ksize;
     vsize = _vsize;
+    if(kvtype==FixedKV || kvtype==StringKFixedV){
+      maxvaluebytes=vsize;
+    }else{
+      maxvaluebytes=MAX_VALUE_SIZE;
+    }
   }
 
   /**

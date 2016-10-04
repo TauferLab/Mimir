@@ -4,10 +4,9 @@
 #include <unistd.h>
 #include <ctype.h>
 
-#include "memory.h"
 #include "log.h"
+#include "memory.h"
 
-#include <malloc.h>
 
 int64_t peakmem=0;
 
@@ -43,7 +42,7 @@ void record_memory_usage(){
 
 #if 0
   struct mallinfo mi = mallinfo();
-  int64_t vmpeak = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
+  int64_t vmsize = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
 #endif
 
   if(vmsize>peakmem) peakmem=vmsize;
