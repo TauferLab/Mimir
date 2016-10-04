@@ -543,7 +543,7 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   delete u->unique_pool;
   delete u;
 
-  DataObject::subRef(data);
+  DataObject::addRef(data);
 
   mode=NoneMode;
 

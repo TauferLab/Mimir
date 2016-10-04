@@ -40,6 +40,7 @@ void DataObject::subRef(DataObject *data){
     if(data->ref==0){
       //printf("delete data\n"); fflush(stdout);
       delete data;
+      data = NULL;
     }
   }
 }

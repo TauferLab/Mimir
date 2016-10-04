@@ -171,7 +171,7 @@ int main(int argc, char **argv)
 
 #ifdef PART_REDUCE
     uint64_t nkv = mr_level->reducebykey(mergeword, NULL);
-    nkv = mr_level->map_key_value(mr_level, sum_map);
+    nkv = mr_level->map_key_value(mr_level, sum_map, NULL, NULL, 0);
     //uint64_t nkv = mr_level->reduce(sum, 1, NULL);
 #else
     uint64_t nkv = mr_level->reduce(sum, 0, NULL);
@@ -199,11 +199,12 @@ int main(int argc, char **argv)
 
   output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level); 
 #endif
-  delete mr_level;
   //if(me==0){
   //   printf("after first delete:");
   //   MapReduce::print_memsize();
   //}
+
+  delete mr_level;
   delete mr_convert;
   //if(me==0){
   //   printf("after second delete:");
