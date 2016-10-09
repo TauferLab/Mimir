@@ -362,6 +362,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 }
 #endif
 
+  DataObject::subRef(data);
+
   if(_mycompress != NULL){
     if(_comm){
       mode = CommMode;
@@ -381,8 +383,6 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     delete c;
     c = NULL;
   }
-
-  DataObject::subRef(data);
 
   mode= NoneMode;
 
