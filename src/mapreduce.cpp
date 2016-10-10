@@ -299,11 +299,11 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   DataObject::addRef(this->data);
 
   // create communicator
-  if(_comm){
-    c=Communicator::Create(comm, tnum, commmode);
-    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-    c->init(kv);
-  }
+  //if(_comm){
+  //  c=Communicator::Create(comm, tnum, commmode);
+  //  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+  //  c->init(kv);
+  //}
 
   if(_mycompress!=NULL){
     u=new UniqueInfo();
@@ -317,6 +317,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     ptr=_ptr;
     mode=CompressMode;
   }else if(_comm){
+    c=Communicator::Create(comm, tnum, commmode);
+    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+    c->init(kv);
     mode = CommMode;
   }else{
     mode = LocalMode; 
@@ -362,10 +365,16 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 }
 #endif
 
+  //DataObject::subRef(data);
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_PAGE, data->nblock);
   DataObject::subRef(data);
 
   if(_mycompress != NULL){
     if(_comm){
+      c=Communicator::Create(comm, tnum, commmode);
+      c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+      c->init(kv);
       mode = CommMode;
     }else{
       mode = LocalMode;
@@ -384,12 +393,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     c = NULL;
   }
 
-  mode= NoneMode;
+  mode=NoneMode;
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_PAGE, data->nblock);
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (KV as input)\n", \
     me, nprocs);
@@ -616,7 +622,8 @@ uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
       if(nunique>u->nunique) goto out;
 
       //printf("key=%s\n", ukey->key); fflush(stdout);
-      add_key_value(ukey->key, ukey->keybytes, ukey->voffset, ukey->mvbytes);    
+      add_key_value(ukey->key, ukey->keybytes, \
+        ukey->voffset, ukey->mvbytes);    
 
       ubuf+=ukeyoffset;
       ubuf+=ukey->keybytes;
