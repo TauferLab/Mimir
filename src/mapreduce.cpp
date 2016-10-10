@@ -902,11 +902,11 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   data=kv;
 
   // create communicator
-  if(_comm){
-    c=Communicator::Create(comm, tnum, commmode);
-    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-    c->init(kv);
-  }
+  //if(_comm){
+  //  c=Communicator::Create(comm, tnum, commmode);
+  //  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+  //  c->init(kv);
+  //}
   // set mode
   if(_mycompress!=NULL){
     u=new UniqueInfo();
@@ -920,6 +920,9 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
     ptr=_ptr;
     mode=CompressMode;
   }else if(_comm){
+    c=Communicator::Create(comm, tnum, commmode);
+    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+    c->init(kv);
     mode = CommMode;
   }else{
     mode = LocalMode; 
@@ -1170,6 +1173,9 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   if(_mycompress != NULL){
     //delete tmpdata;
     if(_comm){
+      c=Communicator::Create(comm, tnum, commmode);
+      c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
+      c->init(kv);
       mode = CommMode;
     }else{
       mode = LocalMode;
