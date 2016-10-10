@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
   mr->set_outofcore(0);
 
 #ifdef KV_HINT
-  mr->set_KVtype(StringKFixedV, -1, sizeof(int));
+  mr->set_KVtype(StringKFixedV, -1, sizeof(int64_t));
 #endif
 
   MPI_Barrier(MPI_COMM_WORLD);
@@ -179,16 +179,16 @@ void map(MapReduce *mr, char *word, void *ptr){
 
   //printf("word=%s\n", word); fflush(stdout);
 
-  int one=1;
+  int64_t one=1;
   if(len <= 8192)
     mr->add_key_value(word,len,(char*)&one,sizeof(one));
 }
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
-  int count=0;
+  int64_t count=0;
  
   for(iter->Begin(); !iter->Done(); iter->Next()){
-    count+=*(int*)iter->getValue();
+    count+=*(int64_t*)iter->getValue();
   }
   
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
@@ -196,7 +196,7 @@ void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 
 void mergeword(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
-  int count=*(int*)(val1)+*(int*)(val2);
+  int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
  
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }

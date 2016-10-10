@@ -51,7 +51,7 @@ double slope(double[], double[], int);
 void output(const char *,const char *,const char *,float,MapReduce*,MapReduce *);
 
 #define digits 15
-int thresh=5;
+int64_t thresh=5;
 bool realdata = false;
 int level;
 
@@ -146,7 +146,7 @@ int main(int argc, char **argv)
   while ((min_limit+1) != max_limit){
 //#ifdef PART_REDUCE
 #ifdef KV_HINT
-    mr_level->set_KVtype(FixedKV, level, sizeof(int));
+    mr_level->set_KVtype(FixedKV, level, sizeof(int64_t));
 #endif
 //#else
 //#ifdef KV_HINT
@@ -218,16 +218,16 @@ int main(int argc, char **argv)
 
 void mergeword(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
-  int count=*(int*)(val1)+*(int*)(val2);
+  int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
  
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
 void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
-  int count=*(int*)val;
+  int64_t count=*(int64_t*)val;
   if(count > thresh)
-    mr->add_key_value(key, keysize, (char*)&count, (int)sizeof(int));
+    mr->add_key_value(key, keysize, (char*)&count, sizeof(int64_t));
 }
 
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
@@ -243,25 +243,25 @@ void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int l
   if (lastreduce){
     if(sum>thresh){
       //if(me==0) printf("sum=%d\n", sum);
-      mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int));
+      mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
     }
   }else{
-    mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int)); 
+    mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t)); 
   }
 #else
   for(iter->Begin(); !iter->Done(); iter->Next()){
     sum+=*(int*)iter->getValue();
   }
   if(sum>thresh)
-    mr->add_key_value(key, keysize, (char*)&sum, (int)sizeof(int)); 
+    mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t)); 
 #endif
 }
 
 void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
 //#ifdef PART_REDUCE
-  int count=1;
-  mr->add_key_value(key, level, (char*)&count, (int)sizeof(int));
+  int64_t count=1;
+  mr->add_key_value(key, level, (char*)&count, sizeof(int64_t));
 //#else
 //  mr->add_key_value(key, level, NULL, 0);
 //#endif

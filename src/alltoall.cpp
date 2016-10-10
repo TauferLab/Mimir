@@ -60,9 +60,7 @@ using namespace MAPREDUCE_NS;
         break;\
       }\
     }\
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);\
     memcpy(dst_buf, src_buf, copysize);\
-    TRACKER_RECORD_EVENT(0, EVENT_MEM_COPY);\
     int datasize=data->getdatasize(blockid);\
     data->setblockdatasize(blockid,datasize+copysize);\
     dst_buf+=copysize;\

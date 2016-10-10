@@ -2419,6 +2419,19 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
     for(counter_iter=profiler_event_counter[i].begin(); counter_iter!=profiler_event_counter[i].end(); counter_iter++){
       fprintf(out, ",%s:%ld", counter_iter->first.c_str(), counter_iter->second);
     }
+#ifdef ENABLE_TRACKER
+    double total_time=0.0, app_time=0.0, lib_time=0.0;
+    std::vector<std::pair<std::string,double> >::iterator event_iter1;
+    for(event_iter1=tracker_event_timer[i].begin(); event_iter1!=tracker_event_timer[i].end(); event_iter1++){
+      if(event_iter1->first=="event_mr_general"){
+        app_time+=event_iter1->second;
+      }else{
+        lib_time+=event_iter1->second;
+      }
+    }
+    total_time=app_time+lib_time;
+    fprintf(out, ",total_time:%g,app_time:%g,lib_time:%g", total_time, app_time, lib_time);
+#endif
     fprintf(out, ",action:profiler_end\n");
 #endif
 #ifdef ENABLE_TRACKER
