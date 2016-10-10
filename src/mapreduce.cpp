@@ -565,28 +565,29 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
   uint32_t hid = hashlittle(key, keybytes, 0);
   int ibucket = hid % nbucket;
 
-  Unique *ukey, *pre;
-  ukey = _findukey(u->ubucket, ibucket, key, keybytes, pre);
+  UniqueCPS *ukey;
+  Unique *pre;
+  ukey = (UniqueCPS*)_findukey(u->ubucket, ibucket, key, keybytes, pre, 1);
   if(ukey){
     cur_ukey=ukey;
     _myreduce(this, ukey->key, ukey->keybytes, \
-    ukey->voffset, ukey->mvbytes, value, valuebytes, _ptr);
+    ukey->value, ukey->valuebytes, value, valuebytes, _ptr);
   }else{
-    if(u->ubuf_end-u->ubuf<ukeyoffset+keybytes+maxvaluebytes){
+    if(u->ubuf_end-u->ubuf<sizeof(UniqueCPS)+keybytes+maxvaluebytes){
       memset(u->ubuf, 0, u->ubuf_end-u->ubuf);
       u->ubuf=u->unique_pool->add_block();
       u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
     }
 
-    ukey=(Unique*)(u->ubuf);
-    u->ubuf += ukeyoffset;
+    ukey=(UniqueCPS*)(u->ubuf);
+    u->ubuf += sizeof(UniqueCPS);
 
     // add to the list
     ukey->next = NULL;
     if(pre == NULL)
-      u->ubucket[ibucket] = ukey;
+      u->ubucket[ibucket] = (Unique*)ukey;
     else
-      pre->next = ukey;
+      ((UniqueCPS*)pre)->next = ukey;
 
     // copy key
     ukey->key = u->ubuf;
@@ -595,9 +596,8 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
     u->ubuf += keybytes;
 
     // copy value
-    ukey->voffset=u->ubuf;
-    ukey->nvalue=1;
-    ukey->mvbytes=valuebytes;
+    ukey->value=u->ubuf;
+    ukey->valuebytes=valuebytes;
     memcpy(u->ubuf, value, valuebytes);
     u->ubuf += maxvaluebytes;
 
@@ -614,8 +614,8 @@ uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
     char *ubuf_end=ubuf+unique_pool->blocksize;
       
     while(ubuf < ubuf_end){
-      Unique *ukey = (Unique*)(ubuf);
-      if((ubuf_end-ubuf < sizeof(Unique)) || (ukey->key==NULL))
+      UniqueCPS *ukey = (UniqueCPS*)(ubuf);
+      if((ubuf_end-ubuf < sizeof(UniqueCPS)) || (ukey->key==NULL))
         break;
 
       nunique++;
@@ -623,9 +623,9 @@ uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
 
       //printf("key=%s\n", ukey->key); fflush(stdout);
       add_key_value(ukey->key, ukey->keybytes, \
-        ukey->voffset, ukey->mvbytes);    
+        ukey->value, ukey->valuebytes);    
 
-      ubuf+=ukeyoffset;
+      ubuf+=sizeof(UniqueCPS);
       ubuf+=ukey->keybytes;
       ubuf+=maxvaluebytes;
     }
@@ -817,9 +817,9 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
       LOG_ERROR("The value bytes %d is larger than the max %d\n", \
         valuebytes, maxvaluebytes);
     }
-    memcpy(cur_ukey->voffset, value, valuebytes);
-    cur_ukey->mvbytes=valuebytes;
-    cur_ukey->nvalue++;
+    memcpy(cur_ukey->value, value, valuebytes);
+    cur_ukey->valuebytes=valuebytes;
+    //cur_ukey->nvalue++;
   }else if(mode==CompressMode){
     mode=MergeMode;
     _cps_kv2unique(u, key, keybytes, value, valuebytes, mycompress, ptr);
@@ -1493,7 +1493,8 @@ uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
 /***** internal functions ******/
 
 // find the key in the unique list
-MapReduce::Unique* MapReduce::_findukey(Unique **unique_list, int ibucket, char *key, int keybytes, Unique *&uprev){
+MapReduce::Unique* MapReduce::_findukey(Unique **unique_list, int ibucket, char *key, int keybytes, Unique *&uprev, int cps){
+  if(!cps){
   Unique *uptr = unique_list[ibucket];
   
   if(!uptr){
@@ -1510,8 +1511,28 @@ MapReduce::Unique* MapReduce::_findukey(Unique **unique_list, int ibucket, char 
     uptr = uptr->next;
   }
 
+  }else{
+  UniqueCPS *uptr = (UniqueCPS*)unique_list[ibucket];
+  
+  if(!uptr){
+    uprev = NULL;
+    return NULL;
+  }
+
+  char *keyunique;
+  while(uptr){
+    keyunique = ((char*)uptr)+sizeof(UniqueCPS);
+    if(keybytes==uptr->keybytes && memcmp(key,keyunique,keybytes)==0)
+      return (Unique*)uptr;
+    uprev = (Unique*)uptr;
+    uptr = uptr->next;
+  }
+ 
+  }
+
   return NULL;
 }
+
 
 void MapReduce::_unique2set(UniqueInfo *u){
 

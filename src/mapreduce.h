@@ -346,6 +346,15 @@ private:
     Unique    *next;       ///< next key
   };
 
+  struct UniqueCPS
+  {
+    char      *key;
+    int        keybytes;
+    char      *value;
+    int        valuebytes;
+    UniqueCPS *next;
+  };
+
   /// \brief UniqueInfo is used to convert KVs to KMVs
   struct UniqueInfo
   {
@@ -401,7 +410,7 @@ private:
   thread_private_info *thread_info;
 
   DataObject  *data; ///< number of unique key
-  Unique *cur_ukey;  ///< number of unique key
+  UniqueCPS *cur_ukey;  ///< number of unique key
   UniqueInfo *u;
   //User
   UserBiReduce mycompress;
@@ -429,7 +438,7 @@ private:
   void _disinputfiles(const char *, int, int);
   void _getinputfiles(const char *, int, int);
 
-  MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre);
+  MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre, int cps=0);
   void _unique2set(UniqueInfo *);
     
   int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *, 
