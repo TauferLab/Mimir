@@ -356,7 +356,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
       offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
     }
-   
+
+    inputkv->delete_block(i);
     inputkv->release_block(i);
   }
 
