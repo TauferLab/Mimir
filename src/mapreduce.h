@@ -349,9 +349,9 @@ private:
   struct UniqueCPS
   {
     char      *key;
-    int        keybytes;
-    char      *value;
-    int        valuebytes;
+    //int        keybytes;
+    //char      *value;
+    //int        valuebytes;
     UniqueCPS *next;
   };
 

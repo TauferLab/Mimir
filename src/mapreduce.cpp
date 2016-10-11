@@ -571,10 +571,25 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
   ukey = (UniqueCPS*)_findukey(u->ubucket, ibucket, key, keybytes, pre, 1);
   if(ukey){
     cur_ukey=ukey;
-    _myreduce(this, ukey->key, ukey->keybytes, \
-    ukey->value, ukey->valuebytes, value, valuebytes, _ptr);
+
+    char *unique_key, *unique_value;
+    int unique_keybytes, unique_valuebytes, kvsize;
+    char *kvbuf=(char*)ukey+sizeof(UniqueCPS);
+    GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
+      unique_value,unique_valuebytes,kvsize,this);
+
+    _myreduce(this, unique_key, unique_keybytes, \
+    unique_value, unique_valuebytes, value, valuebytes, _ptr);
   }else{
-    if(u->ubuf_end-u->ubuf<sizeof(UniqueCPS)+keybytes+maxvaluebytes){
+    // calculate space needed
+    int space_bytes;
+    if(kvtype==GeneralKV)
+      space_bytes=sizeof(UniqueCPS)+twointlen+keybytes+maxvaluebytes;
+    else
+      space_bytes=sizeof(UniqueCPS)+keybytes+maxvaluebytes;
+
+    // add another block
+    if(u->ubuf_end-u->ubuf<space_bytes){
       memset(u->ubuf, 0, u->ubuf_end-u->ubuf);
       u->ubuf=u->unique_pool->add_block();
       u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
@@ -591,16 +606,21 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
       ((UniqueCPS*)pre)->next = ukey;
 
     // copy key
-    ukey->key = u->ubuf;
-    ukey->keybytes=keybytes;
-    memcpy(u->ubuf, key, keybytes);
-    u->ubuf += keybytes;
+    int kvbytes;
+    PUT_KV_VARS(kvtype, u->ubuf, key, keybytes, value, valuebytes, kvbytes);
+
+    ukey->key=u->ubuf-keybytes-valuebytes;
+    //ukey->key = u->ubuf;
+    //ukey->keybytes=keybytes;
+    //memcpy(u->ubuf, key, keybytes);
+    //u->ubuf += keybytes;
 
     // copy value
-    ukey->value=u->ubuf;
-    ukey->valuebytes=valuebytes;
-    memcpy(u->ubuf, value, valuebytes);
-    u->ubuf += maxvaluebytes;
+    //ukey->value=u->ubuf;
+    //ukey->valuebytes=valuebytes;
+    //memcpy(u->ubuf, value, valuebytes);
+    u->ubuf += (maxvaluebytes-valuebytes);
+    //u->ubuf += maxvaluebytes;
 
     u->nunique++;
   }//END if
@@ -616,19 +636,28 @@ uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
       
     while(ubuf < ubuf_end){
       UniqueCPS *ukey = (UniqueCPS*)(ubuf);
-      if((ubuf_end-ubuf < sizeof(UniqueCPS)) || (ukey->key==NULL))
+      int left_bytes=ubuf_end-ubuf;
+      if((left_bytes < sizeof(UniqueCPS)) || (ukey->key==NULL))
         break;
 
       nunique++;
       if(nunique>u->nunique) goto out;
 
-      //printf("key=%s\n", ukey->key); fflush(stdout);
-      add_key_value(ukey->key, ukey->keybytes, \
-        ukey->value, ukey->valuebytes);    
-
+      char *unique_key, *unique_value;
+      int unique_keybytes, unique_valuebytes, kvsize;
+     
       ubuf+=sizeof(UniqueCPS);
-      ubuf+=ukey->keybytes;
-      ubuf+=maxvaluebytes;
+      GET_KV_VARS(kvtype,ubuf,unique_key,unique_keybytes,\
+        unique_value,unique_valuebytes,kvsize,this);
+
+      //printf("key=%s\n", ukey->key); fflush(stdout);
+      add_key_value(unique_key, unique_keybytes, \
+        unique_value, unique_valuebytes);    
+
+      //ubuf+=sizeof(UniqueCPS);
+      //ubuf+=ukey->keybytes;
+      ubuf+=(maxvaluebytes-unique_valuebytes);
+      //ubuf+=maxvaluebytes;
     }
   }
 out:
@@ -818,8 +847,17 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
       LOG_ERROR("The value bytes %d is larger than the max %d\n", \
         valuebytes, maxvaluebytes);
     }
-    memcpy(cur_ukey->value, value, valuebytes);
-    cur_ukey->valuebytes=valuebytes;
+    char *unique_key, *unique_value;
+    int unique_keybytes, unique_valuebytes, kvsize;
+    char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS);
+    GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
+      unique_value,unique_valuebytes,kvsize,this);
+    memcpy(unique_value, value, valuebytes);
+    if(kvtype==GeneralKV){
+      int *pvaluebytes=(int*)(kvbuf+oneintlen);
+      *pvaluebytes=valuebytes;
+    }
+    //cur_ukey->valuebytes=valuebytes;
     //cur_ukey->nvalue++;
   }else if(mode==CompressMode){
     mode=MergeMode;
@@ -1520,10 +1558,14 @@ MapReduce::Unique* MapReduce::_findukey(Unique **unique_list, int ibucket, char 
     return NULL;
   }
 
-  char *keyunique;
+  char *unique_key, *unique_value;
+  int unique_keybytes, unique_valuebytes, kvsize;
   while(uptr){
-    keyunique = ((char*)uptr)+sizeof(UniqueCPS);
-    if(keybytes==uptr->keybytes && memcmp(key,keyunique,keybytes)==0)
+    char *kvbuf=(char*)uptr+sizeof(UniqueCPS);
+    GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
+      unique_value,unique_valuebytes,kvsize,this);
+
+    if(keybytes==unique_keybytes && memcmp(key,unique_key,keybytes)==0)
       return (Unique*)uptr;
     uprev = (Unique*)uptr;
     uptr = uptr->next;
