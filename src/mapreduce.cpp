@@ -609,7 +609,7 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
     int kvbytes;
     PUT_KV_VARS(kvtype, u->ubuf, key, keybytes, value, valuebytes, kvbytes);
 
-    ukey->key=u->ubuf-keybytes-valuebytes;
+    //ukey->key=u->ubuf-keybytes-valuebytes;
     //ukey->key = u->ubuf;
     //ukey->keybytes=keybytes;
     //memcpy(u->ubuf, key, keybytes);
@@ -637,8 +637,19 @@ uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
     while(ubuf < ubuf_end){
       UniqueCPS *ukey = (UniqueCPS*)(ubuf);
       int left_bytes=ubuf_end-ubuf;
-      if((left_bytes < sizeof(UniqueCPS)) || (ukey->key==NULL))
-        break;
+      if((left_bytes <= sizeof(UniqueCPS))) break;
+      else if(kvtype==GeneralKV){
+        char *kvbuf=ubuf+sizeof(UniqueCPS);
+        if(left_bytes<twointlen || *(int*)kvbuf==0) break;
+      }else if(kvtype==StringKV || kvtype==StringKFixedV){
+        char *kvbuf=ubuf+sizeof(UniqueCPS);
+        if(strlen(kvbuf)==0) break;
+      }else if(kvtype==FixedKV || kvtype==FixedKStringV){
+        char *kvbuf=ubuf+sizeof(UniqueCPS);
+        char tmpbuf[ksize];
+        memset(tmpbuf, 0, ksize);
+        if(left_bytes<ksize || memcmp(kvbuf,tmpbuf,ksize)==0) break;
+      }
 
       nunique++;
       if(nunique>u->nunique) goto out;
