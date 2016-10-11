@@ -854,8 +854,8 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
       unique_value,unique_valuebytes,kvsize,this);
     memcpy(unique_value, value, valuebytes);
     if(kvtype==GeneralKV){
-      int *pvaluebytes=(int*)(kvbuf+oneintlen);
-      *pvaluebytes=valuebytes;
+      char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS)+oneintlen;
+      *(int*)(kvbuf)=valuebytes;
     }
     //cur_ukey->valuebytes=valuebytes;
     //cur_ukey->nvalue++;
