@@ -25,6 +25,7 @@
 #endif
 
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <list>
 #include <vector>
@@ -2454,15 +2455,42 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   fprintf(out, ",maxpagecount:%d", DataObject::max_page_count);
 
 #if 0
-#define BUFSIZE 1024
-  char str[BUFSIZ];
-  setbuf(stderr, str);
+  // Get output results
+  std::stringstream oss;
+  std::streambuf* old = std::cout.rdbuf(oss.rdbuf());
   malloc_stats();
-  //printf("%s", str;
+
+#define BUFSIZE 1024
   int64_t maxmmap;
-  char *p, *temp;
+  char line[BUFSIZ];
+  int num=10;
+  std::string text = oss.str();
+  std::cout << "[" << text << "]" << std::endl;
+  for (int i=0; i<num; ++i){
+    //oss.getline(line, BUFSIZE);
+    //printf("line=%s\n", line);
+    if(strncmp(line, "max mmap bytes   =", 18) == 0)
+      break;
+  }
+  sscanf(line+18, "%ld", &maxmmap);
+  printf("maxmmap1=%ld\n", maxmmap);
+  
+  oss.str("");
+  oss.clear();
+  std::cout.rdbuf(old);
+
+  //char *p, *temp;
+  //std::cout << oss.str();
+
   //printf("str=%s\n", str);
-  p = strtok_r(str, "\n", &temp);
+  //p = strtok_r(str, "\n", &temp);
+#if 0
+  for (uint i=0; i<num_verts; ++i)
+  {
+    sstr.getline(line, bufsz);
+    std::istringstream iss(line);
+    iss >> verts[i].x >> verts[i].y >> verts[i].z;
+  }
   do {
     //printf("current line = %s", p);
     if(strncmp(p, "max mmap bytes   =", 18) == 0){
@@ -2472,6 +2500,7 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
     }
     p = strtok_r(NULL, "\n", &temp);
   } while (p != NULL);
+#endif
   fprintf(out, ",maxmmap:%ld", maxmmap);
 #endif
 
