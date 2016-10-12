@@ -1027,6 +1027,9 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #else
 #endif
 #endif
+
+      LOG_PRINT(DBG_IO, "%d[%d] open file %s\n", me, nprocs, ifiles[i].c_str());
+
     FILE *fp = fopen(ifiles[i].c_str(), "r");
 
     TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
@@ -1250,7 +1253,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   DataObject::addRef(data);
   mode = NoneMode;
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (main thread read file)\n", me, nprocs);
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file end.\n", me, nprocs);
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_KV, data->gettotalsize());

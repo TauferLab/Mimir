@@ -21,14 +21,6 @@
 #include "string.h"
 #include <cmath>
 
-
-//int nbucket=17, estimate=0, factor=1;
-//const char* commmode="a2a";
-//const char* inputsize="512M";
-//const char* blocksize="64M";
-//const char* gbufsize="64M";
-//const char* lbufsize="4K";
-
 // MR_BUCKET_SIZE
 // MR_INBUF_SIZE
 // MR_PAGE_SIZE
@@ -39,7 +31,6 @@ const char* blocksize;
 const char* gbufsize;
 const char* lbufsize="4K";
 const char* commmode="a2a";
-
 
 using namespace MAPREDUCE_NS;
 #if GATHER_STAT 
