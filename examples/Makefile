@@ -9,11 +9,11 @@ CC=openmp
 SPI_CFLAGS=-DBGQ=0 -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
 SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib #-lSPI_cnk
 ifeq ($(CC),mp)
-  LCFLAGS = -fopenmp -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src $(SPI_CFLAGS)
-  LFLAGS = -fopenmp -L ../src  $(SPI_LDFALGS)
+  LCFLAGS = -fopenmp -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
+  LFLAGS = -fopenmp -L ../src
 else
-  LCFLAGS = -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src $(SPI_CFLAGS)
-  LFLAGS = -L ../src $(SPI_LDFLAGS)
+  LCFLAGS = -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
+  LFLAGS = -L ../src
 endif
 
 USERLIBS = -lmrmpi

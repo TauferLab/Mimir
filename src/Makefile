@@ -13,9 +13,9 @@ DEBUG = -g
 SPI_CFLAGS= -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
 SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib -lSPI_cnk
 ifeq ($(CC),mp)
-  local_CFLAGS = -fopenmp $(DEBUG) -O2  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER $(SPI_CFLAGS)
+  local_CFLAGS = -fopenmp $(DEBUG) -O2  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER
 else
-  local_CFLAGS = $(DEBUG) -O3  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER $(SPI_CFLAGS)
+  local_CFLAGS = $(DEBUG) -O3  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER
 endif
 #local_CFLAGS = $(DEBUG) -O2
 LFLAGS = $(SPI_LDFLAGS)
