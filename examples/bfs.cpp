@@ -88,7 +88,7 @@ int64_t  nglobaledges;     // global edge count
 int64_t  nlocalverts;      // local vertex count
 int64_t  nlocaledges;      // local edge count
 int64_t  nvertoffset;      // local vertex's offset
-int quot, rem;             // quotient and reminder of globalverts/nprocs 
+int64_t quot, rem;             // quotient and reminder of globalverts/nprocs 
 
 size_t   *rowstarts;       // rowstarts
 int64_t  *columns;         // columns
@@ -204,7 +204,7 @@ int main(int argc, char **argv)
   rowstarts = new size_t[nlocalverts+1]; 
   rowinserts = new size_t[nlocalverts];
   rowstarts[0] = 0;
-  for(int i = 0; i < nlocalverts; i++){
+  for(int64_t i = 0; i < nlocalverts; i++){
     rowstarts[i+1] = 0;
     rowinserts[i] =0;
   }
@@ -213,7 +213,7 @@ int main(int argc, char **argv)
   
   //if(me==0) printf("nlocaledges=%ld\n", nlocaledges);
 
-  for(int i = 0; i < nlocalverts; i++){
+  for(int64_t i = 0; i < nlocalverts; i++){
     rowstarts[i+1] += rowstarts[i];
   } 
   columns=new int64_t[nlocaledges];
@@ -234,7 +234,7 @@ int main(int argc, char **argv)
   }
   
   // make data structure
-  int bitmapsize = (nlocalverts + LONG_BITS - 1) / LONG_BITS;
+  int64_t bitmapsize = (nlocalverts + LONG_BITS - 1) / LONG_BITS;
   vis  = new unsigned long[bitmapsize];
   pred = new int64_t[nlocalverts];
 
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
   // initialize
   root    = getrootvert();
   memset(vis, 0, sizeof(unsigned long)*(bitmapsize));
-  for(int i = 0; i < nlocalverts; i++){
+  for(int64_t i = 0; i < nlocalverts; i++){
     pred[i] = -1;
   }
 

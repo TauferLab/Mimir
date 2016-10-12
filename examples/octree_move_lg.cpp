@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 
   thresh=nwords*density;
   if(me==0){
-    printf("Command line: input path=%s, thresh=%d\n", indir, thresh);
+    printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
   }
 
   MapReduce *mr_level=new MapReduce(MPI_COMM_WORLD);
@@ -232,7 +232,7 @@ void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void
 
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
 
-  int sum=0;
+  int64_t sum=0;
 #ifdef PART_REDUCE
   //if(me==0) printf("count=%d\n", iter->getCount());
   for(iter->Begin(); !iter->Done(); iter->Next()){

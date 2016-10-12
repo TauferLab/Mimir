@@ -7,10 +7,10 @@ else
 endif
 CC=openmp
 ifeq ($(CC),mp)
-  LCFLAGS = -fopenmp -g -O -DMPICH_IGNORE_CXX_SEEK -I../src
-  LFLAGS = -fopenmp -L ../src 
+  LCFLAGS = -fopenmp -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
+  LFLAGS = -fopenmp -L ../src
 else
-  LCFLAGS = -g -O -DMPICH_IGNORE_CXX_SEEK -I../src
+  LCFLAGS = -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
   LFLAGS = -L ../src
 endif
 
