@@ -47,7 +47,7 @@ public:
     return buf;
   }
 
-  int getblocksize(){
+  int64_t getblocksize(){
     return blocksize;
   }
 
@@ -65,12 +65,12 @@ public:
 
 public:
   int nblock;
-  uint64_t blocksize;
+  int64_t blocksize;
 
   char **blocks;
   int maxblocks;
 
-  uint64_t mem_bytes;
+  int64_t mem_bytes;
 };
 
 }

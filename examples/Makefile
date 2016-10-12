@@ -6,8 +6,8 @@ else
   CPPLINK=mpicxx
 endif
 CC=openmp
-SPI_CFLAGS=-DBGQ=1 -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
-SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib -lSPI_cnk
+SPI_CFLAGS=-DBGQ=0 -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
+SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib #-lSPI_cnk
 ifeq ($(CC),mp)
   LCFLAGS = -fopenmp -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src $(SPI_CFLAGS)
   LFLAGS = -fopenmp -L ../src  $(SPI_LDFALGS)
@@ -18,7 +18,7 @@ endif
 
 USERLIBS = -lmrmpi
 
-all: wordcount bfs octree_move_lg
+all: wordcount bfs octree
 
 wordcount: wordcount.o
 	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) wordcount.o $(USERLIBS) -o wordcount

@@ -56,7 +56,7 @@ extern Stat st;
   ((vis[(v)/LONG_BITS]) |= (1UL << ((v)%LONG_BITS)))
 
 // graph partition
-int mypartition(char *, int);
+int64_t mypartition(char *, int);
 // read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
@@ -305,7 +305,7 @@ int main(int argc, char **argv)
 }
 
 // partiton <key,value> based on the key
-int mypartition(char *key, int keybytes){
+int64_t mypartition(char *key, int keybytes){
   int64_t v = *(int64_t*)key;
   if(v<quot*rem+rem)
     return v/(quot+1);
@@ -445,14 +445,14 @@ int64_t getrootvert(){
       myroot = rand() % nglobalverts;
     }
     MPI_Bcast((void*)&myroot, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
-    int myroot_proc=mypartition((char*)&myroot, (int)sizeof(int64_t));
+    int64_t myroot_proc=mypartition((char*)&myroot, (int)sizeof(int64_t));
     if(myroot_proc==me){
       int64_t root_local=myroot-nvertoffset;
       if(rowstarts[root_local+1]-rowstarts[root_local]==0){
         myroot=-1;
       }
     }
-    MPI_Bcast((void*)&myroot, 1, MPI_INT64_T, myroot_proc, MPI_COMM_WORLD);
+    MPI_Bcast((void*)&myroot, 1, MPI_INT64_T,(int)myroot_proc, MPI_COMM_WORLD);
   }while(myroot==-1);
   return myroot;
 }

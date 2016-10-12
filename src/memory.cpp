@@ -46,7 +46,7 @@ void record_memory_usage(){
 #else
   pid_t pid=getpid();
 
-  int64_t vmpeak,vmsize;
+  int64_t vmpeak=0;
   sprintf(procname,"/proc/%ld/status", (long)pid);
   FILE *fp=fopen(procname,"r");
   
@@ -57,11 +57,11 @@ void record_memory_usage(){
       while(isspace(*p)) ++p;
       vmpeak=strtoull(p, NULL, 0);
     }
-    if(strncmp(line, "VmSize:", 7) == 0){
-      char *p = line + 7;
-      while(isspace(*p)) ++p;
-      vmsize=strtoull(p, NULL, 0); 
-    }
+    //if(strncmp(line, "VmSize:", 7) == 0){
+    //  char *p = line + 7;
+    //  while(isspace(*p)) ++p;
+    //  vmsize=strtoull(p, NULL, 0); 
+    //}
   }
 
   fclose(fp);

@@ -36,7 +36,7 @@ public:
     return kvtype;
   }
 
-  int getNextKV(int, int, char **, int &, char **, int &, 
+  int64_t getNextKV(int, int64_t, char **, int &, char **, int &, 
     int *kff=NULL, int *vff=NULL);
 
   int addKV(int, char *, int &, char *, int &);

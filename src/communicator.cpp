@@ -24,8 +24,8 @@ Communicator* Communicator::Create(MPI_Comm _comm, int _tnum, int _commmode){
   Communicator *c=NULL;
   if(_commmode==0)
     c = new Alltoall(_comm, _tnum);
-  else if(_commmode==1)
-    c = new Ptop(_comm, _tnum);
+  //else if(_commmode==1)
+  //  c = new Ptop(_comm, _tnum);
   else
     LOG_ERROR("Create communicator error mode=%d!\n", _commmode);
   return c;

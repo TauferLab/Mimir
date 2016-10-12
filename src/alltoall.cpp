@@ -34,12 +34,12 @@ using namespace MAPREDUCE_NS;
 #define SAVE_ALL_DATA(ii) \
 {\
   int k=0;\
-  int spacesize=0;\
+  int64_t spacesize=0;\
   char *src_buf=NULL, *dst_buf=NULL;\
   src_buf=recv_buf[ii];\
   if(blockid!=-1){\
     dst_buf=data->getblockbuffer(blockid);\
-    int datasize=data->getdatasize(blockid);\
+    int64_t datasize=data->getdatasize(blockid);\
     dst_buf += datasize;\
     spacesize=data->blocksize-datasize;\
   }else{\
@@ -61,7 +61,7 @@ using namespace MAPREDUCE_NS;
       }\
     }\
     memcpy(dst_buf, src_buf, copysize);\
-    int datasize=data->getdatasize(blockid);\
+    int64_t datasize=data->getdatasize(blockid);\
     data->setblockdatasize(blockid,datasize+copysize);\
     dst_buf+=copysize;\
     src_buf+=copysize;\
@@ -123,9 +123,9 @@ using namespace MAPREDUCE_NS;
 #endif
 
 Alltoall::Alltoall(MPI_Comm _comm, int _tnum):Communicator(_comm, 0, _tnum){
-  int provided;
 
 #ifdef MTMR_MULTITHREAD 
+  int provided;
   MPI_Query_thread(&provided);
   if(provided < MPI_THREAD_FUNNELED){
     LOG_ERROR("%s", "Error: MPI_THREAD_FUNNELED mode should be supported!\n");
@@ -200,7 +200,7 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
 
   type_log_bytes=0;
   int type_bytes=0x1;
-  while((int64_t)type_bytes*MAX_COMM_SIZE<total_send_buf_size){
+  while((size_t)type_bytes*MAX_COMM_SIZE<total_send_buf_size){
     type_bytes<<=1;
     type_log_bytes++;
   }
@@ -577,7 +577,7 @@ void Alltoall::exchange_kv(){
   for(i=0; i<size; i++){
     a2a_s_count[i]=(off[i]+(0x1<<type_log_bytes)-1)>>type_log_bytes;
     a2a_r_count[i]=(recv_count[ibuf][i]+(0x1<<type_log_bytes)-1)>>type_log_bytes;
-    a2a_s_displs[i] = (i*send_buf_size)>>type_log_bytes;
+    a2a_s_displs[i] = (i*(int)send_buf_size)>>type_log_bytes;
   }
   a2a_r_displs[0] = 0;
   for(i=1; i<size; i++)
@@ -597,9 +597,6 @@ void Alltoall::exchange_kv(){
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_PAD, send_padding_bytes);
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_PAD, recv_padding_bytes);
 
-  //printf("type_log_bytes=%d, send_padding=%ld, recv_padding=%ld\n", \
-    type_log_bytes, send_padding_bytes, recv_padding_bytes);
- 
   MPI_Datatype comm_type;
   MPI_Type_contiguous((0x1<<type_log_bytes), MPI_BYTE, &comm_type);
   MPI_Type_commit(&comm_type);

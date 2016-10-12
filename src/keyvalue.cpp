@@ -30,8 +30,8 @@ KeyValue::~KeyValue(){
   LOG_PRINT(DBG_DATA, "%s", "DATA: KV Destroy.\n");
 }
 
-
-int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
+#if 1
+int64_t KeyValue::getNextKV(int blockid, int64_t offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
   if(offset >= blocks[blockid].datasize) return -1;
   
   int bufferid = blocks[blockid].bufferid;
@@ -44,7 +44,9 @@ int KeyValue::getNextKV(int blockid, int offset, char **key, int &keybytes, char
 
   return offset;
 }
+#endif
 
+#if 1
 /*
  * Add a KV
  * return 0 if success, else return -1
@@ -60,7 +62,7 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
   }
 #endif
 
-  int datasize = blocks[blockid].datasize;
+  int64_t datasize = blocks[blockid].datasize;
   if(kvbytes+datasize > blocksize) return -1;
 
   int bufferid = blocks[blockid].bufferid;
@@ -71,32 +73,33 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
 
   return 0;
 }
+#endif
 
 void KeyValue::print(int type, FILE *fp, int format){
   char *key, *value;
   int keybytes, valuebytes;
 
   for(int i = 0; i < nblock; i++){
-    int offset = 0;
+    int64_t offset = 0;
 
     acquire_block(i);
 
     offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
 
     while(offset != -1){
-      fprintf(fp, "%s", key);
+      //fprintf(fp, "%s", key);
  
       //if(type == 0) fprintf(fp, "%s", key);
       //else if(type == 1) fprintf(fp, "%d", *(int*)key);
       //else if(type == 2) fprintf(fp, "%ld", *(int64_t*)key);
       //else LOG_ERROR("%s", "Error undefined output type\n");
 
-      if(valuebytes != 0){
-        if(type == 0) fprintf(fp, "%s", value);
-        else if(type == 1) fprintf(fp, "%d", *(int*)value);
-        else if(type == 2) fprintf(fp, "%ld", *(int64_t*)value);
-        else LOG_ERROR("%s", "Error undefined output type\n");
-     }
+      //if(valuebytes != 0){
+      //  if(type == 0) fprintf(fp, "%s", value);
+      //  else if(type == 1) fprintf(fp, "%d", *(int*)value);
+      //  else if(type == 2) fprintf(fp, "%ld", *(int64_t*)value);
+      //  else LOG_ERROR("%s", "Error undefined output type\n");
+     //}
      fprintf(fp, "\n");
 
       offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);

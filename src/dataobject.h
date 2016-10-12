@@ -126,7 +126,7 @@ public:
     @param[in] blockid block id
     @return data size in this page
   */
-  int getdatasize(int blockid){
+  int64_t getdatasize(int blockid){
     return blocks[blockid].datasize;
   }
 
@@ -148,11 +148,11 @@ public:
     @param[in] data size in this page
     @return no return
   */ 
-  void setblockdatasize(int blockid, int datasize){
+  void setblockdatasize(int blockid, int64_t datasize){
     blocks[blockid].datasize = datasize;
   }
 
-  uint64_t gettotalsize(){
+  int64_t gettotalsize(){
     totalsize=0;
     for(int i=0;i<nblock;i++)
       totalsize+=blocks[i].datasize;
@@ -163,8 +163,8 @@ public:
   int ksize, vsize;     ///< key and value size
   int nblock;           ///< number of page
   int64_t blocksize;    ///< page size
-  uint64_t totalsize;   ///< datasize
-  uint64_t maxmemsize;  ///< maximum memory size
+  int64_t totalsize;    ///< datasize
+  int64_t maxmemsize;   ///< maximum memory size
 
 //protected:
 public:
@@ -182,7 +182,7 @@ public:
   omp_lock_t lock_t;            ///< lock for multithreading
 
   struct Block{
-    uint64_t  datasize;   
+    int64_t   datasize;   
     int       bufferid; 
   };
  

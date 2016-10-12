@@ -99,7 +99,7 @@ int main(int argc, char **argv)
   int min_limit, max_limit;
   min_limit=0;
   max_limit=digits+1;
-  level=floor((max_limit+min_limit)/2);
+  level=(int)floor((max_limit+min_limit)/2);
 
   MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
 
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
   char whitespace[10] = "\n";
   uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, NULL, 0);
 
-  thresh=nwords*density;
+  thresh=(int)((float)nwords*density);
   if(me==0){
     printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
   }
@@ -190,10 +190,10 @@ int main(int argc, char **argv)
 
     if(nkv >0){
       min_limit=level;
-      level= floor((max_limit+min_limit)/2);
+      level= (int)floor((max_limit+min_limit)/2);
     }else{
       max_limit=level;
-      level =  floor((max_limit+min_limit)/2);
+      level = (int) floor((max_limit+min_limit)/2);
     }
   }
 

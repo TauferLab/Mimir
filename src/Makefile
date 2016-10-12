@@ -10,7 +10,7 @@ else
   CPPLINK = mpicxx
 endif
 DEBUG = -g
-SPI_CFLAGS=-DBGQ=1 -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
+SPI_CFLAGS= -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
 SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib -lSPI_cnk
 ifeq ($(CC),mp)
   local_CFLAGS = -fopenmp $(DEBUG) -O2  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER $(SPI_CFLAGS)
@@ -21,7 +21,7 @@ endif
 LFLAGS = $(SPI_LDFLAGS)
 ARCHIEVE = ar
 AFLAGS =  -rcv
-OBJS = mapreduce.o dataobject.o keyvalue.o keymultivalue.o communicator.o alltoall.o  ptop.o hash.o spool.o const.o memory.o stat.o  
+OBJS = mapreduce.o dataobject.o keyvalue.o communicator.o alltoall.o  hash.o spool.o const.o memory.o stat.o  
 
 all: libmrmpi
 
@@ -40,8 +40,8 @@ dataobject.o: dataobject.cpp dataobject.h
 keyvalue.o: keyvalue.cpp keyvalue.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c keyvalue.cpp
 
-keymultivalue.o: keymultivalue.cpp keymultivalue.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c keymultivalue.cpp
+#keymultivalue.o: keymultivalue.cpp keymultivalue.h
+#	$(CPP) $(local_CFLAGS) $(CFLAGS) -c keymultivalue.cpp
 
 communicator.o: communicator.cpp communicator.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c communicator.cpp
@@ -49,8 +49,8 @@ communicator.o: communicator.cpp communicator.h
 alltoall.o: alltoall.cpp alltoall.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c alltoall.cpp
 
-ptop.o: ptop.cpp ptop.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c ptop.cpp
+#ptop.o: ptop.cpp ptop.h
+#	$(CPP) $(local_CFLAGS) $(CFLAGS) -c ptop.cpp
 
 hash.o: hash.cpp hash.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c hash.cpp

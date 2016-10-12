@@ -309,11 +309,11 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   if(_mycompress!=NULL){
     u=new UniqueInfo();
     u->ubucket = new Unique*[nbucket];
-    u->unique_pool=new Spool(nbucket*sizeof(Unique));
+    u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
     u->nunique=0;
     u->ubuf=u->unique_pool->add_block();
     u->ubuf_end=u->ubuf+u->unique_pool->blocksize; 
-    memset(u->ubucket, 0, nbucket*sizeof(Unique*));
+    memset(u->ubucket, 0, nbucket*(int)sizeof(Unique*));
     mycompress=_mycompress;
     ptr=_ptr;
     mode=CompressMode;
@@ -345,7 +345,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 #pragma omp for nowait
 #endif
   for(i = 0; i < inputkv->nblock; i++){
-    int offset = 0;
+    int64_t offset = 0;
 
     inputkv->acquire_block(i);
 
@@ -413,7 +413,7 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
   PROFILER_RECORD_COUNT(0, COUNTER_CPS_INPUT_KV, data->gettotalsize());
 
   if(estimate){
-    uint64_t estimate_kv_count = global_kvs_count/nprocs;
+    int64_t estimate_kv_count = global_kvs_count/nprocs;
     nbucket=1;
     while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
       factor*nbucket<estimate_kv_count)
@@ -500,22 +500,22 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   // init data structure
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(nbucket*sizeof(Unique));
+  u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
   u->nunique=0;
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
   u->ubuf=u->unique_pool->add_block();
   u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
 
-  char *key, *value;
-  int keybytes, valuebytes, kvsize;
-  char *kvbuf;
+  char *key=NULL, *value=NULL;
+  int keybytes=0, valuebytes=0, kvsize=0;
+  char *kvbuf=NULL;
   for(int i=0; i<kv->nblock; i++){ 
     // build unique structure
     kv->acquire_block(i);
 
     kvbuf=kv->getblockbuffer(i);
-    int datasize=kv->getdatasize(i);
+    int64_t datasize=kv->getdatasize(i);
     char *kvbuf_end=kvbuf+datasize;
     while(kvbuf<kvbuf_end){
       GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
@@ -573,8 +573,8 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
   if(ukey){
     cur_ukey=ukey;
 
-    char *unique_key, *unique_value;
-    int unique_keybytes, unique_valuebytes, kvsize;
+    char *unique_key=NULL, *unique_value=NULL;
+    int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
     char *kvbuf=(char*)ukey+sizeof(UniqueCPS);
     GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
       unique_value,unique_valuebytes,kvsize,this);
@@ -585,9 +585,9 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
     // calculate space needed
     int space_bytes;
     if(kvtype==GeneralKV)
-      space_bytes=sizeof(UniqueCPS)+twointlen+keybytes+maxvaluebytes;
+      space_bytes=(int)sizeof(UniqueCPS)+twointlen+keybytes+maxvaluebytes;
     else
-      space_bytes=sizeof(UniqueCPS)+keybytes+maxvaluebytes;
+      space_bytes=(int)sizeof(UniqueCPS)+keybytes+maxvaluebytes;
 
     // add another block
     if(u->ubuf_end-u->ubuf<space_bytes){
@@ -625,6 +625,7 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
 
     u->nunique++;
   }//END if
+  return 0;
 }
 
 
@@ -636,17 +637,17 @@ uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
     char *ubuf_end=ubuf+unique_pool->blocksize;
       
     while(ubuf < ubuf_end){
-      UniqueCPS *ukey = (UniqueCPS*)(ubuf);
-      int left_bytes=ubuf_end-ubuf;
-      if((left_bytes <= sizeof(UniqueCPS))) break;
+      //UniqueCPS *ukey = (UniqueCPS*)(ubuf);
+      int left_bytes=(int)(ubuf_end-ubuf);
+      if((left_bytes <= (int)sizeof(UniqueCPS))) break;
       else if(kvtype==GeneralKV){
-        char *kvbuf=ubuf+sizeof(UniqueCPS);
+        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
         if(left_bytes<twointlen || *(int*)kvbuf==0) break;
       }else if(kvtype==StringKV || kvtype==StringKFixedV){
-        char *kvbuf=ubuf+sizeof(UniqueCPS);
+        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
         if(strlen(kvbuf)==0) break;
       }else if(kvtype==FixedKV || kvtype==FixedKStringV){
-        char *kvbuf=ubuf+sizeof(UniqueCPS);
+        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
         char tmpbuf[ksize];
         memset(tmpbuf, 0, ksize);
         if(left_bytes<ksize || memcmp(kvbuf,tmpbuf,ksize)==0) break;
@@ -655,10 +656,10 @@ uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
       nunique++;
       if(nunique>u->nunique) goto out;
 
-      char *unique_key, *unique_value;
-      int unique_keybytes, unique_valuebytes, kvsize;
+      char *unique_key=NULL, *unique_value=NULL;
+      int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
      
-      ubuf+=sizeof(UniqueCPS);
+      ubuf+=(int)sizeof(UniqueCPS);
       GET_KV_VARS(kvtype,ubuf,unique_key,unique_keybytes,\
         unique_value,unique_valuebytes,kvsize,this);
 
@@ -687,7 +688,7 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
   PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, data->gettotalsize());
  
   if(estimate){
-    uint64_t estimate_kv_count = global_kvs_count/nprocs;
+    int64_t estimate_kv_count = global_kvs_count/nprocs;
     nbucket=1;
     while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
       factor*nbucket<estimate_kv_count)
@@ -778,12 +779,12 @@ void MapReduce::scan(
 #endif
   for(int i = 0; i < kv->nblock; i++){
 
-     char *key, *value;
-     int keybytes, valuebytes, kvsize;
+     char *key=NULL, *value=NULL;
+     int keybytes=0, valuebytes=0, kvsize=0;
 
      kv->acquire_block(i);
      char *kvbuf=kv->getblockbuffer(i);
-     int datasize=kv->getdatasize(i);
+     int64_t datasize=kv->getdatasize(i);
      
      int offset=0;
      while(offset < datasize){
@@ -859,8 +860,8 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
       LOG_ERROR("The value bytes %d is larger than the max %d\n", \
         valuebytes, maxvaluebytes);
     }
-    char *unique_key, *unique_value;
-    int unique_keybytes, unique_valuebytes, kvsize;
+    char *unique_key=NULL, *unique_value=NULL;
+    int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
     char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS);
     GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
       unique_value,unique_valuebytes,kvsize,this);
@@ -923,7 +924,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
     me, nprocs, filepath, _mycompress);
 
   if(estimate){
-    uint64_t estimate_kv_count = global_kvs_count/nprocs;
+    int64_t estimate_kv_count = global_kvs_count/nprocs;
     nbucket=1;
     while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
       factor*nbucket<estimate_kv_count)
@@ -962,7 +963,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   if(_mycompress!=NULL){
     u=new UniqueInfo();
     u->ubucket = new Unique*[nbucket];
-    u->unique_pool=new Spool(nbucket*sizeof(Unique));
+    u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
     u->nunique=0;
     u->ubuf=u->unique_pool->add_block();
     u->ubuf_end=u->ubuf+u->unique_pool->blocksize; 
@@ -980,7 +981,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   }
 
   // create input file buffer
-  uint64_t input_buffer_size=inputsize;
+  int64_t input_buffer_size=inputsize;
 #if 0
 #ifdef USE_MPI_IO
   char **input_file_buffers = new char*[INPUT_BUF_COUNT];
@@ -1003,7 +1004,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   _tinit(0);
 #endif
 
-  int fcount = ifiles.size();
+  int fcount = (int)ifiles.size();
   for(int i = 0; i < fcount; i++){
     int64_t input_char_size=0;
 
@@ -1570,8 +1571,8 @@ MapReduce::Unique* MapReduce::_findukey(Unique **unique_list, int ibucket, char 
     return NULL;
   }
 
-  char *unique_key, *unique_value;
-  int unique_keybytes, unique_valuebytes, kvsize;
+  char *unique_key=NULL, *unique_value=NULL;
+  int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
   while(uptr){
     char *kvbuf=(char*)uptr+sizeof(UniqueCPS);
     GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
@@ -1602,7 +1603,7 @@ void MapReduce::_unique2set(UniqueInfo *u){
     while(ubuf < ubuf_end){
       Unique *ukey = (Unique*)(ubuf);
 
-      if((ubuf_end-ubuf < sizeof(Unique)) || 
+      if(((int)(ubuf_end-ubuf) < (int)sizeof(Unique)) || 
         (ukey->key==NULL))
         break;
 
@@ -1648,8 +1649,8 @@ end:
 int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv, UserReduce myreduce, void *ptr, int shared){
 
   //DEFINE_KV_VARS;
-  char *key, *value;
-  int keybytes, valuebytes, kvsize;
+  char *key=NULL, *value=NULL;
+  int keybytes=0, valuebytes=0, kvsize=0;
   char *kvbuf;
   
   int isfirst=1, pid=0;
@@ -1684,7 +1685,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
       // Find the key
       int ibucket = hid % nbucket;
-      Unique *ukey, *pre;
+      Unique *ukey=NULL, *pre=NULL;
       ukey = _findukey(u->ubucket, ibucket, key, keybytes, pre);
 
       int key_hit=1;
@@ -1697,7 +1698,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
       if(isfirst){
         //printf("kmvbytes=%d, mv_inc=%d\n", kmvbytes, mv_inc);
         kmvbytes+=mv_inc;
-        if(!key_hit) kmvbytes+=(keybytes+3*sizeof(int));
+        if(!key_hit) kmvbytes+=(keybytes+3*(int)sizeof(int));
 
         // We need the intermediate convert
         if(kmvbytes>mv->blocksize){
@@ -1815,7 +1816,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
     p.start_blockid=last_blockid;
     p.start_offset=last_offset;
     p.end_blockid=kv->nblock-1;
-    p.end_offset=kv->getdatasize(kv->nblock-1);
+    p.end_offset=(int)kv->getdatasize(kv->nblock-1);
     p.start_set=last_set;
     p.end_set=u->nset;
 
@@ -1836,10 +1837,10 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,UserReduce myreduce, void *ptr, int shared){
  
   //DEFINE_KV_VARS; 
-  char *key, *value;
-  int keybytes, valuebytes, kvsize;
+  char *key=NULL, *value=NULL;
+  int keybytes=0, valuebytes=0, kvsize=0;
  
-  char *kvbuf;
+  //char *kvbuf;
 
   int mv_block_id=mv->add_block();
   mv->acquire_block(mv_block_id);
@@ -1856,22 +1857,22 @@ void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,
     while(ubuf < ubuf_end){
 
       Unique *ukey = (Unique*)(ubuf);
-      if((ubuf_end-ubuf < sizeof(Unique)) || (ukey->key==NULL))
+      if((ubuf_end-ubuf < (int)sizeof(Unique)) || (ukey->key==NULL))
         break;
 
       nunique++;
       if(nunique>u->nunique) goto end;
 
       *(int*)(mv_buf+mv_off)=ukey->keybytes;
-      mv_off+=sizeof(int);
+      mv_off+=(int)sizeof(int);
       *(int*)(mv_buf+mv_off)=ukey->mvbytes;
-      mv_off+=sizeof(int);
+      mv_off+=(int)sizeof(int);
       *(int*)(mv_buf+mv_off)=ukey->nvalue;
-      mv_off+=sizeof(int);
+      mv_off+=(int)sizeof(int);
      
       if(kv->kvtype==GeneralKV){
         ukey->soffset=(int*)(mv_buf+mv_off);
-        mv_off+=ukey->nvalue*sizeof(int);
+        mv_off+=ukey->nvalue*(int)sizeof(int);
       }
 
       ubuf+=ukeyoffset;
@@ -1903,7 +1904,7 @@ end:
   for(int i=0; i<kv->nblock; i++){
     kv->acquire_block(i);
     char *kvbuf=kv->getblockbuffer(i);
-    int datasize=kv->getdatasize(i);
+    int64_t datasize=kv->getdatasize(i);
     char *kvbuf_end=kvbuf+datasize;
     while(kvbuf<kvbuf_end){
       GET_KV_VARS(kv->kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
@@ -1932,10 +1933,10 @@ end:
     kv->release_block(i);
   }
 
-  char *values;
-  int nvalue, mvbytes, kmvsize, *valuesizes;
+  char *values=NULL;
+  int nvalue=0, mvbytes=0, kmvsize=0, *valuesizes=0;
 
-  int datasize=mv->getdatasize(mv_block_id);
+  int64_t datasize=mv->getdatasize(mv_block_id);
   int offset=0;
 
   //printf("offset=%d, datasize=%d\n", offset, datasize);
@@ -1968,9 +1969,9 @@ end:
    @return return number of output KVs
 */
 void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, DataObject *mv, int shared){
-  char *key, *value;
-  int keybytes, valuebytes, kvsize;
-  char *kvbuf;
+  char *key=NULL, *value=NULL;
+  int keybytes=0, valuebytes=0, kvsize=0;
+  //char *kvbuf;
 
   //DEFINE_KV_VARS;
 
@@ -1989,7 +1990,7 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
     if(kv->kvtype==GeneralKV){
       pset->soffset=(int*)(mvbuf+mvbuf_off);
       pset->s_off=mvbuf_off;
-      mvbuf_off += pset->nvalue*sizeof(int);
+      mvbuf_off += pset->nvalue*(int)sizeof(int);
     }
     pset->voffset=mvbuf+mvbuf_off;
     pset->v_off=mvbuf_off;
@@ -2063,8 +2064,8 @@ void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype,
   LOG_PRINT(DBG_CVT, "%d[%d] _mv2kmv start (kvtype=%d).\n", me, nprocs, kvtype);
 
   int nunique=0;
-  char *ubuf, *kmvbuf=NULL;
-  int uoff=0, kmvoff=0;
+  char *ubuf;// *kmvbuf=NULL;
+  //int uoff=0;
   char *ubuf_end;
   
   for(int i=0; i < u->unique_pool->nblock; i++){
@@ -2113,7 +2114,7 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
 
   TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
 
-  uint64_t tmax_mem_bytes=0;
+  //uint64_t tmax_mem_bytes=0;
 
   nunique=0;
   uint64_t *tunique=new uint64_t[tnum];
@@ -2132,8 +2133,8 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(nbucket*sizeof(Unique));
-  u->set_pool=new Spool(nset*sizeof(Set));
+  u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
+  u->set_pool=new Spool(nset*(int)sizeof(Set));
   u->nunique=0;
   u->nset=0;
 
@@ -2232,7 +2233,7 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(nbucket*sizeof(Unique));
+  u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
   u->nunique=0;
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
@@ -2244,9 +2245,9 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
   PROFILER_RECORD_COUNT(tid,COUNTER_PR_BUCKET_SIZE,nbucket*sizeof(void*));
   PROFILER_RECORD_COUNT(tid,COUNTER_PR_KMV_SIZE,blocksize);
 
-  char *key, *value;
-  int keybytes, valuebytes, kvsize;
-  char *kvbuf;
+  char *key=NULL, *value=NULL;
+  int keybytes=0, valuebytes=0, kvsize=0;
+  char *kvbuf=NULL;
   int unique_pool_max_block=0;
 
 #ifdef MTMR_MULTITHREAD 
@@ -2265,10 +2266,10 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
     char *ubuf_end=ubuf+u->unique_pool->blocksize;
 
     kvbuf=kv->getblockbuffer(i);
-    int datasize=kv->getdatasize(i);
+    int64_t datasize=kv->getdatasize(i);
     char *kvbuf_end=kvbuf+datasize;
     //int blocksize=
-    int kvbuf_off=0;
+    //int kvbuf_off=0;
 
     //printf("block %d start\n", i); fflush(stdout);
 
@@ -2326,22 +2327,22 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
       
       while(ubuf < ubuf_end){
         Unique *ukey = (Unique*)(ubuf);
-        if((ubuf_end-ubuf < sizeof(Unique)) || (ukey->key==NULL))
+        if(((int)(ubuf_end-ubuf) < (int)sizeof(Unique)) || (ukey->key==NULL))
           break;
 
         nunique++;
         if(nunique>u->nunique) goto out;
 
         *(int*)(kmv_buf+kmv_off)=ukey->keybytes;
-        kmv_off+=sizeof(int);
+        kmv_off+=(int)sizeof(int);
         *(int*)(kmv_buf+kmv_off)=ukey->mvbytes;
-        kmv_off+=sizeof(int);
+        kmv_off+=(int)sizeof(int);
         *(int*)(kmv_buf+kmv_off)=ukey->nvalue;
-        kmv_off+=sizeof(int);
+        kmv_off+=(int)sizeof(int);
      
         if(kv->kvtype==GeneralKV){
           ukey->soffset=(int*)(kmv_buf+kmv_off);
-          kmv_off+=ukey->nvalue*sizeof(int);
+          kmv_off+=(ukey->nvalue)*(int)sizeof(int);
         }
 
         ubuf+=ukeyoffset;
@@ -2391,8 +2392,8 @@ out:
     if(u->unique_pool->nblock>unique_pool_max_block)
       unique_pool_max_block=u->unique_pool->nblock;
 
-    char *values;
-    int nvalue, mvbytes, kmvsize, *valuesizes;
+    char *values=NULL;
+    int nvalue=0, mvbytes=0, kmvsize=0, *valuesizes=NULL;
 
     KeyValue *kv = (KeyValue*)data;
     //kv->print();
@@ -2748,7 +2749,7 @@ void MapReduce::_disinputfiles(const char *filepath, int sharedflag, int recurse
   TRACKER_RECORD_EVENT(0, EVENT_MAP_GET_INPUT);
 
   if(sharedflag){
-    int fcount = ifiles.size();
+    int fcount = (int)ifiles.size();
     int div = fcount / nprocs;
     int rem = fcount % nprocs;
     int *send_count = new int[nprocs];
@@ -2761,7 +2762,7 @@ void MapReduce::_disinputfiles(const char *filepath, int sharedflag, int recurse
         end += div;
         if(i < rem) end++;
         while(j < end){
-          send_count[i] += strlen(ifiles[j].c_str())+1;
+          send_count[i] += (int)strlen(ifiles[j].c_str())+1;
           j++;
         }
         total_count += send_count[i];
@@ -2786,7 +2787,7 @@ void MapReduce::_disinputfiles(const char *filepath, int sharedflag, int recurse
       int offset = 0;
       for(int i = 0; i < fcount; i++){
           memcpy(send_buf+offset, ifiles[i].c_str(), strlen(ifiles[i].c_str())+1);
-          offset += strlen(ifiles[i].c_str())+1;
+          offset += (int)strlen(ifiles[i].c_str())+1;
         }
     }
 
@@ -2797,7 +2798,7 @@ void MapReduce::_disinputfiles(const char *filepath, int sharedflag, int recurse
     while(off < recv_count){
       char *str = recv_buf+off;
       ifiles.push_back(std::string(str));
-      off += strlen(str)+1;
+      off += (int)strlen(str)+1;
     }
 
     delete [] send_count;
@@ -2903,8 +2904,8 @@ void MultiValueIterator::Begin(){
          value_end=pset->nvalue;
       }
       value=values;
-      if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
-      else if(kvtype==1) valuesize=strlen(value)+1;
+      if(kvtype==GeneralKV) valuesize=valuebytes[ivalue-value_start];
+      else if(kvtype==StringKV) valuesize=(int)strlen(value)+1;
       else if(kvtype==2 || kvtype==3) valuesize=vsize;
    }
 
@@ -2937,9 +2938,9 @@ void MultiValueIterator::Next(){
       }else{
         value+=valuesize;
       }
-      if(kvtype==0) valuesize=valuebytes[ivalue-value_start];
-      else if(kvtype==1) valuesize=strlen(value)+1;
-      else if(kvtype==2 || kvtype==3) valuesize=vsize;
+      if(kvtype==GeneralKV) valuesize=valuebytes[ivalue-value_start];
+      else if(kvtype==StringKV) valuesize=(int)strlen(value)+1;
+      else if(kvtype==FixedKV || kvtype==StringKFixedV) valuesize=vsize;
     }
     //printf("ivalue=%d,value=%p,valuesize=%d\n", ivalue, value, valuesize); fflush(stdout);
 }

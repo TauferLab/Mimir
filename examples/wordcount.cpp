@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
 }
 
 void map(MapReduce *mr, char *word, void *ptr){
-  int len=strlen(word)+1;
+  int len=(int)strlen(word)+1;
   //char one[10]={"1"};
 
   //printf("word=%s\n", word); fflush(stdout);

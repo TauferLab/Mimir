@@ -221,7 +221,7 @@ public:
   */
   void set_nbucket(int _estimate, int _nbucket, int _factor){
     estimate = _estimate;
-    nbucket = pow(2,_nbucket);
+    nbucket = (int)pow(2,_nbucket);
     nset = nbucket;
     factor = _factor;
   }
@@ -276,7 +276,7 @@ public:
  
     @param[in]  _myhash user-defined hash function
   */
-  void set_hash(int (*_myhash)(char *, int)){
+  void set_hash(int64_t (*_myhash)(char *, int)){
     myhash = _myhash;
   }
 
@@ -390,7 +390,7 @@ private:
   int64_t inputsize; // MB
   std::string tmpfpath;
 
-  int (*myhash)(char *, int);
+  int64_t (*myhash)(char *, int);
 
   int estimate, nbucket, factor, nset;
 
