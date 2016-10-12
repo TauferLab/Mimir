@@ -11,9 +11,9 @@ else
 endif
 DEBUG = -g
 ifeq ($(CC),mp)
-  local_CFLAGS = -fopenmp $(DEBUG) -O2  -DENABLE_PROFILER -DENABLE_TRACKER
+  local_CFLAGS = -fopenmp $(DEBUG) -O2  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER
 else
-  local_CFLAGS = $(DEBUG) -O3  -DENABLE_PROFILER -DENABLE_TRACKER
+  local_CFLAGS = $(DEBUG) -O3  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER
 endif
 #local_CFLAGS = $(DEBUG) -O2
 LFLAGS = 
