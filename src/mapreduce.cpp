@@ -2832,10 +2832,18 @@ void MapReduce::_getinputfiles(const char *filepath, int sharedflag, int recurse
       
       while(ep = readdir(dp)){
         
+#ifdef BGQ
+        if(ep->d_name[1] == '.') continue;
+#else
         if(ep->d_name[0] == '.') continue;
+#endif
        
         char newstr[MAXLINE]; 
+#ifdef BGQ
+        sprintf(newstr, "%s/%s", filepath, &(ep->d_name[1]));
+#else
         sprintf(newstr, "%s/%s", filepath, ep->d_name);
+#endif
         err = stat(newstr, &inpath_stat);
         if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
         
