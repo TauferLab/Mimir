@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# change to job DIR
+cd /home/yguo/proj/nek5-dist/run/medium
+
+inputFilePrefix="medium"
+echo "$inputFilePrefix" > SESSION.NAME
+echo `pwd`'/' >> SESSION.NAME
+
+# setup mpi env
+
+# regular job scripts from here
+runjob --np 8192 -p 16 --block $COBALT_PARTNAME --verbose=INFO : ./nek5000

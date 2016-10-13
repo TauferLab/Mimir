@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# echo "prefix,"$PREFIX
+# echo "out dir",$OUTDIR
+# echo "distribution",$DIST
+# echo "stdiv",$STDIV
+# echo "file count",$NFILE
+# echo "ligand counts",$COUNT
+# echo "start index",$SIDX
+
+PPN=16
+
+PREFIX=$1
+OUTDIR=$2
+FSIZE=$3
+UNIQUE=$4
+NODE=$5
+
+if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
+
+runjob --np $(($NODE*$PPN)) -p $PPN --block $COBALT_PARTNAME --verbose=INFO \
+    : ./gen_wordcount_uniform $PREFIX $OUTDIR $FSIZE $UNIQUE $PPN

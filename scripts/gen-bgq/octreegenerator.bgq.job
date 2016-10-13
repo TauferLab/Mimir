@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# echo "prefix,"$PREFIX
+# echo "out dir",$OUTDIR
+# echo "distribution",$DIST
+# echo "stdiv",$STDIV
+# echo "file count",$NFILE
+# echo "ligand counts",$COUNT
+# echo "start index",$SIDX
+
+PPN=16
+
+PREFIX=$1
+OUTDIR=$2
+SIDX=$3
+NFILE=$4
+STDIV=$5
+COUNT=$6
+DIST=$7
+NODE=$8
+
+if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
+
+runjob --np $(($NODE*$PPN)) -p $PPN --block $COBALT_PARTNAME --verbose=INFO \
+    : ./gen_key_normal $PREFIX $OUTDIR $SIDX $NFILE $STDIV  1 0 0 0 $COUNT $DIST
