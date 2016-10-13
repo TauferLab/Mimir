@@ -66,4 +66,4 @@ stat.o: stat.cpp stat.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c stat.cpp
 
 clean: 
-	rm *.o libmrmpi.a
+	-rm *.o libmrmpi.a

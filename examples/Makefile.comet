@@ -36,7 +36,7 @@ octree: octree_move_lg.o
 	$(CPPLINK) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o $(USERLIBS) -o octree
 
 clean:
-	rm *.o wordcount bfs octree
+	-rm *.o wordcount bfs octree
 
 #bfs.o: bfs.cpp
 #	$(CPP) $(CFLAGS) -c $<
