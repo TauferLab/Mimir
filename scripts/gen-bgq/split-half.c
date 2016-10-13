@@ -41,6 +41,7 @@ int main(int argc, char *argv[])
     int fd = open(filename, O_RDONLY);
     int file_size = lseek(fd, 0, SEEK_END);
     close(fd);
+    printf("filesize: %d\n", file_size);
     fd = open(filename, O_RDONLY);
     if (file_size == 0) {
         close(fd);

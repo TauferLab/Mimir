@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
     int worldsize = 0, worldrank = 0;
     int rank_per_node = 0;
 
-    unsigned long long fsize = 0;
+    int fsize = 0;
     int n_unique = 0;
 
     string key_file_prefix;
@@ -88,12 +88,12 @@ int main(int argc, char *argv[])
 
     key_file_prefix = string(argv[1]);
     outdir = string(argv[2]);
-    fsize = strtoull(argv[3], NULL, 10);
+    fsize = atoi(argv[3]);
     n_unique = atoi(argv[4]);
     rank_per_node = atoi(argv[5]);
 
     printf("The file prefix is: %s\n", key_file_prefix.c_str());
-    printf("filesize: %llu n_unique words %d\n", fsize, n_unique);
+    printf("filesize: %d n_unique words %d\n", fsize, n_unique);
 
     MPI_Comm splitcomm;
     MPI_Comm_split(MPI_COMM_WORLD, worldrank / rank_per_node, worldrank, &splitcomm);
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
     sprintf(filename, "%s/%s.unique.%d.txt", outdir.c_str(), key_file_prefix.c_str(), worldrank);
     ofstream out_file(filename, ios::out);
 
-    for (unsigned long long size = 0; size < fsize; ) {
+    for (int size = 0; size < fsize; ) {
         int idx = dis(gen);
         out_file << unique_words[idx] << " ";
         size += strlen(unique_words[idx].c_str()) + 1;

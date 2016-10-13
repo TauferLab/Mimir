@@ -1,11 +1,11 @@
 #! /bin/zsh
 
-BDIR="/projects/SSSPPg/yguo/mt-mrmpi/data"
+BDIR="/projects/MPICH_MCS/yguo/mt-mrmpi/data"
 
 function create_data {
     N_LIGAND=$(echo "2^$1" | bc)
     node=$2
-    qsub -A MPICH_MCS -t 15 -n $node --mode script \
+    qsub -A MPICH_MCS -t 60 -n $node --mode script \
         ./octreegenerator.bgq.job octree \
         "$BDIR/octree/weakscale$1/$node" \
         0 0 0.5 "$N_LIGAND" normal $node
