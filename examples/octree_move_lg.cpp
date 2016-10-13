@@ -57,7 +57,7 @@ int level;
 
 int main(int argc, char **argv)
 {
-  MPI_Init(&argc, &argv); 
+  MPI_Init(&argc, &argv);
 
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
   MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
 
   mr_convert->set_threadbufsize(lbufsize);
-  mr_convert->set_sendbufsize(gbufsize); 
+  mr_convert->set_sendbufsize(gbufsize);
   mr_convert->set_blocksize(blocksize);
   mr_convert->set_inputsize(inputsize);
   mr_convert->set_commmode(commmode);
@@ -127,7 +127,7 @@ int main(int argc, char **argv)
 
   MapReduce *mr_level=new MapReduce(MPI_COMM_WORLD);
   mr_level->set_threadbufsize(lbufsize);
-  mr_level->set_sendbufsize(gbufsize); 
+  mr_level->set_sendbufsize(gbufsize);
   mr_level->set_blocksize(blocksize);
   mr_level->set_inputsize(inputsize);
   mr_level->set_commmode(commmode);
@@ -197,7 +197,7 @@ int main(int argc, char **argv)
     }
   }
 
-  output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level); 
+  output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level);
 #endif
   //if(me==0){
   //   printf("after first delete:");
@@ -213,13 +213,13 @@ int main(int argc, char **argv)
 
   if(me==0) printf("level=%d\n", level);
 
-  MPI_Finalize();	
+  MPI_Finalize();
 }
 
 void mergeword(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
   int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
- 
+
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
@@ -246,14 +246,14 @@ void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int l
       mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
     }
   }else{
-    mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t)); 
+    mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
   }
 #else
   for(iter->Begin(); !iter->Done(); iter->Next()){
     sum+=*(int*)iter->getValue();
   }
   if(sum>thresh)
-    mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t)); 
+    mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
 #endif
 }
 
@@ -292,7 +292,7 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
   //  }
   //}
 
-#if 0	
+#if 0
   const int num_atoms = floor((num_coor-2)/3);
   double *x = new double[num_atoms];
   double *y = new double[num_atoms];
@@ -341,7 +341,7 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
     }else{
       maxz=medz;
     }
-		
+
     /*calculate the octant using the formula m0*2^0+m1*2^1+m2*2^2*/
     int bit=m0+(m1*2)+(m2*4);
     //char bitc=(char)(((int)'0') + bit); //int 8 => char '8'
@@ -368,7 +368,7 @@ double slope(double x[], double y[], int num_atoms){
     sumx += x[i];
     sumy += y[i];
   }
-	
+
   double xbar = sumx/num_atoms;
   double ybar = sumy/num_atoms;
 
@@ -380,7 +380,7 @@ double slope(double x[], double y[], int num_atoms){
   }
 
   slope = xybar / xxbar;
-  return slope;	
+  return slope;
 }
 
 void output(const char *filename, const char *outdir, const char *prefix, float density, MapReduce *mr1, MapReduce *mr2){
@@ -394,13 +394,13 @@ void output(const char *filename, const char *outdir, const char *prefix, float 
     sprintf(header, "%s/%s_d%.2f-c%s-b%s-i%s-h%d-%s.%d", \
       outdir, prefix, density, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs);
 
-  sprintf(tmp, "%s.%d.txt", header, me); 
+  sprintf(tmp, "%s.%d.txt", header, me);
 
   FILE *fp = fopen(tmp, "w+");
   //mr1->print_stat(fp);
   MapReduce::print_stat(mr2, fp);
   fclose(fp);
-  
+
   MPI_Barrier(MPI_COMM_WORLD);
 
   if(me==0){

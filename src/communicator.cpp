@@ -37,7 +37,7 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
   comm = _comm;
   commtype = _commtype;
   tnum = _tnum;
-  
+
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &size);
 
@@ -46,7 +46,7 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
   thread_buf_size = send_buf_size = 0;
   nbuf = 0;
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   thread_buffers = NULL;
   thread_offsets = NULL;
 #endif
@@ -72,7 +72,7 @@ Communicator::~Communicator(){
   }
   delete [] blocks;
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   for(int i = 0; i < tnum; i++){
     //printf("free: buffers[%d]=%p\n", i, local_buffers[i]);
     if(thread_buffers !=NULL && thread_buffers[i]) mem_aligned_free(thread_buffers[i]);
@@ -85,7 +85,7 @@ Communicator::~Communicator(){
     if(send_offsets !=NULL && send_offsets[i]) mem_aligned_free(send_offsets[i]);
   }
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   if(thread_buffers) delete [] thread_buffers;
   if(thread_offsets) delete [] thread_offsets;
 #endif
@@ -110,7 +110,7 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
   thread_buf_size = _tbufsize;
   send_buf_size = (_sbufsize/MEMPAGE_SIZE/size)*MEMPAGE_SIZE;
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   if(thread_buf_size>send_buf_size){
     LOG_ERROR("Error: thread local buffer size (%ld per process) cannot be larger than send buffer size (%ld per process)!", \
      thread_buf_size, send_buf_size);
@@ -128,7 +128,7 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
   nbuf = _nbuf;
 #endif
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   thread_buffers = new char*[tnum];
   thread_offsets = new int*[tnum];
 
@@ -142,7 +142,7 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
       thread_buf_size*size);
   }
 #endif
- 
+
   send_buffers = new char*[nbuf];
   send_offsets = new int*[nbuf];
 
@@ -155,7 +155,7 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
 
   PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_BUF, total_send_buf_size*nbuf);
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   for(int i = 0; i < tnum; i++){
     if(!thread_buffers[i]){
       LOG_ERROR("%s", "Error: communication buffer is overflow!\n");
@@ -174,7 +174,7 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
 
 void Communicator::init(DataObject *_data){
   medone = tdone = pdone = 0;
-  data = _data; 
+  data = _data;
 
  if(send_buf_size>data->blocksize){
     LOG_ERROR("Error: send buffer size (%ld per process) cannot be larger than block size (%ld)!\n", send_buf_size, data->blocksize);

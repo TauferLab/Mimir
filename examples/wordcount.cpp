@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 
 #if 1
   mr->set_threadbufsize(lbufsize);
-  mr->set_sendbufsize(gbufsize); 
+  mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
   mr->set_inputsize(inputsize);
   mr->set_commmode(commmode);
@@ -161,11 +161,11 @@ int main(int argc, char *argv[])
 #endif
 
   output("mtmr.wc", outdir, prefix, mr);
- 
+
   delete mr;
 
   // clear files
-#if USE_LOCAL_DISK 
+#if USE_LOCAL_DISK
   sprintf(cmd, "rm -rf %s", dir);
   system(cmd);
 #endif
@@ -186,18 +186,18 @@ void map(MapReduce *mr, char *word, void *ptr){
 
 void countword(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   int64_t count=0;
- 
+
   for(iter->Begin(); !iter->Done(); iter->Next()){
     count+=*(int64_t*)iter->getValue();
   }
-  
+
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
 void mergeword(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
   int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
- 
+
   mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
@@ -208,17 +208,17 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
 
   if(estimate)
     sprintf(header, "%s/%s_c%s-b%s-i%s-f%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, nprocs); 
+      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, nprocs);
   else
     sprintf(header, "%s/%s_c%s-b%s-i%s-h%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
+      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs);
 
   sprintf(tmp, "%s.%d.txt", header, me);
 
   FILE *fp = fopen(tmp, "w+");
   MapReduce::print_stat(mr, fp);
   fclose(fp);
-  
+
   MPI_Barrier(MPI_COMM_WORLD);
 
   if(me==0){

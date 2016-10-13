@@ -87,7 +87,7 @@
 #define PROFILER_START(thread_count)
 #define PROFILER_RECORD_TIME_START
 #define PROFILER_RECORD_TIME_END(thread_id, timer_type)
-#define PROFILER_RECORD_COUNT(thread_id, counter_type, count) 
+#define PROFILER_RECORD_COUNT(thread_id, counter_type, count)
 #define PROFILER_END
 #define PROFILER_PRINT(out, thread_count)
 #else

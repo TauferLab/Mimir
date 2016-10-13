@@ -55,7 +55,7 @@ DataObject::DataObject(
   int _threadsafe){
 
   datatype = _datatype;
- 
+
   blocksize = _blocksize;
   maxblock = _maxblock;
 
@@ -87,7 +87,7 @@ DataObject::DataObject(
 
   id = DataObject::object_id++;
 
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
   omp_init_lock(&lock_t);
 #endif
 
@@ -95,7 +95,7 @@ DataObject::DataObject(
  }
 
 DataObject::~DataObject(){
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
   omp_destroy_lock(&lock_t);
 #endif
 
@@ -142,7 +142,7 @@ int DataObject::acquire_block(int blockid){
   //printf("outofcore=%d\n", outofcore);
   if(!outofcore) return 0;
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   if(threadsafe) omp_set_lock(&lock_t);
 #endif
   int bufferid = blocks[blockid].bufferid;
@@ -186,7 +186,7 @@ int DataObject::acquire_block(int blockid){
   }
   buffers[bufferid].ref++;
   //omp_unset_lock(&lock_t);
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   if(threadsafe) omp_unset_lock(&lock_t);
 #endif
 
@@ -205,10 +205,10 @@ void DataObject::release_block(int blockid){
   if(bufferid==-1)
     LOG_ERROR("%s", "Error: aquired block should have buffer!\n");
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
   __sync_fetch_and_add(&buffers[bufferid].ref, -1);
 #else
- buffers[bufferid].ref-=1; 
+ buffers[bufferid].ref-=1;
 #endif
 }
 #endif
@@ -230,7 +230,7 @@ void DataObject::delete_block(int blockid){
  */
 int DataObject::add_block(){
   int blockid;
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
   // add counter FOP
   if(threadsafe)
     blockid = __sync_fetch_and_add(&nblock, 1);
@@ -238,12 +238,12 @@ int DataObject::add_block(){
 #endif
     blockid = nblock;
     nblock++;
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
   }
 #endif
 
   if(blockid >= maxblock){
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
     int tid = omp_get_thread_num();
     LOG_ERROR("Error: block count is larger than max number %d, id=%d, tid=%d!\n", maxblock, id, tid);
 #endif
@@ -264,7 +264,7 @@ int DataObject::add_block(){
 #endif
       nbuf++;
     }
-    
+
     if(!buffers[blockid].buf){
       LOG_ERROR("Error: malloc memory for data object failed (block count=%d, block size=%ld)!\n", nblock, blocksize);
       return -1;
@@ -272,14 +272,14 @@ int DataObject::add_block(){
 
     buffers[blockid].blockid = blockid;
     buffers[blockid].ref = 0;
-      
+
     blocks[blockid].datasize = 0;
     blocks[blockid].bufferid = blockid;
 
     DataObject::cur_page_count++;
     if(DataObject::cur_page_count>DataObject::max_page_count)
       DataObject::max_page_count=DataObject::cur_page_count;
- 
+
     return blockid;
   }else{
     // FIXME: out of core support

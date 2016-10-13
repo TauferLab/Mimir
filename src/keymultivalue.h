@@ -16,9 +16,9 @@ namespace MAPREDUCE_NS{
 class KeyMultiValue : public DataObject{
 
 public:
-  KeyMultiValue(int, 
+  KeyMultiValue(int,
     int blocksize=1,
-    int maxblock=4, 
+    int maxblock=4,
     int memsize=4,
     int outofcore=0,
     std::string a6=std::string(""),

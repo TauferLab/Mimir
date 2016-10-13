@@ -83,7 +83,7 @@ Ptop::Ptop(MPI_Comm _comm, int _tnum) : Communicator(_comm, 1, _tnum){
   reqs = NULL;
 
   recv_buf = NULL;
-  recv_req = MPI_REQUEST_NULL; 
+  recv_req = MPI_REQUEST_NULL;
 }
 
 Ptop::~Ptop(){
@@ -97,7 +97,7 @@ Ptop::~Ptop(){
   //delete [] buf;
   //delete [] off;
 
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
   for(int i = 0; i < size; i++)
     omp_destroy_lock((omp_lock_t*)GET_VAL(lock,i,onelocklen));
 #endif
@@ -152,7 +152,7 @@ void Ptop::init(DataObject *_data){
    //off[i] = 0;
 
     //omp_init_lock(&lock[i]);
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
     omp_init_lock((omp_lock_t*)GET_VAL(lock, i, onelocklen));
 #endif
 
@@ -183,14 +183,14 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
   if(kvsize > thread_buf_size){
     LOG_ERROR("Error: send KV size is larger than local buffer size. (KV size=%d, local buffer size=%ld)\n", kvsize, thread_buf_size);
   }
-#endif 
+#endif
 
   /* copy kv into local buffer */
   while(1){
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
     int   loff=thread_offsets[tid][target];
     char *lbuf=thread_buffers[tid]+target*thread_buf_size+loff;
-    
+
     // local buffer has space
     if(loff + kvsize <= thread_buf_size){
      PUT_KV_VARS(kvtype,lbuf,key,keysize,val,valsize,kvsize);
@@ -224,7 +224,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
 #else
     int goff=*(int*)GET_VAL(off,target,oneintlen);
     if(kvsize+goff<=send_buf_size){
-      char *gbuf=*(char**)GET_VAL(buf,target,oneptrlen)+goff; 
+      char *gbuf=*(char**)GET_VAL(buf,target,oneptrlen)+goff;
       PUT_KV_VARS(kvtype,gbuf,key,keysize,val,valsize,kvsize);
       *(int*)GET_VAL(off,target,oneintlen)+=kvsize;
     }
@@ -234,7 +234,7 @@ int Ptop::sendKV(int tid, int target, char *key, int keysize, char *val, int val
 }
 
 void Ptop::tpoll(int tid){
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
 #pragma omp atomic
   tdone++;
 
@@ -253,13 +253,13 @@ void Ptop::tpoll(int tid){
 }
 
 void Ptop::twait(int tid){
-#ifdef MTMR_MULTITHREAD  
+#ifdef MTMR_MULTITHREAD
   LOG_PRINT(DBG_COMM, "%d[%d] thread %d start wait\n", rank, size, tid);
 
   int i=0;
   while(i<size){
 
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
     int loff = thread_offsets[tid][i];
     if(loff == 0){
       i++;
@@ -273,7 +273,7 @@ void Ptop::twait(int tid){
       int flag;
       MPI_Is_thread_main(&flag);
       if(flag){
-        //MAKE_PROGRESS; 
+        //MAKE_PROGRESS;
 #if GATHER_STAT
           //double t1 = omp_get_wtime();
 #endif
@@ -289,7 +289,7 @@ void Ptop::twait(int tid){
 
     int k=i;
     //omp_set_lock(&lock[k]);
-#ifdef MTMR_MULTITHREAD 
+#ifdef MTMR_MULTITHREAD
     omp_set_lock((omp_lock_t*)GET_VAL(lock, k, onelocklen));
     int goff=*(int*)GET_VAL(off,i,oneintlen);
     if(goff+loff<=send_buf_size){
@@ -317,7 +317,7 @@ void Ptop::twait(int tid){
     int flag;
     MPI_Is_thread_main(&flag);
     if(flag){
-      //exchange_kv();  
+      //exchange_kv();
       //MAKE_PROGRESS;
 #if GATHER_STAT
           //double t1 = omp_get_wtime();
@@ -359,7 +359,7 @@ void Ptop::wait(){
     if(i!=rank)
       MPI_Isend(NULL, 0, MPI_BYTE, i, 0, comm, &reqs[ib][i]);
   }
- 
+
   do{
     CHECK_MPI_REQS;
   }while(pdone<size-1);

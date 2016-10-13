@@ -39,10 +39,10 @@ public:
     @return MapReduce object pointer
   */
   DataObject(DataType type,
-    int64_t blocksize=1, 
-    int maxblock=4, 
-    int memsize=4, 
-    int outofcore=0, 
+    int64_t blocksize=1,
+    int maxblock=4,
+    int memsize=4,
+    int outofcore=0,
     std::string tmpdir=std::string(""),
     int threadsafe=1);
 
@@ -55,7 +55,7 @@ public:
     Acquire a block. If the block isn't in-memory, ensure it's in-memmory after invoking this function.
 
     @param[in]  blockid block id
-    @return 0 if success, otherwise error. 
+    @return 0 if success, otherwise error.
   */
   int  acquire_block(int blockid){
     return 0;
@@ -66,24 +66,24 @@ public:
 
     @param[in]  blockid block id
     @return no return
-  */ 
+  */
   void release_block(int blockid){
   }
 
   /**
-    Delete a block. Free the buffer of this block. 
+    Delete a block. Free the buffer of this block.
     Note: this function doesn't support out-of-core and multithreading currently.
 
     @param[in]  blockid block id
     @return no return
-  */ 
+  */
   void delete_block(int blockid);
 
   /**
     Add en empty block.
 
     @return added block id
-  */  
+  */
   int add_block();
 
 
@@ -99,14 +99,14 @@ public:
   }
 
   /**
-    Output DataObject. 
+    Output DataObject.
 
     @param[in] type output type
     @param[in] fp output file pointer, also can be stdout, stderr
     @param[in] format output format
     @return added block id
   */
-  virtual void print(int type = 0, FILE *fp=stdout, int format=0); 
+  virtual void print(int type = 0, FILE *fp=stdout, int format=0);
 
   /**
     Set key and value size for FixedKV type
@@ -135,9 +135,9 @@ public:
 
     @param[in] blockid block id
     @return buffer pointer
-  */ 
+  */
   char *getblockbuffer(int blockid){
-    int bufferid = blocks[blockid].bufferid; 
+    int bufferid = blocks[blockid].bufferid;
     return buffers[bufferid].buf;
   }
 
@@ -147,7 +147,7 @@ public:
     @param[in] blockid block id
     @param[in] data size in this page
     @return no return
-  */ 
+  */
   void setblockdatasize(int blockid, int64_t datasize){
     blocks[blockid].datasize = datasize;
   }
@@ -182,14 +182,14 @@ public:
   omp_lock_t lock_t;            ///< lock for multithreading
 
   struct Block{
-    int64_t   datasize;   
-    int       bufferid; 
+    int64_t   datasize;
+    int       bufferid;
   };
- 
+
   struct Buffer{
-    char    *buf; 
+    char    *buf;
     int threadid;
-    int  blockid; 
+    int  blockid;
     int      ref;
   };
 
@@ -203,7 +203,7 @@ public:
   static void addRef(DataObject *);
   static void subRef(DataObject *);
 };
- 
+
 }
 
 #endif

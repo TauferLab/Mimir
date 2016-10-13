@@ -49,7 +49,7 @@ void record_memory_usage(){
   int64_t vmpeak=0;
   sprintf(procname,"/proc/%ld/status", (long)pid);
   FILE *fp=fopen(procname,"r");
-  
+
   while(fgets(line, 100, fp)){
     if(strncmp(line, "VmPeak:", 7) == 0){
       //printf("line=%s\n", line);
@@ -60,7 +60,7 @@ void record_memory_usage(){
     //if(strncmp(line, "VmSize:", 7) == 0){
     //  char *p = line + 7;
     //  while(isspace(*p)) ++p;
-    //  vmsize=strtoull(p, NULL, 0); 
+    //  vmsize=strtoull(p, NULL, 0);
     //}
   }
 
@@ -93,7 +93,7 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
 
   //curmem += size;
   //if(curmem > maxmem) maxmem = curmem;
- 
+
   return ptr;
 }
 

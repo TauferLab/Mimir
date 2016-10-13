@@ -16,11 +16,11 @@
 #define INPUT_BUF_COUNT             2
 
 #define INPUT_SIZE                  8
-#define BLOCK_SIZE                 64  // 16M 
+#define BLOCK_SIZE                 64  // 16M
 
 #define LOCAL_BUF_SIZE            32  // 1K
 #define GLOBAL_BUF_SIZE           64  // 1M
-#define MAXMEM_SIZE                4  // 1G  
+#define MAXMEM_SIZE                4  // 1G
 #define MAX_BLOCKS              1024  // 1024 blocks
 
 #define PCS_PER_NODE              2
@@ -33,10 +33,10 @@
 #define BUCKET_SIZE               17
 #define MAX_BUCKET_SIZE           27
 
-// type 
+// type
 #define KV_TYPE                    0
 
-// out of core 
+// out of core
 #define OUT_OF_CORE                1
 #define TMP_PATH                  "."
 

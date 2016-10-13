@@ -49,7 +49,7 @@ private:
   //void recv_data();
   void save_data(int);
 
-  int  *flags; 
+  int  *flags;
   int  *ibuf;
 
   char* *buf;

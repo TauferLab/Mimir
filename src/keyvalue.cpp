@@ -11,13 +11,13 @@ using namespace MAPREDUCE_NS;
 
 KeyValue::KeyValue(
   int _kvtype,
-  uint64_t blocksize, 
+  uint64_t blocksize,
   int maxblock,
   int maxmemsize,
   int outofcore,
   std::string filename,
   int threadsafe):
-  DataObject(KVType, blocksize, 
+  DataObject(KVType, blocksize,
     maxblock, maxmemsize, outofcore, filename, threadsafe){
   kvtype = _kvtype;
 
@@ -33,7 +33,7 @@ KeyValue::~KeyValue(){
 #if 1
 int64_t KeyValue::getNextKV(int blockid, int64_t offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
   if(offset >= blocks[blockid].datasize) return -1;
-  
+
   int bufferid = blocks[blockid].bufferid;
   char *buf = buffers[bufferid].buf + offset;
 
@@ -53,7 +53,7 @@ int64_t KeyValue::getNextKV(int blockid, int64_t offset, char **key, int &keybyt
  */
 int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &valuebytes){
   int kvbytes = 0;
-  
+
   GET_KV_SIZE(kvtype, keybytes, valuebytes, kvbytes);
 
 #if SAFE_CHECK
@@ -88,7 +88,7 @@ void KeyValue::print(int type, FILE *fp, int format){
 
     while(offset != -1){
       //fprintf(fp, "%s", key);
- 
+
       //if(type == 0) fprintf(fp, "%s", key);
       //else if(type == 1) fprintf(fp, "%d", *(int*)key);
       //else if(type == 2) fprintf(fp, "%ld", *(int64_t*)key);

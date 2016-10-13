@@ -24,11 +24,11 @@ public:
   int setup(int64_t, int64_t, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
 
   void init(DataObject *);
- 
+
   int sendKV(int, int, char *, int, char *, int);
 
   void tpoll(int tid);
- 
+
   // multi-threads
   void twait(int tid);
 
@@ -51,14 +51,14 @@ private:
   int  *off;
 
   // used for MPI_Ialltoall
-  //uint64_t *send_displs;   
+  //uint64_t *send_displs;
   //uint64_t *recv_displs;
 
   int **recv_count;
   //recv_blockid=-1;
 #ifndef MTMR_ZERO_COPY
   char **recv_buf;
-#endif  
+#endif
   uint64_t  *recvcounts;
   //int one_type_bytes;
   int type_log_bytes;

@@ -33,11 +33,11 @@ const char* lbufsize="4K";
 const char* commmode="a2a";
 
 using namespace MAPREDUCE_NS;
-#if GATHER_STAT 
-#include "stat.h" 
-extern int mrtype; 
+#if GATHER_STAT
+#include "stat.h"
+extern int mrtype;
 extern Stat st;
-#endif 
+#endif
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -51,18 +51,18 @@ int64_t mypartition(char *, int);
 // read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
-//void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*); 
+//void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
 void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr);
 // count local edge number
 void countedge(char *, int, char *, int,void *);
- 
+
 // get root vertex
 int64_t getrootvert();
 // expand root vertex
 void rootvisit(MapReduce* , void *);
 // expand vertex
 void expand(MapReduce *, char *, int, char *, int, void *);
- 
+
 // shrink vertex
 void shrink(MapReduce *, char *, int, char *, int, void *);
 
@@ -79,7 +79,7 @@ int64_t  nglobaledges;     // global edge count
 int64_t  nlocalverts;      // local vertex count
 int64_t  nlocaledges;      // local edge count
 int64_t  nvertoffset;      // local vertex's offset
-int64_t quot, rem;             // quotient and reminder of globalverts/nprocs 
+int64_t quot, rem;             // quotient and reminder of globalverts/nprocs
 
 size_t   *rowstarts;       // rowstarts
 int64_t  *columns;         // columns
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
 
   if(nglobalverts<=0){
     if (me == 0) printf("The global vertexs should be larger than zero\n");
-    MPI_Abort(MPI_COMM_WORLD,1); 
+    MPI_Abort(MPI_COMM_WORLD,1);
   }
 
   if(me==0){
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
   mr->set_threadbufsize(lbufsize);
-  mr->set_sendbufsize(gbufsize); 
+  mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
   mr->set_inputsize(inputsize);
   mr->set_commmode(commmode);
@@ -191,8 +191,8 @@ int main(int argc, char **argv)
   nglobaledges = nedges;
 
   //if(me==0) fprintf(stdout, "nlocalverts=%ld\n", nlocalverts);
- 
-  rowstarts = new size_t[nlocalverts+1]; 
+
+  rowstarts = new size_t[nlocalverts+1];
   rowinserts = new size_t[nlocalverts];
   rowstarts[0] = 0;
   for(int64_t i = 0; i < nlocalverts; i++){
@@ -201,12 +201,12 @@ int main(int argc, char **argv)
   }
   nlocaledges = 0;
   mr->scan(countedge,NULL);
-  
+
   //if(me==0) printf("nlocaledges=%ld\n", nlocaledges);
 
   for(int64_t i = 0; i < nlocalverts; i++){
     rowstarts[i+1] += rowstarts[i];
-  } 
+  }
   columns=new int64_t[nlocaledges];
 
   if(me==0) fprintf(stdout, "begin make graph.\n");
@@ -223,7 +223,7 @@ int main(int argc, char **argv)
   if(me==0) {
      fprintf(stdout, "make CSR graph end.\n");
   }
-  
+
   // make data structure
   int64_t bitmapsize = (nlocalverts + LONG_BITS - 1) / LONG_BITS;
   vis  = new unsigned long[bitmapsize];
@@ -231,7 +231,7 @@ int main(int argc, char **argv)
 
   if(me==0) fprintf(stdout, "BFS traversal start.\n");
 
-  MPI_Barrier(MPI_COMM_WORLD);  
+  MPI_Barrier(MPI_COMM_WORLD);
 
   //int test_count = 0;
 
@@ -275,7 +275,7 @@ int main(int argc, char **argv)
 #endif
   }
 
-  output("mtmr.bfs", outdir, prefix, mr); 
+  output("mtmr.bfs", outdir, prefix, mr);
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -341,7 +341,7 @@ void fileread(MapReduce *mr, char *word, void *ptr)
 void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;
-  v0_local = v0 - nvertoffset; 
+  v0_local = v0 - nvertoffset;
 
   for(iter->Begin(); !iter->Done(); iter->Next()){
     v1=*(int64_t*)(iter->getValue());
@@ -355,7 +355,7 @@ void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter,
 void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;
-  v0_local = v0 - nvertoffset; 
+  v0_local = v0 - nvertoffset;
 
   //for(iter->Begin(); !iter->Done(); iter->Next()){
   v1=*(int64_t*)value;
@@ -388,7 +388,7 @@ void shrink(char *key, int keybytes, char *multivalue, int nvalues, int *valueby
 
   int64_t v0 = *(int64_t*)multivalue;
 
-  if(!TEST_VISITED(v_local, st->vis)){  
+  if(!TEST_VISITED(v_local, st->vis)){
     SET_VISITED(v_local, st->vis);
     st->pred[v_local] = v0;
     kv->add(key, keybytes, NULL, 0);
@@ -403,7 +403,7 @@ void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
 
   //printf("shrink: v0=%ld\n", v0); fflush(stdout);
 
-  if(!TEST_VISITED(v_local, vis)){  
+  if(!TEST_VISITED(v_local, vis)){
     SET_VISITED(v_local, vis);
     pred[v_local] = v0;
     mr->add_key_value(key, keybytes, NULL, 0);
@@ -411,7 +411,7 @@ void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
 }
 
 void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
- 
+
   int64_t v = *(int64_t*)key;
   int64_t v_local = v-nvertoffset;
 
@@ -424,7 +424,7 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
 
 void compress(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
- 
+
   mr->add_key_value(key, keysize, val1, val1size);
 }
 
@@ -476,18 +476,18 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
 
   if(estimate)
     sprintf(header, "%s/%s_c%s-b%s-i%s-f%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, nprocs); 
+      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, nprocs);
   else
     sprintf(header, "%s/%s_c%s-b%s-i%s-h%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs); 
+      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs);
 
-  sprintf(tmp, "%s.%d.txt", header, me); 
+  sprintf(tmp, "%s.%d.txt", header, me);
 
   FILE *fp = fopen(tmp, "w+");
   //mr->print_stat(fp);
   MapReduce::print_stat(mr, fp);
   fclose(fp);
-  
+
   MPI_Barrier(MPI_COMM_WORLD);
 
   if(me==0){
@@ -496,7 +496,7 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
     char timestr[1024];
     sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     char infile[1024+1];
-    sprintf(infile, "%s.*.txt", header); 
+    sprintf(infile, "%s.*.txt", header);
     char outfile[1024+1];
     sprintf(outfile, "%s_%s.txt", header, timestr);
 #ifdef BGQ

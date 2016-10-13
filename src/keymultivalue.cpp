@@ -11,13 +11,13 @@ using namespace MAPREDUCE_NS;
 
 KeyMultiValue::KeyMultiValue(
   int _kmvtype,
-  int blocksize, 
+  int blocksize,
   int maxblock,
   int maxmemsize,
   int outofcore,
   std::string filename,
   int threadsafe):
-  DataObject(KMVType, blocksize, 
+  DataObject(KMVType, blocksize,
     maxblock, maxmemsize, outofcore, filename, threadsafe){
   kmvtype = _kmvtype;
 
@@ -33,7 +33,7 @@ KeyMultiValue::~KeyMultiValue(){
 
 int KeyMultiValue::getNextKMV(int blockid, int offset, char **key, int &keybytes,
   int &nvalue, char **values, int **valuebytes){
- 
+
   if(offset >= blocks[blockid].datasize) return -1;
 
   int bufferid = blocks[blockid].bufferid;
@@ -100,7 +100,7 @@ int KeyMultiValue::addKMV(int blockid,char *key,int &keysize, char *val, int &nv
     memcpy(buf+datasize, &nval, sizeof(int));
     datasize += sizeof(int);
   }else LOG_ERROR("Error undefined KMV type %d.\n", kmvtype);
-  
+
   blocks[blockid].datasize = datasize;
   return 0;
 }
@@ -128,7 +128,7 @@ void KeyMultiValue::print(int type, FILE *fp, int format){
 
       if(kmvtype==0){
         for(int j = 0; j < nvalue; j++){
-          if(valuebytes != 0){ 
+          if(valuebytes != 0){
             if(type==0) fprintf(fp, ",%s", values);
             else if(type==1) fprintf(fp, ",%d", *(int*)values);
             else if(type==2) fprintf(fp, ",%ld", *(int64_t*)values);
