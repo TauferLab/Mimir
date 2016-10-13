@@ -2,30 +2,6 @@
 
 BDIR="/projects/MPICH_MCS/yguo/mt-mrmpi/data"
 
-function create_data_M {
-    pushd ../../gen-bgq
-    for node in $(echo 1); do
-        ./sub_split.sh "$BDIR/wordcount/wikipedia/wikipedia_300GB" words \
-            "$BDIR/wordcount/wikipedia/singlenode/$1M" \
-            "$node" \
-            "$(($1*1024*1024/16))" \
-            "$((16*$node))" 16 bgq
-    done
-    popd
-}
-
-function create_data_G {
-    pushd ../../gen-bgq
-    for node in $(echo 1); do
-        ./sub_split.sh "$BDIR/wordcount/wikipedia/wikipedia_300GB" words \
-            "$BDIR/wordcount/wikipedia/singlenode/$1G" \
-            "$node" \
-            "$(($1*1024*1024*1024/16))" \
-            "$((16*$node))" 16 bgq
-    done
-    popd
-}
-
 function run_size {
     date
     ./bgq-wait-for-qlen.sh yguo 19
