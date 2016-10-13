@@ -412,15 +412,18 @@ void output(const char *filename, const char *outdir, const char *prefix, float 
     sprintf(infile, "%s.*.txt", header);
     char outfile[1024+1];
     sprintf(outfile, "%s_%s.txt", header, timestr);
-    // char cmd[8192+1];
-    // sprintf(cmd, "cat %s>>%s", infile, outfile);
-    // system(cmd);
-    // sprintf(cmd, "rm %s", infile);
-    // system(cmd);
+#ifdef BGQ
     FILE* finalize_script = fopen(prefix, "w");
     fprintf(finalize_script, "#!/bin/zsh\n");
     fprintf(finalize_script, "cat %s>>%s\n", infile, outfile);
     fprintf(finalize_script, "rm %s\n", infile);
     fclose(finalize_script);
+#else
+    char cmd[8192+1];
+    sprintf(cmd, "cat %s>>%s", infile, outfile);
+    system(cmd);
+    sprintf(cmd, "rm %s", infile);
+    system(cmd);
+#endif
   }
 }
