@@ -1,0 +1,5 @@
+*.cobaltlog
+*.error
+*.output
+core.*
+scripts/execute/bgq/*.txt
