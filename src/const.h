@@ -14,6 +14,10 @@
 #define CACHELINE_SIZE   64
 #define MEMPAGE_SIZE   4096
 
+#define MAXLINE                  2048
+#define UNIT_1G_SIZE  (1024*1024*1024)
+#define MAX_COMM_SIZE       0x40000000
+
 //#define ROUNDUP(A,B) (char *) (((uint64_t) A + B) & ~B);
 
 // general type

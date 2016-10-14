@@ -1,7 +1,30 @@
 #ifndef MTMR_CONFIG_H
 #define MTMR_CONFIG_H
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
 extern int COMM_UNIT_SIZE;
+extern int MAX_KEY_SIZE;
+extern int MAX_VALUE_SIZE;
+
+extern int BUCKET_SIZE;
+extern int MAX_BUCKET_SIZE;
+
+/// if support out-of-core
+extern int OUT_OF_CORE;
+
+extern int MAX_BLOCKS;
+
+extern int64_t GLOBAL_BUF_SIZE;
+extern int64_t INPUT_SIZE;
+extern int64_t BLOCK_SIZE;
+
+extern int64_t MAXMEM_SIZE;
+
+extern int MAX_STR_SIZE;
+
 
 //#define USE_MT_IO
 //#define USE_MPI_IO
@@ -11,19 +34,19 @@ extern int COMM_UNIT_SIZE;
 //#define MTMR_COMM_BLOCKING
 //#define MTMR_ZERO_COPY
 
-#define UNIT_1G_SIZE  (1024*1024*1024)
-#define MAX_COMM_SIZE       0x40000000
+//#define UNIT_1G_SIZE  (1024*1024*1024)
+//#define MAX_COMM_SIZE       0x40000000
 
-#define MAX_STR_SIZE             8192
-#define INPUT_BUF_COUNT             2
+//#define MAX_STR_SIZE             8192
+//#define INPUT_BUF_COUNT             2
 
-#define INPUT_SIZE                  8
-#define BLOCK_SIZE                 64  // 16M
+//#define INPUT_SIZE                  8
+//#define BLOCK_SIZE                 64  // 16M
 
-#define LOCAL_BUF_SIZE            32  // 1K
-#define GLOBAL_BUF_SIZE           64  // 1M
-#define MAXMEM_SIZE                4  // 1G
-#define MAX_BLOCKS              1024  // 1024 blocks
+//#define LOCAL_BUF_SIZE            32  // 1K
+//#define GLOBAL_BUF_SIZE           64  // 1M
+//#define MAXMEM_SIZE                4  // 1G
+//#define MAX_BLOCKS              1024  // 1024 blocks
 
 //#define PCS_PER_NODE              2
 //#define THS_PER_PROC             10
@@ -32,21 +55,19 @@ extern int COMM_UNIT_SIZE;
 //#define KEY_COUNT           (4194304)
 
 // convert
-#define BUCKET_SIZE               17
-#define MAX_BUCKET_SIZE           27
+//#define BUCKET_SIZE               17
+//#define MAX_BUCKET_SIZE           27
 
 // type
-#define KV_TYPE                    0
+//#define KV_TYPE                    0
 
 // out of core
-#define OUT_OF_CORE                1
-#define TMP_PATH                  "."
+//#define OUT_OF_CORE                1
+//#define TMP_PATH                  "."
 
 // others
-#define MAXLINE                  2048
-
-#define MAX_KEY_SIZE             8192
-#define MAX_VALUE_SIZE              8
+//#define MAX_KEY_SIZE             8192
+//#define MAX_VALUE_SIZE              8
 
 //#define GATHER_STAT                 1
 #define SAFE_CHECK                  1

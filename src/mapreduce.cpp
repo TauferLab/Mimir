@@ -2539,7 +2539,7 @@ void MapReduce::_get_default_values(){
   if(env){
     COMM_UNIT_SIZE=_stringtoint(env);
     if(COMM_UNIT_SIZE<=0 || COMM_UNIT_SIZE>1024*1024*1024)
-      LOG_ERROR("Error: COMM_UNIT_SIZE(%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
+      LOG_ERROR("Error: COMM_UNIT_SIZE (%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
   }
    
 #if 0
@@ -2575,13 +2575,13 @@ void MapReduce::_get_default_values(){
   blocksize = BLOCK_SIZE;
   nmaxblock = MAX_BLOCKS;
   maxmemsize = MAXMEM_SIZE;
-  lbufsize = LOCAL_BUF_SIZE;
+  //lbufsize = LOCAL_BUF_SIZE;
   gbufsize = GLOBAL_BUF_SIZE;
 
-  kvtype = KV_TYPE;
+  kvtype = GeneralKV;
 
   outofcore = OUT_OF_CORE;
-  tmpfpath = std::string(TMP_PATH);
+  //tmpfpath = std::string(TMP_PATH);
 
   commmode=0;
 
