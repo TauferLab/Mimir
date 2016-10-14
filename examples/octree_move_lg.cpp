@@ -20,7 +20,7 @@
 #include "string.h"
 #include <cmath>
 
-int me, nprocs;
+int rank, size;
 int nbucket, estimate=0, factor=32;
 const char* inputsize;
 const char* blocksize;
@@ -32,7 +32,7 @@ using namespace MAPREDUCE_NS;
 
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
-void mergeword(MapReduce *, char *, int, char *, int, char *, int, void*);
+void rankrgeword(MapReduce *, char *, int, char *, int, char *, int, void*);
 void sum(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
 void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
 double slope(double[], double[], int);
@@ -48,11 +48,11 @@ int main(int argc, char **argv)
 {
   MPI_Init(&argc, &argv);
 
-  MPI_Comm_rank(MPI_COMM_WORLD, &me);
-  MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   if (argc <= 5) {
-    if (me == 0) printf("Syntax: octree_move_lg indir threshold prefix outdir tmpdir\n");
+    if (rank == 0) printf("Syntax: octree_move_lg indir threshold prefix outdir tmpdir\n");
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
   const char *outdir = argv[4];
   //const char *tmpdir = argv[5];
 
-  if(me==0){
+  if(rank==0){
     printf("density=%.2lf\n", density);
     printf("input dir=%s\n", indir);
     printf("prefix=%s\n", prefix);
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
   gbufsize = getenv("MR_COMM_SIZE");
   if(bucket_str==NULL || inputsize==NULL\
     || blocksize==NULL || gbufsize==NULL){
-    if(me==0) printf("Please set correct environment variables!\n");
+    if(rank==0) printf("Please set correct environranknt variables!\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
   nbucket = atoi(bucket_str);
@@ -105,7 +105,7 @@ int main(int argc, char **argv)
   uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, NULL, 0);
 
   thresh=(int)((float)nwords*density);
-  if(me==0){
+  if(rank==0){
     printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
   }
 
@@ -128,11 +128,11 @@ int main(int argc, char **argv)
 #ifndef COMPRESS
     mr_level->map_key_value(mr_convert, gen_leveled_octkey);
 #else
-    mr_level->map_key_value(mr_convert, gen_leveled_octkey, mergeword);
+    mr_level->map_key_value(mr_convert, gen_leveled_octkey, rankrgeword);
 #endif
 
 #ifdef PART_REDUCE
-    uint64_t nkv = mr_level->reducebykey(mergeword, NULL);
+    uint64_t nkv = mr_level->reducebykey(rankrgeword, NULL);
     nkv = mr_level->map_key_value(mr_level, sum_map, NULL, NULL, 0);
 #else
     uint64_t nkv = mr_level->reduce(sum, 0, NULL);
@@ -152,12 +152,12 @@ int main(int argc, char **argv)
   delete mr_level;
   delete mr_convert;
 
-  if(me==0) printf("level=%d\n", level);
+  if(rank==0) printf("level=%d\n", level);
 
   MPI_Finalize();
 }
 
-void mergeword(MapReduce *mr, char *key, int keysize, \
+void rankrgeword(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
   int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
 
@@ -207,27 +207,27 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
   double maxx = range_up, maxy = range_up, maxz = range_up;
   while (count < digits){
     int m0 = 0, m1 = 0, m2 = 0;
-    double medx = minx + ((maxx - minx)/2);
-    if (b0>medx){
+    double rankdx = minx + ((maxx - minx)/2);
+    if (b0>rankdx){
       m0=1;
-      minx=medx;
+      minx=rankdx;
     }else{
-      maxx=medx;
+      maxx=rankdx;
     }
 
-    double medy = miny + ((maxy-miny)/2);
-    if (b1>medy){
+    double rankdy = miny + ((maxy-miny)/2);
+    if (b1>rankdy){
       m1=1;
-      miny=medy;
+      miny=rankdy;
     }else{
-      maxy=medy;
+      maxy=rankdy;
     }
-    double medz = minz + ((maxz-minz)/2);
-    if (b2>medz){
+    double rankdz = minz + ((maxz-minz)/2);
+    if (b2>rankdz){
       m2=1;
-      minz=medz;
+      minz=rankdz;
     }else{
-      maxz=medz;
+      maxz=rankdz;
     }
 
     /*calculate the octant using the formula m0*2^0+m1*2^1+m2*2^2*/
@@ -263,18 +263,18 @@ double slope(double x[], double y[], int num_atoms){
   return slope;
 }
 
-void output(const char *filename, const char *outdir, const char *prefix, double density, MapReduce *mr1, MapReduce *mr2){
+void output(const char *filenarank, const char *outdir, const char *prefix, double density, MapReduce *mr1, MapReduce *mr2){
   char header[1000];
   char tmp[1000];
 
   if(estimate)
     sprintf(header, "%s/%s_d%.2f-c%s-b%s-i%s-f%d-%s.%d", \
-      outdir, prefix, density, gbufsize, blocksize, inputsize, factor, commmode, nprocs);
+      outdir, prefix, density, gbufsize, blocksize, inputsize, factor, commmode, size);
   else
     sprintf(header, "%s/%s_d%.2f-c%s-b%s-i%s-h%d-%s.%d", \
-      outdir, prefix, density, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs);
+      outdir, prefix, density, gbufsize, blocksize, inputsize, nbucket, commmode, size);
 
-  sprintf(tmp, "%s.%d.txt", header, me);
+  sprintf(tmp, "%s.%d.txt", header, rank);
 
   FILE *fp = fopen(tmp, "w+");
   //mr1->print_stat(fp);
@@ -283,15 +283,15 @@ void output(const char *filename, const char *outdir, const char *prefix, double
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  if(me==0){
+  if(rank==0){
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
-    char timestr[1024];
-    sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    char tirankstr[1024];
+    sprintf(tirankstr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     char infile[1024+1];
     sprintf(infile, "%s.*.txt", header);
     char outfile[1024+1];
-    sprintf(outfile, "%s_%s.txt", header, timestr);
+    sprintf(outfile, "%s_%s.txt", header, tirankstr);
 #ifdef BGQ
     FILE* finalize_script = fopen(prefix, "w");
     fprintf(finalize_script, "#!/bin/zsh\n");

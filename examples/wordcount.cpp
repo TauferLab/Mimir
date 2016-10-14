@@ -14,11 +14,11 @@
 #include <omp.h>
 
 #include "mapreduce.h"
-#include "config.h"
+//#include "config.h"
 
 using namespace MAPREDUCE_NS;
 
-#include "stat.h"
+//#include "stat.h"
 
 void map(MapReduce *mr, char *word, void *ptr);
 void countword(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
@@ -26,7 +26,7 @@ void mergeword(MapReduce *, char *, int, char *, int, char *, int, void*);
 void output(const char *filename, const char *outdir, \
   const char *prefix, MapReduce *mr);
 
-int me, nprocs;
+int rank, size;
 int nbucket, estimate=0, factor=32;
 const char* inputsize;
 const char* blocksize;
@@ -36,11 +36,11 @@ const char* commmode="a2a";
 int main(int argc, char *argv[])
 {
   MPI_Init(&argc, &argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &me);
-  MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   if(argc <= 3){
-    if(me == 0) printf("Syntax: wordcount filepath prefix outdir\n");
+    if(rank == 0) printf("Syntax: wordcount filepath prefix outdir\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
@@ -54,12 +54,12 @@ int main(int argc, char *argv[])
   gbufsize = getenv("MR_COMM_SIZE");
   if(bucket_str==NULL || inputsize==NULL\
     || blocksize==NULL || gbufsize==NULL){
-    if(me==0) printf("Please set correct environment variables!\n");
+    if(rank==0) printf("Please set correct environment variables!\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
   nbucket = atoi(bucket_str);
 
-  if(me==0){
+  if(rank==0){
     printf("input dir=%s\n", filedir);
     printf("prefix=%s\n", prefix);
     printf("output dir=%s\n", outdir);
@@ -147,12 +147,12 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
 
   if(estimate)
     sprintf(header, "%s/%s_c%s-b%s-i%s-f%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, nprocs);
+      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, size);
   else
     sprintf(header, "%s/%s_c%s-b%s-i%s-h%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs);
+      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, size);
 
-  sprintf(tmp, "%s.%d.txt", header, me);
+  sprintf(tmp, "%s.%d.txt", header, rank);
 
   FILE *fp = fopen(tmp, "w+");
   MapReduce::print_stat(mr, fp);
@@ -160,7 +160,7 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  if(me==0){
+  if(rank==0){
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
     char timestr[1024];

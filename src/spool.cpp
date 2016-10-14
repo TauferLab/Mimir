@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "spool.h"
 #include "log.h"
-
+#include "const.h"
 #include "memory.h"
 
 using namespace MAPREDUCE_NS;

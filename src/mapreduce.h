@@ -12,22 +12,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
+#include <mpi.h>
+
 #include <string>
 #include <vector>
-#include <mpi.h>
-#include "hash.h"
-#include "dataobject.h"
-#include "keyvalue.h"
-#include "keymultivalue.h"
-#include "communicator.h"
-#include "spool.h"
+//#include "hash.h"
+//#include "dataobject.h"
+//#include "keyvalue.h"
+//#include "keymultivalue.h"
+//#include "communicator.h"
 #include "config.h"
-
-#include "stat.h"
+//#include "stat.h"
 
 namespace MAPREDUCE_NS {
 
 class MapReduce;
+class Communicator;
+class DataObject;
+class KeyValue;
+class Spool;
 class MultiValueIterator;
 
 /// KVType represents KV Type
@@ -398,7 +402,7 @@ private:
 private:
   // MPI Commincator
   MPI_Comm comm;
-  int me, nprocs, tnum;
+  //int tnum;
   OpMode mode;
   int ukeyoffset;
 

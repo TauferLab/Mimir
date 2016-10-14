@@ -32,18 +32,24 @@
 
 #include "mapreduce.h"
 #include "dataobject.h"
+#include "keyvalue.h"
+#include "communicator.h"
 #include "alltoall.h"
-#include "ptop.h"
+//#include "ptop.h"
 #include "spool.h"
 #include "log.h"
 #include "config.h"
 #include "const.h"
 #include "hash.h"
-
+#include "memory.h"
 #include "stat.h"
+
+//#include "spool.h"
+
 
 using namespace MAPREDUCE_NS;
 
+int me,nprocs,tnum;
 
 /**
    Create MapReduce Object
@@ -119,9 +125,9 @@ MapReduce::MapReduce(const MapReduce &_mr){
   nset=_mr.nset;
   // copy internal states
   comm=_mr.comm;
-  me=_mr.me;
-  nprocs=_mr.nprocs;
-  tnum=_mr.tnum;
+  //me=_mr.me;
+  //nprocs=_mr.nprocs;
+  //tnum=_mr.tnum;
   mode=_mr.mode;
   ukeyoffset=_mr.ukeyoffset;
   // copy data
@@ -2448,9 +2454,9 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   //st.print(verb, out);
 //#endif
 
-  fprintf(out, "rank:%d", mr->me);
-  fprintf(out, ",size:%d", mr->nprocs);
-  fprintf(out, ",thread:%d", mr->tnum);
+  fprintf(out, "rank:%d", me);
+  fprintf(out, ",size:%d", nprocs);
+  fprintf(out, ",thread:%d", tnum);
 
   char hostname[1024+1];
   hostname[1024] = '\0';
@@ -2471,7 +2477,7 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   fprintf(out, ",tracker:enable");
 #endif
   fprintf(out, "\n");
-  for(int i=0;i<mr->tnum; i++){
+  for(int i=0;i<tnum; i++){
 #ifdef ENABLE_PROFILER
     fprintf(out, "action:profiler_start");
     std::map<std::string,double>::iterator timer_iter;

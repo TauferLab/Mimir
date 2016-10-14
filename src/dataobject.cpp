@@ -21,6 +21,7 @@
 #include "const.h"
 
 #include "memory.h"
+#include "mapreduce.h"
 
 using namespace MAPREDUCE_NS;
 
@@ -91,7 +92,7 @@ DataObject::DataObject(
   omp_init_lock(&lock_t);
 #endif
 
-  LOG_PRINT(DBG_DATA, "DATA: DataObject create. (type=%d)\n", datatype);
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject create. (id=%d)\n", me, nprocs, id);
  }
 
 DataObject::~DataObject(){
@@ -115,7 +116,7 @@ DataObject::~DataObject(){
 
   DataObject::cur_page_count-=nblock;
 
-  LOG_PRINT(DBG_DATA, "DATA: DataObject destory. (type=%d)\n", datatype);
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject destory. (id=%d)\n", me, nprocs, id);
 }
 
 void DataObject::_get_filename(int blockid, std::string &fname){
@@ -241,6 +242,8 @@ int DataObject::add_block(){
 #ifdef MTMR_MULTITHREAD
   }
 #endif
+
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: data %d add block. (id=%d)\n", me, nprocs, id, blockid);
 
   if(blockid >= maxblock){
 #ifdef MTMR_MULTITHREAD

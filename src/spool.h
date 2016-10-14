@@ -15,9 +15,9 @@
 #include <string.h>
 
 #include "log.h"
-#include "const.h"
-#include "config.h"
+//#include "config.h"
 
+#include "const.h"
 #include "memory.h"
 
 namespace MAPREDUCE_NS {

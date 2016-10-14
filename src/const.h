@@ -8,6 +8,8 @@
 
 //#define INTMAX 0x7FFFFFFF
 
+extern int me,nprocs,tnum;
+
 #define NIN(A,B) ((A) < (B)) ? (A) : (B)
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)
 

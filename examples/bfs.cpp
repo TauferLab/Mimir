@@ -3,15 +3,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "mapreduce.h"
-#include "keyvalue.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <cstdlib>
-#include "string.h"
+#include <string.h>
 #include <cmath>
+
+#include "mapreduce.h"
 
 // Please set MR_BUCKET_SIZE, MR_INBUF_SIZE, MR_PAGE_SIZE, MR_COMM_SIZE
 int nbucket, estimate=0, factor=32;
@@ -52,13 +52,13 @@ void compress(MapReduce *, char *, int, char *, int, char *, int, void*);
 void output(const char *,const char *,const char *,MapReduce*);
 
 // CSR graph
-int me, nprocs;
+int rank, size;
 int64_t  nglobalverts;     // global vertex count
 int64_t  nglobaledges;     // global edge count
 int64_t  nlocalverts;      // local vertex count
 int64_t  nlocaledges;      // local edge count
 int64_t  nvertoffset;      // local vertex's offset
-int64_t quot, rem;         // quotient and reminder of globalverts/nprocs
+int64_t quot, rem;         // quotient and reminder of globalverts/size
 
 size_t   *rowstarts;       // rowstarts
 int64_t  *columns;         // columns
@@ -78,12 +78,12 @@ int main(int argc, char **argv)
 {
   // Initalize MPI
   MPI_Init(&argc, &argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &me);
-  MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  // Get parameters
+  // Get pararankters
   if (argc < 7) {
-    if (me == 0) printf("Syntax: bfs N indir prefix outdir tmpdir seed\n");
+    if (rank == 0) printf("Syntax: bfs N indir prefix outdir tmpdir seed\n");
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
@@ -96,11 +96,11 @@ int main(int argc, char **argv)
   srand(atoi(argv[6]));
 
   if(nglobalverts<=0){
-    if (me == 0) printf("The global vertexs should be larger than zero\n");
+    if (rank == 0) printf("The global vertexs should be larger than zero\n");
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
-  if(me==0){
+  if(rank==0){
     printf("global vertexs=%ld\n", nglobalverts);
     printf("input dir=%s\n", indir);
     printf("prefix=%s\n", prefix);
@@ -114,25 +114,25 @@ int main(int argc, char **argv)
   gbufsize = getenv("MR_COMM_SIZE");
   if(bucket_str==NULL || inputsize==NULL\
     || blocksize==NULL || gbufsize==NULL){
-    if(me==0) printf("Please set correct environment variables!\n");
+    if(rank==0) printf("Please set correct environranknt variables!\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
   nbucket = atoi(bucket_str);
 
   // compute vertex partition range
-  quot = nglobalverts/nprocs;
-  rem  = nglobalverts%nprocs;
-  if(me<rem) {
+  quot = nglobalverts/size;
+  rem  = nglobalverts%size;
+  if(rank<rem) {
     nlocalverts=quot+1;
-    nvertoffset=me*(quot+1);
+    nvertoffset=rank*(quot+1);
   }
   else {
     nlocalverts=quot;
-    nvertoffset=me*quot+rem;
+    nvertoffset=rank*quot+rem;
   }
 
 #ifdef OUTPUT_RESULT
-  if(me==0){
+  if(rank==0){
     char rfile[100];
     sprintf(rfile, "%s_result.txt", prefix);
     rf = fopen(rfile, "a+");
@@ -150,7 +150,7 @@ int main(int argc, char **argv)
   mr->set_hash(mypartition);
   //mr->set_outofcore(0);
 
-  if(me==0) fprintf(stdout, "make CSR graph start.\n");
+  if(rank==0) fprintf(stdout, "make CSR graph start.\n");
 
   // make graph
   MPI_Barrier(MPI_COMM_WORLD);
@@ -179,13 +179,13 @@ int main(int argc, char **argv)
   }
   columns=new int64_t[nlocaledges];
 
-  if(me==0) fprintf(stdout, "begin make graph.\n");
+  if(rank==0) fprintf(stdout, "begin make graph.\n");
 
   mr->map_key_value(mr, makegraph, NULL, NULL, 0);
 
   delete [] rowinserts;
 
-  if(me==0) {
+  if(rank==0) {
      fprintf(stdout, "make CSR graph end.\n");
   }
 
@@ -194,7 +194,7 @@ int main(int argc, char **argv)
   vis  = new unsigned long[bitmapsize];
   pred = new int64_t[nlocalverts];
 
-  if(me==0) fprintf(stdout, "BFS traversal start.\n");
+  if(rank==0) fprintf(stdout, "BFS traversal start.\n");
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -205,7 +205,7 @@ int main(int argc, char **argv)
     pred[i] = -1;
   }
 
-  if(me==0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
+  if(rank==0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
 
   // Inialize the child  vertexes of root
   mr->init_key_value(rootvisit, NULL);
@@ -228,7 +228,7 @@ int main(int argc, char **argv)
     level++;
   }while(nactives[level-1]);
 
-  if(me==0) {
+  if(rank==0) {
     fprintf(stdout, "BFS traversal end.\n");
 #ifdef OUTPUT_RESULT
     fprintf(rf, "%ld\n", root);
@@ -249,7 +249,7 @@ int main(int argc, char **argv)
   delete mr;
 
 #ifdef OUTPUT_RESULT
-  if(me==0){
+  if(rank==0){
     fclose(rf);
   }
 #endif
@@ -308,7 +308,7 @@ void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebyt
 
 // expand child vertexes of root
 void rootvisit(MapReduce* mr, void *ptr){
-  if(mypartition((char*)&root,sizeof(int64_t)) == me){
+  if(mypartition((char*)&root,sizeof(int64_t)) == rank){
     int64_t root_local = root-nvertoffset;
     pred[root_local] = root;
     SET_VISITED(root_local, vis);
@@ -347,7 +347,7 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
   }
 }
 
-// Compress KV with the same key
+// Compress KV with the sarank key
 void compress(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
 
@@ -359,12 +359,12 @@ int64_t getrootvert(){
   int64_t myroot;
    // Get a root
   do{
-    if(me==0){
+    if(rank==0){
       myroot = rand() % nglobalverts;
     }
     MPI_Bcast((void*)&myroot, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
     int64_t myroot_proc=mypartition((char*)&myroot, (int)sizeof(int64_t));
-    if(myroot_proc==me){
+    if(myroot_proc==rank){
       int64_t root_local=myroot-nvertoffset;
       if(rowstarts[root_local+1]-rowstarts[root_local]==0){
         myroot=-1;
@@ -378,7 +378,7 @@ int64_t getrootvert(){
 #if 0
 void printgraph(){
   for(int i = 0; i < nlocalverts; i++){
-    int64_t v0 = me*(nlocalverts)+i;
+    int64_t v0 = rank*(nlocalverts)+i;
     printf("%ld", v0);
     size_t p_end = g->rowstarts[i+1];
     for(size_t p = g->rowstarts[i]; p < p_end; p++){
@@ -392,23 +392,23 @@ void printgraph(){
 
 void printresult(int64_t *pred, size_t nlocalverts){
   for(size_t i = 0; i < nlocalverts; i++){
-    size_t v = nlocalverts*me+i;
+    size_t v = nlocalverts*rank+i;
     printf("%ld:%ld\n", v, pred[i]);
   }
 }
 
-void output(const char *filename, const char *outdir, const char *prefix, MapReduce *mr){
+void output(const char *filenarank, const char *outdir, const char *prefix, MapReduce *mr){
   char header[1000];
   char tmp[1000];
 
   if(estimate)
     sprintf(header, "%s/%s_c%s-b%s-i%s-f%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, nprocs);
+      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, size);
   else
     sprintf(header, "%s/%s_c%s-b%s-i%s-h%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, nprocs);
+      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, size);
 
-  sprintf(tmp, "%s.%d.txt", header, me);
+  sprintf(tmp, "%s.%d.txt", header, rank);
 
   FILE *fp = fopen(tmp, "w+");
   //mr->print_stat(fp);
@@ -417,15 +417,15 @@ void output(const char *filename, const char *outdir, const char *prefix, MapRed
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  if(me==0){
+  if(rank==0){
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
-    char timestr[1024];
-    sprintf(timestr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    char tirankstr[1024];
+    sprintf(tirankstr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     char infile[1024+1];
     sprintf(infile, "%s.*.txt", header);
     char outfile[1024+1];
-    sprintf(outfile, "%s_%s.txt", header, timestr);
+    sprintf(outfile, "%s_%s.txt", header, tirankstr);
 #ifdef BGQ
     FILE* finalize_script = fopen(prefix, "w");
     fprintf(finalize_script, "#!/bin/zsh\n");
