@@ -2537,11 +2537,34 @@ void MapReduce::output(int type, FILE* fp, int format){
 // process init
 void MapReduce::_get_default_values(){
 
-  char *env = getenv("MIMIR_COMM_UNIT_SIZE");
+  char *env = NULL;
+
+  env = getenv("MIMIR_COMM_UNIT_SIZE");
   if(env){
     COMM_UNIT_SIZE=_stringtoint(env);
     if(COMM_UNIT_SIZE<=0 || COMM_UNIT_SIZE>1024*1024*1024)
       LOG_ERROR("Error: COMM_UNIT_SIZE (%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
+  }
+  env = getenv("MIMIR_DBG_GEN");
+  if(env){
+    int flag = atoi(env);
+    if(flag != 0){
+      DBG_LEVEL |= (0x1<<DBG_GEN); 
+    }
+  }
+  env = getenv("MIMIR_DBG_DATA");
+  if(env){
+    int flag = atoi(env);
+    if(flag != 0){
+      DBG_LEVEL |= (0x1<<DBG_DATA); 
+    }
+  }
+  env = getenv("MIMIR_DBG_COMM");
+  if(env){
+    int flag = atoi(env);
+    if(flag != 0){
+      DBG_LEVEL |= (0x1<<DBG_COMM);
+    }
   }
    
 #if 0

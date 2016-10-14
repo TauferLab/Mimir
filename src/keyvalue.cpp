@@ -58,7 +58,7 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
 
 #if SAFE_CHECK
   if(kvbytes > blocksize){
-     LOG_ERROR("Error: KV size is larger than block size. (KV size=%d, block size=%d)\n", kvbytes, blocksize);
+     LOG_ERROR("Error: KV size is larger than block size. (KV size=%d, block size=%ld)\n", kvbytes, blocksize);
   }
 #endif
 

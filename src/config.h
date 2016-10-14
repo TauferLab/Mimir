@@ -25,6 +25,7 @@ extern int64_t MAXMEM_SIZE;
 
 extern int MAX_STR_SIZE;
 
+extern int DBG_LEVEL;
 
 //#define USE_MT_IO
 //#define USE_MPI_IO
