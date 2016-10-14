@@ -317,12 +317,12 @@ void countedge(char *key, int keybytes, char *value, int valbytes,void *ptr){
 void fileread(MapReduce *mr, char *word, void *ptr)
 {
   char sep[10] = " ";
-  char *v0, *v1, *val;
+  char *v0, *v1;
   char *saveptr = NULL;
   //if(me==0) printf("word=%s\n", word);
   v0 = strtok_r(word,sep,&saveptr);
   v1 = strtok_r(NULL,sep,&saveptr);
-  val = strtok_r(NULL,sep,&saveptr);
+  //val = strtok_r(NULL,sep,&saveptr);
 
   if(strcmp(v0, v1) == 0){
     return;

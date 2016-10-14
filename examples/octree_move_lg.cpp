@@ -48,7 +48,7 @@ void sum(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
 void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
 double slope(double[], double[], int);
 
-void output(const char *,const char *,const char *,float,MapReduce*,MapReduce *);
+void output(const char *,const char *,const char *,double,MapReduce*,MapReduce *);
 
 #define digits 15
 int64_t thresh=5;
@@ -72,14 +72,14 @@ int main(int argc, char **argv)
   //  MapReduce::print_memsize();
   //}
 
-  float density = atof(argv[1]);
+  double density = atof(argv[1]);
   char *indir = argv[2];
   const char *prefix = argv[3];
   const char *outdir = argv[4];
   //const char *tmpdir = argv[5];
 
   if(me==0){
-    printf("density=%.2f\n", density);
+    printf("density=%.2lf\n", density);
     printf("input dir=%s\n", indir);
     printf("prefix=%s\n", prefix);
     printf("output dir=%s\n", outdir);
@@ -383,7 +383,7 @@ double slope(double x[], double y[], int num_atoms){
   return slope;
 }
 
-void output(const char *filename, const char *outdir, const char *prefix, float density, MapReduce *mr1, MapReduce *mr2){
+void output(const char *filename, const char *outdir, const char *prefix, double density, MapReduce *mr1, MapReduce *mr2){
   char header[1000];
   char tmp[1000];
 
