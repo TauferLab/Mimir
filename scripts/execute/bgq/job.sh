@@ -33,7 +33,7 @@ for i in `seq 1 $NTIMES`; do
         --envs MR_BUCKET_SIZE=17 \
         --envs MR_INBUF_SIZE=$INBUFSIZE \
         --envs MR_PAGE_SIZE=$PAGESIZE \
-        --envs MR_COMM_SIZE=$PAGESIZEM \
+        --envs MR_COMM_SIZE=$PAGESIZE \
         : ./$EXE $PARAM $INDIR "$PREFIX" $OUTDIR "$TMPDIR" $i
     /bin/zsh "$PREFIX"
     rm -f "$PREFIX"
