@@ -15,7 +15,7 @@ WC_TYPE=${4:-"uniform"}
 
 function run() {
     local N=$1
-    loca FSIZE=$(($N*1024*1024/16))
+    local FSIZE=$(($N*1024*1024/16))
     local n_start=$2
     local n_end=$3
     if [ $n_end -lt $n_start ]; then
