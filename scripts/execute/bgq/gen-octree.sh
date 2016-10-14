@@ -3,7 +3,7 @@
 source bgq-common.sh
 source retry.sh
 
-if [ $# -lt 2 ]l then
+if [ $# -lt 2 ]; then
     echo "./run-octree.sh <data size in MB> [n_node start] [n_node end]"
     exit 1
 fi
