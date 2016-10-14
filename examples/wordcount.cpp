@@ -119,7 +119,7 @@ void map(MapReduce *mr, char *word, void *ptr){
   int len=(int)strlen(word)+1;
 
   int64_t one=1;
-  if(len <= 8192)
+  if(len <= 1024)
     mr->add_key_value(word,len,(char*)&one,sizeof(one));
 }
 

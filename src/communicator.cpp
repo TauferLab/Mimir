@@ -7,15 +7,11 @@
 
 #include "log.h"
 #include "config.h"
-
 #include "const.h"
-
 #include "memory.h"
-
 #include "communicator.h"
 #include "alltoall.h"
 #include "ptop.h"
-
 #include "stat.h"
 
 using namespace MAPREDUCE_NS;
@@ -55,11 +51,7 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype, int _tnum){
 
   blocks = new int[tnum];
   blockid = -1;
-  //spacesize = 0;
 
-  //init();
-
-  //printf("communicator start\n"); fflush(stdout);
 }
 
 Communicator::~Communicator(){
@@ -95,14 +87,6 @@ Communicator::~Communicator(){
 }
 
 int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
-  //fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", _tbufsize, _sbufsize);fflush(stdout);
-
-  //if(_tbufsize%size!=0||_sbufsize%size!=0){
-  //  LOG_ERROR("%s", "Error: the send buffer size should be divided into processes evently!");
-  //}
-
-  //printf("sbufsize=%ld\n", _sbufsize);
-
   if(_sbufsize < MEMPAGE_SIZE*size){
     LOG_ERROR("Error: send buffer %ld should be larger than page size!\n", _sbufsize);
   }
@@ -116,7 +100,6 @@ int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _
      thread_buf_size, send_buf_size);
   }
 #endif
-  //fprintf(stdout, "thread_buf_size=%ld, thread_buf_size=%ld", thread_buf_size, send_buf_size);fflush(stdout);
 
   kvtype = _kvtype;
   ksize = _ksize;
