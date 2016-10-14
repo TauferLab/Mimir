@@ -78,6 +78,33 @@ void record_memory_usage(){
   //printf("%s: %ld %ld\n", str, vmpeak, vmsize);
 }
 
+int64_t get_max_mmap(){
+#define BUFSIZE 1024
+    int stderr_save;
+    char buffer[BUFSIZE];
+    fflush(stderr); //clean everything first
+    stderr_save = dup(STDERR_FILENO); //save the stdout state
+    freopen("NUL", "a", stderr); //redirect stdout to null pointer
+    setvbuf(stderr, buffer, _IOFBF, BUFSIZE); //set buffer to stdout
+    malloc_stats();
+    freopen("NUL", "a", stderr); //redirect stdout to null again
+    dup2(stderr_save, STDERR_FILENO); //restore the previous state of stdout
+    setvbuf(stderr, NULL, _IONBF, BUFSIZE); //disable buffer to print to screen instantly
+    char *p, *temp;
+    int64_t maxmmap=0;
+    p = strtok_r(buffer, "\n", &temp);
+    do {
+      if(strncmp(p, "max mmap bytes   =", 18) == 0){
+        char *word = p + 18;
+        while(isspace(*word)) ++word;
+        maxmmap=strtoull(word, NULL, 0);
+      }
+      p = strtok_r(NULL, "\n", &temp);
+    } while (p != NULL);
+    //fprintf(out, ",maxmmap:%ld", maxmmap);
+    return maxmmap;
+}
+
 void *mem_aligned_malloc(size_t alignment, size_t size){
   void *ptr=NULL;
 

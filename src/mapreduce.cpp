@@ -2458,69 +2458,9 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   fprintf(out, ",hostname:%s,peakmem:%ld", hostname, peakmem);
   fprintf(out, ",maxpagecount:%d", DataObject::max_page_count);
 
-#if 0
-  // Get output results
-  std::stringstream oss;
-  std::streambuf* old = std::cout.rdbuf(oss.rdbuf());
-  malloc_stats();
-
-#define BUFSIZE 1024
-  int64_t maxmmap;
-  char line[BUFSIZ];
-  int num=10;
-  std::string text = oss.str();
-  std::cout << "[" << text << "]" << std::endl;
-  for (int i=0; i<num; ++i){
-    //oss.getline(line, BUFSIZE);
-    //printf("line=%s\n", line);
-    if(strncmp(line, "max mmap bytes   =", 18) == 0)
-      break;
-  }
-  sscanf(line+18, "%ld", &maxmmap);
-  printf("maxmmap1=%ld\n", maxmmap);
-
-  oss.str("");
-  oss.clear();
-  std::cout.rdbuf(old);
-
-  //char *p, *temp;
-  //std::cout << oss.str();
-
-  //printf("str=%s\n", str);
-  //p = strtok_r(str, "\n", &temp);
-#if 0
-  for (uint i=0; i<num_verts; ++i)
-  {
-    sstr.getline(line, bufsz);
-    std::istringstream iss(line);
-    iss >> verts[i].x >> verts[i].y >> verts[i].z;
-  }
-  do {
-    //printf("current line = %s", p);
-    if(strncmp(p, "max mmap bytes   =", 18) == 0){
-      char *word = p + 18;
-      while(isspace(*word)) ++word;
-      maxmmap=strtoull(word, NULL, 0);
-    }
-    p = strtok_r(NULL, "\n", &temp);
-  } while (p != NULL);
-#endif
+  // Get maxmmap
+  int64_t maxmmap = get_max_mmap();
   fprintf(out, ",maxmmap:%ld", maxmmap);
-#endif
-
-  //char cmd[1024+1];
-  //char ret[1024+1];
-  //sprintf(cmd, "grep MemTotal /proc/meminfo | awk '{print $2}'");
-  //char *result=system(cmd);
-  //FILE *in;
-  //if(!(in = popen(cmd, "r"))){
-  //  exit(1);
-  //}
-  //while(fgets(ret, sizeof(ret), in)!=NULL){
-  //  fprintf(out, ",memory:%s", ret);
-  //}
-  //pclose(in);
-  //sprintf(stdout, "%s\n", result);
 
 #ifdef ENABLE_PROFILER
   fprintf(out, ",profiler:enable");
