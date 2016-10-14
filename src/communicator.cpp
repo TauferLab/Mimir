@@ -11,7 +11,7 @@
 #include "memory.h"
 #include "communicator.h"
 #include "alltoall.h"
-#include "ptop.h"
+//#include "ptop.h"
 #include "stat.h"
 
 using namespace MAPREDUCE_NS;
@@ -87,12 +87,12 @@ Communicator::~Communicator(){
 }
 
 int Communicator::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksize, int _vsize, int _nbuf){
-  if(_sbufsize < MEMPAGE_SIZE*size){
-    LOG_ERROR("Error: send buffer %ld should be larger than page size!\n", _sbufsize);
+  if(_sbufsize < COMM_UNIT_SIZE*size){
+    LOG_ERROR("Error: send buffer %ld should be larger than unit size*size!\n", _sbufsize);
   }
 
   thread_buf_size = _tbufsize;
-  send_buf_size = (_sbufsize/MEMPAGE_SIZE/size)*MEMPAGE_SIZE;
+  send_buf_size = (_sbufsize/COMM_UNIT_SIZE/size)*COMM_UNIT_SIZE;
 
 #ifdef MTMR_MULTITHREAD
   if(thread_buf_size>send_buf_size){

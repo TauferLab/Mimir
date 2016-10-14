@@ -10,7 +10,7 @@ local_CFLAGS = $(DEBUG) -O3  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACK
 LFLAGS =
 ARCHIEVE = ar
 AFLAGS =  -rcv
-OBJS = mapreduce.o dataobject.o keyvalue.o communicator.o alltoall.o hash.o spool.o const.o memory.o stat.o
+OBJS = mapreduce.o dataobject.o keyvalue.o communicator.o alltoall.o hash.o spool.o const.o memory.o stat.o config.o
 
 all: libmrmpi
 
@@ -46,6 +46,9 @@ memory.o: memory.cpp memory.h
 
 stat.o: stat.cpp stat.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c stat.cpp
+
+config.o: config.cpp config.h
+	$(CPP) $(local_CFLAGS) $(CFLAGS) -c config.cpp
 
 clean:
 	-rm *.o libmrmpi.a

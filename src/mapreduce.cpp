@@ -2534,6 +2534,15 @@ void MapReduce::output(int type, FILE* fp, int format){
 
 // process init
 void MapReduce::_get_default_values(){
+
+  char *env = getenv("MIMIR_COMM_UNIT_SIZE");
+  if(env){
+    COMM_UNIT_SIZE=_stringtoint(env);
+    if(COMM_UNIT_SIZE<=0 || COMM_UNIT_SIZE>1024*1024*1024)
+      LOG_ERROR("Error: COMM_UNIT_SIZE(%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
+  }
+   
+#if 0
   bind_thread=0;
   procs_per_node=0;
   thrs_per_proc=0;
@@ -2560,6 +2569,7 @@ void MapReduce::_get_default_values(){
     show_binding = atoi(env);
     if(show_binding != 1) show_binding=0;
   }
+#endif
 
   inputsize = INPUT_SIZE;
   blocksize = BLOCK_SIZE;

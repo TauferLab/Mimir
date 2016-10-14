@@ -369,10 +369,10 @@ private:
 
 private:
   // Environemnt Variables
-  int bind_thread;
-  int show_binding;
-  int procs_per_node;
-  int thrs_per_proc;
+  //int bind_thread;
+  //int show_binding;
+  //int procs_per_node;
+  //int thrs_per_proc;
 
 private:
   // Statatics Variables
