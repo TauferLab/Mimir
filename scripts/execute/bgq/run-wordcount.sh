@@ -1,6 +1,6 @@
 #! /bin/zsh
 
-if [ $# -lt 2 ]l then
+if [ $# -lt 2 ]; then
     echo "./run-wordcount.sh <data size in MB> [n_node start] [n_node end] [uniform/wikipedia]"
     exit 1
 fi
