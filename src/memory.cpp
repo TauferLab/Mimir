@@ -84,10 +84,10 @@ int64_t get_max_mmap(){
     char buffer[BUFSIZE];
     fflush(stderr); //clean everything first
     stderr_save = dup(STDERR_FILENO); //save the stdout state
-    freopen("NUL", "a", stderr); //redirect stdout to null pointer
+    freopen("/dev/null", "a", stderr); //redirect stdout to null pointer
     setvbuf(stderr, buffer, _IOFBF, BUFSIZE); //set buffer to stdout
     malloc_stats();
-    freopen("NUL", "a", stderr); //redirect stdout to null again
+    freopen("/dev/null", "a", stderr); //redirect stdout to null again
     dup2(stderr_save, STDERR_FILENO); //restore the previous state of stdout
     setvbuf(stderr, NULL, _IONBF, BUFSIZE); //disable buffer to print to screen instantly
     char *p, *temp;

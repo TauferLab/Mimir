@@ -2458,9 +2458,11 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   fprintf(out, ",hostname:%s,peakmem:%ld", hostname, peakmem);
   fprintf(out, ",maxpagecount:%d", DataObject::max_page_count);
 
+#ifndef BGQ
   // Get maxmmap
   int64_t maxmmap = get_max_mmap();
   fprintf(out, ",maxmmap:%ld", maxmmap);
+#endif
 
 #ifdef ENABLE_PROFILER
   fprintf(out, ",profiler:enable");
