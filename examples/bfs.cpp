@@ -1,11 +1,3 @@
-/**
- * @file   bfs.cpp
- * @Author Tao Gao (taogao@udel.edu)
- * @date   September 1st, 2016
- * @brief  This file provides interfaces to application programs.
- *
- * This file includes two classes: MapReduce and MultiValueIter.
- */
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,23 +13,14 @@
 #include "string.h"
 #include <cmath>
 
-// MR_BUCKET_SIZE
-// MR_INBUF_SIZE
-// MR_PAGE_SIZE
-// MR_COMM_SIZE
+// Please set MR_BUCKET_SIZE, MR_INBUF_SIZE, MR_PAGE_SIZE, MR_COMM_SIZE
 int nbucket, estimate=0, factor=32;
 const char* inputsize;
 const char* blocksize;
 const char* gbufsize;
-const char* lbufsize="4K";
 const char* commmode="a2a";
 
 using namespace MAPREDUCE_NS;
-#if GATHER_STAT
-#include "stat.h"
-extern int mrtype;
-extern Stat st;
-#endif
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
@@ -51,7 +34,6 @@ int64_t mypartition(char *, int);
 // read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
-//void makegraph(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
 void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr);
 // count local edge number
 void countedge(char *, int, char *, int,void *);
@@ -62,15 +44,12 @@ int64_t getrootvert();
 void rootvisit(MapReduce* , void *);
 // expand vertex
 void expand(MapReduce *, char *, int, char *, int, void *);
-
 // shrink vertex
 void shrink(MapReduce *, char *, int, char *, int, void *);
-
 // compress function
 void compress(MapReduce *, char *, int, char *, int, char *, int, void*);
 
 void output(const char *,const char *,const char *,MapReduce*);
-
 
 // CSR graph
 int me, nprocs;
@@ -79,22 +58,16 @@ int64_t  nglobaledges;     // global edge count
 int64_t  nlocalverts;      // local vertex count
 int64_t  nlocaledges;      // local edge count
 int64_t  nvertoffset;      // local vertex's offset
-int64_t quot, rem;             // quotient and reminder of globalverts/nprocs
+int64_t quot, rem;         // quotient and reminder of globalverts/nprocs
 
 size_t   *rowstarts;       // rowstarts
 int64_t  *columns;         // columns
 unsigned long* vis;        // visited bitmap
 int64_t *pred;             // pred map
 int64_t root;              // root vertex
-size_t   *rowinserts;      // tmp buffer for construct csr
+size_t   *rowinserts;      // tmp buffer for construct CSR
 
 #define MAX_LEVEL 100
-
-// print graph
-//void printgraph(csr_graph *);
-// print results
-//void printresult(int64_t *pred, size_t nlocalverts);
-
 uint64_t nactives[MAX_LEVEL];
 
 #ifdef OUTPUT_RESULT
@@ -108,6 +81,7 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
+  // Get parameters
   if (argc < 7) {
     if (me == 0) printf("Syntax: bfs N indir prefix outdir tmpdir seed\n");
     MPI_Abort(MPI_COMM_WORLD,1);
@@ -145,6 +119,7 @@ int main(int argc, char **argv)
   }
   nbucket = atoi(bucket_str);
 
+  // compute vertex partition range
   quot = nglobalverts/nprocs;
   rem  = nglobalverts%nprocs;
   if(me<rem) {
@@ -164,8 +139,8 @@ int main(int argc, char **argv)
   }
 #endif
 
+  // Initialize MapReduce
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-  mr->set_threadbufsize(lbufsize);
   mr->set_sendbufsize(gbufsize);
   mr->set_blocksize(blocksize);
   mr->set_inputsize(inputsize);
@@ -173,8 +148,7 @@ int main(int argc, char **argv)
   mr->set_nbucket(estimate,nbucket,factor);
   mr->set_maxmem(32);
   mr->set_hash(mypartition);
-
-  mr->set_outofcore(0);
+  //mr->set_outofcore(0);
 
   if(me==0) fprintf(stdout, "make CSR graph start.\n");
 
@@ -190,8 +164,6 @@ int main(int argc, char **argv)
   uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread);
   nglobaledges = nedges;
 
-  //if(me==0) fprintf(stdout, "nlocalverts=%ld\n", nlocalverts);
-
   rowstarts = new size_t[nlocalverts+1];
   rowinserts = new size_t[nlocalverts];
   rowstarts[0] = 0;
@@ -202,8 +174,6 @@ int main(int argc, char **argv)
   nlocaledges = 0;
   mr->scan(countedge,NULL);
 
-  //if(me==0) printf("nlocaledges=%ld\n", nlocaledges);
-
   for(int64_t i = 0; i < nlocalverts; i++){
     rowstarts[i+1] += rowstarts[i];
   }
@@ -211,11 +181,6 @@ int main(int argc, char **argv)
 
   if(me==0) fprintf(stdout, "begin make graph.\n");
 
-//#ifdef PART_REDUCE
-//  mr->reduce(makegraph,1,NULL);
-//#else
-//  mr->reduce(makegraph,0,NULL);
-//#endif
   mr->map_key_value(mr, makegraph, NULL, NULL, 0);
 
   delete [] rowinserts;
@@ -233,9 +198,7 @@ int main(int argc, char **argv)
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //int test_count = 0;
-
-  // initialize
+  // Choose the root vertex
   root    = getrootvert();
   memset(vis, 0, sizeof(unsigned long)*(bitmapsize));
   for(int64_t i = 0; i < nlocalverts; i++){
@@ -244,10 +207,10 @@ int main(int argc, char **argv)
 
   if(me==0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
 
-  // Inialize the root
+  // Inialize the child  vertexes of root
   mr->init_key_value(rootvisit, NULL);
 
-  // bfs search
+  // BFS search
   int level = 0;
   do{
 #ifdef KV_HINT
@@ -262,7 +225,6 @@ int main(int argc, char **argv)
 #else
     nactives[level] = mr->map_key_value(mr, expand);
 #endif
-    //if(me==0) fprintf(stdout, "level %d: nactive=%ld\n", level, nactives[level]);
     level++;
   }while(nactives[level-1]);
 
@@ -304,26 +266,23 @@ int64_t mypartition(char *key, int keybytes){
     return (v-rem)/quot;
 }
 
+// count edge number of each vertex
 void countedge(char *key, int keybytes, char *value, int valbytes,void *ptr){
   nlocaledges += 1;
   int64_t v0=*(int64_t*)key;
-  //if(me==0){
-  //  printf("v0=%ld\n", v0-nvertoffset+1); fflush(stdout);
-  //}
   rowstarts[v0-nvertoffset+1] += 1;
 }
 
-
+// read edge list from files
 void fileread(MapReduce *mr, char *word, void *ptr)
 {
   char sep[10] = " ";
   char *v0, *v1;
   char *saveptr = NULL;
-  //if(me==0) printf("word=%s\n", word);
   v0 = strtok_r(word,sep,&saveptr);
   v1 = strtok_r(NULL,sep,&saveptr);
-  //val = strtok_r(NULL,sep,&saveptr);
 
+  // skip self-loop edge
   if(strcmp(v0, v1) == 0){
     return;
   }
@@ -333,37 +292,21 @@ void fileread(MapReduce *mr, char *word, void *ptr)
     fprintf(stderr, "The vertex index <%ld,%ld> is larger than maximum value %ld!\n", int_v0, int_v1, nglobalverts);
     exit(1);
   }
-  //if(me==0) printf("(%ld,%ld)\n", int_v0, int_v1);
   mr->add_key_value((char*)&int_v0,sizeof(int64_t),(char*)&int_v1,sizeof(int64_t));
 }
 
-#if 0
-void makegraph(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
-  int64_t v0, v0_local, v1;
-  v0 = *(int64_t*)key;
-  v0_local = v0 - nvertoffset;
-
-  for(iter->Begin(); !iter->Done(); iter->Next()){
-    v1=*(int64_t*)(iter->getValue());
-    //printf("v0=%ld, v1=%ld\n", v0, v1); fflush(stdout);
-    columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
-    rowinserts[v0_local]++;
-  }
-}
-#endif
-#if 1
+// make CSR graph based edge list
 void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
   int64_t v0, v0_local, v1;
   v0 = *(int64_t*)key;
   v0_local = v0 - nvertoffset;
 
-  //for(iter->Begin(); !iter->Done(); iter->Next()){
   v1=*(int64_t*)value;
   columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
   rowinserts[v0_local]++;
 }
-#endif
 
+// expand child vertexes of root
 void rootvisit(MapReduce* mr, void *ptr){
   if(mypartition((char*)&root,sizeof(int64_t)) == me){
     int64_t root_local = root-nvertoffset;
@@ -372,36 +315,17 @@ void rootvisit(MapReduce* mr, void *ptr){
     size_t p_end = rowstarts[root_local+1];
     for(size_t p = rowstarts[root_local]; p < p_end; p++){
       int64_t v1 = columns[p];
-      //printf("v0=%ld,v1=%ld\n", root, v1); fflush(stdout);
       mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&root, sizeof(int64_t));
     }
   }
 }
 
-/*
-void shrink(char *key, int keybytes, char *multivalue, int nvalues, int *valuebytes,KeyValue *kv, void *ptr){
-  bfs_state *st = (bfs_state*)ptr;
-  csr_graph *g = &(st->g);
-
-  int64_t v = *(int64_t*)key;
-  int64_t v_local = v % (g->nlocalverts);
-
-  int64_t v0 = *(int64_t*)multivalue;
-
-  if(!TEST_VISITED(v_local, st->vis)){
-    SET_VISITED(v_local, st->vis);
-    st->pred[v_local] = v0;
-    kv->add(key, keybytes, NULL, 0);
-  }
-}*/
-
+// Keep active vertexes in next level only
 void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
   int64_t v = *(int64_t*)key;
   int64_t v_local = v - nvertoffset;
 
   int64_t v0 = *(int64_t*)value;
-
-  //printf("shrink: v0=%ld\n", v0); fflush(stdout);
 
   if(!TEST_VISITED(v_local, vis)){
     SET_VISITED(v_local, vis);
@@ -410,6 +334,7 @@ void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
   }
 }
 
+// Expand vertexes with the active vertexes
 void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
 
   int64_t v = *(int64_t*)key;
@@ -422,12 +347,14 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
   }
 }
 
+// Compress KV with the same key
 void compress(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
 
   mr->add_key_value(key, keysize, val1, val1size);
 }
 
+// Rondom chosen a vertex in the CC part of the graph
 int64_t getrootvert(){
   int64_t myroot;
    // Get a root
