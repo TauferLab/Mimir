@@ -2,6 +2,11 @@
 *.error
 *.output
 core.*
+scripts/execute/slurm/*.txt
+scripts/execute/slurm/*.out
+scripts/execute/slurm/bfs_*
+scripts/execute/slurm/octree_*
+scripts/execute/slurm/wordcount_*
 scripts/execute/bgq/*.txt
 scripts/execute/bgq/bfs_basic
 scripts/execute/bgq/bfs_kvhint

@@ -249,6 +249,8 @@ int DataObject::add_block(){
 #ifdef MTMR_MULTITHREAD
     int tid = omp_get_thread_num();
     LOG_ERROR("Error: block count is larger than max number %d, id=%d, tid=%d!\n", maxblock, id, tid);
+#else
+    LOG_ERROR("Error: block count is larger than max number %d, id=%d!\n", maxblock, id);
 #endif
     return -1;
   }

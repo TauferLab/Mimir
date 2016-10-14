@@ -23,11 +23,11 @@ KeyValue::KeyValue(
 
   ksize = vsize = 0;
 
-  LOG_PRINT(DBG_DATA, "%s", "DATA: KV Create.\n");
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: KV Create.\n", me, nprocs);
 }
 
 KeyValue::~KeyValue(){
-  LOG_PRINT(DBG_DATA, "%s", "DATA: KV Destroy.\n");
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: KV Destroy.\n", me, nprocs);
 }
 
 #if 1
