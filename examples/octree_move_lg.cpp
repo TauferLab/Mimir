@@ -21,17 +21,6 @@
 #include <cmath>
 
 int me, nprocs;
-//int nbucket=17, estimate=0, factor=1;
-//const char* commmode="a2a";
-//const char* inputsize="512M";
-//const char* blocksize="64M";
-//const char* gbufsize="64M";
-//const char* lbufsize="4K";
-
-// MR_BUCKET_SIZE
-// MR_INBUF_SIZE
-// MR_PAGE_SIZE
-// MR_COMM_SIZE
 int nbucket, estimate=0, factor=32;
 const char* inputsize;
 const char* blocksize;
@@ -66,11 +55,6 @@ int main(int argc, char **argv)
     if (me == 0) printf("Syntax: octree_move_lg indir threshold prefix outdir tmpdir\n");
     MPI_Abort(MPI_COMM_WORLD,1);
   }
-
-  //if(me==0){
-  //  printf("start:");
-  //  MapReduce::print_memsize();
-  //}
 
   double density = atof(argv[1]);
   char *indir = argv[2];
@@ -126,7 +110,7 @@ int main(int argc, char **argv)
   }
 
   MapReduce *mr_level=new MapReduce(MPI_COMM_WORLD);
-  mr_level->set_threadbufsize(lbufsize);
+  //mr_level->set_threadbufsize(lbufsize);
   mr_level->set_sendbufsize(gbufsize);
   mr_level->set_blocksize(blocksize);
   mr_level->set_inputsize(inputsize);
@@ -136,57 +120,23 @@ int main(int argc, char **argv)
 
   mr_level->set_outofcore(0);
 
-  //if(me==0){
-  //  printf("start search:");
-  //  MapReduce::print_memsize();
-  //}
-
-#if 1
-
   while ((min_limit+1) != max_limit){
-//#ifdef PART_REDUCE
 #ifdef KV_HINT
     mr_level->set_KVtype(FixedKV, level, sizeof(int64_t));
 #endif
-//#else
-//#ifdef KV_HINT
-//    mr_level->set_KVtype(FixedKV, level, 0);
-//#endif
-//#endif
+
 #ifndef COMPRESS
     mr_level->map_key_value(mr_convert, gen_leveled_octkey);
 #else
     mr_level->map_key_value(mr_convert, gen_leveled_octkey, mergeword);
 #endif
-//#ifdef KV_HINT
-//    mr_level->set_KVtype(FixedKV, level, sizeof(int));
-//#endif
-
-    //if(me==0){
-    //  printf("after map:");
-    //  MapReduce::print_memsize();
-    //}
-
-    //printf("level=%d\n", level);
 
 #ifdef PART_REDUCE
     uint64_t nkv = mr_level->reducebykey(mergeword, NULL);
     nkv = mr_level->map_key_value(mr_level, sum_map, NULL, NULL, 0);
-    //uint64_t nkv = mr_level->reduce(sum, 1, NULL);
 #else
     uint64_t nkv = mr_level->reduce(sum, 0, NULL);
 #endif
-
-    //if(me==0){
-    //   printf("after reduce:");
-    //   MapReduce::print_memsize();
-    //}
-
-    //uint64_t nkv = mr_level->reduce(sum);
-    //if(me==0) {
-    //  printf("min=%d,max=%d,level=%d\n",min_limit,max_limit,level);
-    //  printf("nkv=%ld\n", nkv);
-    //}
 
     if(nkv >0){
       min_limit=level;
@@ -198,18 +148,9 @@ int main(int argc, char **argv)
   }
 
   output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level);
-#endif
-  //if(me==0){
-  //   printf("after first delete:");
-  //   MapReduce::print_memsize();
-  //}
 
   delete mr_level;
   delete mr_convert;
-  //if(me==0){
-  //   printf("after second delete:");
-  //   MapReduce::print_memsize();
-  //}
 
   if(me==0) printf("level=%d\n", level);
 
@@ -233,47 +174,23 @@ void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
 
   int64_t sum=0;
-#ifdef PART_REDUCE
-  //if(me==0) printf("count=%d\n", iter->getCount());
-  for(iter->Begin(); !iter->Done(); iter->Next()){
-    sum+=*(int*)iter->getValue();
-  }
-  //if(me==0) printf("sum=%d\n", sum);
-
-  if (lastreduce){
-    if(sum>thresh){
-      //if(me==0) printf("sum=%d\n", sum);
-      mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
-    }
-  }else{
-    mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
-  }
-#else
   for(iter->Begin(); !iter->Done(); iter->Next()){
     sum+=*(int*)iter->getValue();
   }
   if(sum>thresh)
     mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
-#endif
 }
 
 void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
-//#ifdef PART_REDUCE
   int64_t count=1;
   mr->add_key_value(key, level, (char*)&count, sizeof(int64_t));
-//#else
-//  mr->add_key_value(key, level, NULL, 0);
-//#endif
 }
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)
 {
   double range_up=4.0, range_down=-4.0;
   char octkey[digits];
-  //double coords[512];//hold x,y,z
-  //char ligand_id[256];
-  //int num_coor=0;
 
   double b0, b1, b2;
   char *saveptr;
@@ -283,35 +200,6 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
   b1=atof(token);
   token = strtok_r(word, " ", &saveptr);
   b2=atof(token);
-
-  //while (token != NULL){
-  //  token = strtok_r(NULL, " ", &saveptr);
-  //  if (token){
-  //    coords[num_coor] = atof(token);
-  //    num_coor++;
-  //  }
-  //}
-
-#if 0
-  const int num_atoms = floor((num_coor-2)/3);
-  double *x = new double[num_atoms];
-  double *y = new double[num_atoms];
-  double *z = new double[num_atoms];
-  /*x,y,z double arries store the cooridnates of ligands */
-  for (int i=0; i!=(num_atoms); i++){
-    x[i] = coords[3*i];
-    y[i] = coords[3*i+1];
-    z[i] = coords[3*i+2];
-  }
-  delete [] x;
-  delete [] y;
-  delete [] z;
-
-  /*compute the b0, b1, b2 using linear regression*/
-  double b0 = slope(x, y, num_atoms);
-  double b1 = slope(y, z, num_atoms);
-  double b2 = slope(x, z, num_atoms);
-#endif
 
   /*compute octkey, "digit" many digits*/
   int count=0;//count how many digits are in the octkey
@@ -349,15 +237,7 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
     ++count;
   }
 
-  //if (realdata == false){
-  //  double realkey = coords[num_coor - 1];
-  //  char tmp[100];
-  //  sprintf(tmp, "%f", realkey);
-    //printf("octkey=%s\n", tmp);
-  //  mr->add_key_value(tmp, digits, NULL, 0);
-  //}else{
   mr->add_key_value(octkey, digits, NULL, 0);
-  //}
 }
 
 
