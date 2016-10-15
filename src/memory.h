@@ -8,6 +8,7 @@
 
 void *mem_aligned_malloc(size_t, size_t);
 void *mem_aligned_free(void *);
+int mem_alloc_init();
 
 void record_memory_usage(const char *);
 

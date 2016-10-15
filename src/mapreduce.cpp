@@ -59,6 +59,7 @@ int me,nprocs,tnum;
 */
 MapReduce::MapReduce(MPI_Comm _caller)
 {
+  mem_alloc_init();
   comm = _caller;
   MPI_Comm_rank(comm,&me);
   MPI_Comm_size(comm,&nprocs);
