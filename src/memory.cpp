@@ -124,6 +124,35 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
   return ptr;
 }
 
+int mem_alloc_init()
+{
+#ifdef BGQ
+    /*
+     * Configuration suggested by Hal Finkel:
+     mallopt(M_MMAP_THRESHOLD, sysconf(_SC_PAGESIZE));                mallopt(M_MMAP_THRESHOLD, sysconf(_SC_PAGESIZE));
+     mallopt(M_TRIM_THRESHOLD, 0);                    mallopt(M_TRIM_THRESHOLD, 0);
+     mallopt(M_TOP_PAD, 0);                   mallopt(M_TOP_PAD, 0);
+     */
+
+    /*
+     * According to the glibc 2.12.2 patch ( https://repo.anl-external.org/viewvc/bgq-driver/V1R1M1/toolchain/glibc-2.12.2.diff?revision=1&content-type=text%2Fplain&pathrev=4 ),
+     * Blue Gene/Q uses these values:
+     *
+     * DEFAULT_TRIM_THRESHOLD is 1024 * 1024;
+     * DEFAULT_MMAP_THRESHOLD is 1024 * 1024;
+     * DEFAULT_TOP_PAD is 0.
+     *
+     * According to http://man7.org/linux/man-pages/man3/mallopt.3.html, the default value for these 3 arguments
+     * is 128 * 1024 in the glibc.
+     */
+
+    mallopt(M_MMAP_THRESHOLD, 128 * 1024);
+    mallopt(M_TRIM_THRESHOLD, 128 * 1024);
+    mallopt(M_TOP_PAD, 128 * 1024);
+#endif
+    return 0;
+}
+
 void *mem_aligned_free(void *ptr){
   free(ptr);
   record_memory_usage();
