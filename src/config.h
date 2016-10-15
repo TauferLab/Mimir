@@ -27,6 +27,9 @@ extern int MAX_STR_SIZE;
 
 extern int DBG_LEVEL;
 
+//#define MIMIR_DYNAMIC_BUCKET_SIZE
+//#define MIMIR_USE_MPI_IO
+
 //#define USE_MT_IO
 //#define USE_MPI_IO
 //#define USE_MPI_ASYN_IO

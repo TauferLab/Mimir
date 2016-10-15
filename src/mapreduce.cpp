@@ -918,17 +918,18 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
                         int recurse, char *whitespace,
                         UserMapFile mymap, UserBiReduce _mycompress,
                         void *_ptr, int _comm){
-//uint64_t MapReduce::_map_master_io(char *filepath, int sharedflag,
-//  int recurse, char *whitespace, UserMapFile mymap,
-//  UserCompress _mycompress, void *_ptr, int compress, int _comm){
+  
+  // Error judgement
+  if(strlen(whitespace) == 0)
+    LOG_ERROR("%s", "Error: the white space \
+      should not be empty string!\n");
 
-  if(strlen(whitespace) == 0){
-    LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
-  }
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file start\nfilepath=%s,_mycompress=%p\n", \
+  // Log record
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text \
+    file start\nfilepath=%s,_mycompress=%p\n", \
     me, nprocs, filepath, _mycompress);
 
+#ifdef DYNAMIC_BUCKET_SIZE 
   if(estimate){
     int64_t estimate_kv_count = global_kvs_count/nprocs;
     nbucket=1;
@@ -937,19 +938,20 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
       nbucket*=2;
     nset=nbucket;
   }
+#endif
 
   TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
 
-  // delete data
+  // Delete data
   DataObject::subRef(data);
 
-  // distribute files
+  // Distribute files
   ifiles.clear();
   _disinputfiles(filepath, sharedflag, recurse);
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
 
-  // create dataobject
+  // Create dataobject
   KeyValue *kv = new KeyValue(kvtype,
                               blocksize,
                               nmaxblock,
@@ -959,13 +961,8 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   kv->setKVsize(ksize,vsize);
   data=kv;
 
-  // create communicator
-  //if(_comm){
-  //  c=Communicator::Create(comm, tnum, commmode);
-  //  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-  //  c->init(kv);
-  //}
-  // set mode
+  // Compute mode
+  // Compress mode
   if(_mycompress!=NULL){
     u=new UniqueInfo();
     u->ubucket = new Unique*[nbucket];
@@ -977,11 +974,13 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
     mycompress=_mycompress;
     ptr=_ptr;
     mode=CompressMode;
+  // Normal map
   }else if(_comm){
     c=Communicator::Create(comm, tnum, commmode);
     c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
     c->init(kv);
     mode = CommMode;
+  // Local map
   }else{
     mode = LocalMode;
   }
@@ -1034,13 +1033,11 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #endif
 #endif
 
-      LOG_PRINT(DBG_IO, "%d[%d] open file %s\n", me, nprocs, ifiles[i].c_str());
+    LOG_PRINT(DBG_IO, "%d[%d] open file %s\n", me, nprocs, ifiles[i].c_str());
 
     FILE *fp = fopen(ifiles[i].c_str(), "r");
 
     TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
-
-    //TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
 
 #if 0
 #ifdef USE_MPI_IO
@@ -1049,17 +1046,22 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #else
 #endif
 #endif
+
+    // Get file size
     struct stat stbuf;
     stat(ifiles[i].c_str(), &stbuf);
     int64_t fsize = stbuf.st_size;
 
+    // Compute input buffer size
     if(fsize<=inputsize) input_buffer_size=fsize;
     else input_buffer_size=inputsize;
+
+    // Allocate input buffer
     char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
     PROFILER_RECORD_COUNT(0, COUNTER_MAP_INPUT_BUF, input_buffer_size);
 
-    // Process file
+    // Process the file
     int64_t foff = 0, boff = 0;
     int64_t readsize=0;
 
@@ -1091,6 +1093,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #else
 #endif
 #endif
+      // read file
       fseek(fp, foff, SEEK_SET);
       readsize = fread(text+boff, 1, input_buffer_size, fp);
 //#endif
@@ -1165,6 +1168,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
       if(_comm) c->tpoll(tid);
 }
 #else
+      // Pass words one by one to user-defined map function
       int tid = 0;
       char *saveptr = NULL;
       char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
@@ -1192,7 +1196,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 
    }while(foff<fsize);
 
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
 #if 0
     // Close file
@@ -1201,6 +1205,7 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #else
 #endif
 #endif
+    // close the file and free the buffers
     fclose(fp);
     mem_aligned_free(text);
 
@@ -1231,8 +1236,9 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
 #endif
 #endif
 
+  // If in compress mode
   if(_mycompress != NULL){
-    //delete tmpdata;
+    // Create comunicator
     if(_comm){
       c=Communicator::Create(comm, tnum, commmode);
       c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
@@ -1250,20 +1256,21 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   }
 
   // delete communicator
- if(_comm){
-   c->wait();
-   delete c;
-   c = NULL;
- }
+  if(_comm){
+    c->wait();
+    delete c;
+    c = NULL;
+  }
 
   DataObject::addRef(data);
   mode = NoneMode;
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file end.\n", me, nprocs);
-
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
   PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_KV, data->gettotalsize());
   PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_PAGE, data->nblock);
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file end.\n", me, nprocs);
+
   return _get_kv_count();
 }
 

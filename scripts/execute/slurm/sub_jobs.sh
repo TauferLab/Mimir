@@ -11,9 +11,9 @@ PARAMLIST=""
 NTIMES=0
 SCRIPT="run.sub"
 PREJOB="none"
-nnode=1
+nnode=0
 
-if [ $# == 8 ]
+if [ $# == 9 ]
 then
   BENCHMARK=$1
   SETLIST=$2
@@ -22,10 +22,11 @@ then
   DATALIST=$5
   PARAMLIST=($6)
   NTIMES=$7
-  PREJOB=$8
+  nnode=$8
+  PREJOB=$9
 else
   echo "./exe [benchmark] [setting list] [datatypes] [test type] \
-[data list] [param list] [run times] [prev job]"
+[data list] [param list] [run times] [node] [prev job]"
 fi
 
 source config.h

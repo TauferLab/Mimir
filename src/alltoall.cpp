@@ -195,6 +195,9 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
 
   Communicator::setup(_tbufsize, _sbufsize, _kvtype, _ksize, _vsize, _nbuf);
 
+  //send_buf_size=4096;
+  //size=16384;
+
   //one_type_bytes=0x1;
   size_t total_send_buf_size=(size_t)send_buf_size*size;
 
@@ -255,7 +258,9 @@ int Alltoall::setup(int64_t _tbufsize, int64_t _sbufsize, int _kvtype, int _ksiz
 
   //init(NULL);
 
-  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (local bufffer size=%ld, global buffer size=%ld)\n", rank, size, thread_buf_size, send_buf_size);
+  LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (local bufffer size=%ld, \
+global buffer size=%ld, type_log_bytes=%d)\n", rank, size, 
+thread_buf_size, send_buf_size, type_log_bytes);
 
   return 0;
 }
