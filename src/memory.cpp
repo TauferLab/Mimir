@@ -81,7 +81,7 @@ void record_memory_usage(){
 int64_t get_max_mmap(){
 #define BUFSIZE 1024
     int stderr_save;
-    char buffer[BUFSIZE];
+    char buffer[BUFSIZE]={'\0'};
     fflush(stderr); //clean everything first
     stderr_save = dup(STDERR_FILENO); //save the stdout state
     freopen("/dev/null", "a", stderr); //redirect stdout to null pointer
@@ -90,7 +90,7 @@ int64_t get_max_mmap(){
     freopen("/dev/null", "a", stderr); //redirect stdout to null again
     dup2(stderr_save, STDERR_FILENO); //restore the previous state of stdout
     setvbuf(stderr, NULL, _IONBF, BUFSIZE); //disable buffer to print to screen instantly
-    char *p, *temp;
+    char *p, *temp=NULL;
     int64_t maxmmap=0;
     p = strtok_r(buffer, "\n", &temp);
     do {

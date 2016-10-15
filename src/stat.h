@@ -171,6 +171,7 @@ extern tracker_thread_info *tracker_info;
   tracker_info[thread_id].overhead+=t_end-t_start;}
 
 #define TRACKER_END \
+  tracker_ref--;\
   if(tracker_ref==0){\
     delete [] tracker_info;\
     delete [] tracker_event_timer;\
