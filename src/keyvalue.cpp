@@ -1,9 +1,7 @@
 #include <string.h>
 #include <string>
 #include "keyvalue.h"
-
 #include "log.h"
-
 #include "const.h"
 
 using namespace MAPREDUCE_NS;

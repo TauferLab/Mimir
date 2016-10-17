@@ -204,9 +204,8 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
   kv->setKVsize(ksize,vsize);
 
   if(_comm){
-    c=Communicator::Create(comm, tnum, commmode);
-    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-    c->init(kv);
+    c=Communicator::Create(comm, commmode);
+    c->setup(gbufsize, kv);
     mode = CommMode;
   }else{
     mode = LocalMode;
@@ -325,9 +324,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     ptr=_ptr;
     mode=CompressMode;
   }else if(_comm){
-    c=Communicator::Create(comm, tnum, commmode);
-    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-    c->init(kv);
+    c=Communicator::Create(comm, commmode);
+    c->setup(gbufsize, kv);
+    //c->init(kv);
     mode = CommMode;
   }else{
     mode = LocalMode;
@@ -381,9 +380,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
   if(_mycompress != NULL){
     if(_comm){
-      c=Communicator::Create(comm, tnum, commmode);
-      c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-      c->init(kv);
+      c=Communicator::Create(comm, commmode);
+      c->setup(gbufsize, kv);
+      //c->init(kv);
       mode = CommMode;
     }else{
       mode = LocalMode;
@@ -440,9 +439,9 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
   data=outkv;
 
   if(_comm){
-    c=Communicator::Create(comm, tnum, commmode);
-    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-    c->init(kv);
+    c=Communicator::Create(comm, commmode);
+    c->setup(gbufsize, kv);
+    //c->init(kv);
     mode = LocalMode;
   }else{
     mode = LocalMode;
@@ -819,11 +818,11 @@ void MapReduce::scan(
    @return nothing
 */
 void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebytes){
-#ifdef MTMR_MULTITHREAD
-  int tid = omp_get_thread_num();
-#else
+//#ifdef MTMR_MULTITHREAD
+//  int tid = omp_get_thread_num();
+//#else
   int tid = 0;
-#endif
+//#endif
   // Communication Mode
   if(mode == CommMode){
     int target = 0;
@@ -836,9 +835,9 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
     }
 
     // send KV
-    c->sendKV(tid, target, key, keybytes, value, valuebytes);
+    c->sendKV(target, key, keybytes, value, valuebytes);
 
-    thread_info[tid].nitem++;
+    thread_info[0].nitem++;
 
     return;
    // Local Mode
@@ -977,9 +976,9 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
     mode=CompressMode;
   // Normal map
   }else if(_comm){
-    c=Communicator::Create(comm, tnum, commmode);
-    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-    c->init(kv);
+    c=Communicator::Create(comm, commmode);
+    c->setup(gbufsize, kv);
+    //c->init(kv);
     mode = CommMode;
   // Local map
   }else{
@@ -1241,9 +1240,9 @@ uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
   if(_mycompress != NULL){
     // Create comunicator
     if(_comm){
-      c=Communicator::Create(comm, tnum, commmode);
-      c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-      c->init(kv);
+      c=Communicator::Create(comm, commmode);
+      c->setup(gbufsize, kv);
+      //c->init(kv);
       mode = CommMode;
     }else{
       mode = LocalMode;

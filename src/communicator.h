@@ -1,115 +1,52 @@
 /**
- * @file   mapreduce.h
- * @Author Tao Gao (taogao@udel.edu)
- * @date   September 1st, 2016
- * @brief  This file provides interfaces to application programs.
+ * @file   communicator.h
+ * @Author Tao Gao (taogao.china@gmail.com)
+ * @date   Oct. 17th, 2016
+ * @brief  This file provides interfaces of communicator.
  *
- * This file includes two classes: MapReduce and MultiValueIter.
  */
 #ifndef COMMUNICATOR_H
 #define COMMUNICATOR_H
 
 #include <mpi.h>
 #include "dataobject.h"
-
+#include "mapreduce.h"
 #include "config.h"
-
-#define SAVE_DATA(recvbuf, recvcount) \
-{\
-  if(blocks[0]==-1){\
-    blocks[0] = data->add_block();\
-    data->acquire_block(blocks[0]);\
-  }\
-  int datasize=data->getdatasize(blocks[0]);\
-  if(datasize+recvcount>data->blocksize){\
-    data->release_block(blocks[0]);\
-    blocks[0] = data->add_block();\
-    data->acquire_block(blocks[0]);\
-    datasize=0;\
-  }\
-  char *databuf = data->getblockbuffer(blocks[0]);\
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);\
-  memcpy(databuf+datasize, recvbuf, recvcount);\
-  TRACKER_RECORD_EVENT(0, EVENT_MEM_COPY);\
-  data->setblockdatasize(blocks[0], datasize+recvcount);\
-}
 
 namespace MAPREDUCE_NS {
 
 class Communicator{
 public:
-  Communicator(MPI_Comm _comm, int _commtype, int _tnum);
+    Communicator(MPI_Comm _comm, int _commtype);
+    virtual ~Communicator();
 
-  virtual ~Communicator();
+    virtual int setup(int64_t, DataObject *data)=0;
 
-  // main thread
-  virtual int setup(int64_t, int64_t, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
+    virtual int sendKV(int, char *, int, char *, int) = 0;
 
-  // main thread
-  virtual void init(DataObject *data = NULL);
-
-  // multi-threads
-  virtual int sendKV(int, int, char *, int, char *, int) = 0;
-
-  // poll data
-  virtual void tpoll(int tid) = 0;
-
-  // multi-threads
-  virtual void twait(int tid) = 0;
-
-  // main thread
-  virtual void wait() = 0;
+    virtual void wait() = 0;
 
 protected:
-  int fetch_and_add_with_max(int *counter, int adder, int maxnum){
-    int val=0;
-    do{
-      val = *counter;
-      if(val+adder>maxnum) break;
-      if(__sync_bool_compare_and_swap(counter, val, val+adder))
-        break;
-    }while(1);
-    return val;
-  }
+    /// communicator information
+    MPI_Comm comm;
+    int rank, size;
+    int commtype;
 
-  // communicator and thread information
-  MPI_Comm comm;
-  int rank, size, tnum;
+    ///  termination check
+    int medone, pdone;
 
-  // 0 for Alltoall, 1 for Isend/Irecv
-  int commtype;
+    /// data object
+    DataObject *data;
+    int blockid;
 
-  // terminate flag
-  int medone; // if me done
-  int tdone;  // done count for thread
-  int pdone;  // done count for process
-
-  // received data added into this object
-  int *blocks;
-  DataObject *data;
-  int blockid;
-  //int64_t spacesize;
-
-  // kv type
-  int kvtype, ksize, vsize;
-
-  // buffer size information
-  int64_t thread_buf_size, send_buf_size;
-  int nbuf;
-
-#ifdef MTMR_MULTITHREAD
-  char **thread_buffers;   // local buffers for threads
-  int  **thread_offsets;   // local offsets for threads
-#endif
-
-  char **send_buffers;     // global buffers
-  int  **send_offsets;     // global offsets
+    /// buffer information
+    int nbuf;
+    int64_t send_buf_size;
+    char **send_buffers;
+    int  **send_offsets;
 
 public:
-  uint64_t send_bytes, recv_bytes;
-
-public:
-  static Communicator* Create(MPI_Comm, int, int);
+    static Communicator* Create(MPI_Comm, int);
 };
 
 }

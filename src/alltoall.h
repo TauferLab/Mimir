@@ -1,10 +1,9 @@
 /**
- * @file   mapreduce.h
- * @Author Tao Gao (taogao@udel.edu)
- * @date   September 1st, 2016
- * @brief  This file provides interfaces to application programs.
+ * @file   alltoall.h
+ * @Author Tao Gao (taogao.china@gmail.com)
+ * @date   Oct. 17th, 2016
+ * @brief  This file provides MPI_Alltoll communication.
  *
- * This file includes two classes: MapReduce and MultiValueIter.
  */
 #ifndef ALLTOALL_H
 #define ALLTOALL_H
@@ -18,60 +17,28 @@ namespace MAPREDUCE_NS {
 
 class Alltoall : public Communicator{
 public:
-  Alltoall(MPI_Comm, int);
-  ~Alltoall();
+    Alltoall(MPI_Comm);
+    ~Alltoall();
 
-  int setup(int64_t, int64_t, int kvtype=0, int ksize=0, int vsize=0, int nbuf=2);
-
-  void init(DataObject *);
-
-  int sendKV(int, int, char *, int, char *, int);
-
-  void tpoll(int tid);
-
-  // multi-threads
-  void twait(int tid);
-
-  // main thread
-  void wait();
+    int setup(int64_t, DataObject *);
+    int sendKV(int, char *, int, char *, int);
+    void wait();
 
 private:
+    void exchange_kv();
+    void save_data(int);
 
-   // exchange kv buffer
-  void exchange_kv();
+    int   switchflag;
+    int   ibuf;
+    char *buf;
+    int  *off;
 
-  void save_data(int);
+    int **recv_count;
+    char **recv_buf;
+    int64_t  *recvcounts;
+    int type_log_bytes;
 
-   // data struct for type 0
-  int switchflag;
-
-  // global buffer informatoion
-  int ibuf;
-  char *buf;
-  int  *off;
-
-  // used for MPI_Ialltoall
-  //uint64_t *send_displs;
-  //uint64_t *recv_displs;
-
-  int **recv_count;
-  //recv_blockid=-1;
-#ifndef MTMR_ZERO_COPY
-  char **recv_buf;
-#endif
-  uint64_t  *recvcounts;
-  //int one_type_bytes;
-  int type_log_bytes;
-
-  //char **comm_recv_buf;
-  //int  **comm_recv_count;
-  //int  **comm_recv_displs;
-
-  //uint64_t comm_max_size;    // communication max size
-  //int comm_unit_size;   // communication unit size
-  //int comm_div_count;   // communication divide count
-
-  MPI_Request *reqs;
+    MPI_Request *reqs;
 };
 
 }
