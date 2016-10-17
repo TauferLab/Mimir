@@ -406,14 +406,17 @@ private:
   OpMode mode;
   int ukeyoffset;
 
-  struct thread_private_info{
-    uint64_t nitem;
-    int      block;
-  };
 
-  thread_private_info *thread_info;
+  //struct thread_private_info{
+  //  uint64_t nitem;
+  //  int      block;
+  //};
+  //thread_private_info *thread_info;
 
+  uint64_t nitem;
   DataObject  *data; ///< number of unique key
+  int       blockid; 
+
   UniqueCPS *cur_ukey;  ///< number of unique key
   UniqueInfo *u;
   //User
@@ -438,7 +441,7 @@ private:
     void *ptr=NULL, int compress=0, int comm=1);
 #endif
 
-  void _tinit(int); // thread initialize
+  //void _tinit(int); // thread initialize
   void _disinputfiles(const char *, int, int);
   void _getinputfiles(const char *, int, int);
 

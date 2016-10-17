@@ -17,13 +17,7 @@
 #include <math.h>
 #include <dirent.h>
 #include <sys/stat.h>
-
 #include <mpi.h>
-
-#ifdef MTMR_MULTITHREAD
-#include <omp.h>
-#endif
-
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -35,7 +29,6 @@
 #include "keyvalue.h"
 #include "communicator.h"
 #include "alltoall.h"
-//#include "ptop.h"
 #include "spool.h"
 #include "log.h"
 #include "config.h"
@@ -43,9 +36,6 @@
 #include "hash.h"
 #include "memory.h"
 #include "stat.h"
-
-//#include "spool.h"
-
 
 using namespace MAPREDUCE_NS;
 
@@ -64,29 +54,9 @@ MapReduce::MapReduce(MPI_Comm _caller)
   MPI_Comm_rank(comm,&me);
   MPI_Comm_size(comm,&nprocs);
 
-  //record_memory_usage("init");
-
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-  int tid=omp_get_thread_num();
-  tnum = omp_get_num_threads();
-#pragma omp master
-{
-  TRACKER_START(tnum);
-  PROFILER_START(tnum);
-  thread_info=new thread_private_info[tnum];
-}
-#pragma omp barrier
-  TRACKER_TIMER_INIT(tid);
-}
-#else
-  tnum=1;
-  TRACKER_START(tnum);
-  PROFILER_START(tnum);
-  thread_info=new thread_private_info[tnum];
+  TRACKER_START(1);
+  PROFILER_START(1);
   TRACKER_TIMER_INIT(0);
-#endif
 
   _get_default_values();
   _bind_threads();
@@ -138,30 +108,9 @@ MapReduce::MapReduce(const MapReduce &_mr){
   c=NULL;
   ifiles.clear();
 
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-  int tid=omp_get_thread_num();
-  tnum = omp_get_num_threads();
-#pragma omp master
-{
-  TRACKER_START(tnum);
-  PROFILER_START(tnum);
-  thread_info=new thread_private_info[tnum];
-}
-  thread_info[tid].block=-1;
-  thread_info[tid].nitem=0;
-  TRACKER_TIMER_INIT(tid);
-}
-#else
-  tnum=1;
-  TRACKER_START(tnum);
-  PROFILER_START(tnum);
-  thread_info=new thread_private_info[tnum];
-  thread_info[0].block=-1;
-  thread_info[0].nitem=0;
+  TRACKER_START(1);
+  PROFILER_START(1);
   TRACKER_TIMER_INIT(0);
-#endif
 
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: copy\n", me, nprocs);
 }
@@ -174,7 +123,6 @@ MapReduce::~MapReduce()
   DataObject::subRef(data);
 
   if(c) delete c;
-  delete [] thread_info;
 
   TRACKER_END;
   PROFILER_END;
@@ -211,23 +159,9 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
     mode = LocalMode;
   }
 
-  // begin traversal
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-
-  _tinit(tid);
-
-  if(tid == 0)
-    _myinit(this, _ptr);
-
-  if(_comm) c->twait(tid);
-}
-#else
-  _tinit(0);
+  nitem=0;
+  blockid=-1;
   _myinit(this, _ptr);
-#endif
   // wait all processes done
   if(_comm){
     c->wait();
@@ -245,41 +179,10 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
   return _get_kv_count();
 }
 
-#if 0
-/**
-   Map function without input
-
-*/
-uint64_t MapReduce::map_text_file(char *_filename, int _shared,
-                        int _recur, char *_whitespace,
-                        UserMapFile _mymap, UserCompress _mycompress,
-                        void *_ptr, int _compress, int _comm){
-  if(strlen(_whitespace) == 0){
-    LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
-  }
-  if(estimate){
-    uint64_t estimate_kv_count = global_kvs_count/nprocs;
-    nbucket=1;
-    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
-      factor*nbucket<estimate_kv_count)
-      nbucket*=2;
-    nset=nbucket;
-  }
-#ifdef USE_MT_IO
-  return _map_multithread_io(_filename, _shared,
-    _recur, _whitespace, _mymap, _ptr, _comm);
-#else
-  uint64_t ret = _map_master_io(_filename, _shared,
-    _recur, _whitespace, _mymap, _mycompress, _ptr, _compress, _comm);
-#endif
-}
-#endif
-
 /**
    Map function KV input
 
 */
-
 uint64_t MapReduce::map_key_value(MapReduce *_mr,
     UserMapKV _mymap, UserBiReduce _mycompress,
     void *_ptr, int _comm){
@@ -334,22 +237,13 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
   KeyValue *inputkv = (KeyValue*)data;
 
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-#else
-  int tid = 0;
-#endif
-  _tinit(tid);
+  nitem=0;
+  blockid=-1;
 
   char *key, *value;
   int keybytes, valuebytes;
 
   int i;
-#ifdef MTMR_MULTITHREAD
-#pragma omp for nowait
-#endif
   for(i = 0; i < inputkv->nblock; i++){
     int64_t offset = 0;
 
@@ -367,11 +261,6 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     inputkv->delete_block(i);
     inputkv->release_block(i);
   }
-
-#ifdef MTMR_MULTITHREAD
-  if(_comm) c->twait(tid);
-}
-#endif
 
   //DataObject::subRef(data);
   PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
@@ -498,8 +387,10 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   int kvtype=kv->getKVtype();
 
   // init counters
-  int tid=0;
-  _tinit(tid);
+  //int tid=0;
+  //_tinit(tid);
+  nitem=0;
+  blockid=-1;
 
   mode = MergeMode;
 
@@ -837,7 +728,7 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
     // send KV
     c->sendKV(target, key, keybytes, value, valuebytes);
 
-    thread_info[0].nitem++;
+    nitem++;
 
     return;
    // Local Mode
@@ -846,20 +737,20 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
     // add KV into data object
     KeyValue *kv = (KeyValue*)data;
 
-    if(thread_info[tid].block == -1){
-      thread_info[tid].block = kv->add_block();
+    if(blockid == -1){
+      blockid = kv->add_block();
     }
 
-    kv->acquire_block(thread_info[tid].block);
+    kv->acquire_block(blockid);
 
-    while(kv->addKV(thread_info[tid].block, key, keybytes, value, valuebytes) == -1){
-      kv->release_block(thread_info[tid].block);
-      thread_info[tid].block = kv->add_block();
-      kv->acquire_block(thread_info[tid].block);
+    while(kv->addKV(blockid, key, keybytes, value, valuebytes) == -1){
+      kv->release_block(blockid);
+      blockid = kv->add_block();
+      kv->acquire_block(blockid);
     }
 
-    kv->release_block(thread_info[tid].block);
-    thread_info[tid].nitem++;
+    kv->release_block(blockid);
+    nitem++;
   // MergeMode
   }else if(mode==MergeMode){
     if(valuebytes > maxvaluebytes){
@@ -909,654 +800,185 @@ else if(mode==CompressMode){
   return;
 }
 
-/**
- * This function map text files.
- *   Master thread is used to read files in multithring mode.
- *
- */
-uint64_t MapReduce::map_text_file(char *filepath, int sharedflag,
-                        int recurse, char *whitespace,
-                        UserMapFile mymap, UserBiReduce _mycompress,
-                        void *_ptr, int _comm){
-  
-  // Error judgement
-  if(strlen(whitespace) == 0)
-    LOG_ERROR("%s", "Error: the white space \
-      should not be empty string!\n");
+uint64_t MapReduce::map_text_file( \
+    char *filepath, int sharedflag, int recurse, char *whitespace, \
+    UserMapFile mymap, UserBiReduce _mycompress, void *_ptr, int _comm){
 
-  // Log record
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text \
-    file start\nfilepath=%s,_mycompress=%p\n", \
-    me, nprocs, filepath, _mycompress);
+    if(strlen(whitespace) == 0)
+        LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
 
-#ifdef DYNAMIC_BUCKET_SIZE 
-  if(estimate){
-    int64_t estimate_kv_count = global_kvs_count/nprocs;
-    nbucket=1;
-    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
-      factor*nbucket<estimate_kv_count)
-      nbucket*=2;
-    nset=nbucket;
-  }
-#endif
+    // log record
+    LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text \
+      file start\nfilepath=%s,_mycompress=%p\n", \
+      me, nprocs, filepath, _mycompress);
 
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+    TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
 
-  // Delete data
-  DataObject::subRef(data);
+    // delete previous data
+    DataObject::subRef(data);
 
-  // Distribute files
-  ifiles.clear();
-  _disinputfiles(filepath, sharedflag, recurse);
+    // distribute files
+    ifiles.clear();
+    _disinputfiles(filepath, sharedflag, recurse);
 
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
+    TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
 
-  // Create dataobject
-  KeyValue *kv = new KeyValue(kvtype,
+    // create dataobject
+    KeyValue *kv = new KeyValue(kvtype,
                               blocksize,
                               nmaxblock,
                               maxmemsize,
                               outofcore,
                               tmpfpath);
-  kv->setKVsize(ksize,vsize);
-  data=kv;
+    kv->setKVsize(ksize,vsize);
+    data=kv;
 
-  // Compute mode
-  // Compress mode
-  if(_mycompress!=NULL){
-    u=new UniqueInfo();
-    u->ubucket = new Unique*[nbucket];
-    u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
-    u->nunique=0;
-    u->ubuf=u->unique_pool->add_block();
-    u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
-    memset(u->ubucket, 0, nbucket*sizeof(Unique*));
-    mycompress=_mycompress;
-    ptr=_ptr;
-    mode=CompressMode;
-  // Normal map
-  }else if(_comm){
-    c=Communicator::Create(comm, commmode);
-    c->setup(gbufsize, kv);
-    //c->init(kv);
-    mode = CommMode;
-  // Local map
-  }else{
-    mode = LocalMode;
-  }
-
-  // create input file buffer
-  int64_t input_buffer_size=inputsize;
-#if 0
-#ifdef USE_MPI_IO
-  char **input_file_buffers = new char*[INPUT_BUF_COUNT];
-  for(int i=0; i<INPUT_BUF_COUNT; i++){
-    input_file_buffers[i] = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
-  }
-#else
-#endif
-#endif
-
-  int64_t *tstart=new int64_t[tnum];
-
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-  _tinit(tid);
-}
-#else
-  _tinit(0);
-#endif
-
-  int fcount = (int)ifiles.size();
-  for(int i = 0; i < fcount; i++){
-    int64_t input_char_size=0;
-
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-    PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_COUNT, 1);
-
-#if 0
-    // Open file
-#ifdef USE_MPI_IO
-    int ibuf=0;
-    MPI_Request reqs[INPUT_BUF_COUNT];
-    for(int j=0; j<INPUT_BUF_COUNT; j++) reqs[j]=MPI_REQUEST_NULL;
-
-    MPI_File fp;
-    int err=MPI_File_open(MPI_COMM_SELF, ifiles[i].c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fp);
-
-#ifdef USE_MPI_ASYN_IO
-    MPI_File_iread_at(fp, 0, input_file_buffers[ibuf], input_buffer_size, MPI_BYTE, &reqs[ibuf]);
-#endif
-#else
-#endif
-#endif
-
-    LOG_PRINT(DBG_IO, "%d[%d] open file %s\n", me, nprocs, ifiles[i].c_str());
-
-    FILE *fp = fopen(ifiles[i].c_str(), "r");
-
-    TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
-
-#if 0
-#ifdef USE_MPI_IO
-    MPI_Offset fsize;
-    MPI_File_get_size(fp, &fsize);
-#else
-#endif
-#endif
-
-    // Get file size
-    struct stat stbuf;
-    stat(ifiles[i].c_str(), &stbuf);
-    int64_t fsize = stbuf.st_size;
-
-    // Compute input buffer size
-    if(fsize<=inputsize) input_buffer_size=fsize;
-    else input_buffer_size=inputsize;
-
-    // Allocate input buffer
-    char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
-
-    PROFILER_RECORD_COUNT(0, COUNTER_MAP_INPUT_BUF, input_buffer_size);
-
-    // Process the file
-    int64_t foff = 0, boff = 0;
-    int64_t readsize=0;
-
-    do{
-      TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-
-#if 0
-#ifdef USE_MPI_IO
-
-#ifdef USE_MPI_ASYN_IO
-      char *text=input_file_buffers[ibuf];
-      MPI_Status status;
-      MPI_Wait(&reqs[ibuf], &status);
-      int count;
-      MPI_Get_count(&status, MPI_BYTE, &count);
-      readsize = (int64_t)count;
-      //fprintf(stdout, "%d[%d] readsize=%ld\n", me, nprocs, readsize); fflush(stdout);
-      //printf("")
-#else
-      char *text=input_file_buffers[ibuf];
-      // set file pointer
-      MPI_Status status;
-      MPI_File_read_at(fp, foff, text+boff, input_buffer_size, MPI_BYTE, &status);
-      int count;
-      MPI_Get_count(&status, MPI_BYTE, &count);
-      readsize = (int64_t)count;
-#endif
-
-#else
-#endif
-#endif
-      // read file
-      fseek(fp, foff, SEEK_SET);
-      readsize = fread(text+boff, 1, input_buffer_size, fp);
-//#endif
-
-      TRACKER_RECORD_EVENT(0, EVENT_PFS_READ);
-      PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_SIZE, readsize);
-
-      // read a block
-      text[boff+readsize] = '\0';
-      input_char_size = boff+readsize;
-
-      LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld\n", me, nprocs, ifiles[i].c_str(), foff, foff+readsize);
-
-      // Divide input buffer
-      int64_t divisor = input_char_size / tnum;
-      int64_t remain  = input_char_size % tnum;
-
-      tstart[0]=0;
-      for(int j=0; j<tnum; j++){
-        int64_t tend=0;
-        if(j<tnum-1){
-          tend = tstart[j] + divisor;
-          if(j < remain) tend += 1;
-          int64_t text_index=tend;
-          do{
-            if(strchr(whitespace, text[text_index]) != NULL || text[text_index]=='\0') break;
-            text_index++;
-          }while(1);
-          tend=text_index;
-          text[tend]='\0';
-          if(tend+1>input_char_size)
-            tstart[j+1]=input_char_size;
-          else
-            tstart[j+1]=tend+1;
-        }else{
-          tend=input_char_size;
-          boff=0;
-          if(readsize >= input_buffer_size && foff+readsize<fsize){
-           while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
-            tend-=(boff+1);
-            text[tend]='\0';
-          }
-        }
-      }
-
-      if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
-
-#if 0
-#ifdef USE_MPI_ASYN_IO
-      ibuf=(ibuf+1)%INPUT_BUF_COUNT;
-      if(foff+readsize<fsize){
-        MPI_Offset offset=foff+readsize;
-        //printf("offset=%lld, length=%d\n", offset, input_buffer_size); fflush(stdout);
-        MPI_File_iread_at(fp, offset, input_file_buffers[ibuf]+boff, input_buffer_size, MPI_BYTE, &reqs[ibuf]);
-      }
-#endif
-#endif
-
-      // Process input buffer
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-      int tid = omp_get_thread_num();
-
-      char *saveptr = NULL;
-      char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
-      while(word){
-        mymap(this, word, ptr);
-        word = strtok_r(NULL,whitespace,&saveptr);
-      }
-
-      if(_comm) c->tpoll(tid);
-}
-#else
-      // Pass words one by one to user-defined map function
-      int tid = 0;
-      char *saveptr = NULL;
-      char *word = strtok_r(text+tstart[tid], whitespace, &saveptr);
-      while(word){
-        mymap(this, word, ptr);
-        word = strtok_r(NULL,whitespace, &saveptr);
-      }
-#endif
-
-      // Prepare for next buffer
-      foff += readsize;
-
-#if 0
-#ifdef USE_MPI_IO
-#ifdef USE_MPI_ASYN_IO
-      for(int j =0; j < boff; j++) input_file_buffers[ibuf][j]=text[input_char_size-boff+j];
-#else
-      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
-#endif
-
-#else
-#endif
-#endif
-      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
-
-   }while(foff<fsize);
-
-   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-
-#if 0
-    // Close file
-#ifdef USE_MPI_IO
-    MPI_File_close(&fp);
-#else
-#endif
-#endif
-    // close the file and free the buffers
-    fclose(fp);
-    mem_aligned_free(text);
-
-    TRACKER_RECORD_EVENT(0, EVENT_PFS_CLOSE);
-
-    LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
-  }
-
-  // Wait thread end
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-
-  //printf("thread=%d begin wait\n", tid); fflush(stdout);
-  if(_comm) c->twait(tid);
-}
-#endif
-
-  // Free buffers
-  delete [] tstart;
-
-#if 0
-#ifdef USE_MPI_IO
-  for(int i=0; i<INPUT_BUF_COUNT; i++) mem_aligned_free(input_file_buffers[i]);
-  delete [] input_file_buffers;
-#else
-#endif
-#endif
-
-  // If in compress mode
-  if(_mycompress != NULL){
-    // Create comunicator
-    if(_comm){
-      c=Communicator::Create(comm, commmode);
-      c->setup(gbufsize, kv);
-      //c->init(kv);
-      mode = CommMode;
+    // compress mode
+    if(_mycompress!=NULL){
+        u=new UniqueInfo();
+        u->ubucket = new Unique*[nbucket];
+        u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
+        u->nunique=0;
+        u->ubuf=u->unique_pool->add_block();
+        u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
+        memset(u->ubucket, 0, nbucket*sizeof(Unique*));
+        mycompress=_mycompress;
+        ptr=_ptr;
+        mode=CompressMode;
+    // normal map
+    }else if(_comm){
+        c=Communicator::Create(comm, commmode);
+        c->setup(gbufsize, kv);
+        mode = CommMode;
+    // local map
     }else{
-      mode = LocalMode;
+        mode = LocalMode;
     }
 
-    _cps_unique2kv(u);
+    blockid=-1;
+    nitem=0; 
 
-    delete [] u->ubucket;
-    delete u->unique_pool;
-    delete u;
-  }
+    int fcount = (int)ifiles.size();
+    for(int i = 0; i < fcount; i++){
+        int64_t input_char_size=0;
 
-  // delete communicator
-  if(_comm){
-    c->wait();
-    delete c;
-    c = NULL;
-  }
+        TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+        PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_COUNT, 1);
 
-  DataObject::addRef(data);
-  mode = NoneMode;
+        LOG_PRINT(DBG_IO, "%d[%d] open file %s\n", me, nprocs, ifiles[i].c_str());
 
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_KV, data->gettotalsize());
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_PAGE, data->nblock);
+        FILE *fp = fopen(ifiles[i].c_str(), "r");
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file end.\n", me, nprocs);
+        TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
 
-  return _get_kv_count();
+        // Get file size
+        struct stat stbuf;
+        stat(ifiles[i].c_str(), &stbuf);
+        int64_t fsize = stbuf.st_size;
+
+        // Compute input buffer size
+        int64_t input_buffer_size=0;
+        if(fsize<=inputsize) input_buffer_size=fsize;
+        else input_buffer_size=inputsize;
+
+        // Allocate input buffer
+        char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
+
+        PROFILER_RECORD_COUNT(0, COUNTER_MAP_INPUT_BUF, input_buffer_size);
+
+        // Process the file
+        int64_t foff = 0, boff = 0;
+        int64_t readsize=0;
+
+        do{
+            TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+            // Read file
+            fseek(fp, foff, SEEK_SET);
+            readsize = fread(text+boff, 1, input_buffer_size, fp);
+
+            TRACKER_RECORD_EVENT(0, EVENT_PFS_READ);
+            PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_SIZE, readsize);
+
+            // read a block
+            text[boff+readsize] = '\0';
+            input_char_size = boff+readsize;
+
+            LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld\n", me, nprocs, ifiles[i].c_str(), foff, foff+readsize);
+
+            int64_t tend=input_char_size;
+            boff=0;
+            if(readsize >= input_buffer_size && foff+readsize<fsize){
+              while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
+              tend-=(boff+1);
+              text[tend]='\0';
+            }
+
+            if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
+
+            LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld, suffix=%d\n", me, nprocs, ifiles[i].c_str(), \
+              foff, foff+readsize, boff);
+
+            // Pass words one by one to user-defined map function
+            char *saveptr = NULL;
+            char *word = strtok_r(text, whitespace, &saveptr);
+            while(word){
+                mymap(this, word, ptr);
+                word = strtok_r(NULL,whitespace, &saveptr);
+            }
+             
+            // Prepare for next buffer
+            foff += readsize;
+
+            for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
+
+        }while(foff<fsize);
+
+        TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
+        fclose(fp);
+        mem_aligned_free(text);
+
+        TRACKER_RECORD_EVENT(0, EVENT_PFS_CLOSE);
+
+        LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
+    }
+
+    // If in compress mode
+    if(_mycompress != NULL){
+        // Create comunicator
+        if(_comm){
+            c=Communicator::Create(comm, commmode);
+            c->setup(gbufsize, kv);
+            mode = CommMode;
+        }else{
+            mode = LocalMode;
+        }
+
+        _cps_unique2kv(u);
+
+        delete [] u->ubucket;
+        delete u->unique_pool;
+        delete u;
+    }
+
+    // delete communicator
+    if(_comm){
+        c->wait();
+        delete c;
+        c = NULL;
+    }
+
+    DataObject::addRef(data);
+    mode = NoneMode;
+
+    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+    PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_KV, data->gettotalsize());
+    PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_PAGE, data->nblock);
+
+    LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file end.\n", me, nprocs);
+
+    return _get_kv_count();
 }
-
-#if 0
-uint64_t MapReduce::_map_multithread_io(char *filepath, \
-  int sharedflag, int recurse,
-  char *whitespace, UserMapFile mymap, UserCompress mycompress,
-  void *ptr, int compress, int _comm){
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (File name to mymap)\n", me, nprocs);
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-
-  // Distribute files
-  ifiles.clear();
-  _disinputfiles(filepath, sharedflag, recurse);
-
-  LOG_PRINT(DBG_GEN, "%d[%d] Distribute files end\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
-
-  DataObject::subRef(data);
-
-  // Create data
-  KeyValue *kv = new KeyValue(kvtype,
-                              blocksize,
-                              nmaxblock,
-                              maxmemsize,
-                              outofcore,
-                              tmpfpath);
-  data = kv;
-  DataObject::addRef(data);
-
-  kv->setKVsize(ksize, vsize);
-
-  // Create communicator
-  //Communicator *c=NULL;
-  if(_comm){
-    c=Communicator::Create(comm, tnum, commmode);
-    //gbufsize=blocksize/MEMPAGE_SIZE/nprocs*MEMPAGE_SIZE;
-    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-    c->init(data);
-    mode = CommMode;
-  }else{
-    mode = LocalMode;
-  }
-
-  int fp=0;
-  int fcount = ifiles.size();
-
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel shared(fp)
-{
-  int tid = omp_get_thread_num();
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
-#else
-  int tid = 0;
-#endif
-
-  _tinit(tid);
-
-  // create input file buffer
-  uint64_t input_buffer_size=inputsize;
-  int64_t input_char_size=0;
-  //char *text = new char[input_buffer_size+MAX_STR_SIZE+1];
-  char *text = (char*)mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
-
-  PROFILER_RECORD_COUNT(tid, COUNTER_MAP_INPUT_SIZE, input_buffer_size);
-
-  // Process files
-  int i;
-#ifdef MTMR_MULTITHREAD
-  while((i=__sync_fetch_and_add(&fp,1))<fcount){
-#else
-  while(fp<fcount){
-    fp+=1;
-#endif
-
-    TRACKER_RECORD_EVENT(tid, EVENT_MAP_COMPUTING);
-
-    FILE *fp = fopen(ifiles[i].c_str(), "r");
-
-    TRACKER_RECORD_EVENT(tid, EVENT_PFS_OPEN);
-    PROFILER_RECORD_COUNT(tid, COUNTER_MAP_FILE_COUNT, 1);
-    // Process File
-    //int64_t fsize = stbuf.st_size;
-    int64_t foff = 0, boff = 0;
-    int64_t readsize=0;
-
-    do{
-      TRACKER_RECORD_EVENT(tid, EVENT_MAP_COMPUTING);
-      fseek(fp, foff, SEEK_SET);
-      TRACKER_RECORD_EVENT(tid, EVENT_PFS_SEEK);
-      readsize = fread(text+boff, 1, input_buffer_size, fp);
-      TRACKER_RECORD_EVENT(tid, EVENT_PFS_READ);
-      PROFILER_RECORD_COUNT(tid, COUNTER_MAP_FILE_SIZE, readsize);
-      // read a block
-      text[boff+readsize] = '\0';
-
-      input_char_size=boff+readsize;
-      uint64_t tend=input_char_size;
-      boff=0;
-      if(readsize >= input_buffer_size){
-        while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
-        tend-=(boff+1);
-        text[tend]='\0';
-      }
-
-      if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
-
-#ifdef MTMR_MULTITHREAD
-      char *saveptr = NULL;
-      char *word = strtok_r(text, whitespace, &saveptr);
-      while(word){
-        mymap(this, word, ptr);
-        word = strtok_r(NULL,whitespace,&saveptr);
-      }
-#else
-      char *saveptr=NULL;
-      char *word = strtok_r(text, whitespace,&saveptr);
-      while(word){
-        mymap(this, word, ptr);
-        word = strtok_r(NULL,whitespace,&saveptr);
-      }
-#endif
-
-      foff += readsize;
-
-      for(int j =0; j < boff; j++) text[j] = text[input_char_size-boff+j];
-    }while(readsize >= input_buffer_size);
-
-    TRACKER_RECORD_EVENT(tid, EVENT_MAP_COMPUTING);
-    fclose(fp);
-    TRACKER_RECORD_EVENT(tid, EVENT_PFS_CLOSE);
-  }
-
-  //delete []  text;
-  mem_aligned_free(text);
-
-#ifdef MTMR_MULTITHREAD
-  if(_comm) c->twait(tid);
-#endif
-
-  PROFILER_RECORD_COUNT(tid, COUNTER_MAP_KV_COUNT, thread_info[tid].nitem);
-  TRACKER_RECORD_EVENT(tid, EVENT_MAP_COMPUTING);
-#ifdef MTMR_MULTITHREAD
-}
-#endif
-
-  // delete communicator
-  if(_comm){
-    c->wait();
-    delete c;
-    c = NULL;
-  }
-
-  mode = NoneMode;
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (File name to mymap)\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, \
-    (data->blocksize)*(data->nblock));
-
-  return _get_kv_count();
-}
-#endif
-
-#if 0
-/*
- * map: (files as input, user-defined map reads files)
- * argument:
- *  filepath:   input file path
- *  sharedflag: 0 for local file system, 1 for global file system
- *  recurse:    1 for resucse
- *  mymap:      user-defined map
- *  ptr:        user-defined pointer
- * return:
- *  global KV count
- */
-uint64_t MapReduce::map(char *filepath, int sharedflag, int recurse,
-  void (*mymap) (MapReduce *, const char *, void *), void *ptr, int _comm){
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (File name to mymap)\n", me, nprocs);
-  // create new data object
-  //if(data) delete data;
-  DataObject::subRef(data);
-
-  ifiles.clear();
-  KeyValue *kv = new KeyValue(kvtype,
-                              blocksize,
-                              nmaxblock,
-                              maxmemsize,
-                              outofcore,
-                              tmpfpath);
-
-  // distribute input fil list
-  _disinputfiles(filepath, sharedflag, recurse);
-
-  data = kv;
-  DataObject::addRef(data);
-
-  kv->setKVsize(ksize, vsize);
-
-  //printf("_comm=%d\n", _comm); fflush(stdout);
-
-  // create communicator
-  //c = new Alltoall(comm, tnum);
-  if(_comm){
-    //if(commmode==0)
-    //  c = new Alltoall(comm, tnum);
-    //else if(commmode==1)
-    //  c = new Ptop(comm, tnum);
-    c=Communicator::Create(comm, tnum, commmode);
-    c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-    c->init(data);
-
-    mode = MapMode;
-  }else{
-    mode = MapLocalMode;
-  }
-
-#if GATHER_STAT
-  double t1 = MPI_Wtime();
-#endif
-
-  int fp=0;
-  int fcount = ifiles.size();
-
-#pragma omp parallel shared(fp) shared(fcount)
-{
-  int tid = omp_get_thread_num();
-  _tinit(tid);
-
-#if GATHER_STAT
-  double t1 = omp_get_wtime();
-#endif
-
-  int i;
-  while((i=__sync_fetch_and_add(&fp,1))<fcount){
-#if GATHER_STAT
-    st.inc_counter(tid, COUNTER_FILE_COUNT, 1);
-#endif
-    mymap(this,ifiles[i].c_str(), ptr);
-  }
-
-#if GATHER_STAT
-  double t2 = omp_get_wtime();
-  st.inc_timer(tid, TIMER_MAP_USER, t2-t1);
-#endif
-
-  if(_comm) c->twait(tid);
-
-#if GATHER_STAT
-  double t3 = omp_get_wtime();
-  st.inc_timer(tid, TIMER_MAP_TWAIT, t3-t2);
-#endif
-}
-
-#if GATHER_STAT
-  double t2= MPI_Wtime();
-  st.inc_timer(0, TIMER_MAP_PARALLEL, t2-t1);
-#endif
-
-  //printf("here!\n"); fflush(stdout);
-
-  if(_comm){
-    c->wait();
-    delete c;
-    c = NULL;
-  }
-  //local_kvs_count=c->get_recv_KVs();
-
-#if GATHER_STAT
-  double t3= MPI_Wtime();
-  st.inc_timer(0, TIMER_MAP_WAIT, t3-t2);
-#endif
-
-  mode = NoneMode;
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (File name to mymap)\n", me, nprocs);
-
-  return _get_kv_count();
-}
-#endif
-
 
 /***** internal functions ******/
 
@@ -2144,7 +1566,9 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
   int tid = 0;
 #endif
 
-  _tinit(tid);
+  //_tinit(tid);
+  blockid=-1;
+  nitem=0;
 
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
@@ -2201,7 +1625,7 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
   delete u->set_pool;
   delete u;
 
-  PROFILER_RECORD_COUNT(tid, COUNTER_CVT_NUNIQUE, thread_info[tid].nitem);
+  PROFILER_RECORD_COUNT(tid, COUNTER_CVT_NUNIQUE, nitem);
   TRACKER_RECORD_EVENT(tid, EVENT_RDC_COMPUTING);
 
 #ifdef MTMR_MULTITHREAD
@@ -2235,16 +1659,11 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
 
   TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
 
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-#else
-  int tid = 0;
-#endif
-  _tinit(tid);
+ // _tinit(tid);
+  nitem=0;
+  blockid=-1;
 
-  TRACKER_RECORD_EVENT(tid, EVENT_OMP_IDLE);
+  TRACKER_RECORD_EVENT(0, EVENT_OMP_IDLE);
 
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
@@ -2258,8 +1677,8 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
   char *kmv_buf=(char*)mem_aligned_malloc(MEMPAGE_SIZE, 2*blocksize);
   int kmv_off=0;
 
-  PROFILER_RECORD_COUNT(tid,COUNTER_PR_BUCKET_SIZE,nbucket*sizeof(void*));
-  PROFILER_RECORD_COUNT(tid,COUNTER_PR_KMV_SIZE,blocksize);
+  PROFILER_RECORD_COUNT(0,COUNTER_PR_BUCKET_SIZE,nbucket*sizeof(void*));
+  PROFILER_RECORD_COUNT(0,COUNTER_PR_KMV_SIZE,blocksize);
 
   char *key=NULL, *value=NULL;
   int keybytes=0, valuebytes=0, kvsize=0;
@@ -2432,7 +1851,7 @@ out:
 
   mem_aligned_free(kmv_buf);
 
-  PROFILER_RECORD_COUNT(tid, COUNTER_PR_UNIQUE_SIZE, \
+  PROFILER_RECORD_COUNT(0, COUNTER_PR_UNIQUE_SIZE, \
     unique_pool_max_block*(u->unique_pool->blocksize));
 
   delete [] u->ubucket;
@@ -2440,7 +1859,7 @@ out:
   //delete u->set_pool;
   delete u;
 
-  TRACKER_RECORD_EVENT(tid, EVENT_PR_COMPUTING);
+  TRACKER_RECORD_EVENT(0, EVENT_PR_COMPUTING);
 #ifdef MTMR_MULTITHREAD
 }
 #endif
@@ -2562,24 +1981,31 @@ void MapReduce::_get_default_values(){
   if(env){
     int flag = atoi(env);
     if(flag != 0){
-      DBG_LEVEL |= (0x1<<DBG_GEN); 
+      DBG_LEVEL |= (DBG_GEN); 
     }
   }
   env = getenv("MIMIR_DBG_DATA");
   if(env){
     int flag = atoi(env);
     if(flag != 0){
-      DBG_LEVEL |= (0x1<<DBG_DATA); 
+      DBG_LEVEL |= (DBG_DATA); 
     }
   }
   env = getenv("MIMIR_DBG_COMM");
   if(env){
     int flag = atoi(env);
     if(flag != 0){
-      DBG_LEVEL |= (0x1<<DBG_COMM);
+      DBG_LEVEL |= (DBG_COMM);
     }
   }
-   
+  env = getenv("MIMIR_DBG_IO");
+  if(env){
+    int flag = atoi(env);
+    if(flag != 0){
+      DBG_LEVEL |= (DBG_IO);
+    }
+  }
+
 #if 0
   bind_thread=0;
   procs_per_node=0;
@@ -2676,12 +2102,12 @@ void MapReduce::_bind_threads(){
 }
 
 // thread init
-void MapReduce::_tinit(int tid){
-  thread_info[tid].block=-1;
-  thread_info[tid].nitem=0;
+//void MapReduce::_tinit(int tid){
+//  thread_info[tid].block=-1;
+//  thread_info[tid].nitem=0;
   //blocks[tid] = -1;
   //nitems[tid] = 0;
-}
+//}
 
 int64_t MapReduce::_stringtoint(const char *_str){
   std::string str=_str;
@@ -2849,7 +2275,8 @@ void MapReduce::_getinputfiles(const char *filepath, int sharedflag, int recurse
 
 inline uint64_t MapReduce::_get_kv_count(){
     local_kvs_count=0;
-    for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
+    //for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
+    local_kvs_count=nitem;
     MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
     TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
     return  global_kvs_count;
