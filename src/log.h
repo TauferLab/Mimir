@@ -17,7 +17,7 @@
 #define LOG_PRINT(type, format, ...) \
   {\
     if(DBG_LEVEL & (type)){\
-      printf((format), __VA_ARGS__);\
+      fprintf(stdout, (format), __VA_ARGS__);\
       fflush(stdout);\
     }\
   }

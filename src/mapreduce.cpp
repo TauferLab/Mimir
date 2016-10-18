@@ -199,6 +199,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   KeyValue *inputkv = (KeyValue*)(_mr->data);
 
   // create new data object
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: new data KV. (KV as input)\n", \
+    me, nprocs);
   KeyValue *kv = new KeyValue(kvtype,
                               blocksize,
                               nmaxblock,
@@ -207,6 +209,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
                               tmpfpath);
   kv->setKVsize(ksize, vsize);
   data = kv;
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: alloc data KV. (KV as input)\n", \
+    me, nprocs);
 
   if(_mycompress!=NULL){
     u=new UniqueInfo();

@@ -12,6 +12,7 @@
 #include <cmath>
 
 #include "mapreduce.h"
+#include "memory.h"
 
 // Please set MR_BUCKET_SIZE, MR_INBUF_SIZE, MR_PAGE_SIZE, MR_COMM_SIZE
 int nbucket, estimate=0, factor=32;
@@ -180,7 +181,8 @@ int main(int argc, char **argv)
 
   if(rank==0) fprintf(stdout, "local edge=%ld\n", nlocaledges);
 
-  columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
+  // columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
+  columns=(int64_t*)mem_aligned_malloc(4096, nlocaledges*sizeof(int64_t));
   if(columns == NULL){
      fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!", nlocaledges);
      MPI_Abort(MPI_COMM_WORLD, 1);

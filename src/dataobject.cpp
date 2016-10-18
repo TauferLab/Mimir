@@ -69,7 +69,9 @@ DataObject::DataObject(
 
   nitem = nblock = nbuf = 0;
 
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject ctor alloc Block.\n", me, nprocs);
   blocks = new Block[maxblock];
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject ctor alloc Buffer.\n", me, nprocs);
   buffers = new Buffer[maxbuf];
 
   for(int i = 0; i < maxblock; i++){

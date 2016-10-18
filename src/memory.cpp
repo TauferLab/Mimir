@@ -109,8 +109,8 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
   void *ptr=NULL;
 
   size_t align_size = (size+alignment-1)/alignment*alignment;
-  //posix_memalign(&ptr, alignment, align_size);
-  ptr=malloc(align_size);
+  posix_memalign(&ptr, alignment, align_size);
+  //ptr=malloc(align_size);
   if(ptr == NULL){
     LOG_ERROR("Error: malloc memory with alignment %ld and size %ld error!, peakmem=%ld\n", alignment, size, peakmem);
     return NULL;
