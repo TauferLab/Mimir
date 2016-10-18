@@ -177,7 +177,14 @@ int main(int argc, char **argv)
   for(int64_t i = 0; i < nlocalverts; i++){
     rowstarts[i+1] += rowstarts[i];
   }
-  columns=new int64_t[nlocaledges];
+
+  if(rank==0) fprintf(stdout, "local edge=%ld\n", nlocaledges);
+
+  columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
+  if(columns == NULL){
+     fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!", nlocaledges);
+     MPI_Abort(MPI_COMM_WORLD, 1);
+  }
 
   if(rank==0) fprintf(stdout, "begin make graph.\n");
 
@@ -245,7 +252,7 @@ int main(int argc, char **argv)
   delete [] pred;
 
   delete [] rowstarts;
-  delete [] columns;
+  free(columns);
   delete mr;
 
 #ifdef OUTPUT_RESULT
