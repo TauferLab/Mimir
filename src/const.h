@@ -13,8 +13,9 @@ extern int me,nprocs,tnum;
 #define NIN(A,B) ((A) < (B)) ? (A) : (B)
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)
 
-#define CACHELINE_SIZE   64
-#define MEMPAGE_SIZE   4096
+#define CACHELINE_SIZE               64
+#define MEMPAGE_SIZE               4096
+#define 64M_PAGE_SIZE          67108864
 
 #define MAXLINE                  2048
 #define UNIT_1G_SIZE  (1024*1024*1024)
