@@ -208,13 +208,6 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   this->data = kv;
   DataObject::addRef(this->data);
 
-  // create communicator
-  //if(_comm){
-  //  c=Communicator::Create(comm, tnum, commmode);
-  //  c->setup(lbufsize, gbufsize, kvtype, ksize, vsize);
-  //  c->init(kv);
-  //}
-
   if(_mycompress!=NULL){
     u=new UniqueInfo();
     u->ubucket = new Unique*[nbucket];
@@ -340,25 +333,6 @@ uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
   PROFILER_RECORD_COUNT(0, COUNTER_CPS_PR_OUTKV, outkv->gettotalsize());
 
   DataObject::subRef(kv);
-
-#if 0
-  KeyValue *tmpkv=outkv;
-  outkv = new KeyValue(kvtype,
-                blocksize,
-                nmaxblock,
-                maxmemsize,
-                outofcore,
-                tmpfpath);
-  outkv->setKVsize(ksize, vsize);
-  data=outkv;
-
-  if(_comm){
-    mode = MapMode;
-  }
-  local_kvs_count = _reduce(tmpkv, _mycompress, _ptr);
-  //DataObject::subRef(kv);
-  delete tmpkv;
-#endif
 
   if(_comm){
     c->wait();
@@ -506,17 +480,6 @@ uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char 
     // copy key
     int kvbytes;
     PUT_KV_VARS(kvtype, u->ubuf, key, keybytes, value, valuebytes, kvbytes);
-
-    //ukey->key=u->ubuf-keybytes-valuebytes;
-    //ukey->key = u->ubuf;
-    //ukey->keybytes=keybytes;
-    //memcpy(u->ubuf, key, keybytes);
-    //u->ubuf += keybytes;
-
-    // copy value
-    //ukey->value=u->ubuf;
-    //ukey->valuebytes=valuebytes;
-    //memcpy(u->ubuf, value, valuebytes);
     u->ubuf += (maxvaluebytes-valuebytes);
     //u->ubuf += maxvaluebytes;
 
@@ -671,9 +634,6 @@ void MapReduce::scan(
 
   KeyValue *kv = (KeyValue*)data;
 
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel for
-#endif
   for(int i = 0; i < kv->nblock; i++){
 
      char *key=NULL, *value=NULL;
@@ -1979,35 +1939,6 @@ void MapReduce::_get_default_values(){
     }
   }
 
-#if 0
-  bind_thread=0;
-  procs_per_node=0;
-  thrs_per_proc=0;
-  show_binding=0;
-
-  char *env = getenv(ENV_BIND_THREADS);
-  if(env){
-    bind_thread=atoi(env);
-    if(bind_thread == 1){
-      env = getenv(ENV_PROCS_PER_NODE);
-      if(env){
-        procs_per_node=atoi(env);
-      }
-      env = getenv(ENV_THRS_PER_PROC);
-      if(env){
-        thrs_per_proc=atoi(env);
-      }
-      if(procs_per_node <=0 || thrs_per_proc <=0 )
-        bind_thread = 0;
-    }else bind_thread = 0;
-  }
-  env = getenv(ENV_SHOW_BINGDING);
-  if(env){
-    show_binding = atoi(env);
-    if(show_binding != 1) show_binding=0;
-  }
-#endif
-
   inputsize = INPUT_SIZE;
   blocksize = BLOCK_SIZE;
   nmaxblock = MAX_BLOCKS;
@@ -2034,53 +1965,6 @@ void MapReduce::_get_default_values(){
   maxkeybytes=MAX_KEY_SIZE;
   maxvaluebytes=MAX_VALUE_SIZE;
 }
-
-void MapReduce::_bind_threads(){
-
-#ifdef MTMR_MULTITHREAD
-#pragma omp parallel
-{
-  int tid = omp_get_thread_num();
-
-  cpu_set_t mask;
-
-  if(bind_thread){
-    CPU_ZERO(&mask);
-
-    int lrank=me%procs_per_node;
-    int coreid=lrank*thrs_per_proc+tid;
-
-    CPU_SET(coreid, &mask);
-    sched_setaffinity(0, sizeof(mask), &mask);
-  }
-
-  if(show_binding){
-    CPU_ZERO(&mask);
-
-    sched_getaffinity(0, sizeof(mask), &mask);
-    for(int i=0; i<PCS_PER_NODE*THS_PER_PROC*2; i++){
-      if(CPU_ISSET(i, &mask)){
-        printf("P%d[T%d] bind to cpu%d\n", me, tid, i);fflush(stdout);
-      }
-    }
-  }
-}
-
-  if(show_binding){
-    printf("Process count=%d, thread count=%d\n", nprocs, tnum);
-  }
-
-#endif
-
-}
-
-// thread init
-//void MapReduce::_tinit(int tid){
-//  thread_info[tid].block=-1;
-//  thread_info[tid].nitem=0;
-  //blocks[tid] = -1;
-  //nitems[tid] = 0;
-//}
 
 int64_t MapReduce::_stringtoint(const char *_str){
   std::string str=_str;
