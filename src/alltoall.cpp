@@ -77,7 +77,8 @@ Alltoall::Alltoall(MPI_Comm _comm):Communicator(_comm, 0){
 
 Alltoall::~Alltoall(){
     for(int i = 0; i < nbuf; i++){
-      if(recv_count !=NULL && recv_count[i]) mem_aligned_free(recv_count[i]);
+      if(recv_buf != NULL && recv_buf[i] != NULL) mem_aligned_free(recv_buf[i]);
+      if(recv_count !=NULL && recv_count[i] != NULL) mem_aligned_free(recv_count[i]);
     }
 
     if(recv_count != NULL) delete [] recv_count;

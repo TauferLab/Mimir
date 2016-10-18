@@ -54,6 +54,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
   MPI_Comm_rank(comm,&me);
   MPI_Comm_size(comm,&nprocs);
 
+  tnum=1;
   TRACKER_START(1);
   PROFILER_START(1);
   TRACKER_TIMER_INIT(0);
@@ -107,6 +108,7 @@ MapReduce::MapReduce(const MapReduce &_mr){
   c=NULL;
   ifiles.clear();
 
+  tnum=1;
   TRACKER_START(1);
   PROFILER_START(1);
   TRACKER_TIMER_INIT(0);
@@ -194,7 +196,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   DataObject::addRef(_mr->data);
   DataObject::subRef(data);
 
-  DataObject *data = _mr->data;
+  KeyValue *inputkv = (KeyValue*)(_mr->data);
 
   // create new data object
   KeyValue *kv = new KeyValue(kvtype,
@@ -204,8 +206,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
                               outofcore,
                               tmpfpath);
   kv->setKVsize(ksize, vsize);
-  this->data = kv;
-  DataObject::addRef(this->data);
+  data = kv;
 
   if(_mycompress!=NULL){
     u=new UniqueInfo();
@@ -227,7 +228,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     mode = LocalMode;
   }
 
-  KeyValue *inputkv = (KeyValue*)data;
+  //KeyValue *inputkv = (KeyValue*)data;
 
   nitem=0;
   blockid=-1;
@@ -255,9 +256,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   }
 
   //DataObject::subRef(data);
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_PAGE, data->nblock);
-  DataObject::subRef(data);
+  DataObject::subRef(inputkv);
 
   if(_mycompress != NULL){
     if(_comm){
@@ -282,6 +281,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     c = NULL;
   }
 
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_PAGE, data->nblock);
+  DataObject::addRef(data);
   mode=NoneMode;
 
   TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
@@ -1802,9 +1804,11 @@ out:
 }
 
 void MapReduce::print_memsize(){
-  struct mallinfo mi = mallinfo();
-  int64_t vmsize = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
-  printf("memory usage:%ld\n", vmsize);
+  //struct mallinfo mi = mallinfo();
+  //int64_t vmsize = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
+
+  int64_t maxmmap=get_max_mmap();
+  printf("memory usage:%ld\n", maxmmap);
 }
 
 void MapReduce::print_stat(MapReduce *mr, FILE *out){
