@@ -71,11 +71,11 @@ DataObject::DataObject(
 
   nitem = nblock = nbuf = 0;
 
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject alloc Block (maxblock=%d).\n", \
-    me, nprocs, maxblock);
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject alloc Block (memsize=%ld).\n", \
+    me, nprocs, maxblock*sizeof(Block));
   blocks = (Block*)mem_aligned_malloc(MEMPAGE_SIZE,maxblock*sizeof(Block));
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject alloc Buffer (maxbuf=%d).\n", \
-    me, nprocs, maxbuf);
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject alloc Buffer (memsize=%ld).\n", \
+    me, nprocs, maxbuf*sizeof(Buffer));
   buffers = (Buffer*)mem_aligned_malloc(MEMPAGE_SIZE, maxbuf*sizeof(Buffer));
 
   for(int i = 0; i < maxblock; i++){
