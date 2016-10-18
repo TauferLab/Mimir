@@ -60,12 +60,14 @@ DataObject::DataObject(
   blocksize = _blocksize;
   maxblock = _maxblock;
 
-  maxmemsize = (uint64_t)_maxmemsize * UNIT_1G_SIZE;
+  maxmemsize = (int64_t)_maxmemsize * UNIT_1G_SIZE;
   outofcore = _outofcore;
   threadsafe = _threadsafe;
   filepath = _filepath;
 
   maxbuf = (int)(maxmemsize / blocksize);
+
+  //printf("maxbuf=%d\n", maxbuf);
 
   nitem = nblock = nbuf = 0;
 
