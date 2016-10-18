@@ -1,6 +1,7 @@
 #! /bin/zsh -e
 
 PPN=16
+MIMIR_DEBUG=1
 
 NODE=$1
 EXE=$2
@@ -34,6 +35,7 @@ for i in `seq 1 $NTIMES`; do
         --envs MR_INBUF_SIZE=$INBUFSIZE \
         --envs MR_PAGE_SIZE=$PAGESIZE \
         --envs MR_COMM_SIZE=$PAGESIZE \
+        --envs MIMIR_DBG_ALL=$MIMIR_DEBUG \
         : ./$EXE $PARAM $INDIR "$PREFIX" $OUTDIR "$TMPDIR" $i
     /bin/zsh "$PREFIX"
     rm -f "$PREFIX"

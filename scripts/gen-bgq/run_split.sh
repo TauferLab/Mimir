@@ -1,5 +1,5 @@
 #!/bin/bash
-BASEDIR=/projects/aurora_app/yguo_tmp/mt-mrmpi/data
+BASEDIR=/projects/SSSPPg/yguo/mt-mrmpi/data
 datasets="wikipedia"
 
 # ./sub_split.sh "$BASEDIR/wordcount/wikipedia/wikipedia_50GB" words \
@@ -13,10 +13,10 @@ datasets="wikipedia"
 #  "$((64/16*1024*1024)) $((128/16*1024*1024)) $((256/16*1024*1024)) $((512/16*1024*1024)) $((1024/16*1024*1024)) $(2048/16*1024*1024)) $((4096/16*1024*1024)) $((8*1024*1024*1024/16))" \
 #  "16 16 16 16 16 16 16 16" 16 bgq
 
-./sub_split.sh "$BASEDIR/wordcount/wikipedia/wikipedia_50GB" words \
+./sub_split.sh "$BASEDIR/wordcount/wikipedia/wikipedia_300GB" words \
   "$BASEDIR/wordcount/wikipedia/singlenode" \
   "32M 64M 128M 256M 512M 1024M 2G 4G 8G" \
-  "$((32/16*1024*1024)) $((64/16*1024*1024)) $((128/16*1024*1024)) $((256/16*1024*1024)) $((512/16*1024*1024)) $((1024/16*1024*1024)) $(2048/16*1024*1024)) $((4096/16*1024*1024)) $((8*1024*1024*1024/16))" \
+  "$((32/16*1024*1024)) $((64/16*1024*1024)) $((128/16*1024*1024)) $((256/16*1024*1024)) $((512/16*1024*1024)) $((1024/16*1024*1024)) $((2048/16*1024*1024)) $((4096/16*1024*1024)) $((8*1024*1024*1024/16))" \
   "16 16 16 16 16 16 16 16 16" 16 bgq
 #./sub_split.sh "$BASEDIR/wordcount/wikipedia/wikipedia_50GB" words \
 #  "$BASEDIR/wordcount/wikipedia/singlenode" \
