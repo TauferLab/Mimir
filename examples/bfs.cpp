@@ -23,6 +23,8 @@ const char* commmode="a2a";
 
 using namespace MAPREDUCE_NS;
 
+//#define COLUMN_SINGLE_BUFFER
+
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long)*BYTE_BITS)
 #define TEST_VISITED(v, vis) \
@@ -61,8 +63,16 @@ int64_t  nlocaledges;      // local edge count
 int64_t  nvertoffset;      // local vertex's offset
 int64_t quot, rem;         // quotient and reminder of globalverts/size
 
-size_t   *rowstarts;       // rowstarts
+size_t   *rowstarts;          // rowstarts
+#ifndef COLUMN_SINGLE_BUFFER
+int       ncolumn=0;
+int64_t   ncolumnedge=8*1024*1024;
+int64_t **columns;            // columns
+#define   GET_COL_IDX(pos)  ((pos)/(ncolumnedge))
+#define   GET_COL_OFF(pos)  ((pos)%(ncolumnedge))
+#else
 int64_t  *columns;         // columns
+#endif
 unsigned long* vis;        // visited bitmap
 int64_t *pred;             // pred map
 int64_t root;              // root vertex
@@ -179,14 +189,31 @@ int main(int argc, char **argv)
     rowstarts[i+1] += rowstarts[i];
   }
 
-  if(rank==0) fprintf(stdout, "local edge=%ld\n", nlocaledges);
+  if(rank==0) { fprintf(stdout, "local edge=%ld\n", nlocaledges); fflush(stdout);}
 
   // columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
+#ifndef COLUMN_SINGLE_BUFFER
+  ncolumn=(int)(nlocaledges/ncolumnedge)+1;
+  if(rank==0) { fprintf(stdout, "ncolumn=%d\n", ncolumn); fflush(stdout); }
+  int64_t edge_left=nlocaledges;
+  columns = new int64_t*[ncolumn];
+  for(int i=0; i<ncolumn-1; i++){
+    columns[i]=(int64_t*)mem_aligned_malloc(4096, ncolumnedge*sizeof(int64_t));
+    if(columns[i] == NULL){
+      fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!\n", \
+        nlocaledges);
+       MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    edge_left-=ncolumnedge;
+  }
+  columns[ncolumn-1]=(int64_t*)mem_aligned_malloc(4096, edge_left*sizeof(int64_t));
+#else
   columns=(int64_t*)mem_aligned_malloc(4096, nlocaledges*sizeof(int64_t));
   if(columns == NULL){
      fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!\n", nlocaledges);
      MPI_Abort(MPI_COMM_WORLD, 1);
   }
+#endif
 
   if(rank==0) fprintf(stdout, "begin make graph.\n");
 
@@ -254,7 +281,13 @@ int main(int argc, char **argv)
   delete [] pred;
 
   delete [] rowstarts;
+#ifndef COLUMN_SINGLE_BUFFER
+  for(int i=0; i<ncolumn; i++)
+    free(columns[i]);
+  delete [] columns;
+#else
   free(columns);
+#endif
   delete mr;
 
 #ifdef OUTPUT_RESULT
@@ -311,7 +344,12 @@ void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebyt
   v0_local = v0 - nvertoffset;
 
   v1=*(int64_t*)value;
+#ifndef COLUMN_SINGLE_BUFFER
+  size_t pos=rowstarts[v0_local]+rowinserts[v0_local];
+  columns[GET_COL_IDX(pos)][GET_COL_OFF(pos)] = v1;
+#else
   columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
+#endif
   rowinserts[v0_local]++;
 }
 
@@ -323,7 +361,11 @@ void rootvisit(MapReduce* mr, void *ptr){
     SET_VISITED(root_local, vis);
     size_t p_end = rowstarts[root_local+1];
     for(size_t p = rowstarts[root_local]; p < p_end; p++){
+#ifndef COLUMN_SINGLE_BUFFER
+      int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
+#else
       int64_t v1 = columns[p];
+#endif
       mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&root, sizeof(int64_t));
     }
   }
@@ -351,7 +393,11 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
 
   size_t p_end = rowstarts[v_local+1];
   for(size_t p = rowstarts[v_local]; p < p_end; p++){
+#ifndef COLUMN_SINGLE_BUFFER
+    int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
+#else
     int64_t v1 = columns[p];
+#endif
     mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
   }
 }
