@@ -36,14 +36,14 @@ function run() {
     pushd ../../gen-bgq
     for ((i = n_start; i <= n_end; i = i * 2)); do
         timeout=$(get_timeout $i $timeout)
-        outdir="$OUTPUT_BASEDIR/$input_dir_name/$i"
+        outdir="$OUTPUT_BASEDIR/wordcount/$input_dir_name/$i"
         mkdir -p $outdir
         export OMP_NUM_THREADS=1
         ./split_text_files \
             "$INPUT_BASEDIR/wordcount/$WC_TYPE/wikipedia_300GB" \
             "$outdir" wc-wikipedia \
             $FSIZE 0 $((16*$i))
-        echo "  => wordcount $WC_TYPE filesize $N MB for $i node"
+        echo "  => wordcount $outdir filesize $N MB for $i node"
     done
     popd
 }
