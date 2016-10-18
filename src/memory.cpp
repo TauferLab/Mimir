@@ -112,7 +112,7 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
   size_t align_size = (size+alignment-1)/alignment*alignment;
   posix_memalign(&ptr, alignment, align_size);
 
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: Allocate memory %ld.\n", me, nprocs, align_size);
+  LOG_PRINT(DBG_DATA, "%d[%d] DATA: Allocate memory %ld, peakmem=%ld\n", me, nprocs, align_size, peakmem);
   //ptr=malloc(align_size);
   if(ptr == NULL){
     LOG_ERROR("Error: malloc memory with alignment %ld and size %ld error!, peakmem=%ld\n", alignment, size, peakmem);
