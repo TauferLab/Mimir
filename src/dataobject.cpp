@@ -10,16 +10,9 @@
 #include <sys/stat.h>
 #include "dataobject.h"
 #include <mpi.h>
-
-#ifdef MTMR_MULTITHREAD
-#include <omp.h>
-#endif
-
 #include "log.h"
 #include "config.h"
-
 #include "const.h"
-
 #include "memory.h"
 #include "mapreduce.h"
 
@@ -39,7 +32,6 @@ void DataObject::subRef(DataObject *data){
   if(data){
     data->ref--;
     if(data->ref==0){
-      //printf("delete data\n"); fflush(stdout);
       delete data;
       data = NULL;
     }

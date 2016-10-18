@@ -102,7 +102,6 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
   size_t align_size = (size+alignment-1)/alignment*alignment;
   posix_memalign(&ptr, alignment, align_size);
 
-  //LOG_PRINT(DBG_DATA, "%d[%d] DATA: Allocate memory %ld, peakmem=%ld\n", me, nprocs, align_size, peakmem);
   //ptr=malloc(align_size);
   if(ptr == NULL){
     int64_t memsize=get_mem_usage();
@@ -113,10 +112,14 @@ memsize=%ld\n", alignment, size, memsize);
 
   record_memory_usage();
 
-  //curmem += size;
-  //if(curmem > maxmem) maxmem = curmem;
-
   return ptr;
+}
+
+void *mem_aligned_free(void *ptr){
+  free(ptr);
+  record_memory_usage();
+
+  return NULL;
 }
 
 int mem_alloc_init()
@@ -148,9 +151,3 @@ int mem_alloc_init()
     return 0;
 }
 
-void *mem_aligned_free(void *ptr){
-  free(ptr);
-  record_memory_usage();
-
-  return NULL;
-}
