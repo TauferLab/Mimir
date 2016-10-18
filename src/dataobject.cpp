@@ -72,9 +72,9 @@ DataObject::DataObject(
   nitem = nblock = nbuf = 0;
 
   LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject ctor alloc Block.\n", me, nprocs);
-  blocks = new Block[maxblock];
+  blocks = (Block*)mem_aligned_malloc(MEMPAGE_SIZE,maxblock*sizeof(Block));
   LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject ctor alloc Buffer.\n", me, nprocs);
-  buffers = new Buffer[maxbuf];
+  buffers = (Buffer*)mem_aligned_malloc(MEMPAGE_SIZE, maxbuf*sizeof(Buffer));
 
   for(int i = 0; i < maxblock; i++){
     blocks[i].datasize = 0;
@@ -115,8 +115,10 @@ DataObject::~DataObject(){
   for(int i = 0; i < nbuf; i++){
     if(buffers[i].buf != NULL) mem_aligned_free(buffers[i].buf);
   }
-  delete [] buffers;
-  delete [] blocks;
+  //delete [] buffers;
+  //delete [] blocks;
+  mem_aligned_free(buffers);
+  mem_aligned_free(blocks);
 
   DataObject::cur_page_count-=nblock;
 
