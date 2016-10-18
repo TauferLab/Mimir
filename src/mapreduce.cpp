@@ -709,11 +709,6 @@ void MapReduce::scan(
    @return nothing
 */
 void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebytes){
-//#ifdef MTMR_MULTITHREAD
-//  int tid = omp_get_thread_num();
-//#else
-  int tid = 0;
-//#endif
   // Communication Mode
   if(mode == CommMode){
     int target = 0;
@@ -775,28 +770,6 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
     mode=CompressMode;
   }
 
-#if 0
-else if(mode==CompressMode){
-    KeyValue *kv = (KeyValue*)tmpdata;
-    kv->acquire_block(0);
-    int kvsize = 0;
-    GET_KV_SIZE(kv->kvtype, keybytes, valuebytes, kvsize);
-    int datasize = kv->getdatasize(0);
-    if(datasize + kvsize <= kv->blocksize){
-      char *buf = kv->getblockbuffer(0)+datasize;
-      PUT_KV_VARS(kv->kvtype,buf,key,keybytes,value,valuebytes,kvsize);
-      kv->setblockdatasize(0,datasize+kvsize);
-    }else{
-      mode=MapLocalMode;
-      _reduce_compress(kv, mycompress, ptr);
-      char *buf = kv->getblockbuffer(0);
-      PUT_KV_VARS(kv->kvtype,buf,key,keybytes,value,valuebytes,kvsize);
-      kv->setblockdatasize(0,kvsize);
-      mode=CompressMode;
-    }
-    kv->release_block(0);
-  }
-#endif
   return;
 }
 

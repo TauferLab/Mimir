@@ -6,8 +6,6 @@
  *
  * Detail description.
  * \todo 1. Out-of-core sopport isn't tested.
- * \todo 2. Multithreading support isn't tested.
- * \todo 3. Out-of-core support is deleted.
  */
 #ifndef DATA_OBJECT_H
 #define DATA_OBJECT_H
