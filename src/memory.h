@@ -12,6 +12,8 @@ int mem_alloc_init();
 
 void record_memory_usage(const char *);
 
+int64_t get_mem_usage();
+
 int64_t get_max_mmap();
 
 extern int64_t peakmem;

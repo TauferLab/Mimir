@@ -820,7 +820,7 @@ uint64_t MapReduce::map_text_file( \
         else input_buffer_size=inputsize;
 
         // Allocate input buffer
-        char *text = (char*)mem_aligned_malloc(64M_PAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
+        char *text = (char*)mem_aligned_malloc(PAGE_64M_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
         PROFILER_RECORD_COUNT(0, COUNTER_MAP_INPUT_BUF, input_buffer_size);
 
@@ -853,8 +853,7 @@ uint64_t MapReduce::map_text_file( \
 
             if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
 
-            LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld, suffix=%d\n", me, nprocs, ifiles[i].c_str(), \
-              foff, foff+readsize, boff);
+            LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld, suffix=%d\n", me, nprocs, ifiles[i].c_str(), foff, foff+readsize, boff);
 
             // Pass words one by one to user-defined map function
             char *saveptr = NULL;

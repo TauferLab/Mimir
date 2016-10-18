@@ -15,11 +15,8 @@
 
 int64_t peakmem=0;
 
-//int64_t maxmem=0;
-//int64_t curmem=0;
-
-void record_memory_usage(){
-  char procname[100], line[100];
+int64_t get_mem_usage(){
+  int64_t memsize = 0;
 
 #ifdef BGQ
   long unsigned int shared = 0;
@@ -41,42 +38,35 @@ void record_memory_usage(){
   Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
 
   if ((heap + stacksize) > peakmem) {
-      peakmem = heap + stacksize;
+      memsize = heap + stacksize;
   }
 
 #else
   pid_t pid=getpid();
 
-  int64_t vmpeak=0;
+  int64_t vmsize=0;
+  char procname[100], line[100];
   sprintf(procname,"/proc/%ld/status", (long)pid);
   FILE *fp=fopen(procname,"r");
 
   while(fgets(line, 100, fp)){
-    if(strncmp(line, "VmPeak:", 7) == 0){
-      //printf("line=%s\n", line);
+    if(strncmp(line, "VmSize:", 7) == 0){
       char *p = line + 7;
       while(isspace(*p)) ++p;
-      vmpeak=strtoull(p, NULL, 0);
+      vmsize=strtoull(p, NULL, 0);
     }
-    //if(strncmp(line, "VmSize:", 7) == 0){
-    //  char *p = line + 7;
-    //  while(isspace(*p)) ++p;
-    //  vmsize=strtoull(p, NULL, 0);
-    //}
   }
 
   fclose(fp);
-  if(vmpeak>peakmem) peakmem=vmpeak;
+  memsize=vmsize;
 #endif
 
-#if 0
-  struct mallinfo mi = mallinfo();
-  int64_t vmpeak = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
+  return memsize;
+}
+
+void record_memory_usage(){
+  int64_t vmsize=get_mem_usage();
   if(vmsize>peakmem) peakmem=vmsize;
-#endif
-
-
-  //printf("%s: %ld %ld\n", str, vmpeak, vmsize);
 }
 
 int64_t get_max_mmap(){
@@ -112,10 +102,12 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
   size_t align_size = (size+alignment-1)/alignment*alignment;
   posix_memalign(&ptr, alignment, align_size);
 
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: Allocate memory %ld, peakmem=%ld\n", me, nprocs, align_size, peakmem);
+  //LOG_PRINT(DBG_DATA, "%d[%d] DATA: Allocate memory %ld, peakmem=%ld\n", me, nprocs, align_size, peakmem);
   //ptr=malloc(align_size);
   if(ptr == NULL){
-    LOG_ERROR("Error: malloc memory with alignment %ld and size %ld error!, peakmem=%ld\n", alignment, size, peakmem);
+    int64_t memsize=get_mem_usage();
+    LOG_ERROR("Error: malloc memory with alignment %ld and size %ld error!, \
+memsize=%ld\n", alignment, size, memsize);
     return NULL;
   }
 
