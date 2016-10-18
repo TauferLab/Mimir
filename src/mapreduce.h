@@ -427,7 +427,6 @@ private:
 
   // internal functions
   void _get_default_values();
-  void _bind_threads();
 
   int64_t _stringtoint(const char *);
 

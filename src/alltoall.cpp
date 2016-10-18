@@ -40,6 +40,8 @@ using namespace MAPREDUCE_NS;
         break;\
       }\
     }\
+    LOG_PRINT(DBG_COMM, "%d[%d] DATA: data copy \
+(blockid=%d, dst_buf=%p, src_buf=%p, copysize=%d)\n", me, nprocs, blockid, dst_buf, src_buf, copysize);\
     memcpy(dst_buf, src_buf, copysize);\
     int64_t datasize=data->getdatasize(blockid);\
     data->setblockdatasize(blockid,datasize+copysize);\
@@ -121,7 +123,7 @@ int Alltoall::setup(int64_t _sbufsize, DataObject *_data){
     for(int i=0; i<size; i++) off[i] = 0;
 
     LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (\
-      comm buffer size=%ld, type_log_bytes=%d)\n", \
+comm buffer size=%ld, type_log_bytes=%d)\n", \
       rank, size, send_buf_size, type_log_bytes);
 
     return 0;

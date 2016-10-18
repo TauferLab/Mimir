@@ -59,7 +59,6 @@ MapReduce::MapReduce(MPI_Comm _caller)
   TRACKER_TIMER_INIT(0);
 
   _get_default_values();
-  _bind_threads();
 
   data = NULL;
   c = NULL;
@@ -1909,6 +1908,13 @@ void MapReduce::_get_default_values(){
     COMM_UNIT_SIZE=_stringtoint(env);
     if(COMM_UNIT_SIZE<=0 || COMM_UNIT_SIZE>1024*1024*1024)
       LOG_ERROR("Error: COMM_UNIT_SIZE (%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
+  }
+  env = getenv("MIMIR_DBG_ALL");
+  if(env){
+    int flag = atoi(env);
+    if(flag != 0){
+      DBG_LEVEL |= (DBG_GEN|DBG_COMM|DBG_IO|DBG_DATA); 
+    }
   }
   env = getenv("MIMIR_DBG_GEN");
   if(env){
