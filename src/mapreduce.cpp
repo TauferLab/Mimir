@@ -215,7 +215,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   if(_mycompress!=NULL){
     u=new UniqueInfo();
     u->ubucket = new Unique*[nbucket];
-    u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
+    u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
     u->nunique=0;
     u->ubuf=u->unique_pool->add_block();
     u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
@@ -376,7 +376,7 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   // init data structure
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
+  u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
   u->nunique=0;
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
@@ -775,7 +775,7 @@ uint64_t MapReduce::map_text_file( \
     if(_mycompress!=NULL){
         u=new UniqueInfo();
         u->ubucket = new Unique*[nbucket];
-        u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
+        u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
         u->nunique=0;
         u->ubuf=u->unique_pool->add_block();
         u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
@@ -820,7 +820,8 @@ uint64_t MapReduce::map_text_file( \
         else input_buffer_size=inputsize;
 
         // Allocate input buffer
-        char *text = (char*)mem_aligned_malloc(PAGE_64M_SIZE, input_buffer_size+MAX_STR_SIZE+1);
+        char *text = (char*)mem_aligned_malloc(\
+            INPUT_UNIT_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
         PROFILER_RECORD_COUNT(0, COUNTER_MAP_INPUT_BUF, input_buffer_size);
 
@@ -1510,8 +1511,8 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
-  u->set_pool=new Spool(nset*(int)sizeof(Set));
+  u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
+  u->set_pool=new Spool(SET_UNIT_SIZE);
   u->nunique=0;
   u->nset=0;
 
@@ -1605,7 +1606,7 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(nbucket*(int)sizeof(Unique));
+  u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
   u->nunique=0;
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 

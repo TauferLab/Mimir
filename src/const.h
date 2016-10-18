@@ -15,7 +15,6 @@ extern int me,nprocs,tnum;
 
 #define CACHELINE_SIZE               64
 #define MEMPAGE_SIZE               4096
-#define PAGE_64M_SIZE          67108864
 
 #define MAXLINE                  2048
 #define UNIT_1G_SIZE  (1024*1024*1024)

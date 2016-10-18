@@ -21,6 +21,10 @@ extern int64_t GLOBAL_BUF_SIZE;
 extern int64_t INPUT_SIZE;
 extern int64_t BLOCK_SIZE;
 
+extern int64_t INPUT_UNIT_SIZE;
+extern int64_t UNIQUE_UNIT_SIZE;
+extern int64_t SET_UNIT_SIZE;
+
 extern int64_t MAXMEM_SIZE;
 
 extern int MAX_STR_SIZE;

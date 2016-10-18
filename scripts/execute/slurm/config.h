@@ -1,6 +1,6 @@
 export PPN=24
 export BASEDIR=/oasis/scratch/comet/taogao/temp_project
-export OUTDIR=$BASEDIR/results/data/comet/octree/
+export OUTDIR=$BASEDIR/results/data/comet/wordcount/
 #export OUTDIR=$BASEDIR/results/test/
 export TMPDIR=/scratch/$USER/$SLURM_JOB_ID
 export MR_BUCKET_SIZE=20
