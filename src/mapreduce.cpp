@@ -215,7 +215,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
   if(_mycompress!=NULL){
     u=new UniqueInfo();
     u->ubucket = new Unique*[nbucket];
-    u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
+    u->unique_pool=new Spool(nbucket*sizeof(Unique));
     u->nunique=0;
     u->ubuf=u->unique_pool->add_block();
     u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
@@ -376,7 +376,7 @@ uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
   // init data structure
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
+  u->unique_pool=new Spool(nbucket*sizeof(Unique));
   u->nunique=0;
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
@@ -775,7 +775,7 @@ uint64_t MapReduce::map_text_file( \
     if(_mycompress!=NULL){
         u=new UniqueInfo();
         u->ubucket = new Unique*[nbucket];
-        u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
+        u->unique_pool=new Spool(nbucket*sizeof(Unique));
         u->nunique=0;
         u->ubuf=u->unique_pool->add_block();
         u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
@@ -1511,8 +1511,8 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
-  u->set_pool=new Spool(SET_UNIT_SIZE);
+  u->unique_pool=new Spool(nbucket*sizeof(Unique));
+  u->set_pool=new Spool(nset*sizeof(Set));
   u->nunique=0;
   u->nset=0;
 
@@ -1606,7 +1606,7 @@ uint64_t MapReduce::_reduce_compress(KeyValue *kv,
   // initialize the unique info
   UniqueInfo *u=new UniqueInfo();
   u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(UNIQUE_UNIT_SIZE);
+  u->unique_pool=new Spool(nbucket*sizeof(Unique));
   u->nunique=0;
   memset(u->ubucket, 0, nbucket*sizeof(Unique*));
 
