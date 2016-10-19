@@ -37,9 +37,7 @@ int64_t get_mem_usage(){
   Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAP, &heap);
   Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
 
-  if ((heap + stacksize) > peakmem) {
-      memsize = heap + stacksize;
-  }
+  memsize = heap + stacksize;
 
 #else
   pid_t pid=getpid();
@@ -105,8 +103,8 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
   //ptr=malloc(align_size);
   if(ptr == NULL){
     int64_t memsize=get_mem_usage();
-    LOG_ERROR("Error: malloc memory with alignment %ld and size %ld error!, \
-memsize=%ld\n", alignment, size, memsize);
+    LOG_ERROR("Error: malloc memory with alignment %ld and size %ld, aligned_size %ld error!, \
+memsize=%ld\n", alignment, size, align_size, memsize);
     return NULL;
   }
 
@@ -144,9 +142,9 @@ int mem_alloc_init()
      * is 128 * 1024 in the glibc.
      */
 
-    mallopt(M_MMAP_THRESHOLD, 128 * 1024);
-    mallopt(M_TRIM_THRESHOLD, 128 * 1024);
-    mallopt(M_TOP_PAD, 128 * 1024);
+    mallopt(M_MMAP_THRESHOLD, 1024 * 1024);
+    mallopt(M_TRIM_THRESHOLD, 1024 * 1024);
+    // mallopt(M_TOP_PAD, 128 * 1024);
 #endif
     return 0;
 }

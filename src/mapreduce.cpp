@@ -821,7 +821,7 @@ uint64_t MapReduce::map_text_file( \
 
         // Allocate input buffer
         char *text = (char*)mem_aligned_malloc(\
-            INPUT_UNIT_SIZE, input_buffer_size+MAX_STR_SIZE+1);
+            MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
         PROFILER_RECORD_COUNT(0, COUNTER_MAP_INPUT_BUF, input_buffer_size);
 
