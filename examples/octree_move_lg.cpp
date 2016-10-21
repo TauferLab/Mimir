@@ -104,7 +104,7 @@ int main(int argc, char **argv)
   char whitespace[10] = "\n";
   uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, NULL, 0);
 
-  thresh=(int)((float)nwords*density);
+  thresh=(int64_t)((float)nwords*density);
   if(rank==0){
     printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
   }
@@ -175,7 +175,7 @@ void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int l
 
   int64_t sum=0;
   for(iter->Begin(); !iter->Done(); iter->Next()){
-    sum+=*(int*)iter->getValue();
+    sum+=*(int64_t*)iter->getValue();
   }
   if(sum>thresh)
     mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
