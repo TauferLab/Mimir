@@ -1,6 +1,5 @@
 #!/bin/bash
 
-export UNIQUE=100000
 export PREFIX=words
 
 DIST=""
@@ -10,21 +9,24 @@ OUTPUT=""
 FSIZEMAX=1073741824
 FPT=""
 LANCHER="pbs"
+WORDS=100000
 
-if [ $# == 8 ]
+if [ $# == 9 ]
 then
   DIST=$1
-  PREFIX=$2
-  OUTPUT=$3
-  DATALIST=($4)
-  FSIZELIST=($5)
-  NFILELIST=($6)
-  FPT=$7
-  LANCHER=$8
+  WORDS=$2
+  PREFIX=$3
+  OUTPUT=$4
+  DATALIST=($5)
+  FSIZELIST=($6)
+  NFILELIST=($7)
+  FPT=$8
+  LANCHER=$9
 else
-  echo "./exe [distribution] [prefix] [outdir] [data list] [fsize list] [nfile list] [file per task] [lancher]"
+  echo "./exe [distribution] [nunique] [prefix] [outdir] [data list] [fsize list] [nfile list] [file per task] [lancher]"
 fi
 
+export UNIQUE=$WORDS
 export DIST=$DIST
 export PREFIX=$PREFIX
 
