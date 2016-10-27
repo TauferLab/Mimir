@@ -21,7 +21,7 @@ const char* blocksize;
 const char* gbufsize;
 const char* commmode="a2a";
 
-using namespace MAPREDUCE_NS;
+using namespace MIMIR_NS;
 
 //#define COLUMN_SINGLE_BUFFER
 

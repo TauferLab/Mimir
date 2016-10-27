@@ -13,7 +13,7 @@
 #include "dataobject.h"
 #include "communicator.h"
 
-namespace MAPREDUCE_NS {
+namespace MIMIR_NS {
 
 class Alltoall : public Communicator{
 public:

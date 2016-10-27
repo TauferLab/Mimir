@@ -28,7 +28,7 @@ const char* gbufsize;
 const char* lbufsize="4K";
 const char* commmode="a2a";
 
-using namespace MAPREDUCE_NS;
+using namespace MIMIR_NS;
 
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);

@@ -16,7 +16,7 @@
 #include "memory.h"
 #include "mapreduce.h"
 
-using namespace MAPREDUCE_NS;
+using namespace MIMIR_NS;
 
 
 int DataObject::object_id = 0;

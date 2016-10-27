@@ -20,7 +20,7 @@
 #include "const.h"
 #include "memory.h"
 
-namespace MAPREDUCE_NS {
+namespace MIMIR_NS {
 
 class Spool{
 public:

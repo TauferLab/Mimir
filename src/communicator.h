@@ -13,7 +13,7 @@
 #include "mapreduce.h"
 #include "config.h"
 
-namespace MAPREDUCE_NS {
+namespace MIMIR_NS {
 
 class Communicator{
 public:

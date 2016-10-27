@@ -17,7 +17,7 @@
 #include <omp.h>
 #include <string>
 
-namespace MAPREDUCE_NS {
+namespace MIMIR_NS {
 
 /// Datatype
 enum DataType{ByteType, KVType, KMVType};

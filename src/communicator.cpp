@@ -8,7 +8,7 @@
 #include "alltoall.h"
 #include "stat.h"
 
-using namespace MAPREDUCE_NS;
+using namespace MIMIR_NS;
 
 Communicator* Communicator::Create(MPI_Comm _comm, int _commmode){
     Communicator *c=NULL;

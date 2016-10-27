@@ -14,7 +14,7 @@
 
 #include "dataobject.h"
 
-namespace MAPREDUCE_NS {
+namespace MIMIR_NS {
 
 
 class KeyValue : public DataObject{

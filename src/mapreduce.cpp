@@ -37,7 +37,7 @@
 #include "memory.h"
 #include "stat.h"
 
-using namespace MAPREDUCE_NS;
+using namespace MIMIR_NS;
 
 int me,nprocs,tnum;
 

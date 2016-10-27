@@ -4,7 +4,7 @@
 #include "log.h"
 #include "const.h"
 
-using namespace MAPREDUCE_NS;
+using namespace MIMIR_NS;
 
 
 KeyValue::KeyValue(

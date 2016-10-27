@@ -7,7 +7,7 @@
 #include "memory.h"
 #include "keyvalue.h"
 
-using namespace MAPREDUCE_NS;
+using namespace MIMIR_NS;
 
 #include "stat.h"
 

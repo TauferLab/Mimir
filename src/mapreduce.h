@@ -25,7 +25,7 @@
 #include "config.h"
 //#include "stat.h"
 
-namespace MAPREDUCE_NS {
+namespace MIMIR_NS {
 
 class MapReduce;
 class Communicator;

@@ -5,7 +5,7 @@
 #include "const.h"
 #include "memory.h"
 
-using namespace MAPREDUCE_NS;
+using namespace MIMIR_NS;
 
 Spool::Spool(int _blocksize,int _maxblocks){
   blocksize = _blocksize;
