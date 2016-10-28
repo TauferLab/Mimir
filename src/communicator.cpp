@@ -41,7 +41,7 @@ Communicator::~Communicator(){
 
     if(data != NULL){
       if(blockid!=-1)
-        data->release_block(blockid);
+        data->release_page(blockid);
     }
 
     for(int i = 0; i < nbuf; i++){

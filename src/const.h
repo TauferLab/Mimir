@@ -62,7 +62,7 @@ extern int me,nprocs,tnum;
     value = kvbuf;\
     kvbuf += valuebytes;\
     kvsize=(int)(kvbuf-kvbuf_start);\
-  }else LOG_ERROR("Undefined type %d!", kvtype);\
+  }\
 }
 
 #define GET_KV_SIZE(kvtype, keybytes, valuebytes, kvsize) \
@@ -80,7 +80,6 @@ extern int me,nprocs,tnum;
     buf+=keybytes;\
     buf+=valuebytes;\
   }\
-  else LOG_ERROR("Undefined KV type %d!\n", kvtype);\
   kvsize=(int)(buf-buf_start);\
 }
 
@@ -138,7 +137,7 @@ extern int me,nprocs,tnum;
     kvbuf+=keybytes;\
     values=kvbuf;\
     kvbuf+=mvbytes;\
-  }else LOG_ERROR("Undefined KV type %d!\n", kmvtype);\
+  }\
   kmvsize=(int)(kvbuf-kvbuf_start);\
 }
 

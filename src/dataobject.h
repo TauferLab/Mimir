@@ -5,7 +5,6 @@
  * @brief  This file provides interfaces to handle data objects.
  *
  * Detail description.
- * \todo 1. Out-of-core sopport isn't tested.
  */
 #ifndef DATA_OBJECT_H
 #define DATA_OBJECT_H
@@ -14,185 +13,90 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <omp.h>
-#include <string>
+//#include <string>
+
+#include "log.h"
+#include "const.h"
+#include "memory.h"
 
 namespace MIMIR_NS {
 
+#define CHECK_PAGEID(pageid) {\
+  if(pageid<0 || pageid>=npages)\
+    LOG_ERROR("Error: page id (%d) is out of the range.", pageid);}
+
 /// Datatype
-enum DataType{ByteType, KVType, KMVType};
+enum DataType{ByteType, KVType};
 
 class DataObject{
 public:
-  /**
-    Constructor function.
+    DataObject(int me, int nprocs,
+        DataType type=ByteType,
+        int64_t pagesize=1,
+        int maxpages=4);
 
-    @param[in]  type data type
-    @param[in]  blocksize page size
-    @param[in]  maxblock maximum number of pages
-    @param[in]  memsize maximum memory size
-    @param[in]  outofcore if support outofcore
-    @param[in]  tmpdir temp directory to exchange intermedia data
-    @param[in]  threadsafe support thread safety?
-    @return MapReduce object pointer
-  */
-  DataObject(DataType type,
-    int64_t blocksize=1,
-    int maxblock=4,
-    int memsize=4,
-    int outofcore=0,
-    std::string tmpdir=std::string(""),
-    int threadsafe=1);
+    virtual ~DataObject();
 
-  /**
-    Destructor function.
-  */
-  virtual ~DataObject();
-
-  /**
-    Acquire a block. If the block isn't in-memory, ensure it's in-memmory after invoking this function.
-
-    @param[in]  blockid block id
-    @return 0 if success, otherwise error.
-  */
-  int  acquire_block(int blockid){
-    return 0;
-  }
-
-  /**
-    Release a block. If the memory isn't enough, this block may be spilled into disk.
-
-    @param[in]  blockid block id
-    @return no return
-  */
-  void release_block(int blockid){
-  }
-
-  /**
-    Delete a block. Free the buffer of this block.
-    Note: this function doesn't support out-of-core and multithreading currently.
-
-    @param[in]  blockid block id
-    @return no return
-  */
-  void delete_block(int blockid);
-
-  /**
-    Add en empty block.
-
-    @return added block id
-  */
-  int add_block();
-
-
-  void clear(){
-    if(outofcore){
-      for(int i = 0; i < nblock; i++){
-        std::string filename;
-        _get_filename(i, filename);
-        remove(filename.c_str());
-      }
+    int acquire_page(int pageid){
+        CHECK_PAGEID(pageid);
+        return 0;
     }
-    nblock=0;
-  }
 
-  /**
-    Output DataObject.
+    void release_page(int pageid){
+        CHECK_PAGEID(pageid);
+        return;
+    }
 
-    @param[in] type output type
-    @param[in] fp output file pointer, also can be stdout, stderr
-    @param[in] format output format
-    @return added block id
-  */
-  virtual void print(int type = 0, FILE *fp=stdout, int format=0);
+    void delete_page(int pageid){
+        CHECK_PAGEID(pageid);
+        if(ref==1){        
+            mem_aligned_free(pages[pageid].buffer);
+            pages[pageid].buffer=NULL;
+            pages[pageid].datasize=0;
+        }
+    }
 
-  /**
-    Set key and value size for FixedKV type
+    int add_page();
 
-    @param[in] _ksize key size
-    @param[in] _vsize value size
-    @return no return
-  */
-  void setKVsize(int _ksize, int _vsize){
-    ksize = _ksize;
-    vsize = _vsize;
-  }
+    int64_t get_page_size(int pageid){
+        CHECK_PAGEID(pageid);
+        return pages[pageid].datasize;
+    }
 
-  /**
-    Get data size in a page.
+    void set_page_size(int pageid, int64_t datasize){
+        CHECK_PAGEID(pageid);
+        pages[pageid].datasize=datasize;
+    }
 
-    @param[in] blockid block id
-    @return data size in this page
-  */
-  int64_t getdatasize(int blockid){
-    return blocks[blockid].datasize;
-  }
+    char *get_page_buffer(int pageid){
+        CHECK_PAGEID(pageid);
+        return pages[pageid].buffer;
+    }
 
-  /**
-    Get buffer pointer of a page.
+    int64_t get_total_size(){
+        return totalsize;
+    }
 
-    @param[in] blockid block id
-    @return buffer pointer
-  */
-  char *getblockbuffer(int blockid){
-    int bufferid = blocks[blockid].bufferid;
-    return buffers[bufferid].buf;
-  }
 
-  /**
-    Set data size of a page.
+    virtual void print(int type = 0, FILE *fp=stdout, int format=0);
 
-    @param[in] blockid block id
-    @param[in] data size in this page
-    @return no return
-  */
-  void setblockdatasize(int blockid, int64_t datasize){
-    blocks[blockid].datasize = datasize;
-  }
-
-  int64_t gettotalsize(){
-    totalsize=0;
-    for(int i=0;i<nblock;i++)
-      totalsize+=blocks[i].datasize;
-    return totalsize;
-  }
-
-  DataType datatype;    ///< data type
-  int ksize, vsize;     ///< key and value size
-  int nblock;           ///< number of page
-  int64_t blocksize;    ///< page size
-  int64_t totalsize;    ///< datasize
-  int64_t maxmemsize;   ///< maximum memory size
-
-//protected:
 public:
-  void _get_filename(int, std::string &);
+    int64_t pagesize;     ///< page size
 
-  int            id;            ///< id of data object
-  int          nbuf;            ///< number of buffer
-  int         nitem;            ///< number of item in this data object
-  int      maxblock;            ///< maximum number of page
-  int        maxbuf;            ///< maximum number of buffer
-  std::string filepath;         ///< intermediate file path
-  int outofcore;                ///< if support out-of-core
-  int threadsafe;               ///< if support thread safety
-  int ref;                      ///< reference counter
-  omp_lock_t lock_t;            ///< lock for multithreading
+protected:
+    int me, nprocs;
 
-  struct Block{
-    int64_t   datasize;
-    int       bufferid;
-  };
+    int id,ref;
 
-  struct Buffer{
-    char    *buf;
-    int threadid;
-    int  blockid;
-    int      ref;
-  };
+    int64_t totalsize;    ///< datasize
 
-  Block  *blocks;
-  Buffer *buffers;
+    DataType datatype;    ///< data type
+    int npages,maxpages;  ///< number of page
+
+    struct Page{
+        int64_t   datasize;
+        char     *buffer;
+    }*pages;
 
 public:
   static int object_id;

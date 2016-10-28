@@ -18,15 +18,15 @@ using namespace MIMIR_NS;
   char *src_buf=NULL, *dst_buf=NULL;\
   src_buf=recv_buf[ii];\
   if(blockid!=-1){\
-    dst_buf=data->getblockbuffer(blockid);\
-    int64_t datasize=data->getdatasize(blockid);\
+    dst_buf=data->get_page_buffer(blockid);\
+    int64_t datasize=data->get_page_size(blockid);\
     dst_buf += datasize;\
-    spacesize=data->blocksize-datasize;\
+    spacesize=data->pagesize-datasize;\
   }else{\
-    blockid=data->add_block();\
-    data->acquire_block(blockid);\
-    dst_buf=data->getblockbuffer(blockid);\
-    spacesize=data->blocksize;\
+    blockid=data->add_page();\
+    data->acquire_page(blockid);\
+    dst_buf=data->get_page_buffer(blockid);\
+    spacesize=data->pagesize;\
   }\
   while(k<size){\
     int copysize=0;\
@@ -40,21 +40,19 @@ using namespace MIMIR_NS;
         break;\
       }\
     }\
-    LOG_PRINT(DBG_COMM, "%d[%d] DATA: data copy \
-(blockid=%d, dst_buf=%p, src_buf=%p, copysize=%d)\n", me, nprocs, blockid, dst_buf, src_buf, copysize);\
     memcpy(dst_buf, src_buf, copysize);\
-    int64_t datasize=data->getdatasize(blockid);\
-    data->setblockdatasize(blockid,datasize+copysize);\
+    int64_t datasize=data->get_page_size(blockid);\
+    data->set_page_size(blockid,datasize+copysize);\
     dst_buf+=copysize;\
     src_buf+=copysize;\
     if(padding!=0){\
       src_buf+=padding;\
     }else if(k<size){\
-      data->release_block(blockid);\
-      blockid=data->add_block();\
-      data->acquire_block(blockid);\
-      dst_buf=data->getblockbuffer(blockid);\
-      spacesize=data->blocksize;\
+      data->release_page(blockid);\
+      blockid=data->add_page();\
+      data->acquire_page(blockid);\
+      dst_buf=data->get_page_buffer(blockid);\
+      spacesize=data->pagesize;\
     }\
   }\
 }
@@ -72,7 +70,7 @@ Alltoall::Alltoall(MPI_Comm _comm):Communicator(_comm, 0){
 
     reqs=NULL;
 
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
+    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
 }
 
 Alltoall::~Alltoall(){
@@ -86,7 +84,7 @@ Alltoall::~Alltoall(){
     if(recvcounts != NULL) delete [] recvcounts;
     if(reqs != NULL) delete [] reqs;
 
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall destroy.\n", rank, size);
+    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall destroy.\n", rank, size);
 }
 
 int Alltoall::setup(int64_t _sbufsize, DataObject *_data){
@@ -123,7 +121,7 @@ int Alltoall::setup(int64_t _sbufsize, DataObject *_data){
 
     for(int i=0; i<size; i++) off[i] = 0;
 
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (\
+    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (\
 comm buffer size=%ld, type_log_bytes=%d)\n", \
       rank, size, send_buf_size, type_log_bytes);
 
@@ -165,7 +163,7 @@ int Alltoall::sendKV(int target, char *key, int keysize, char *val, int valsize)
 
 // wait all procsses done
 void Alltoall::wait(){
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: start wait.\n", rank, size);
+    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: start wait.\n", rank, size);
 
     medone = 1;
 
@@ -191,7 +189,7 @@ void Alltoall::wait(){
 
            PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
-           LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
+           //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
            if(recvcount > 0) {
                SAVE_ALL_DATA(i);
@@ -200,7 +198,7 @@ void Alltoall::wait(){
    }
 #endif
 
-   LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);
+   //LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);
 }
 
 void Alltoall::exchange_kv(){
@@ -266,7 +264,7 @@ void Alltoall::exchange_kv(){
     int64_t recvcount = recvcounts[ibuf];
     PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
+    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
     if(recvcount > 0) {
         SAVE_ALL_DATA(ibuf);
@@ -294,7 +292,7 @@ void Alltoall::exchange_kv(){
         TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
         PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
-        LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
+        //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
         if(recvcount > 0) {
             SAVE_ALL_DATA(ibuf);
@@ -321,5 +319,5 @@ void Alltoall::exchange_kv(){
 
     TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
 
-    LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%ld, done count=%d)\n", rank, size, sendcount, pdone);
+    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%ld, done count=%d)\n", rank, size, sendcount, pdone);
 }

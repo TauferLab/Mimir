@@ -39,7 +39,6 @@
 
 using namespace MIMIR_NS;
 
-int me,nprocs,tnum;
 
 /**
    Create MapReduce Object
@@ -66,7 +65,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
 
   mode = NoneMode;
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: create.\n", me, nprocs);
+  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: create.\n");
 }
 
 /**
@@ -76,6 +75,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
    @return return new MapReduce Object.
 */
 MapReduce::MapReduce(const MapReduce &_mr){
+#if 0
   // copy stats
   local_kvs_count=_mr.local_kvs_count;
   global_kvs_count=_mr.global_kvs_count;
@@ -112,8 +112,9 @@ MapReduce::MapReduce(const MapReduce &_mr){
   TRACKER_START(1);
   PROFILER_START(1);
   TRACKER_TIMER_INIT(0);
+#endif
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: copy\n", me, nprocs);
+  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: copy\n");
 }
 
 /**
@@ -128,620 +129,14 @@ MapReduce::~MapReduce()
   TRACKER_END;
   PROFILER_END;
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: destroy.\n", me, nprocs);
-}
-
-/**
-   Map function without input
-*/
-uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
-  void *_ptr, int _comm){
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (no input)\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-
-  DataObject::subRef(data);
-  KeyValue *kv = new KeyValue(kvtype,
-                              blocksize,
-                              nmaxblock,
-                              maxmemsize,
-                              outofcore,
-                              tmpfpath);
-  data=kv;
-  DataObject::addRef(data);
-  kv->setKVsize(ksize,vsize);
-
-  if(_comm){
-    c=Communicator::Create(comm, commmode);
-    c->setup(gbufsize, kv);
-    mode = CommMode;
-  }else{
-    mode = LocalMode;
-  }
-
-  nitem=0;
-  blockid=-1;
-  _myinit(this, _ptr);
-  // wait all processes done
-  if(_comm){
-    c->wait();
-    delete c;
-    c = NULL;
-  }
-
-  mode = NoneMode;
-
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (no input)\n", \
-    me, nprocs);
-
-  return _get_kv_count();
-}
-
-/**
-   Map function KV input
-
-*/
-uint64_t MapReduce::map_key_value(MapReduce *_mr,
-    UserMapKV _mymap, UserBiReduce _mycompress,
-    void *_ptr, int _comm){
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", \
-    me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-
-  DataObject::addRef(_mr->data);
-  DataObject::subRef(data);
-
-  KeyValue *inputkv = (KeyValue*)(_mr->data);
-
-  // create new data object
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: new data KV. (KV as input)\n", \
-    me, nprocs);
-  KeyValue *kv = new KeyValue(kvtype,
-                              blocksize,
-                              nmaxblock,
-                              maxmemsize,
-                              outofcore,
-                              tmpfpath);
-  kv->setKVsize(ksize, vsize);
-  data = kv;
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: alloc data KV. (KV as input)\n", \
-    me, nprocs);
-
-  if(_mycompress!=NULL){
-    u=new UniqueInfo();
-    u->ubucket = new Unique*[nbucket];
-    u->unique_pool=new Spool(nbucket*sizeof(Unique));
-    u->nunique=0;
-    u->ubuf=u->unique_pool->add_block();
-    u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
-    memset(u->ubucket, 0, nbucket*(int)sizeof(Unique*));
-    mycompress=_mycompress;
-    ptr=_ptr;
-    mode=CompressMode;
-  }else if(_comm){
-    c=Communicator::Create(comm, commmode);
-    c->setup(gbufsize, kv);
-    //c->init(kv);
-    mode = CommMode;
-  }else{
-    mode = LocalMode;
-  }
-
-  //KeyValue *inputkv = (KeyValue*)data;
-
-  nitem=0;
-  blockid=-1;
-
-  char *key, *value;
-  int keybytes, valuebytes;
-
-  int i;
-  for(i = 0; i < inputkv->nblock; i++){
-    int64_t offset = 0;
-
-    inputkv->acquire_block(i);
-
-    offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
-
-    while(offset != -1){
-
-      _mymap(this, key, keybytes, value, valuebytes, _ptr);
-
-      offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
-    }
-
-    inputkv->delete_block(i);
-    inputkv->release_block(i);
-  }
-
-  //DataObject::subRef(data);
-  DataObject::subRef(inputkv);
-
-  if(_mycompress != NULL){
-    if(_comm){
-      c=Communicator::Create(comm, commmode);
-      c->setup(gbufsize, kv);
-      //c->init(kv);
-      mode = CommMode;
-    }else{
-      mode = LocalMode;
-    }
-
-    _cps_unique2kv(u);
-
-    delete [] u->ubucket;
-    delete u->unique_pool;
-    delete u;
-  }
-
-  if(_comm){
-    c->wait();
-    delete c;
-    c = NULL;
-  }
-
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_PAGE, data->nblock);
-  DataObject::addRef(data);
-  mode=NoneMode;
-
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (KV as input)\n", \
-    me, nprocs);
-
-  return _get_kv_count();
-}
-
-uint64_t MapReduce::compress(UserCompress _mycompress, void *_ptr, int _comm){
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: compress start.\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-  PROFILER_RECORD_COUNT(0, COUNTER_CPS_INPUT_KV, data->gettotalsize());
-
-  if(estimate){
-    int64_t estimate_kv_count = global_kvs_count/nprocs;
-    nbucket=1;
-    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
-      factor*nbucket<estimate_kv_count)
-      nbucket*=2;
-    nset=nbucket;
-  }
-
-  KeyValue *kv = (KeyValue*)data;
-  int kvtype=kv->getKVtype();
-  KeyValue *outkv = new KeyValue(kvtype,
-                      blocksize,
-                      nmaxblock,
-                      maxmemsize,
-                      outofcore,
-                      tmpfpath);
-  outkv->setKVsize(ksize, vsize);
-  data=outkv;
-
-  if(_comm){
-    c=Communicator::Create(comm, commmode);
-    c->setup(gbufsize, kv);
-    //c->init(kv);
-    mode = LocalMode;
-  }else{
-    mode = LocalMode;
-  }
-
-  _reduce_compress(kv, _mycompress, _ptr);
-  PROFILER_RECORD_COUNT(0, COUNTER_CPS_PR_OUTKV, outkv->gettotalsize());
-
-  DataObject::subRef(kv);
-
-  if(_comm){
-    c->wait();
-    delete c;
-    c = NULL;
-  }
-
-  DataObject::addRef(data);
-  mode = NoneMode;
-
-  TRACKER_RECORD_EVENT(0, EVENT_CPS_COMPUTING);
-  PROFILER_RECORD_COUNT(0, COUNTER_CPS_OUTPUT_KV, data->gettotalsize());
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: compress end.\n", me, nprocs);
-
-  return _get_kv_count();
-}
-
-uint64_t MapReduce::reducebykey(UserBiReduce _myreduce, void* _ptr){
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reducebykey start.\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-  PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, data->gettotalsize());
-
-  KeyValue *kv = (KeyValue*)data;
-  int kvtype=kv->getKVtype();
-
-  // init counters
-  //int tid=0;
-  //_tinit(tid);
-  nitem=0;
-  blockid=-1;
-
-  mode = MergeMode;
-
-  // init data structure
-  UniqueInfo *u=new UniqueInfo();
-  u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(nbucket*sizeof(Unique));
-  u->nunique=0;
-  memset(u->ubucket, 0, nbucket*sizeof(Unique*));
-
-  u->ubuf=u->unique_pool->add_block();
-  u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
-
-  char *key=NULL, *value=NULL;
-  int keybytes=0, valuebytes=0, kvsize=0;
-  char *kvbuf=NULL;
-  for(int i=0; i<kv->nblock; i++){
-    // build unique structure
-    kv->acquire_block(i);
-
-    kvbuf=kv->getblockbuffer(i);
-    int64_t datasize=kv->getdatasize(i);
-    char *kvbuf_end=kvbuf+datasize;
-    while(kvbuf<kvbuf_end){
-      GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
-
-      _cps_kv2unique(u, key, keybytes, value, valuebytes, _myreduce, _ptr);
-
-      //kv_count++;
-
-    }//END while
-    kv->delete_block(i);
-    kv->release_block(i);
-  }//END for
-
-  // create new data object
-  DataObject::subRef(kv);
-  KeyValue *outkv = new KeyValue(kvtype,
-                      blocksize,
-                      nmaxblock,
-                      maxmemsize,
-                      outofcore,
-                      tmpfpath);
-  outkv->setKVsize(ksize, vsize);
-  data=outkv;
-
-  mode = LocalMode;
-
-  _cps_unique2kv(u);
-
-  PROFILER_RECORD_COUNT(0, COUNTER_PR_UNIQUE_SIZE, \
-    (u->unique_pool->nblock)*(u->unique_pool->blocksize));
-
-  delete [] u->ubucket;
-  delete u->unique_pool;
-  delete u;
-
-  DataObject::addRef(data);
-
-  mode=NoneMode;
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reducebykey end.\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
-  PROFILER_RECORD_COUNT(0, COUNTER_RDC_OUTPUT_KV, data->gettotalsize());
-
-  return _get_kv_count();
-}
-
-uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char *value, int valuebytes, UserBiReduce _myreduce, void *_ptr){
-  uint32_t hid = hashlittle(key, keybytes, 0);
-  int ibucket = hid % nbucket;
-
-  UniqueCPS *ukey;
-  Unique *pre;
-  ukey = (UniqueCPS*)_findukey(u->ubucket, ibucket, key, keybytes, pre, 1);
-  if(ukey){
-    cur_ukey=ukey;
-
-    char *unique_key=NULL, *unique_value=NULL;
-    int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
-    char *kvbuf=(char*)ukey+sizeof(UniqueCPS);
-    GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
-      unique_value,unique_valuebytes,kvsize,this);
-
-    _myreduce(this, unique_key, unique_keybytes, \
-    unique_value, unique_valuebytes, value, valuebytes, _ptr);
-  }else{
-    // calculate space needed
-    int space_bytes;
-    if(kvtype==GeneralKV)
-      space_bytes=(int)sizeof(UniqueCPS)+twointlen+keybytes+maxvaluebytes;
-    else
-      space_bytes=(int)sizeof(UniqueCPS)+keybytes+maxvaluebytes;
-
-    // add another block
-    if(u->ubuf_end-u->ubuf<space_bytes){
-      memset(u->ubuf, 0, u->ubuf_end-u->ubuf);
-      u->ubuf=u->unique_pool->add_block();
-      u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
-    }
-
-    ukey=(UniqueCPS*)(u->ubuf);
-    u->ubuf += sizeof(UniqueCPS);
-
-    // add to the list
-    ukey->next = NULL;
-    if(pre == NULL)
-      u->ubucket[ibucket] = (Unique*)ukey;
-    else
-      ((UniqueCPS*)pre)->next = ukey;
-
-    // copy key
-    int kvbytes;
-    PUT_KV_VARS(kvtype, u->ubuf, key, keybytes, value, valuebytes, kvbytes);
-    u->ubuf += (maxvaluebytes-valuebytes);
-    //u->ubuf += maxvaluebytes;
-
-    u->nunique++;
-  }//END if
-  return 0;
-}
-
-
-uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
-  int nunique=0;
-  Spool *unique_pool=u->unique_pool;
-  for(int j=0; j<unique_pool->nblock; j++){
-    char *ubuf=unique_pool->blocks[j];
-    char *ubuf_end=ubuf+unique_pool->blocksize;
-
-    while(ubuf < ubuf_end){
-      //UniqueCPS *ukey = (UniqueCPS*)(ubuf);
-      int left_bytes=(int)(ubuf_end-ubuf);
-      if((left_bytes <= (int)sizeof(UniqueCPS))) break;
-      else if(kvtype==GeneralKV){
-        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
-        if(left_bytes<twointlen || *(int*)kvbuf==0) break;
-      }else if(kvtype==StringKV || kvtype==StringKFixedV){
-        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
-        if(strlen(kvbuf)==0) break;
-      }else if(kvtype==FixedKV || kvtype==FixedKStringV){
-        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
-        char tmpbuf[ksize];
-        memset(tmpbuf, 0, ksize);
-        if(left_bytes<ksize || memcmp(kvbuf,tmpbuf,ksize)==0) break;
-      }
-
-      nunique++;
-      if(nunique>u->nunique) goto out;
-
-      char *unique_key=NULL, *unique_value=NULL;
-      int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
-
-      ubuf+=(int)sizeof(UniqueCPS);
-      GET_KV_VARS(kvtype,ubuf,unique_key,unique_keybytes,\
-        unique_value,unique_valuebytes,kvsize,this);
-
-      //printf("key=%s\n", ukey->key); fflush(stdout);
-      add_key_value(unique_key, unique_keybytes, \
-        unique_value, unique_valuebytes);
-
-      //ubuf+=sizeof(UniqueCPS);
-      //ubuf+=ukey->keybytes;
-      ubuf+=(maxvaluebytes-unique_valuebytes);
-      //ubuf+=maxvaluebytes;
-    }
-  }
-out:
-  return 0;
-}
-
-/**
-   Map function without input
-*/
-uint64_t MapReduce::reduce(UserReduce _myreduce, int _compress, void* _ptr){
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce start.\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-  PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, data->gettotalsize());
-
-  if(estimate){
-    int64_t estimate_kv_count = global_kvs_count/nprocs;
-    nbucket=1;
-    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
-      factor*nbucket<estimate_kv_count)
-      nbucket*=2;
-    nset=nbucket;
-  }
-
-  KeyValue *kv = (KeyValue*)data;
-  int kvtype=kv->getKVtype();
-
-  // create new data object
-  KeyValue *outkv = new KeyValue(kvtype,
-                      blocksize,
-                      nmaxblock,
-                      maxmemsize,
-                      outofcore,
-                      tmpfpath);
-  outkv->setKVsize(ksize, vsize);
-  data=outkv;
-
-  mode = LocalMode;
-
-  // Reduce without compress
-  if(!_compress){
-    local_kvs_count = _reduce(kv, _myreduce, _ptr);
-    DataObject::subRef(kv);
-  // Reduce with compress
-  }else{
-    //record_memory_usage("before compress");
-
-    _reduce_compress(kv, _myreduce, _ptr);
-    DataObject::subRef(kv);
-
-    //record_memory_usage("after compress");
-
-    PROFILER_RECORD_COUNT(0, COUNTER_PR_OUTPUT_KV, outkv->gettotalsize());
-
-    KeyValue *tmpkv=outkv;
-
-    outkv = new KeyValue(kvtype,
-                  blocksize,
-                  nmaxblock,
-                  maxmemsize,
-                  outofcore,
-                  tmpfpath);
-    outkv->setKVsize(ksize, vsize);
-    data=outkv;
-
-    //printf("tmp block=%d ref=%d\n", tmpkv->nblock, tmpkv->ref);
-
-    local_kvs_count = _reduce(tmpkv, _myreduce, _ptr);
-    delete tmpkv;
-    //DataObject::subRef(tmpkv);
-
-    //record_memory_usage("after reduce");
-  }
-
-  DataObject::addRef(data);
-  //printf("reduce result block=%d, ref=%d\n", data->nblock, data->ref);
-  mode = NoneMode;
-
-  TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
-  PROFILER_RECORD_COUNT(0, COUNTER_RDC_OUTPUT_KV, data->gettotalsize());
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce end.\n", me, nprocs);
-
-  return _get_kv_count();
-}
-
-/**
-   Scan <key,value>
-
-   @param[in]  _myscan user-defined scan function
-   @param[in]  _ptr user-defined pointer
-   @return nothing
-*/
-void MapReduce::scan(
-  void (_myscan)(char *, int, char *, int ,void *),
-  void * _ptr){
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan begin\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-
-  KeyValue *kv = (KeyValue*)data;
-
-  for(int i = 0; i < kv->nblock; i++){
-
-     char *key=NULL, *value=NULL;
-     int keybytes=0, valuebytes=0, kvsize=0;
-
-     kv->acquire_block(i);
-     char *kvbuf=kv->getblockbuffer(i);
-     int64_t datasize=kv->getdatasize(i);
-
-     int offset=0;
-     while(offset < datasize){
-       GET_KV_VARS(kv->kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
-
-       _myscan(key, keybytes, value, valuebytes, _ptr);
-
-       offset += kvsize;
-     }
-     kv->release_block(i);
-  }
-
-  TRACKER_RECORD_EVENT(0, EVENT_SCAN_COMPUTING);
-
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: scan end.\n", me, nprocs);
-}
-
-/**
-   Add <eky,value>
-
-   @param[in]  _key key pointer
-   @param[in]  _keybytes key size
-   @param[in]  _value value pointer
-   @param[in] _valubytes value size
-   @return nothing
-*/
-void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebytes){
-  // Communication Mode
-  if(mode == CommMode){
-    int target = 0;
-    if(myhash != NULL){
-      target=myhash(key, keybytes);
-    }else{
-      uint32_t hid = 0;
-      hid = hashlittle(key, keybytes, nprocs);
-      target = hid % (uint32_t)nprocs;
-    }
-
-    // send KV
-    c->sendKV(target, key, keybytes, value, valuebytes);
-
-    nitem++;
-
-    return;
-   // Local Mode
-   }else if(mode == LocalMode){
-
-    // add KV into data object
-    KeyValue *kv = (KeyValue*)data;
-
-    if(blockid == -1){
-      blockid = kv->add_block();
-    }
-
-    kv->acquire_block(blockid);
-
-    while(kv->addKV(blockid, key, keybytes, value, valuebytes) == -1){
-      kv->release_block(blockid);
-      blockid = kv->add_block();
-      kv->acquire_block(blockid);
-    }
-
-    kv->release_block(blockid);
-    nitem++;
-  // MergeMode
-  }else if(mode==MergeMode){
-    if(valuebytes > maxvaluebytes){
-      LOG_ERROR("The value bytes %d is larger than the max %d\n", \
-        valuebytes, maxvaluebytes);
-    }
-    char *unique_key=NULL, *unique_value=NULL;
-    int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
-    char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS);
-    GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
-      unique_value,unique_valuebytes,kvsize,this);
-    memcpy(unique_value, value, valuebytes);
-    if(kvtype==GeneralKV){
-      char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS)+oneintlen;
-      *(int*)(kvbuf)=valuebytes;
-    }
-    //cur_ukey->valuebytes=valuebytes;
-    //cur_ukey->nvalue++;
-  }else if(mode==CompressMode){
-    mode=MergeMode;
-    _cps_kv2unique(u, key, keybytes, value, valuebytes, mycompress, ptr);
-    mode=CompressMode;
-  }
-
-  return;
+  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: destroy.\n");
 }
 
 uint64_t MapReduce::map_text_file( \
     char *filepath, int sharedflag, int recurse, char *whitespace, \
-    UserMapFile mymap, UserBiReduce _mycompress, void *_ptr, int _comm){
+    UserMapFile mymap, void *_ptr, int _comm){
 
+#if 0
     if(strlen(whitespace) == 0)
         LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
 
@@ -914,12 +309,493 @@ uint64_t MapReduce::map_text_file( \
     PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_PAGE, data->nblock);
 
     LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file end.\n", me, nprocs);
+#endif
 
     return _get_kv_count();
 }
 
+/**
+   Map function KV input
+
+*/
+uint64_t MapReduce::map_key_value(MapReduce *_mr,
+    UserMapKV _mymap, void *_ptr, int _comm){
+
+#if 0
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", \
+    me, nprocs);
+
+  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+
+  DataObject::addRef(_mr->data);
+  DataObject::subRef(data);
+
+  KeyValue *inputkv = (KeyValue*)(_mr->data);
+
+  // create new data object
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: new data KV. (KV as input)\n", \
+    me, nprocs);
+  KeyValue *kv = new KeyValue(kvtype,
+                              blocksize,
+                              nmaxblock,
+                              maxmemsize,
+                              outofcore,
+                              tmpfpath);
+  kv->setKVsize(ksize, vsize);
+  data = kv;
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: alloc data KV. (KV as input)\n", \
+    me, nprocs);
+
+  if(_mycompress!=NULL){
+    u=new UniqueInfo();
+    u->ubucket = new Unique*[nbucket];
+    u->unique_pool=new Spool(nbucket*sizeof(Unique));
+    u->nunique=0;
+    u->ubuf=u->unique_pool->add_block();
+    u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
+    memset(u->ubucket, 0, nbucket*(int)sizeof(Unique*));
+    mycompress=_mycompress;
+    ptr=_ptr;
+    mode=CompressMode;
+  }else if(_comm){
+    c=Communicator::Create(comm, commmode);
+    c->setup(gbufsize, kv);
+    //c->init(kv);
+    mode = CommMode;
+  }else{
+    mode = LocalMode;
+  }
+
+  //KeyValue *inputkv = (KeyValue*)data;
+
+  nitem=0;
+  blockid=-1;
+
+  char *key, *value;
+  int keybytes, valuebytes;
+
+  int i;
+  for(i = 0; i < inputkv->nblock; i++){
+    int64_t offset = 0;
+
+    inputkv->acquire_block(i);
+
+    offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+
+    while(offset != -1){
+
+      _mymap(this, key, keybytes, value, valuebytes, _ptr);
+
+      offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
+    }
+
+    inputkv->delete_block(i);
+    inputkv->release_block(i);
+  }
+
+  //DataObject::subRef(data);
+  DataObject::subRef(inputkv);
+
+  if(_mycompress != NULL){
+    if(_comm){
+      c=Communicator::Create(comm, commmode);
+      c->setup(gbufsize, kv);
+      //c->init(kv);
+      mode = CommMode;
+    }else{
+      mode = LocalMode;
+    }
+
+    _cps_unique2kv(u);
+
+    delete [] u->ubucket;
+    delete u->unique_pool;
+    delete u;
+  }
+
+  if(_comm){
+    c->wait();
+    delete c;
+    c = NULL;
+  }
+
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
+  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_PAGE, data->nblock);
+  DataObject::addRef(data);
+  mode=NoneMode;
+
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (KV as input)\n", \
+    me, nprocs);
+
+#endif
+  return _get_kv_count();
+}
+
+
+/**
+   Map function without input
+*/
+uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
+  void *_ptr, int _comm){
+
+#if 0
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (no input)\n", me, nprocs);
+
+  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+
+  DataObject::subRef(data);
+  KeyValue *kv = new KeyValue(kvtype,
+                              blocksize,
+                              nmaxblock,
+                              maxmemsize,
+                              outofcore,
+                              tmpfpath);
+  data=kv;
+  DataObject::addRef(data);
+  kv->setKVsize(ksize,vsize);
+
+  if(_comm){
+    c=Communicator::Create(comm, commmode);
+    c->setup(gbufsize, kv);
+    mode = CommMode;
+  }else{
+    mode = LocalMode;
+  }
+
+  nitem=0;
+  blockid=-1;
+  _myinit(this, _ptr);
+  // wait all processes done
+  if(_comm){
+    c->wait();
+    delete c;
+    c = NULL;
+  }
+
+  mode = NoneMode;
+
+  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (no input)\n", \
+    me, nprocs);
+#endif
+  return _get_kv_count();
+}
+
+/**
+   Map function without input
+*/
+uint64_t MapReduce::reduce(UserReduce _myreduce, void* _ptr){
+#if 0
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce start.\n", me, nprocs);
+
+  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+  PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, data->gettotalsize());
+
+  if(estimate){
+    int64_t estimate_kv_count = global_kvs_count/nprocs;
+    nbucket=1;
+    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
+      factor*nbucket<estimate_kv_count)
+      nbucket*=2;
+    nset=nbucket;
+  }
+
+  KeyValue *kv = (KeyValue*)data;
+  int kvtype=kv->getKVtype();
+
+  // create new data object
+  KeyValue *outkv = new KeyValue(kvtype,
+                      blocksize,
+                      nmaxblock,
+                      maxmemsize,
+                      outofcore,
+                      tmpfpath);
+  outkv->setKVsize(ksize, vsize);
+  data=outkv;
+
+  mode = LocalMode;
+
+  // Reduce without compress
+  if(!_compress){
+    local_kvs_count = _reduce(kv, _myreduce, _ptr);
+    DataObject::subRef(kv);
+  // Reduce with compress
+  }else{
+    //record_memory_usage("before compress");
+
+    _reduce_compress(kv, _myreduce, _ptr);
+    DataObject::subRef(kv);
+
+    //record_memory_usage("after compress");
+
+    PROFILER_RECORD_COUNT(0, COUNTER_PR_OUTPUT_KV, outkv->gettotalsize());
+
+    KeyValue *tmpkv=outkv;
+
+    outkv = new KeyValue(kvtype,
+                  blocksize,
+                  nmaxblock,
+                  maxmemsize,
+                  outofcore,
+                  tmpfpath);
+    outkv->setKVsize(ksize, vsize);
+    data=outkv;
+
+    //printf("tmp block=%d ref=%d\n", tmpkv->nblock, tmpkv->ref);
+
+    local_kvs_count = _reduce(tmpkv, _myreduce, _ptr);
+    delete tmpkv;
+    //DataObject::subRef(tmpkv);
+
+    //record_memory_usage("after reduce");
+  }
+
+  DataObject::addRef(data);
+  //printf("reduce result block=%d, ref=%d\n", data->nblock, data->ref);
+  mode = NoneMode;
+
+  TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
+  PROFILER_RECORD_COUNT(0, COUNTER_RDC_OUTPUT_KV, data->gettotalsize());
+
+  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce end.\n", me, nprocs);
+
+#endif
+
+  return _get_kv_count();
+}
+
+/**
+   Add <eky,value>
+
+   @param[in]  _key key pointer
+   @param[in]  _keybytes key size
+   @param[in]  _value value pointer
+   @param[in] _valubytes value size
+   @return nothing
+*/
+void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebytes){
+#if 0
+  // Communication Mode
+  if(mode == CommMode){
+    int target = 0;
+    if(myhash != NULL){
+      target=myhash(key, keybytes);
+    }else{
+      uint32_t hid = 0;
+      hid = hashlittle(key, keybytes, nprocs);
+      target = hid % (uint32_t)nprocs;
+    }
+
+    // send KV
+    c->sendKV(target, key, keybytes, value, valuebytes);
+
+    nitem++;
+
+    return;
+   // Local Mode
+   }else if(mode == LocalMode){
+
+    // add KV into data object
+    KeyValue *kv = (KeyValue*)data;
+
+    if(blockid == -1){
+      blockid = kv->add_block();
+    }
+
+    kv->acquire_block(blockid);
+
+    while(kv->addKV(blockid, key, keybytes, value, valuebytes) == -1){
+      kv->release_block(blockid);
+      blockid = kv->add_block();
+      kv->acquire_block(blockid);
+    }
+
+    kv->release_block(blockid);
+    nitem++;
+  // MergeMode
+  }else if(mode==MergeMode){
+    if(valuebytes > maxvaluebytes){
+      LOG_ERROR("The value bytes %d is larger than the max %d\n", \
+        valuebytes, maxvaluebytes);
+    }
+    char *unique_key=NULL, *unique_value=NULL;
+    int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
+    char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS);
+    GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
+      unique_value,unique_valuebytes,kvsize,this);
+    memcpy(unique_value, value, valuebytes);
+    if(kvtype==GeneralKV){
+      char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS)+oneintlen;
+      *(int*)(kvbuf)=valuebytes;
+    }
+    //cur_ukey->valuebytes=valuebytes;
+    //cur_ukey->nvalue++;
+  }else if(mode==CompressMode){
+    mode=MergeMode;
+    _cps_kv2unique(u, key, keybytes, value, valuebytes, mycompress, ptr);
+    mode=CompressMode;
+  }
+#endif
+  return;
+}
+
+
+/**
+   Scan <key,value>
+
+   @param[in]  _myscan user-defined scan function
+   @param[in]  _ptr user-defined pointer
+   @return nothing
+*/
+void MapReduce::scan(
+  void (_myscan)(char *, int, char *, int ,void *),
+  void * _ptr){
+  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan begin\n");
+
+#if 0
+  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+
+  KeyValue *kv = (KeyValue*)data;
+
+  for(int i = 0; i < kv->nblock; i++){
+
+     char *key=NULL, *value=NULL;
+     int keybytes=0, valuebytes=0, kvsize=0;
+
+     kv->acquire_block(i);
+     char *kvbuf=kv->getblockbuffer(i);
+     int64_t datasize=kv->getdatasize(i);
+
+     int offset=0;
+     while(offset < datasize){
+       GET_KV_VARS(kv->kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
+
+       _myscan(key, keybytes, value, valuebytes, _ptr);
+
+       offset += kvsize;
+     }
+     kv->release_block(i);
+  }
+
+  TRACKER_RECORD_EVENT(0, EVENT_SCAN_COMPUTING);
+#endif
+
+  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan end.\n");
+}
+
+#if 0
+uint64_t MapReduce::_cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char *value, int valuebytes, UserBiReduce _myreduce, void *_ptr){
+
+  uint32_t hid = hashlittle(key, keybytes, 0);
+  int ibucket = hid % nbucket;
+  UniqueCPS *ukey;
+  Unique *pre;
+  ukey = (UniqueCPS*)_findukey(u->ubucket, ibucket, key, keybytes, pre, 1);
+  if(ukey){
+    cur_ukey=ukey;
+
+    char *unique_key=NULL, *unique_value=NULL;
+    int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
+    char *kvbuf=(char*)ukey+sizeof(UniqueCPS);
+    GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
+      unique_value,unique_valuebytes,kvsize,this);
+
+    _myreduce(this, unique_key, unique_keybytes, \
+    unique_value, unique_valuebytes, value, valuebytes, _ptr);
+  }else{
+    // calculate space needed
+    int space_bytes;
+    if(kvtype==GeneralKV)
+      space_bytes=(int)sizeof(UniqueCPS)+twointlen+keybytes+maxvaluebytes;
+    else
+      space_bytes=(int)sizeof(UniqueCPS)+keybytes+maxvaluebytes;
+
+    // add another block
+    if(u->ubuf_end-u->ubuf<space_bytes){
+      memset(u->ubuf, 0, u->ubuf_end-u->ubuf);
+      u->ubuf=u->unique_pool->add_block();
+      u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
+    }
+
+    ukey=(UniqueCPS*)(u->ubuf);
+    u->ubuf += sizeof(UniqueCPS);
+
+    // add to the list
+    ukey->next = NULL;
+    if(pre == NULL)
+      u->ubucket[ibucket] = (Unique*)ukey;
+    else
+      ((UniqueCPS*)pre)->next = ukey;
+
+    // copy key
+    int kvbytes;
+    PUT_KV_VARS(kvtype, u->ubuf, key, keybytes, value, valuebytes, kvbytes);
+    u->ubuf += (maxvaluebytes-valuebytes);
+    //u->ubuf += maxvaluebytes;
+
+    u->nunique++;
+  }//END if
+  return 0;
+}
+#endif
+
+#if 0
+uint64_t MapReduce::_cps_unique2kv(UniqueInfo *u){
+  int nunique=0;
+  Spool *unique_pool=u->unique_pool;
+  for(int j=0; j<unique_pool->nblock; j++){
+    char *ubuf=unique_pool->blocks[j];
+    char *ubuf_end=ubuf+unique_pool->blocksize;
+
+    while(ubuf < ubuf_end){
+      //UniqueCPS *ukey = (UniqueCPS*)(ubuf);
+      int left_bytes=(int)(ubuf_end-ubuf);
+      if((left_bytes <= (int)sizeof(UniqueCPS))) break;
+      else if(kvtype==GeneralKV){
+        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
+        if(left_bytes<twointlen || *(int*)kvbuf==0) break;
+      }else if(kvtype==StringKV || kvtype==StringKFixedV){
+        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
+        if(strlen(kvbuf)==0) break;
+      }else if(kvtype==FixedKV || kvtype==FixedKStringV){
+        char *kvbuf=ubuf+(int)sizeof(UniqueCPS);
+        char tmpbuf[ksize];
+        memset(tmpbuf, 0, ksize);
+        if(left_bytes<ksize || memcmp(kvbuf,tmpbuf,ksize)==0) break;
+      }
+
+      nunique++;
+      if(nunique>u->nunique) goto out;
+
+      char *unique_key=NULL, *unique_value=NULL;
+      int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
+
+      ubuf+=(int)sizeof(UniqueCPS);
+      GET_KV_VARS(kvtype,ubuf,unique_key,unique_keybytes,\
+        unique_value,unique_valuebytes,kvsize,this);
+
+      //printf("key=%s\n", ukey->key); fflush(stdout);
+      add_key_value(unique_key, unique_keybytes, \
+        unique_value, unique_valuebytes);
+
+      //ubuf+=sizeof(UniqueCPS);
+      //ubuf+=ukey->keybytes;
+      ubuf+=(maxvaluebytes-unique_valuebytes);
+      //ubuf+=maxvaluebytes;
+    }
+  }
+out:
+  return 0;
+}
+#endif
+
+
 /***** internal functions ******/
 
+#if 0
 // find the key in the unique list
 MapReduce::Unique* MapReduce::_findukey(Unique **unique_list, int ibucket, char *key, int keybytes, Unique *&uprev, int cps){
   if(!cps){
@@ -961,13 +837,13 @@ MapReduce::Unique* MapReduce::_findukey(Unique **unique_list, int ibucket, char 
   }
 
   }
-
   return NULL;
 }
+#endif
 
 
+#if 0
 void MapReduce::_unique2set(UniqueInfo *u){
-
   Set *set=(Set*)u->set_pool->add_block();
 
   int nunique=0;
@@ -1009,6 +885,8 @@ void MapReduce::_unique2set(UniqueInfo *u){
 end:
   return;
 }
+#endif
+
 
 /**
    Convert KVs to unique struct
@@ -1022,8 +900,8 @@ end:
    @param[in]     shared if shared by others
    @return return number of output KVs
 */
+#if 0
 int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv, UserReduce myreduce, void *ptr, int shared){
-
   //DEFINE_KV_VARS;
   char *key=NULL, *value=NULL;
   int keybytes=0, valuebytes=0, kvsize=0;
@@ -1201,6 +1079,8 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
 
   return isfirst;
 }
+#endif
+
 
 /**
    General internal reduce function.
@@ -1210,6 +1090,7 @@ int  MapReduce::_kv2unique(int tid, KeyValue *kv, UniqueInfo *u, DataObject *mv,
    @param[in]     ptr user-defined pointer
    @return return number of output KVs
 */
+#if 0
 void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,UserReduce myreduce, void *ptr, int shared){
 
   //DEFINE_KV_VARS;
@@ -1335,6 +1216,8 @@ end:
 
   mv->release_block(mv_block_id);
 }
+#endif
+
 
 /**
    General internal reduce function.
@@ -1344,6 +1227,7 @@ end:
    @param[in]     ptr user-defined pointer
    @return return number of output KVs
 */
+#if 0
 void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, DataObject *mv, int shared){
   char *key=NULL, *value=NULL;
   int keybytes=0, valuebytes=0, kvsize=0;
@@ -1425,6 +1309,8 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
 
   mv->release_block(mv_blockid);
 }
+#endif
+
 
 /**
    General internal reduce function.
@@ -1434,6 +1320,7 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
    @param[in]     ptr user-defined pointer
    @return return number of output KVs
 */
+#if 0
 void MapReduce::_mv2kmv(DataObject *mv,UniqueInfo *u, int kvtype,
   UserReduce myreduce, void* ptr){
 
@@ -1475,6 +1362,7 @@ end:
   //kmv->release_block(kmv_blockid);
   LOG_PRINT(DBG_CVT, "%d[%d] _mv2kmv end.\n", me, nprocs);
 }
+#endif
 
 /**
    General internal reduce function.
@@ -1484,6 +1372,7 @@ end:
    @param[in]     ptr user-defined pointer
    @return return number of output KVs
 */
+#if 0
 uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
 
   LOG_PRINT(DBG_CVT, "%d[%d] _reduce start.\n", me, nprocs);
@@ -1581,231 +1470,8 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
 
   return nunique;
 }
-
-/**
-   Reduce function with compress.
-
-   @param[in]  kv input KV object
-   @param[in]  myreduce user-defined reduce
-   @param[in]  ptr user-defined pointer
-   @return output <key,value> count
-*/
-uint64_t MapReduce::_reduce_compress(KeyValue *kv,
-  UserReduce myreduce, void* ptr){
-
-  LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: reduce compress begin\n", me, nprocs);
-
-  TRACKER_RECORD_EVENT(0, EVENT_RDC_COMPUTING);
-
- // _tinit(tid);
-  nitem=0;
-  blockid=-1;
-
-  TRACKER_RECORD_EVENT(0, EVENT_OMP_IDLE);
-
-  // initialize the unique info
-  UniqueInfo *u=new UniqueInfo();
-  u->ubucket = new Unique*[nbucket];
-  u->unique_pool=new Spool(nbucket*sizeof(Unique));
-  u->nunique=0;
-  memset(u->ubucket, 0, nbucket*sizeof(Unique*));
-
-  /// \file mapreduce.cpp
-  /// \todo Repair when KMV size > KV size
-  char *kmv_buf=(char*)mem_aligned_malloc(MEMPAGE_SIZE, 2*blocksize);
-  int kmv_off=0;
-
-  PROFILER_RECORD_COUNT(0,COUNTER_PR_BUCKET_SIZE,nbucket*sizeof(void*));
-  PROFILER_RECORD_COUNT(0,COUNTER_PR_KMV_SIZE,blocksize);
-
-  char *key=NULL, *value=NULL;
-  int keybytes=0, valuebytes=0, kvsize=0;
-  char *kvbuf=NULL;
-  int unique_pool_max_block=0;
-
-#ifdef MTMR_MULTITHREAD
-#pragma omp for
-#endif
-  for(int i=0; i<kv->nblock; i++){
-    u->unique_pool->clear();
-    u->nunique=0;
-    kmv_off=0;
-    memset(u->ubucket, 0, nbucket*sizeof(Unique*));
-
-    // build unique structure
-    kv->acquire_block(i);
-
-    char *ubuf=u->unique_pool->add_block();
-    char *ubuf_end=ubuf+u->unique_pool->blocksize;
-
-    kvbuf=kv->getblockbuffer(i);
-    int64_t datasize=kv->getdatasize(i);
-    char *kvbuf_end=kvbuf+datasize;
-    //int blocksize=
-    //int kvbuf_off=0;
-
-    //printf("block %d start\n", i); fflush(stdout);
-
-    int kv_count=0;
-    while(kvbuf<kvbuf_end){
-      GET_KV_VARS(kv->kvtype, kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
-
-      kv_count++;
-
-      //printf("key=%s, value=%s\n", key, value);
-
-      uint32_t hid = hashlittle(key, keybytes, 0);
-      int ibucket = hid % nbucket;
-
-      Unique *ukey, *pre;
-      ukey = _findukey(u->ubucket, ibucket, key, keybytes, pre);
-      if(ukey){
-        ukey->nvalue++;
-        ukey->mvbytes += valuebytes;
-      }else{
-        if(ubuf_end-ubuf<ukeyoffset+keybytes){
-          memset(ubuf, 0, ubuf_end-ubuf);
-          ubuf=u->unique_pool->add_block();
-          ubuf_end=ubuf+u->unique_pool->blocksize;
-        }
-
-        ukey=(Unique*)(ubuf);
-        ubuf += ukeyoffset;
-
-        // add to the list
-        ukey->next = NULL;
-        if(pre == NULL)
-          u->ubucket[ibucket] = ukey;
-        else
-          pre->next = ukey;
-
-        // copy key
-        ukey->key = ubuf;
-        memcpy(ubuf, key, keybytes);
-        ubuf += keybytes;
-
-        ukey->keybytes=keybytes;
-        ukey->nvalue=1;
-        ukey->mvbytes=valuebytes;
-
-        u->nunique++;
-      }// end else if
-    }
-
-    int nunique=0;
-    Spool *unique_pool=u->unique_pool;
-    for(int j=0; j<unique_pool->nblock; j++){
-      char *ubuf=unique_pool->blocks[j];
-      char *ubuf_end=ubuf+unique_pool->blocksize;
-
-      while(ubuf < ubuf_end){
-        Unique *ukey = (Unique*)(ubuf);
-        if(((int)(ubuf_end-ubuf) < (int)sizeof(Unique)) || (ukey->key==NULL))
-          break;
-
-        nunique++;
-        if(nunique>u->nunique) goto out;
-
-        *(int*)(kmv_buf+kmv_off)=ukey->keybytes;
-        kmv_off+=(int)sizeof(int);
-        *(int*)(kmv_buf+kmv_off)=ukey->mvbytes;
-        kmv_off+=(int)sizeof(int);
-        *(int*)(kmv_buf+kmv_off)=ukey->nvalue;
-        kmv_off+=(int)sizeof(int);
-
-        if(kv->kvtype==GeneralKV){
-          ukey->soffset=(int*)(kmv_buf+kmv_off);
-          kmv_off+=(ukey->nvalue)*(int)sizeof(int);
-        }
-
-        ubuf+=ukeyoffset;
-        memcpy(kmv_buf+kmv_off, ubuf, ukey->keybytes);
-        kmv_off+=ukey->keybytes;
-
-        ukey->voffset=kmv_buf+kmv_off;
-        kmv_off+=ukey->mvbytes;
-
-        ubuf+=ukey->keybytes;
-
-        ukey->nvalue=0;
-        ukey->mvbytes=0;
-      }
-    }
-
-    //printf("kmv offset=%d, blocksize=%d\n", kmv_off, blocksize);
-
-out:
-    if(kmv_off > 2*blocksize){
-      LOG_ERROR("Error: kmv size %d is larger than the buffer size %ld\n", kmv_off, blocksize);
-    }
-
-    kvbuf=kv->getblockbuffer(i);
-    kvbuf_end=kvbuf+datasize;
-    while(kvbuf<kvbuf_end){
-      GET_KV_VARS(kv->kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,kv);
-
-      // Find the key
-      uint32_t hid = hashlittle(key, keybytes, 0);
-      int ibucket = hid % nbucket;
-      Unique *ukey, *pre;
-      ukey = _findukey(u->ubucket, ibucket, key, keybytes, pre);
-
-      if(kv->kvtype==GeneralKV){
-        ukey->soffset[ukey->nvalue]=valuebytes;
-        ukey->nvalue++;
-      }
-
-      memcpy(ukey->voffset+ukey->mvbytes, value, valuebytes);
-      ukey->mvbytes+=valuebytes;
-    }
-
-    kv->delete_block(i);
-    kv->release_block(i);
-
-    if(u->unique_pool->nblock>unique_pool_max_block)
-      unique_pool_max_block=u->unique_pool->nblock;
-
-    char *values=NULL;
-    int nvalue=0, mvbytes=0, kmvsize=0, *valuesizes=NULL;
-
-    KeyValue *kv = (KeyValue*)data;
-    //kv->print();
-
-    char *mv_buf=kmv_buf;
-    datasize=kmv_off;
-    int offset=0;
-
-    while(offset < datasize){
-      GET_KMV_VARS(kv->kvtype, mv_buf, key, keybytes, nvalue, values, valuesizes, mvbytes, kmvsize, kv);
-
-      MultiValueIterator *iter = new MultiValueIterator(nvalue,valuesizes,values,kv->kvtype,kv->vsize);
-      myreduce(this, key, keybytes, iter, 0, ptr);
-      delete iter;
-
-      offset += kmvsize;
-    }
-
-  }// end for
-
-  mem_aligned_free(kmv_buf);
-
-  PROFILER_RECORD_COUNT(0, COUNTER_PR_UNIQUE_SIZE, \
-    unique_pool_max_block*(u->unique_pool->blocksize));
-
-  delete [] u->ubucket;
-  delete u->unique_pool;
-  //delete u->set_pool;
-  delete u;
-
-  TRACKER_RECORD_EVENT(0, EVENT_PR_COMPUTING);
-#ifdef MTMR_MULTITHREAD
-}
 #endif
 
-  LOG_PRINT(DBG_CVT, "%d[%d] MapReduce: reduce compress end\n", me, nprocs);
-
-  return 0;
-}
 
 void MapReduce::print_memsize(){
   //struct mallinfo mi = mallinfo();
@@ -1820,9 +1486,9 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   //st.print(verb, out);
 //#endif
 
-  fprintf(out, "rank:%d", me);
-  fprintf(out, ",size:%d", nprocs);
-  fprintf(out, ",thread:%d", tnum);
+  fprintf(out, "rank:%d", mr->me);
+  fprintf(out, ",size:%d", mr->nprocs);
+  //fprintf(out, ",thread:%d", tnum);
 
   char hostname[1024+1];
   hostname[1024] = '\0';
@@ -1843,7 +1509,7 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
   fprintf(out, ",tracker:enable");
 #endif
   fprintf(out, "\n");
-  for(int i=0;i<tnum; i++){
+  for(int i=0;i<1; i++){
 #ifdef ENABLE_PROFILER
     fprintf(out, "action:profiler_start");
     std::map<std::string,double>::iterator timer_iter;
@@ -1953,16 +1619,16 @@ void MapReduce::_get_default_values(){
     }
   }
 
-  inputsize = INPUT_SIZE;
-  blocksize = BLOCK_SIZE;
-  nmaxblock = MAX_BLOCKS;
-  maxmemsize = MAXMEM_SIZE;
+  input_buf_size = INPUT_SIZE;
+  data_page_size = BLOCK_SIZE;
+  nmaxpage = MAX_BLOCKS;
+  //maxmemsize = MAXMEM_SIZE;
   //lbufsize = LOCAL_BUF_SIZE;
-  gbufsize = GLOBAL_BUF_SIZE;
+  comm_buf_size = GLOBAL_BUF_SIZE;
 
   kvtype = GeneralKV;
 
-  outofcore = OUT_OF_CORE;
+  //outofcore = OUT_OF_CORE;
   //tmpfpath = std::string(TMP_PATH);
 
   commmode=0;
@@ -1971,10 +1637,8 @@ void MapReduce::_get_default_values(){
 
   nbucket=pow(2, BUCKET_SIZE);
   nset = nbucket;
-  estimate = 0;
-  factor = 1;
 
-  ukeyoffset = sizeof(Unique);
+  //ukeyoffset = sizeof(Unique);
 
   maxkeybytes=MAX_KEY_SIZE;
   maxvaluebytes=MAX_VALUE_SIZE;
@@ -2144,6 +1808,7 @@ void MapReduce::_getinputfiles(const char *filepath, int sharedflag, int recurse
   }
 }
 
+#if 0
 inline uint64_t MapReduce::_get_kv_count(){
     local_kvs_count=0;
     //for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
@@ -2152,7 +1817,7 @@ inline uint64_t MapReduce::_get_kv_count(){
     TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
     return  global_kvs_count;
   }
-
+#endif
 
 MultiValueIterator::MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize){
     nvalue=_nvalue;
@@ -2172,7 +1837,7 @@ MultiValueIterator::MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv
 
     nvalue=ukey->nvalue;
     kvtype=_kvtype;
-    vsize=mv->vsize;
+    //vsize=mv->vsize;
     pset=NULL;
 
     mode=1;
@@ -2190,8 +1855,8 @@ void MultiValueIterator::Begin(){
     else{
       if(mode==1){
          pset=ukey->firstset;
-         mv->acquire_block(pset->pid);
-         char *tmpbuf = mv->getblockbuffer(pset->pid);
+         mv->acquire_page(pset->pid);
+         char *tmpbuf = mv->get_page_buffer(pset->pid);
          pset->soffset = (int*)(tmpbuf + pset->s_off);
          pset->voffset = tmpbuf + pset->v_off;
 
@@ -2215,15 +1880,15 @@ void MultiValueIterator::Next(){
     if(ivalue >= nvalue) {
       isdone=1;
       if(mode==1 && pset){
-         mv->release_block(pset->pid);
+         mv->release_page(pset->pid);
       }
     }else{
       if(mode==1 && ivalue >=value_end){
         value_start += pset->nvalue;
-        mv->release_block(pset->pid);
+        mv->release_page(pset->pid);
         pset=pset->next;
-        mv->acquire_block(pset->pid);
-        char *tmpbuf = mv->getblockbuffer(pset->pid);
+        mv->acquire_page(pset->pid);
+        char *tmpbuf = mv->get_page_buffer(pset->pid);
         pset->soffset = (int*)(tmpbuf + pset->s_off);
         pset->voffset = tmpbuf + pset->v_off;
 

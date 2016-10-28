@@ -33,7 +33,7 @@ public:
 
 #if SAFE_CHECK
     if(buf==NULL){
-      LOG_ERROR("%s", "Error: malloc memory for block error!\n");
+      //LOG_ERROR("%s", "Error: malloc memory for block error!\n");
     }
 #endif
 
@@ -41,7 +41,7 @@ public:
     nblock++;
 
     if(nblock >= maxblocks){
-      LOG_ERROR("Error: spool buffer is larger than the max blocks %d\n", maxblocks);
+      //LOG_ERROR("Error: spool buffer is larger than the max blocks %d\n", maxblocks);
     }
 
     return buf;

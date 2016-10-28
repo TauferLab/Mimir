@@ -6,29 +6,23 @@
 
 using namespace MIMIR_NS;
 
-
 KeyValue::KeyValue(
-  int _kvtype,
-  uint64_t blocksize,
-  int maxblock,
-  int maxmemsize,
-  int outofcore,
-  std::string filename,
-  int threadsafe):
-  DataObject(KVType, blocksize,
-    maxblock, maxmemsize, outofcore, filename, threadsafe){
-  kvtype = _kvtype;
+    int me,
+    int nprocs,
+    int64_t pagesize,
+    int maxpages):
+    DataObject(me, nprocs, KVType, pagesize, maxpages)
+{
 
-  ksize = vsize = 0;
-
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: KV Create.\n", me, nprocs);
+    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: KV Create (id=%d).\n", id);
 }
 
-KeyValue::~KeyValue(){
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: KV Destroy.\n", me, nprocs);
+KeyValue::~KeyValue()
+{
+    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: KV Destroy (id=%d).\n", id);
 }
 
-#if 1
+#if 0
 int64_t KeyValue::getNextKV(int blockid, int64_t offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
   if(offset >= blocks[blockid].datasize) return -1;
 
@@ -44,7 +38,7 @@ int64_t KeyValue::getNextKV(int blockid, int64_t offset, char **key, int &keybyt
 }
 #endif
 
-#if 1
+#if 0
 /*
  * Add a KV
  * return 0 if success, else return -1
@@ -77,10 +71,10 @@ void KeyValue::print(int type, FILE *fp, int format){
   char *key, *value;
   int keybytes, valuebytes;
 
-  for(int i = 0; i < nblock; i++){
+  for(int i = 0; i < npages; i++){
     int64_t offset = 0;
 
-    acquire_block(i);
+    acquire_page(i);
 
     offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
 
@@ -103,7 +97,7 @@ void KeyValue::print(int type, FILE *fp, int format){
       offset = getNextKV(i, offset, &key, keybytes, &value, valuebytes);
     }
 
-    release_block(i);
+    release_page(i);
 
   }
 }

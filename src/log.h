@@ -14,25 +14,27 @@
 #define DBG_CVT    16
 
 #ifdef _DEBUG
-#define LOG_PRINT(type, format, ...) \
+#define LOG_PRINT(type, rank, size, format, ...) \
   {\
     if(DBG_LEVEL & (type)){\
+      fprintf(stdout, "%d[%d] ", rank, size);\
       fprintf(stdout, (format), __VA_ARGS__);\
       fflush(stdout);\
     }\
-  }
+  };
 #else
 #define LOG_PRINT(type, format, ...)
 #endif
 
-#define LOG_WARNING(format, ...) \
+#define LOG_WARNING(rank, size, format, ...) \
   {\
+    fprintf(stderr, "%d[%d] ", rank, size);\
     fprintf(stdout, format, __VA_ARGS__);\
-  }
+  };
 
 #define LOG_ERROR(format,...) \
   {\
-    fprintf(stdout, format, __VA_ARGS__);\
+    fprintf(stderr, format, __VA_ARGS__);\
     MPI_Abort(MPI_COMM_WORLD, 1);\
   };
 

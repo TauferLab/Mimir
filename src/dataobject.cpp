@@ -38,265 +38,56 @@ void DataObject::subRef(DataObject *data){
   }
 }
 
-DataObject::DataObject(
-  DataType _datatype,
-  int64_t _blocksize,
-  int _maxblock,
-  int _maxmemsize,
-  int _outofcore,
-  std::string _filepath,
-  int _threadsafe){
+DataObject::DataObject(int _me, int _nprocs, 
+    DataType _datatype,
+    int64_t _pagesize,
+    int _maxpages){
+    me=_me;
+    nprocs=_nprocs;
+    datatype=_datatype;
+    pagesize=_pagesize;
+    maxpages=_maxpages;
 
-  datatype = _datatype;
+    id=ref=0; 
 
-  blocksize = _blocksize;
-  maxblock = _maxblock;
+    npages=0;
 
-  maxmemsize = (int64_t)_maxmemsize * UNIT_1G_SIZE;
-  outofcore = _outofcore;
-  threadsafe = _threadsafe;
-  filepath = _filepath;
+    totalsize=0; 
 
-  maxbuf = (int)(maxmemsize / blocksize);
+    pages = (Page*)mem_aligned_malloc(MEMPAGE_SIZE,maxpages*sizeof(Page));
 
-  //printf("maxbuf=%d\n", maxbuf);
+    for(int i = 0; i < maxpages; i++){
+        pages[i].datasize = 0;
+        pages[i].buffer = NULL;
+    }
 
-  nitem = nblock = nbuf = 0;
+    id = DataObject::object_id++;
 
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject alloc Block (memsize=%ld).\n", \
-    me, nprocs, maxblock*sizeof(Block));
-  blocks = (Block*)mem_aligned_malloc(MEMPAGE_SIZE,maxblock*sizeof(Block));
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject alloc Buffer (memsize=%ld).\n", \
-    me, nprocs, maxbuf*sizeof(Buffer));
-  buffers = (Buffer*)mem_aligned_malloc(MEMPAGE_SIZE, maxbuf*sizeof(Buffer));
+    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d create. (maxpages=%d)\n", id, maxpages);
 
-  for(int i = 0; i < maxblock; i++){
-    blocks[i].datasize = 0;
-    blocks[i].bufferid = -1;
-  }
-  for(int i = 0; i < maxbuf; i++){
-    buffers[i].buf = NULL;
-    buffers[i].blockid = -1;
-    buffers[i].ref = 0;
-  }
-
-  ref=0;
-
-  totalsize=0;
-
-  id = DataObject::object_id++;
-
-#ifdef MTMR_MULTITHREAD
-  omp_init_lock(&lock_t);
-#endif
-
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject create. (id=%d)\n", me, nprocs, id);
- }
+}
 
 DataObject::~DataObject(){
-#ifdef MTMR_MULTITHREAD
-  omp_destroy_lock(&lock_t);
-#endif
-
-  if(outofcore){
-    for(int i = 0; i < nblock; i++){
-      std::string filename;
-      _get_filename(i, filename);
-      remove(filename.c_str());
+    for(int i = 0; i < npages; i++){
+        if(pages[i].buffer != NULL) mem_aligned_free(pages[i].buffer);
     }
-  }
+    mem_aligned_free(pages);
+    DataObject::cur_page_count-=npages;
 
-  for(int i = 0; i < nbuf; i++){
-    if(buffers[i].buf != NULL) mem_aligned_free(buffers[i].buf);
-  }
-  //delete [] buffers;
-  //delete [] blocks;
-  mem_aligned_free(buffers);
-  mem_aligned_free(blocks);
-
-  DataObject::cur_page_count-=nblock;
-
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: DataObject destory. (id=%d)\n", me, nprocs, id);
+    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d destory.\n", id);
 }
 
-void DataObject::_get_filename(int blockid, std::string &fname){
-  char str[MAXLINE+1];
+int DataObject::add_page(){
+    int pageid=npages;
+    npages++;
+    if(npages>maxpages) 
+       LOG_ERROR("Error: page count (%d) is larger than than maximum (%d).", npages, maxpages);
+    pages[pageid].datasize=0;
+    pages[pageid].buffer=(char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
 
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d add one page %d.\n", id, pageid);
 
-  if(datatype==ByteType) sprintf(str,"MTMR.BT");
-  else if(datatype==KVType) sprintf(str,"MTMR.KV");
-  else if(datatype==KMVType) sprintf(str, "MTMR.KMV");
-  else sprintf(str, "MTMR.UN");
-
-  sprintf(str, "%s.%d.%d.%d", str, rank, id, blockid);
-  fname = str;
-}
-
-/**
- *
- */
-#if 0
-int DataObject::acquire_block(int blockid){
-
-  //printf("outofcore=%d\n", outofcore);
-  if(!outofcore) return 0;
-
-#ifdef MTMR_MULTITHREAD
-  if(threadsafe) omp_set_lock(&lock_t);
-#endif
-  int bufferid = blocks[blockid].bufferid;
-  if(bufferid == -1){
-    int i;
-    for(i = 0; i < nbuf; i++){
-      if(buffers[i].ref == 0){
-        std::string filename;
-
-        int oldid = buffers[i].blockid;
-        if(oldid != -1){
-          _get_filename(oldid, filename);
-          FILE *fp = fopen(filename.c_str(), "wb");
-          if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
-          fwrite(buffers[i].buf, blocksize, 1, fp);
-          fclose(fp);
-          blocks[oldid].bufferid = -1;
-        }
-
-        bufferid=i;
-        buffers[i].blockid = blockid;
-        buffers[i].ref     = 0;
-        blocks[blockid].bufferid=bufferid;
-
-        _get_filename(blockid, filename);
-        FILE *fp;
-        if(blocks[blockid].datasize > 0){
-          fp = fopen(filename.c_str(), "rb");
-          if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
-          size_t ret = fread(buffers[i].buf, blocksize, 1, fp);
-        }
-        else{
-          fp = fopen(filename.c_str(), "wb");
-          if(!fp) LOG_ERROR("Error: cannot open tmp file %s\n", filename.c_str());
-        }
-        fclose(fp);
-        break;
-      }// end if
-    }// end for
-    if(i >= nbuf) LOG_ERROR("%s", "Cannot find an empty buffer!\n");
-  }
-  buffers[bufferid].ref++;
-  //omp_unset_lock(&lock_t);
-#ifdef MTMR_MULTITHREAD
-  if(threadsafe) omp_unset_lock(&lock_t);
-#endif
-
-  return 0;
-}
-
-
-/**
- *
- */
-void DataObject::release_block(int blockid){
-  if(!outofcore) return;
-
-  // FIXME: out of core support
-  int bufferid = blocks[blockid].bufferid;
-  if(bufferid==-1)
-    LOG_ERROR("%s", "Error: aquired block should have buffer!\n");
-
-#ifdef MTMR_MULTITHREAD
-  __sync_fetch_and_add(&buffers[bufferid].ref, -1);
-#else
- buffers[bufferid].ref-=1;
-#endif
-}
-#endif
-
-/**
-  Currently, just simplily delete the buffer of a block.
-  */
-void DataObject::delete_block(int blockid){
-  if(ref<=1){
-    int bufferid = blocks[blockid].bufferid;
-    mem_aligned_free(buffers[bufferid].buf);
-    buffers[bufferid].buf=NULL;
-    blocks[blockid].datasize=0;
-  }
-}
-
-/*
- * add an empty block and return the block id
- */
-int DataObject::add_block(){
-  int blockid;
-#ifdef MTMR_MULTITHREAD
-  // add counter FOP
-  if(threadsafe)
-    blockid = __sync_fetch_and_add(&nblock, 1);
-  else{
-#endif
-    blockid = nblock;
-    nblock++;
-#ifdef MTMR_MULTITHREAD
-  }
-#endif
-
-  LOG_PRINT(DBG_DATA, "%d[%d] DATA: data %d add block. (id=%d)\n", me, nprocs, id, blockid);
-
-  if(blockid >= maxblock){
-#ifdef MTMR_MULTITHREAD
-    int tid = omp_get_thread_num();
-    LOG_ERROR("Error: block count is larger than max number %d, id=%d, tid=%d!\n", maxblock, id, tid);
-#else
-    LOG_ERROR("Error: block count is larger than max number %d, id=%d!\n", maxblock, id);
-#endif
-    return -1;
-  }
-
-  // has enough buffer
-  if(blockid < maxbuf){
-    if(buffers[blockid].buf == NULL){
-      //printf("blocksize=%d\n", blocksize);
-      buffers[blockid].buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, blocksize);
-       //mem_bytes += blocksize;
-      //printf("block pass\n");
-#if SAFE_CHECK
-     if(buffers[blockid].buf==NULL){
-       LOG_ERROR("%s", "Error: malloc memory for data object error!\n");
-     }
-#endif
-      nbuf++;
-    }
-
-    if(!buffers[blockid].buf){
-      LOG_ERROR("Error: malloc memory for data object failed (block count=%d, block size=%ld)!\n", nblock, blocksize);
-      return -1;
-    }
-
-    buffers[blockid].blockid = blockid;
-    buffers[blockid].ref = 0;
-
-    blocks[blockid].datasize = 0;
-    blocks[blockid].bufferid = blockid;
-
-    DataObject::cur_page_count++;
-    if(DataObject::cur_page_count>DataObject::max_page_count)
-      DataObject::max_page_count=DataObject::cur_page_count;
-
-    return blockid;
-  }else{
-    // FIXME: out of core support
-    if(outofcore){
-      blocks[blockid].datasize = 0;
-      blocks[blockid].bufferid = -1;
-      return blockid;
-    }
-  }
-
-  LOG_ERROR("Error: memory size is larger than max size!blockid=%d\n", blockid);
-  return -1;
+    return pageid;
 }
 
 /*
@@ -304,16 +95,18 @@ int DataObject::add_block(){
  */
 void DataObject::print(int type, FILE *fp, int format){
   int line = 10;
-  printf("nblock=%d\n", nblock);
-  for(int i = 0; i < nblock; i++){
-    acquire_block(i);
+  printf("nblock=%d\n", npages);
+  for(int i = 0; i < npages; i++){
+    acquire_page(i);
+#if 0
     fprintf(fp, "block %d, datasize=%ld:", i, blocks[i].datasize);
     for(int j=0; j < blocks[i].datasize; j++){
       if(j % line == 0) fprintf(fp, "\n");
       int bufferid = blocks[i].bufferid;
       fprintf(fp, "  %02X", buffers[bufferid].buf[j]);
     }
+#endif
     fprintf(fp, "\n");
-    release_block(i);
+    release_page(i);
   }
 }
