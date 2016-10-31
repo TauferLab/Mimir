@@ -1,4 +1,3 @@
-
 CPP=mpicxx
 CPPLINK=mpicxx
 LCFLAGS = -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
@@ -8,8 +7,8 @@ USERLIBS = -lmrmpi
 
 all: wordcount bfs octree
 
-wordcount: wordcount.o
-	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) wordcount.o $(USERLIBS) -o wordcount
+wordcount: wordcount.o common.o
+	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) wordcount.o common.o $(USERLIBS) -o wordcount
 
 bfs: bfs.o
 	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) bfs.o $(USERLIBS) -o bfs 

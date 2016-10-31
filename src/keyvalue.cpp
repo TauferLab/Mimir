@@ -22,6 +22,7 @@ KeyValue::~KeyValue()
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: KV Destroy (id=%d).\n", id);
 }
 
+
 #if 0
 int64_t KeyValue::getNextKV(int blockid, int64_t offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
   if(offset >= blocks[blockid].datasize) return -1;

@@ -48,24 +48,18 @@ using namespace MIMIR_NS;
 */
 MapReduce::MapReduce(MPI_Comm _caller)
 {
-  mem_alloc_init();
-  comm = _caller;
-  MPI_Comm_rank(comm,&me);
-  MPI_Comm_size(comm,&nprocs);
+    // Get coommunicator information
+    comm = _caller;
+    MPI_Comm_rank(comm,&me);
+    MPI_Comm_size(comm,&nprocs);
 
-  tnum=1;
-  TRACKER_START(1);
-  PROFILER_START(1);
-  TRACKER_TIMER_INIT(0);
+    // Get default values
+    _get_default_values();
 
-  _get_default_values();
+    // Initalize stat
+    INIT_STAT(me, nprocs); 
 
-  data = NULL;
-  c = NULL;
-
-  mode = NoneMode;
-
-  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: create.\n");
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: create.\n");
 }
 
 /**
@@ -114,7 +108,9 @@ MapReduce::MapReduce(const MapReduce &_mr){
   TRACKER_TIMER_INIT(0);
 #endif
 
-  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: copy\n");
+    INIT_STAT(me, nprocs); 
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: copy\n");
 }
 
 /**
@@ -122,75 +118,48 @@ MapReduce::MapReduce(const MapReduce &_mr){
 */
 MapReduce::~MapReduce()
 {
-  DataObject::subRef(data);
+    DataObject::subRef(kv);
+    if(c) delete c;
 
-  if(c) delete c;
+    UNINT_STAT; 
 
-  TRACKER_END;
-  PROFILER_END;
-
-  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: destroy.\n");
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: destroy.\n");
 }
 
 uint64_t MapReduce::map_text_file( \
     char *filepath, int sharedflag, int recurse, char *whitespace, \
     UserMapFile mymap, void *_ptr, int _comm){
 
-#if 0
     if(strlen(whitespace) == 0)
-        LOG_ERROR("%s", "Error: the white space should not be empty string!\n");
+        LOG_ERROR("%s", "Error: the separator should not be empty!\n");
 
-    // log record
-    LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text \
-      file start\nfilepath=%s,_mycompress=%p\n", \
-      me, nprocs, filepath, _mycompress);
+    LOG_PRINT(DBG_GEN, me, nprocs, "MapReduce: map_text_file start. \
+(filepath=%s, shared=%d, recursed=%d, whitespace=%s)\n", \
+        filepath, sharedflag, recurse, whitespace);
 
-    TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
-    // delete previous data
-    DataObject::subRef(data);
+    DataObject::subRef(kv);
 
-    // distribute files
+    // Distribute file list
     ifiles.clear();
-    _disinputfiles(filepath, sharedflag, recurse);
+    _dist_input_files(filepath, sharedflag, recurse);
 
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
+    TRACKER_RECORD_EVENT(EVENT_INIT_GETFILES);
 
-    // create dataobject
-    KeyValue *kv = new KeyValue(kvtype,
-                              blocksize,
-                              nmaxblock,
-                              maxmemsize,
-                              outofcore,
-                              tmpfpath);
-    kv->setKVsize(ksize,vsize);
-    data=kv;
+    // Create KV Container
+    kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
 
-    // compress mode
-    if(_mycompress!=NULL){
-        u=new UniqueInfo();
-        u->ubucket = new Unique*[nbucket];
-        u->unique_pool=new Spool(nbucket*sizeof(Unique));
-        u->nunique=0;
-        u->ubuf=u->unique_pool->add_block();
-        u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
-        memset(u->ubucket, 0, nbucket*sizeof(Unique*));
-        mycompress=_mycompress;
-        ptr=_ptr;
-        mode=CompressMode;
-    // normal map
-    }else if(_comm){
-        c=Communicator::Create(comm, commmode);
-        c->setup(gbufsize, kv);
-        mode = CommMode;
+    if(_comm){
+        c=Communicator::Create(comm, KV_EXCH_COMM);
+        c->setup(COMM_BUF_SIZE, kv);
+        phase = MapPhase;
     // local map
     }else{
-        mode = LocalMode;
+        phase = LocalMapPhase;
     }
 
-    blockid=-1;
-    nitem=0; 
-
+#if 0
     int fcount = (int)ifiles.size();
     for(int i = 0; i < fcount; i++){
         int64_t input_char_size=0;
@@ -275,24 +244,7 @@ uint64_t MapReduce::map_text_file( \
 
         LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
     }
-
-    // If in compress mode
-    if(_mycompress != NULL){
-        // Create comunicator
-        if(_comm){
-            c=Communicator::Create(comm, commmode);
-            c->setup(gbufsize, kv);
-            mode = CommMode;
-        }else{
-            mode = LocalMode;
-        }
-
-        _cps_unique2kv(u);
-
-        delete [] u->ubucket;
-        delete u->unique_pool;
-        delete u;
-    }
+#endif
 
     // delete communicator
     if(_comm){
@@ -301,15 +253,12 @@ uint64_t MapReduce::map_text_file( \
         c = NULL;
     }
 
-    DataObject::addRef(data);
-    mode = NoneMode;
+    DataObject::addRef(kv);
+    phase = NonePhase;
 
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-    PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_KV, data->gettotalsize());
-    PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_PAGE, data->nblock);
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-    LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map text file end.\n", me, nprocs);
-#endif
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map_text_file end.\n");
 
     return _get_kv_count();
 }
@@ -1472,7 +1421,7 @@ uint64_t MapReduce::_reduce(KeyValue *kv, UserReduce myreduce, void* ptr){
 }
 #endif
 
-
+#if 0
 void MapReduce::print_memsize(){
   //struct mallinfo mi = mallinfo();
   //int64_t vmsize = (int64_t)mi.arena + (int64_t)mi.hblkhd+mi.usmblks + (int64_t)mi.uordblks+mi.fsmblks + (int64_t)mi.fordblks;
@@ -1480,73 +1429,21 @@ void MapReduce::print_memsize(){
   int64_t maxmmap=get_max_mmap();
   printf("memory usage:%ld\n", maxmmap);
 }
-
-void MapReduce::print_stat(MapReduce *mr, FILE *out){
-//#if GATHER_STAT
-  //st.print(verb, out);
-//#endif
-
-  fprintf(out, "rank:%d", mr->me);
-  fprintf(out, ",size:%d", mr->nprocs);
-  //fprintf(out, ",thread:%d", tnum);
-
-  char hostname[1024+1];
-  hostname[1024] = '\0';
-  gethostname(hostname, 1024);
-  fprintf(out, ",hostname:%s,peakmem:%ld", hostname, peakmem);
-  fprintf(out, ",maxpagecount:%d", DataObject::max_page_count);
-
-#ifndef BGQ
-  // Get maxmmap
-  int64_t maxmmap = get_max_mmap();
-  fprintf(out, ",maxmmap:%ld", maxmmap);
 #endif
 
-#ifdef ENABLE_PROFILER
-  fprintf(out, ",profiler:enable");
-#endif
-#ifdef ENABLE_TRACKER
-  fprintf(out, ",tracker:enable");
-#endif
-  fprintf(out, "\n");
-  for(int i=0;i<1; i++){
-#ifdef ENABLE_PROFILER
-    fprintf(out, "action:profiler_start");
-    std::map<std::string,double>::iterator timer_iter;
-    for(timer_iter=profiler_event_timer[i].begin(); timer_iter!=profiler_event_timer[i].end(); timer_iter++){
-      fprintf(out, ",%s:%g",timer_iter->first.c_str(), timer_iter->second);
-    }
-    std::map<std::string,uint64_t>::iterator counter_iter;
-    for(counter_iter=profiler_event_counter[i].begin(); counter_iter!=profiler_event_counter[i].end(); counter_iter++){
-      fprintf(out, ",%s:%ld", counter_iter->first.c_str(), counter_iter->second);
-    }
-#ifdef ENABLE_TRACKER
-    double total_time=0.0, app_time=0.0, lib_time=0.0;
-    std::vector<std::pair<std::string,double> >::iterator event_iter1;
-    for(event_iter1=tracker_event_timer[i].begin(); event_iter1!=tracker_event_timer[i].end(); event_iter1++){
-      if(event_iter1->first=="event_mr_general"){
-        app_time+=event_iter1->second;
-      }else{
-        lib_time+=event_iter1->second;
-      }
-    }
-    total_time=app_time+lib_time;
-    fprintf(out, ",total_time:%g,app_time:%g,lib_time:%g", total_time, app_time, lib_time);
-#endif
-    fprintf(out, ",action:profiler_end\n");
-#endif
-#ifdef ENABLE_TRACKER
-    fprintf(out, "action:tracker_start");
-    std::vector<std::pair<std::string,double> >::iterator event_iter;
-    for(event_iter=tracker_event_timer[i].begin(); event_iter!=tracker_event_timer[i].end(); event_iter++){
-      fprintf(out, ",%s:%g", event_iter->first.c_str(), event_iter->second);
-    }
-    fprintf(out, ",action:tracker_end\n");
-#endif
-  }
+void MapReduce::output_stat(const char *filename){
+  
+    char tmp[1024];
 
-  //PROFILER_PRINT(out, tnum);
-  //TRACKER_PRINT(out, tnum);
+    sprintf(tmp, "%s.profiler.%d.%d", filename, stat_size, stat_rank);
+    FILE *fp = fopen(tmp, "w+");
+    PROFILER_PRINT(fp);
+    fclose(fp);
+
+    sprintf(tmp, "%s.trace.%d.%d", filename, stat_size, stat_rank);
+    fp = fopen(tmp, "w+");
+    TRACKER_PRINT(fp);
+    fclose(fp);
 }
 
 //void MapReduce::init_stat(){
@@ -1562,89 +1459,102 @@ void MapReduce::print_stat(MapReduce *mr, FILE *out){
  *  format: hasn't been used
  */
 void MapReduce::output(int type, FILE* fp, int format){
-  if(data){
-    data->print(type, fp, format);
-  }else{
-    LOG_ERROR("%s","Error to output empty data object\n");
-  }
+  //if(data){
+  //  data->print(type, fp, format);
+  //}else{
+  //  LOG_ERROR("%s","Error to output empty data object\n");
+  //}
 }
 
 // private function
 /*****************************************************************************/
 
 // process init
-void MapReduce::_get_default_values(){
+void MapReduce::_get_default_values(){ 
+    /// Initialize member of MapReduce
+    myhash = NULL;
+    mycombiner = NULL;
+    phase = NonePhase;
+    kv = NULL;
+    c = NULL;
 
-  char *env = NULL;
-
-  env = getenv("MIMIR_COMM_UNIT_SIZE");
-  if(env){
-    COMM_UNIT_SIZE=_stringtoint(env);
-    if(COMM_UNIT_SIZE<=0 || COMM_UNIT_SIZE>1024*1024*1024)
-      LOG_ERROR("Error: COMM_UNIT_SIZE (%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
-  }
-  env = getenv("MIMIR_DBG_ALL");
-  if(env){
-    int flag = atoi(env);
-    if(flag != 0){
-      DBG_LEVEL |= (DBG_GEN|DBG_COMM|DBG_IO|DBG_DATA); 
+    /// Configure main parameters
+    char *env = NULL;
+    env = getenv("MIMIR_BUCKET_SIZE");
+    if(env){
+        BUCKET_COUNT=pow(2,atoi(env));
+        if(BUCKET_COUNT<=0)
+            LOG_ERROR("Error: set bucket size error, please set MIMIR_BUCKET_SIZE (%s) correctly!\n", env);
     }
-  }
-  env = getenv("MIMIR_DBG_GEN");
-  if(env){
-    int flag = atoi(env);
-    if(flag != 0){
-      DBG_LEVEL |= (DBG_GEN); 
+    env = getenv("MIMIR_COMM_SIZE");
+    if(env){
+        COMM_BUF_SIZE=_convert_to_int64(env);
+        if(COMM_BUF_SIZE<=0)
+            LOG_ERROR("Error: set communication buffer size error, please set MIMIR_COMM_SIZE (%s) correctly!\n", env);
     }
-  }
-  env = getenv("MIMIR_DBG_DATA");
-  if(env){
-    int flag = atoi(env);
-    if(flag != 0){
-      DBG_LEVEL |= (DBG_DATA); 
+    env = getenv("MIMIR_PAGE_SIZE");
+    if(env){
+        DATA_PAGE_SIZE=_convert_to_int64(env);
+        if(DATA_PAGE_SIZE<=0)
+            LOG_ERROR("Error: set page size error, please set DATA_PAGE_SIZE (%s) correctly!\n", env);
+    } 
+    env = getenv("MIMIR_INBUF_SIZE");
+    if(env){
+        INPUT_BUF_SIZE=_convert_to_int64(env);
+        if(INPUT_BUF_SIZE<=0)
+            LOG_ERROR("Error: set input buffer size error, please set INPUT_BUF_SIZE (%s) correctly!\n", env);
     }
-  }
-  env = getenv("MIMIR_DBG_COMM");
-  if(env){
-    int flag = atoi(env);
-    if(flag != 0){
-      DBG_LEVEL |= (DBG_COMM);
+
+    /// Configure unit size for communication buffer 
+    env = NULL;
+    env = getenv("MIMIR_COMM_UNIT_SIZE");
+    if(env){
+        COMM_UNIT_SIZE=_convert_to_int64(env);
+        if(COMM_UNIT_SIZE<=0 || COMM_UNIT_SIZE>1024*1024*1024)
+            LOG_ERROR("Error: COMM_UNIT_SIZE (%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
     }
-  }
-  env = getenv("MIMIR_DBG_IO");
-  if(env){
-    int flag = atoi(env);
-    if(flag != 0){
-      DBG_LEVEL |= (DBG_IO);
+
+    // Configure debug level
+    env = getenv("MIMIR_DBG_ALL");
+    if(env){
+        int flag = atoi(env);
+        if(flag != 0){
+            DBG_LEVEL |= (DBG_GEN|DBG_COMM|DBG_IO|DBG_DATA); 
+        }
     }
-  }
+    env = getenv("MIMIR_DBG_GEN");
+    if(env){
+        int flag = atoi(env);
+        if(flag != 0){
+            DBG_LEVEL |= (DBG_GEN); 
+        }
+    }
+    env = getenv("MIMIR_DBG_DATA");
+    if(env){
+        int flag = atoi(env);
+        if(flag != 0){
+            DBG_LEVEL |= (DBG_DATA); 
+        }
+    }
+    env = getenv("MIMIR_DBG_COMM");
+    if(env){
+        int flag = atoi(env);
+        if(flag != 0){
+            DBG_LEVEL |= (DBG_COMM);
+        }
+    }
+    env = getenv("MIMIR_DBG_IO");
+    if(env){
+        int flag = atoi(env);
+        if(flag != 0){
+            DBG_LEVEL |= (DBG_IO);
+        }
+    }
 
-  input_buf_size = INPUT_SIZE;
-  data_page_size = BLOCK_SIZE;
-  nmaxpage = MAX_BLOCKS;
-  //maxmemsize = MAXMEM_SIZE;
-  //lbufsize = LOCAL_BUF_SIZE;
-  comm_buf_size = GLOBAL_BUF_SIZE;
-
-  kvtype = GeneralKV;
-
-  //outofcore = OUT_OF_CORE;
-  //tmpfpath = std::string(TMP_PATH);
-
-  commmode=0;
-
-  myhash = NULL;
-
-  nbucket=pow(2, BUCKET_SIZE);
-  nset = nbucket;
-
-  //ukeyoffset = sizeof(Unique);
-
-  maxkeybytes=MAX_KEY_SIZE;
-  maxvaluebytes=MAX_VALUE_SIZE;
+    
 }
 
-int64_t MapReduce::_stringtoint(const char *_str){
+int64_t MapReduce::_convert_to_int64(const char *_str){
   std::string str=_str;
   int64_t num=0;
   if(str[str.size()-1]=='b'||str[str.size()-1]=='B'){
@@ -1694,11 +1604,11 @@ int64_t MapReduce::_stringtoint(const char *_str){
 
 
 // distribute input file list
-void MapReduce::_disinputfiles(const char *filepath, int sharedflag, int recurse){
+void MapReduce::_dist_input_files(const char *filepath, int sharedflag, int recurse){
 
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
-  _getinputfiles(filepath, sharedflag, recurse);
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_GET_INPUT);
+  //TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
+  _get_input_files(filepath, sharedflag, recurse);
+  //TRACKER_RECORD_EVENT(0, EVENT_MAP_GET_INPUT);
 
   if(sharedflag){
     int fcount = (int)ifiles.size();
@@ -1761,7 +1671,7 @@ void MapReduce::_disinputfiles(const char *filepath, int sharedflag, int recurse
 }
 
 // get input file list
-void MapReduce::_getinputfiles(const char *filepath, int sharedflag, int recurse){
+void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recurse){
   // if shared, only process 0 read file names
   if(!sharedflag || (sharedflag && me == 0)){
 
@@ -1801,21 +1711,21 @@ void MapReduce::_getinputfiles(const char *filepath, int sharedflag, int recurse
           ifiles.push_back(std::string(newstr));
         // dir
         }else if(S_ISDIR(inpath_stat.st_mode) && recurse){
-          _getinputfiles(newstr, sharedflag, recurse);
+          _get_input_files(newstr, sharedflag, recurse);
         }
       }
     }
   }
 }
 
-#if 0
+#if 1
 inline uint64_t MapReduce::_get_kv_count(){
-    local_kvs_count=0;
-    //for(int i=0; i<tnum; i++) local_kvs_count+=thread_info[i].nitem;
-    local_kvs_count=nitem;
-    MPI_Allreduce(&local_kvs_count, &global_kvs_count, 1, MPI_UINT64_T, MPI_SUM, comm);
-    TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
-    return  global_kvs_count;
+    uint64_t local_count=0,global_count=0;
+    local_count=kv->get_local_count();
+    MPI_Allreduce(&local_count, &global_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+    kv->set_global_count(global_count);
+    TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
+    return  global_count;
   }
 #endif
 

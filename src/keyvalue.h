@@ -32,12 +32,19 @@ public:
 
     int addKV(int, char *, int &, char *, int &);
 
+    uint64_t get_local_count();
+    uint64_t get_global_count();
+    uint64_t set_global_count(uint64_t _count){
+        global_kvs_count = _count;
+    }
+
     /* used for debug */
     void print(int type=0, FILE *fp=stdout, int format=0);
 
 public:
     enum KVType kvtype;
     int    ksize, vsize;
+    uint64_t local_kvs_count, global_kvs_count; 
 };
 
 }

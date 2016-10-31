@@ -177,17 +177,17 @@ void Alltoall::wait(){
    for(int i = 0; i < nbuf; i++){
        if(reqs[i] != MPI_REQUEST_NULL){
 
-           TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+           //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
            MPI_Status mpi_st;
            MPI_Wait(&reqs[i], &mpi_st);
            reqs[i] = MPI_REQUEST_NULL;
 
-           TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
+           //TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
 
            uint64_t recvcount = recvcounts[i];
 
-           PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
+           //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
            //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
@@ -207,13 +207,13 @@ void Alltoall::exchange_kv(){
     for(i=0; i<size; i++) sendcount += (int64_t)off[i];
 
     // exchange send count
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-    PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_SIZE, sendcount);
+    //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+    //PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_SIZE, sendcount);
 
     // exchange send and recv counts
     MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
 
-    TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALL);
+    //TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALL);
 
     recvcounts[ibuf] = (int64_t)recv_count[ibuf][0];
     for(i = 1; i < size; i++){
@@ -245,8 +245,8 @@ void Alltoall::exchange_kv(){
     send_padding_bytes-=sendcount;
     recv_padding_bytes-=recvcounts[ibuf];
 
-    PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_PAD, send_padding_bytes);
-    PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_PAD, recv_padding_bytes);
+    //PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_PAD, send_padding_bytes);
+    //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_PAD, recv_padding_bytes);
 
     MPI_Datatype comm_type;
     MPI_Type_contiguous((0x1<<type_log_bytes), MPI_BYTE, &comm_type);
@@ -259,10 +259,10 @@ void Alltoall::exchange_kv(){
       a2a_s_count, a2a_s_displs, comm_type, \
       recvbuf, a2a_r_count, a2a_r_displs, comm_type, comm);
     
-    TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALLV);
+    //TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALLV);
 
     int64_t recvcount = recvcounts[ibuf];
-    PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
+    //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
     //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
@@ -270,14 +270,14 @@ void Alltoall::exchange_kv(){
         SAVE_ALL_DATA(ibuf);
     }
 
-    TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+    //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
 
 #else
     char *recvbuf=recv_buf[ibuf];
     MPI_Ialltoallv(send_buffers[ibuf], a2a_s_count, a2a_s_displs, comm_type, \
         recvbuf, a2a_r_count, a2a_r_displs, comm_type, comm,  &reqs[ibuf]);
 
-    TRACKER_RECORD_EVENT(0, EVENT_COMM_IALLTOALLV);
+    //TRACKER_RECORD_EVENT(0, EVENT_COMM_IALLTOALLV);
 
     // wait data
     ibuf = (ibuf+1)%nbuf;
@@ -289,8 +289,8 @@ void Alltoall::exchange_kv(){
 
         int64_t recvcount = recvcounts[ibuf];
 
-        TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
-        PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
+        //TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
+        //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
         //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
@@ -298,7 +298,7 @@ void Alltoall::exchange_kv(){
             SAVE_ALL_DATA(ibuf);
         }
 
-        TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+        //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
     }
 
     // switch buffer
@@ -317,7 +317,7 @@ void Alltoall::exchange_kv(){
 
     MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
 
-    TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
+    //TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
 
     //LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%ld, done count=%d)\n", rank, size, sendcount, pdone);
 }

@@ -1,33 +1,35 @@
 #include "config.h"
 
-/// unit size for comm buffer
-int COMM_UNIT_SIZE=4096;
 
-/// max key size
-int MAX_KEY_SIZE=8192;
+/// Number of hash bucket (2^x)
+int BUCKET_COUNT=1024*1024;
 
-/// max value size
-int MAX_VALUE_SIZE=8;
+/// Communication buffer size
+int64_t COMM_BUF_SIZE=64*1024*1024;
 
-/// bucket with 2^x
-int BUCKET_SIZE=20;
-int MAX_BUCKET_SIZE=27;
+/// Page size
+int64_t DATA_PAGE_SIZE=64*1024*1024;
 
+/// Input buffer size
+int64_t INPUT_BUF_SIZE=64*1024*1024;
+
+/// KV exchange communication mode 
+/// (0: collective; 1: point to point)
+int KV_EXCH_COMM=0;
+
+/// Maximum number of pages
+int MAX_PAGE_COUNT=1024;
+
+/// Number of set when converting KVs to KMVs (2^x)
+int SET_COUNT=1024*1024;
+
+/// Maximum string size pass to map_text_file
 int MAX_STR_SIZE=8192;
 
-/// if support out-of-core
-int OUT_OF_CORE=0;
+/// Unit size for comm buffer
+int COMM_UNIT_SIZE=4096;
 
-int MAX_BLOCKS=1024;
-
-int64_t GLOBAL_BUF_SIZE=64*1024*1024;
-int64_t INPUT_SIZE=512*1024*1024;
-int64_t BLOCK_SIZE=64*1024*1024;
-
-int64_t INPUT_UNIT_SIZE=64*1024*1024;
-int64_t UNIQUE_UNIT_SIZE=64*1024*1024;
-int64_t SET_UNIT_SIZE=64*1024*1024;
-
-int64_t MAXMEM_SIZE=16;
-
+/// Debug Level
 int DBG_LEVEL=0;
+
+

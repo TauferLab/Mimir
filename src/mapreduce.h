@@ -22,7 +22,16 @@
 namespace MIMIR_NS {
 
 /// KVType represents KV Type
-enum KVType{GeneralKV,StringKV,FixedKV,StringKFixedV,FixedKStringV,GeneralKStringV,GeneralKFixedV,StringKGeneralV,FixedKGeneralV};
+enum KVType{
+    GeneralKV,
+    StringKV,
+    FixedKV,
+    StringKFixedV,
+    FixedKStringV,
+    GeneralKStringV,
+    GeneralKFixedV,
+    StringKGeneralV,
+    FixedKGeneralV};
 
 class MapReduce;
 class Communicator;
@@ -56,101 +65,102 @@ typedef void (*UserScan)(char *, int, char *, int ,void *);
 /// MapReduce
 class MapReduce {
 public:
-  /**
-    Constructor function.
+    /**
+      Constructor function.
 
-    @param[in]  comm MPI communicator
-    @return MapReduce object pointer
-  */
-  MapReduce(MPI_Comm comm);
+      @param[in]  comm MPI communicator
+      @return MapReduce object pointer
+    */
+    MapReduce(MPI_Comm comm);
 
-  /**
-    Copy function.
+    /**
+      Copy function.
 
-    @param[in]  mr MapReduce object
-    @return MapReduce object pointer
-  */
-  MapReduce(const MapReduce &mr);
+      @param[in]  mr MapReduce object
+      @return MapReduce object pointer
+    */
+    MapReduce(const MapReduce &mr);
 
-  /**
-    Destructor function.
-  */
-  ~MapReduce();
+    /**
+      Destructor function.
+    */
+    ~MapReduce();
 
-  /**
-    init_key_value  init KVs from other sources such as in-situ workload
+    /**
+      init_key_value  load KVs from memory (e.g. in-situ workload)
 
-    @param[in]  myinit user-defined map function
-    @param[in]  ptr    user-defined pointer (default: NULL)
-    @param[in]  comm   with communication or not (default: 1)
-    @return output <key,value> count
-  */
-  uint64_t init_key_value(
-    UserInitKV myinit, void *ptr=NULL, int comm=1);
+      @param[in]  myinit user-defined init function
+      @param[in]  ptr    user-defined pointer (default: NULL)
+      @param[in]  comm   with communication or not (default: 1)
+      @return output <key,value> count
+    */
+    uint64_t init_key_value(
+        UserInitKV myinit, void *ptr=NULL, int comm=1);
 
-  /**
-    Map function with text files.
+    /**
+      Map function with text files.
 
-    @param[in]  filename   input file name or directory
-    @param[in]  shared     if the input files in shared file system
-    @param[in]  recurse    if read subdirectory recursely
-    @param[in]  seperator  seperator string, for exampel "\n"
-    @param[in]  mymap      user-defined map function
-    @param[in]  ptr        user-defined pointer (default: NULL)
-    @param[in]  comm       with communication or not (default: 1)
-    @return output <key,value> count
-  */
-  uint64_t map_text_file(char *filename, int shared, int recurse,
-    char *seperator, UserMapFile mymap, void *ptr=NULL, int comm=1);
+      @param[in]  filename   input file name or directory
+      @param[in]  shared     if the input files in shared file system
+      @param[in]  recurse    if read subdirectory recursely
+      @param[in]  seperator  seperator string, for exampel "\n"
+      @param[in]  mymap      user-defined map function
+      @param[in]  ptr        user-defined pointer (default: NULL)
+      @param[in]  comm       with communication or not (default: 1)
+      @return output <key,value> count
+    */
+    uint64_t map_text_file(char *filename, int shared, int recurse,
+      char *seperator, UserMapFile mymap, void *ptr=NULL, int comm=1);
 
-  /**
-    Map function with MapReduce object as input.
+    /**
+      Map function with MapReduce object as input.
 
-    @param[in]  mr MapReduce Object pointer
-    @param[in]  mymap user-defined map function
-    @param[in]  ptr   user-defined pointer (default: NULL)
-    @param[in]  comm  communication or not (default: 1)
-    @return output <key,value> count
-  */
-  uint64_t map_key_value(MapReduce *mr,
-    UserMapKV mymap,  void *ptr=NULL, int comm=1);
+      @param[in]  mr MapReduce Object pointer
+      @param[in]  mymap user-defined map function
+      @param[in]  ptr   user-defined pointer (default: NULL)
+      @param[in]  comm  communication or not (default: 1)
+      @return output <key,value> count
+    */
+    uint64_t map_key_value(MapReduce *mr,
+      UserMapKV mymap,  void *ptr=NULL, int comm=1);
 
-  /**
-    Reduce function.
+    /**
+      Reduce function.
 
-    @param[in]  myreduce user-defined reduce function
-    @param[in]  compress if apply compress (default: 0)
-    @param[in]  ptr user-defined pointer (default: NULL)
-    @return output <key,value> count
-  */
-  uint64_t reduce(UserReduce _myreduce, void* ptr=NULL);
+      @param[in]  myreduce user-defined reduce function
+      @param[in]  ptr user-defined pointer (default: NULL)
+      @return output <key,value> count
+    */
+    uint64_t reduce(UserReduce _myreduce, void* ptr=NULL);
 
-  /**
-    Scan function.
+    /**
+      Scan function.
 
-    @param[in]  myscan user-defined scan function
-    @param[in]  ptr user-defined pointer (default: NULL)
-  */
-  void scan(UserScan myscan, void * ptr=NULL);
+      @param[in]  myscan user-defined scan function
+      @param[in]  ptr user-defined pointer (default: NULL)
+    */
+    void scan(UserScan myscan, void * ptr=NULL);
 
-  /**
-    Add <key,value>. This function only can be invoked in user-defined map or reduce functions.
+    /**
+      Add <key,value>. This function only can be invoked in callbacks.
 
-    @param[in]  key key pointer
-    @param[in]  keybytes key size
-    @param[in]  value value pointer
-    @param[in]  valubytes value size
-    @return nothing
-  */
-  void add_key_value(char *key, int keybytes,
-    char *value, int valuebytes);
+      @param[in]  key key pointer
+      @param[in]  keybytes key size
+      @param[in]  value value pointer
+      @param[in]  valubytes value size
+      @return nothing
+    */
+    void add_key_value(char *key, int keybytes,
+        char *value, int valuebytes);
 
-  void output(int type=0, FILE *fp=stdout, int format=0);
+    void output(int type=0, FILE *fp=stdout, int format=0);
 
+    void set_key_length();
+    void set_value_length();
 
-  //void init_stat();
-  static void print_stat(MapReduce *mr, FILE *fp=stdout);
-  static void print_memsize();
+    static void output_stat(const char *filename);
+
+  //static void print_memsize();
 
   /**
     Set <key,value> type. The KV type can be GeneralKV, StringKV, FixedKV.
@@ -159,8 +169,6 @@ public:
     @param[in]  _ksize  key size (only valid for FixedKV type)
     @param[in]  _vsize  value size (only valid for Fixed type)
   */
-  void set_key_length();
-  void set_value_length();
 #if 0
   void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
     kvtype = _kvtype;
@@ -231,7 +239,7 @@ private:
    * MapLocalMode: add_key_value invoked in map function without communication. \n
    * ReduceMode: add_key_value invoked in reduce function.
    */
-  enum OpMode{NoneMode, CommMode, LocalMode};
+  enum OpPhase{NonePhase, MapPhase, LocalMapPhase, ReducePhase, ScanPhase};
 
   /// \brief The set is the partial KMV within one page
   /// The set is the partial KMV within one pages
@@ -297,30 +305,47 @@ private:
 
 private:
   // Statatics Variables
-  //uint64_t global_kvs_count, local_kvs_count, nunique;
+    //uint64_t global_kvs_count, local_kvs_count;
 private:
     // Configuable parameters
-    enum KVType kvtype;        ///< KV type
-    int ksize, vsize;          ///< length of key or value in KV
-    int nmaxpage;              ///< max number of pages
-    int commmode;              ///< communication mode: a2a or p2p
-    int nbucket,nset;          ///< number of bucket
-    int64_t comm_buf_size;     ///< communication buffer size
-    int64_t data_page_size;    ///< the page size
-    int64_t input_buf_size;    ///< input buffer size
-    UserHash     myhash;       ///< user-define hash function
-    UserCombiner mycombiner;   ///< user-defined combiner function
+    //enum KVType kvtype;        ///< KV type
+    //int ksize, vsize;          ///< length of key or value in KV
+    //int commmode;              ///< communication mode: a2a or p2p
+    //int nmaxpage;              ///< max number of pages
+    //int nbucket,nset;          ///< number of bucket
+    //int maxstringbytes;        ///< maximum bytes of string
+    //int64_t comm_buf_size;     ///< communication buffer size
+    //int64_t data_page_size;    ///< the page size
+    //int64_t input_buf_size;    ///< input buffer size
 
-    int maxstringbytes,maxkeybytes,maxvaluebytes;
+    MPI_Comm comm;                   ///< MPI communicator
+    int me,nprocs;                   ///< MPI communicator information
 
-private:
-    // MPI Commincator
-    MPI_Comm comm;
-    int me,nprocs;
-    OpMode mode;
-    DataObject  *data; ///< number of unique key
-    Communicator *c;
-    std::vector<std::string> ifiles;
+    OpPhase phase;                   ///< operation mode
+    KeyValue  *kv;                   ///< KV container
+    Communicator *c;                 ///< communicator
+    std::vector<std::string> ifiles; ///< input file list
+
+    UserHash     myhash;             ///< user-define hash function
+    UserCombiner mycombiner;         ///< user-defined combiner function
+
+    ////////////////// internal functions //////////////////////
+
+    // Get default values
+    void _get_default_values();
+
+    // Get number of KVs
+    uint64_t _get_kv_count();
+
+    // Convert string to int64_t
+    int64_t _convert_to_int64(const char *);
+
+    // Get input file list
+    void _get_input_files(const char *, int, int);
+
+    // distribute input file list
+    void _dist_input_files(const char *, int, int);
+
 
     //int ukeyoffset;
     //int 
@@ -333,12 +358,6 @@ private:
     //User
     //void *ptr;
 
-    // internal functions
-    void _get_default_values();
-    int64_t _stringtoint(const char *);
-    //void _tinit(int); // thread initialize
-    void _disinputfiles(const char *, int, int);
-    void _getinputfiles(const char *, int, int);
 
     //MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre, int cps=0);
     //void _unique2set(UniqueInfo *);
@@ -359,7 +378,6 @@ private:
   //uint64_t _reduce(KeyValue *, UserReduce, void*);
   //uint64_t _reduce_compress(KeyValue *, UserReduce, void*);
 
-  uint64_t _get_kv_count();
 };//class MapReduce
 
 class MultiValueIterator{

@@ -86,7 +86,7 @@ int Communicator::setup(int64_t _sbufsize, DataObject *_data){
       for(int j = 0; j < size; j++) send_offsets[i][j] = 0;
     }
 
-    PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_BUF, total_send_buf_size*nbuf);
+    //PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_BUF, total_send_buf_size*nbuf);
 
     return 0;
 }
