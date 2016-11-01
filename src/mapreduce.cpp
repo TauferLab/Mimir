@@ -534,69 +534,32 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, void* _ptr){
    @return nothing
 */
 void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebytes){
-#if 0
-  // Communication Mode
-  if(mode == CommMode){
-    int target = 0;
-    if(myhash != NULL){
-      target=myhash(key, keybytes);
+
+    // Map Phase
+    if(phase == MapPhase){
+        int target = 0;
+        if(myhash != NULL){
+            target=myhash(key, keybytes)%nprocs;
+        }else{
+            uint32_t hid = 0;
+            hid = hashlittle(key, keybytes, nprocs);
+            target = hid%(uint32_t)nprocs;
+        }
+
+        // Send KV
+        c->sendKV(target, key, keybytes, value, valuebytes);
+
+        return;
+    // Local Mode
+    }else if(phase == LocalMapPhase || phase == ReducePhase){
+        kv->addKV(key, keybytes, value, valuebytes);
     }else{
-      uint32_t hid = 0;
-      hid = hashlittle(key, keybytes, nprocs);
-      target = hid % (uint32_t)nprocs;
+        LOG_ERROR("%s", \
+          "Error: add_key_value function can be invoked in map, \
+reduce and combiner callbacks\n");
     }
-
-    // send KV
-    c->sendKV(target, key, keybytes, value, valuebytes);
-
-    nitem++;
 
     return;
-   // Local Mode
-   }else if(mode == LocalMode){
-
-    // add KV into data object
-    KeyValue *kv = (KeyValue*)data;
-
-    if(blockid == -1){
-      blockid = kv->add_block();
-    }
-
-    kv->acquire_block(blockid);
-
-    while(kv->addKV(blockid, key, keybytes, value, valuebytes) == -1){
-      kv->release_block(blockid);
-      blockid = kv->add_block();
-      kv->acquire_block(blockid);
-    }
-
-    kv->release_block(blockid);
-    nitem++;
-  // MergeMode
-  }else if(mode==MergeMode){
-    if(valuebytes > maxvaluebytes){
-      LOG_ERROR("The value bytes %d is larger than the max %d\n", \
-        valuebytes, maxvaluebytes);
-    }
-    char *unique_key=NULL, *unique_value=NULL;
-    int unique_keybytes=0, unique_valuebytes=0, kvsize=0;
-    char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS);
-    GET_KV_VARS(kvtype,kvbuf,unique_key,unique_keybytes,\
-      unique_value,unique_valuebytes,kvsize,this);
-    memcpy(unique_value, value, valuebytes);
-    if(kvtype==GeneralKV){
-      char *kvbuf=(char*)cur_ukey+sizeof(UniqueCPS)+oneintlen;
-      *(int*)(kvbuf)=valuebytes;
-    }
-    //cur_ukey->valuebytes=valuebytes;
-    //cur_ukey->nvalue++;
-  }else if(mode==CompressMode){
-    mode=MergeMode;
-    _cps_kv2unique(u, key, keybytes, value, valuebytes, mycompress, ptr);
-    mode=CompressMode;
-  }
-#endif
-  return;
 }
 
 
@@ -1084,7 +1047,7 @@ void MapReduce::_unique2kmv(int tid, KeyValue *kv, UniqueInfo *u,DataObject *mv,
       *(int*)(mv_buf+mv_off)=ukey->nvalue;
       mv_off+=(int)sizeof(int);
 
-      if(kv->kvtype==GeneralKV){
+      if(kv->kvtype==GeneralKV || kv->type==StringKGeneralV || kvtype==FixedKGeneralV){
         ukey->soffset=(int*)(mv_buf+mv_off);
         mv_off+=ukey->nvalue*(int)sizeof(int);
       }
@@ -1135,7 +1098,7 @@ end:
       Unique *ukey, *pre;
       ukey = _findukey(u->ubucket, ibucket, key, keybytes, pre);
 
-      if(kv->kvtype==GeneralKV){
+      if(kv->kvtype==GeneralKV||kv->kvtype==StringKGeneralV||kv->kvtype==FixedKGeneralV){
         ukey->soffset[ukey->nvalue]=valuebytes;
       }
 
@@ -1204,7 +1167,9 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
   for(int i=p->start_set; i<p->end_set; i++){
     Set *pset=(Set*)u->set_pool->blocks[i/nset]+i%nset;
 
-    if(kv->kvtype==GeneralKV){
+    if(kv->kvtype==GeneralKV ||\
+      kv->kvtype==StringKGeneralV ||\
+      kv->kvtype==FixedKGeneralV){
       pset->soffset=(int*)(mvbuf+mvbuf_off);
       pset->s_off=mvbuf_off;
       mvbuf_off += pset->nvalue*(int)sizeof(int);
@@ -1253,7 +1218,8 @@ void MapReduce::_unique2mv(int tid, KeyValue *kv, Partition *p, UniqueInfo *u, D
       //if(!pset || pset->pid != mv_blockid)
       //  LOG_ERROR("Cannot find one set for key %s!\n", ukey->key);
 
-      if(kv->kvtype==GeneralKV){
+      if(kv->kvtype==GeneralKV ||\
+        kv->kvtype==StringKGeneralV||kv->kvtype==FixedKGeneralV){
         pset->soffset[pset->nvalue]=valuebytes;
       }
       memcpy(pset->voffset+pset->mvbytes, value, valuebytes);
@@ -1671,7 +1637,7 @@ void MapReduce::_dist_input_files(const char *filepath, int sharedflag, int recu
             int err = stat(str, &file_stat);
             if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
             int64_t fsize = file_stat.st_size;
-            ifiles.push_back(std::make_pair<std::string,int64_t>(std::string(str), fsize));
+            ifiles.push_back(std::make_pair(std::string(str), fsize));
             off += (int)strlen(str)+1;
         }
 
@@ -1695,7 +1661,7 @@ void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recur
         if(S_ISREG(inpath_stat.st_mode)){
             int64_t fsize = inpath_stat.st_size;
             ifiles.push_back(\
-                std::make_pair<std::string,int64_t>(std::string(filepath),fsize));
+                std::make_pair(std::string(filepath),fsize));
         // dir
         }else if(S_ISDIR(inpath_stat.st_mode)){
 
@@ -1724,7 +1690,7 @@ void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recur
                 if(S_ISREG(inpath_stat.st_mode)){
                     int64_t fsize = inpath_stat.st_size;
                     ifiles.push_back(\
-                        std::make_pair<std::string,int64_t>(std::string(newstr),fsize));
+                        std::make_pair(std::string(newstr),fsize));
                 // dir
                 }else if(S_ISDIR(inpath_stat.st_mode) && recurse){
                     _get_input_files(newstr, sharedflag, recurse);
@@ -1792,9 +1758,15 @@ void MultiValueIterator::Begin(){
          value_end=pset->nvalue;
       }
       value=values;
-      if(kvtype==GeneralKV) valuesize=valuebytes[ivalue-value_start];
-      else if(kvtype==StringKV) valuesize=(int)strlen(value)+1;
-      else if(kvtype==2 || kvtype==3) valuesize=vsize;
+      if(kvtype==GeneralKV || kvtype==StringKGeneralV || \
+        kvtype==FixedKGeneralV)
+        valuesize=valuebytes[ivalue-value_start];
+      else if(kvtype==StringKV || kvtype==FixedKStringV || \
+        kvtype==GeneralKStringV)
+        valuesize=(int)strlen(value)+1;
+      else if(kvtype==FixedKV || kvtype==StringKFixedV || \
+        kvtype==GeneralKFixedV)
+        valuesize=vsize;
    }
 
   // printf("ivalue=%d,value=%p,valuesize=%d\n", ivalue, value, valuesize); fflush(stdout);
@@ -1826,10 +1798,15 @@ void MultiValueIterator::Next(){
       }else{
         value+=valuesize;
       }
-      if(kvtype==GeneralKV) valuesize=valuebytes[ivalue-value_start];
-      else if(kvtype==StringKV) valuesize=(int)strlen(value)+1;
-      else if(kvtype==FixedKV || kvtype==StringKFixedV) valuesize=vsize;
+      if(kvtype==GeneralKV || kvtype==StringKGeneralV || \
+        kvtype==FixedKGeneralV)
+        valuesize=valuebytes[ivalue-value_start];
+      else if(kvtype==StringKV || kvtype==FixedKStringV || \
+        kvtype==GeneralKStringV)
+        valuesize=(int)strlen(value)+1;
+      else if(kvtype==FixedKV || kvtype==StringKFixedV || \
+        kvtype==GeneralKFixedV)
+        valuesize=vsize;
     }
-    //printf("ivalue=%d,value=%p,valuesize=%d\n", ivalue, value, valuesize); fflush(stdout);
 }
 

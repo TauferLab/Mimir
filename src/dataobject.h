@@ -39,6 +39,9 @@ public:
 
     int acquire_page(int pageid){
         CHECK_PAGEID(pageid);
+        ipage=pageid;
+        off=0;
+        ptr=pages[pageid].buffer;
         return 0;
     }
 
@@ -81,7 +84,7 @@ public:
     virtual void print(int type = 0, FILE *fp=stdout, int format=0);
 
 public:
-    int64_t pagesize;     ///< page size
+    int64_t pagesize;      ///< page size
 
 protected:
     int me, nprocs;
@@ -93,17 +96,21 @@ protected:
     DataType datatype;    ///< data type
     int npages,maxpages;  ///< number of page
 
+    int      ipage;        ///< index of current page
+    char    *ptr;
+    int64_t  off;          ///< current offset
+
     struct Page{
         int64_t   datasize;
         char     *buffer;
     }*pages;
 
 public:
-  static int object_id;
-  static int cur_page_count;
-  static int max_page_count;
-  static void addRef(DataObject *);
-  static void subRef(DataObject *);
+    static int object_id;
+    static int cur_page_count;
+    static int max_page_count;
+    static void addRef(DataObject *);
+    static void subRef(DataObject *);
 };
 
 }

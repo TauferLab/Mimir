@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unordered_map>
 
 #include "dataobject.h"
 #include "mapreduce.h"
@@ -23,14 +24,26 @@ public:
         int64_t pagesize=1,
         int maxpages=4);
 
-    void set_kv_type(enum KVType, int, int);
-
     ~KeyValue();
 
-    int64_t getNextKV(int, int64_t, char **, int &, char **, int &,
-        int *kff=NULL, int *vff=NULL);
+    void set_kv_type(enum KVType, int, int);
 
-    int addKV(int, char *, int &, char *, int &);
+    // Scan KVs one by one
+    //int start_scan();
+    int getNextKV(char **, int &, char **, int &);
+    //int stop_scan();
+
+    // Add KVs one by one
+    int addKV(char *, int, char *, int);
+
+    void set_combiner(MapReduce *_mr, UserCombiner _combiner);
+
+    // Insert a KV at a position
+    //int insert_kv(char *, char *, int, char *, int);
+    //int64_t getNextKV(int, int64_t, char **, int &, char **, int &,
+    //    int *kff=NULL, int *vff=NULL);
+
+    //int addKV(int, char *, int &, char *, int &);
 
     uint64_t get_local_count();
     uint64_t get_global_count();
@@ -45,6 +58,10 @@ public:
     enum KVType kvtype;
     int    ksize, vsize;
     uint64_t local_kvs_count, global_kvs_count; 
+
+    MapReduce *mr;
+    UserCombiner combiner;
+    std::unordered_map<void*, int> slices;
 };
 
 }

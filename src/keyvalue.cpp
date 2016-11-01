@@ -13,7 +13,12 @@ KeyValue::KeyValue(
     int maxpages):
     DataObject(me, nprocs, KVType, pagesize, maxpages)
 {
-
+    kvtype = GeneralKV;
+    ksize = vsize = 0;
+    local_kvs_count = 0;
+    global_kvs_count = 0;
+    mr = NULL;
+    combiner = NULL; 
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: KV Create (id=%d).\n", id);
 }
 
@@ -21,6 +26,44 @@ KeyValue::~KeyValue()
 {
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: KV Destroy (id=%d).\n", id);
 }
+
+int KeyValue::getNextKV(char **pkey, int &keybytes, char **pvalue, int &valuebytes)
+{
+    if(off>=pages[ipage].datasize) return -1;
+    int kvsize;
+    GET_KV_VARS(kvtype, ptr, *pkey, keybytes, *pvalue, valuebytes, kvsize, this);
+    off+=kvsize;
+    return kvsize;
+}
+
+void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner){
+    mr = _mr;
+    combiner = _combiner;
+
+     
+}
+
+// Add KVs one by one
+int KeyValue::addKV(char *key, int keybytes, char *value, int valuebytes){
+    int kvsize=0;
+    GET_KV_SIZE(kvtype, keybytes, valuebytes, kvsize);
+    if(combiner == NULL){
+        for(int i=0; i< npages; i++){
+            if(kvsize<pagesize-pages[i].datasize){
+                char *ptr=pages[i].buffer+pages[i].datasize;
+                GET_KV_VARS(kvtype, ptr, key, keybytes, value, valuebytes, kvsize, this);
+                pages[i].datasize+=kvsize;
+            }
+        } 
+    }else{
+        
+    }
+}
+
+
+// Add KVs one by one
+//int addKV(char *, int, char *, int);
+
 
 
 #if 0
@@ -68,6 +111,7 @@ int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &val
 }
 #endif
 
+#if 0
 void KeyValue::print(int type, FILE *fp, int format){
   char *key, *value;
   int keybytes, valuebytes;
@@ -102,3 +146,4 @@ void KeyValue::print(int type, FILE *fp, int format){
 
   }
 }
+#endif

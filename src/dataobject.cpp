@@ -61,6 +61,8 @@ DataObject::DataObject(int _me, int _nprocs,
         pages[i].buffer = NULL;
     }
 
+    ipage=-1;
+
     id = DataObject::object_id++;
 
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d create. (maxpages=%d)\n", id, maxpages);
