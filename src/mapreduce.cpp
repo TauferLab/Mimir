@@ -127,25 +127,25 @@ MapReduce::~MapReduce()
 }
 
 uint64_t MapReduce::map_text_file( \
-    char *filepath, int sharedflag, int recurse, char *whitespace, \
-    UserMapFile mymap, void *_ptr, int _comm){
+    char *_filepath, int _shared, int _recurse, char *_seperator, \
+    UserMapFile _mymap, void *_ptr, int _comm){
 
-    if(strlen(whitespace) == 0)
+    if(strlen(_seperator) == 0)
         LOG_ERROR("%s", "Error: the separator should not be empty!\n");
 
     LOG_PRINT(DBG_GEN, me, nprocs, "MapReduce: map_text_file start. \
-(filepath=%s, shared=%d, recursed=%d, whitespace=%s)\n", \
-        filepath, sharedflag, recurse, whitespace);
+(filepath=%s, shared=%d, recursed=%d, seperator=%s)\n", \
+        _filepath, _shared, _recurse, _seperator);
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
-    DataObject::subRef(kv);
-
     // Distribute file list
     ifiles.clear();
-    _dist_input_files(filepath, sharedflag, recurse);
+    _dist_input_files(_filepath, _shared, _recurse);
 
     TRACKER_RECORD_EVENT(EVENT_INIT_GETFILES);
+
+    DataObject::subRef(kv);
 
     // Create KV Container
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
@@ -159,73 +159,80 @@ uint64_t MapReduce::map_text_file( \
         phase = LocalMapPhase;
     }
 
-#if 0
-    int fcount = (int)ifiles.size();
+    // Compute input buffer size
+    int fcount = ifiles.size();
+    int64_t max_fsize=0;
+    for(int i=0; i<fcount; i++){
+        if(ifiles[i].second>max_fsize)
+            max_fsize=ifiles[i].second;
+    }
+    int64_t input_buffer_size=0;
+    if(max_fsize<=INPUT_BUF_SIZE) input_buffer_size=max_fsize;
+    else input_buffer_size=INPUT_BUF_SIZE;
+
+    // Allocate input buffer
+    char *text = (char*)mem_aligned_malloc(\
+        MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
+
+   
     for(int i = 0; i < fcount; i++){
-        int64_t input_char_size=0;
+        int64_t input_char_size=0, fsize=0;
 
-        TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-        PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_COUNT, 1);
+        fsize=ifiles[i].second;
 
-        LOG_PRINT(DBG_IO, "%d[%d] open file %s\n", me, nprocs, ifiles[i].c_str());
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-        FILE *fp = fopen(ifiles[i].c_str(), "r");
+        FILE *fp = fopen(ifiles[i].first.c_str(), "r");
+        if(fp == NULL){
+            LOG_ERROR("Error: open file %s error!", ifiles[i].first.c_str());
+        }
 
-        TRACKER_RECORD_EVENT(0, EVENT_PFS_OPEN);
+        LOG_PRINT(DBG_IO, me, nprocs, "open file %s, fsize=%ld\n", \
+            ifiles[i].first.c_str(), ifiles[i].second);
 
-        // Get file size
-        struct stat stbuf;
-        stat(ifiles[i].c_str(), &stbuf);
-        int64_t fsize = stbuf.st_size;
-
-        // Compute input buffer size
-        int64_t input_buffer_size=0;
-        if(fsize<=inputsize) input_buffer_size=fsize;
-        else input_buffer_size=inputsize;
-
-        // Allocate input buffer
-        char *text = (char*)mem_aligned_malloc(\
-            MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
-
-        PROFILER_RECORD_COUNT(0, COUNTER_MAP_INPUT_BUF, input_buffer_size);
+        TRACKER_RECORD_EVENT(EVENT_DISK_OPEN);
 
         // Process the file
         int64_t foff = 0, boff = 0;
         int64_t readsize=0;
 
         do{
-            TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+
             // Read file
             fseek(fp, foff, SEEK_SET);
+
+            TRACKER_RECORD_EVENT(EVENT_DISK_SEEK);
+
             readsize = fread(text+boff, 1, input_buffer_size, fp);
 
-            TRACKER_RECORD_EVENT(0, EVENT_PFS_READ);
-            PROFILER_RECORD_COUNT(0, COUNTER_MAP_FILE_SIZE, readsize);
+            TRACKER_RECORD_EVENT(EVENT_DISK_READ);
 
             // read a block
             text[boff+readsize] = '\0';
             input_char_size = boff+readsize;
 
-            LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld\n", me, nprocs, ifiles[i].c_str(), foff, foff+readsize);
-
             int64_t tend=input_char_size;
             boff=0;
             if(readsize >= input_buffer_size && foff+readsize<fsize){
-              while(strchr(whitespace, text[input_char_size-boff-1])==NULL) boff++;
+              while(strchr(_seperator, text[input_char_size-boff-1])==NULL) boff++;
               tend-=(boff+1);
               text[tend]='\0';
             }
 
-            if(boff > MAX_STR_SIZE) LOG_ERROR("%s", "Error: string length is large than max size!\n");
+            if(boff > MAX_STR_SIZE) 
+                LOG_ERROR("Error: string length is large than max size (%d)!\n", \
+                    MAX_STR_SIZE);
 
-            LOG_PRINT(DBG_IO, "%d[%d] read file %s, %ld->%ld, suffix=%d\n", me, nprocs, ifiles[i].c_str(), foff, foff+readsize, boff);
+            LOG_PRINT(DBG_IO, me, nprocs, "read file %s, %ld->%ld, suffix=%ld\n", \
+                ifiles[i].first.c_str(), foff, foff+readsize, boff);
 
             // Pass words one by one to user-defined map function
             char *saveptr = NULL;
-            char *word = strtok_r(text, whitespace, &saveptr);
+            char *word = strtok_r(text, _seperator, &saveptr);
             while(word){
-                mymap(this, word, ptr);
-                word = strtok_r(NULL,whitespace, &saveptr);
+                _mymap(this, word, _ptr);
+                word = strtok_r(NULL, _seperator, &saveptr);
             }
              
             // Prepare for next buffer
@@ -235,18 +242,19 @@ uint64_t MapReduce::map_text_file( \
 
         }while(foff<fsize);
 
-        TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
         fclose(fp);
-        mem_aligned_free(text);
 
-        TRACKER_RECORD_EVENT(0, EVENT_PFS_CLOSE);
+        TRACKER_RECORD_EVENT(EVENT_DISK_CLOSE);
 
-        LOG_PRINT(DBG_IO, "%d[%d] close file %s\n", me, nprocs, ifiles[i].c_str());
+        LOG_PRINT(DBG_IO, me, nprocs, "close file %s\n", ifiles[i].first.c_str());
     }
-#endif
 
-    // delete communicator
+    // Free input buffer
+    mem_aligned_free(text);
+
+    // Delete communicator
     if(_comm){
         c->wait();
         delete c;
@@ -1606,116 +1614,124 @@ int64_t MapReduce::_convert_to_int64(const char *_str){
 // distribute input file list
 void MapReduce::_dist_input_files(const char *filepath, int sharedflag, int recurse){
 
-  //TRACKER_RECORD_EVENT(0, EVENT_MAP_DIS_FILES);
-  _get_input_files(filepath, sharedflag, recurse);
-  //TRACKER_RECORD_EVENT(0, EVENT_MAP_GET_INPUT);
+    _get_input_files(filepath, sharedflag, recurse);
 
-  if(sharedflag){
-    int fcount = (int)ifiles.size();
-    int div = fcount / nprocs;
-    int rem = fcount % nprocs;
-    int *send_count = new int[nprocs];
-    int total_count = 0;
+    if(sharedflag){
+        int fcount = (int)ifiles.size();
+        int div = fcount / nprocs;
+        int rem = fcount % nprocs;
+        int *send_count = new int[nprocs];
+        int total_count = 0;
 
-    if(me == 0){
-      int j = 0, end=0;
-      for(int i = 0; i < nprocs; i++){
-        send_count[i] = 0;
-        end += div;
-        if(i < rem) end++;
-        while(j < end){
-          send_count[i] += (int)strlen(ifiles[j].c_str())+1;
-          j++;
+        if(me == 0){
+            int j = 0, end=0;
+            for(int i = 0; i < nprocs; i++){
+                send_count[i] = 0;
+                end += div;
+                if(i < rem) end++;
+                while(j < end){
+                    send_count[i]+=(int)strlen(ifiles[j].first.c_str())+1;
+                    j++;
+                }
+                total_count += send_count[i];
+            }
         }
-        total_count += send_count[i];
-      }
-    }
 
-    int recv_count;
-    MPI_Scatter(send_count, 1, MPI_INT, &recv_count, 1, MPI_INT, 0, comm);
+        int recv_count;
+        MPI_Scatter(send_count, 1, MPI_INT, &recv_count, 1, MPI_INT, 0, comm);
 
-    int *send_displs = new int[nprocs];
-    if(me == 0){
-      send_displs[0] = 0;
-      for(int i = 1; i < nprocs; i++){
-        send_displs[i] = send_displs[i-1]+send_count[i-1];
-      }
-    }
-
-    char *send_buf = new char[total_count];
-    char *recv_buf = new char[recv_count];
-
-    if(me == 0){
-      int offset = 0;
-      for(int i = 0; i < fcount; i++){
-          memcpy(send_buf+offset, ifiles[i].c_str(), strlen(ifiles[i].c_str())+1);
-          offset += (int)strlen(ifiles[i].c_str())+1;
+        int *send_displs = new int[nprocs];
+        if(me == 0){
+            send_displs[0] = 0;
+            for(int i = 1; i < nprocs; i++){
+                send_displs[i] = send_displs[i-1]+send_count[i-1];
+            }
         }
+
+        char *send_buf = new char[total_count];
+        char *recv_buf = new char[recv_count];
+
+        if(me == 0){
+            int offset = 0;
+            for(int i = 0; i < fcount; i++){
+                memcpy(send_buf+offset,ifiles[i].first.c_str(),\
+                    strlen(ifiles[i].first.c_str())+1);
+                offset+=(int)strlen(ifiles[i].first.c_str())+1;
+            }
+        }
+
+        MPI_Scatterv(send_buf, send_count, send_displs, MPI_BYTE, \
+            recv_buf, recv_count, MPI_BYTE, 0, comm);
+
+        ifiles.clear();
+        int off=0;
+        while(off < recv_count){
+            char *str = recv_buf+off;
+            struct stat file_stat;
+            int err = stat(str, &file_stat);
+            if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
+            int64_t fsize = file_stat.st_size;
+            ifiles.push_back(std::make_pair<std::string,int64_t>(std::string(str), fsize));
+            off += (int)strlen(str)+1;
+        }
+
+        delete [] send_count;
+        delete [] send_displs;
+        delete [] send_buf;
+        delete [] recv_buf;
     }
-
-    MPI_Scatterv(send_buf, send_count, send_displs, MPI_BYTE, recv_buf, recv_count, MPI_BYTE, 0, comm);
-
-    ifiles.clear();
-    int off=0;
-    while(off < recv_count){
-      char *str = recv_buf+off;
-      ifiles.push_back(std::string(str));
-      off += (int)strlen(str)+1;
-    }
-
-    delete [] send_count;
-    delete [] send_displs;
-    delete [] send_buf;
-    delete [] recv_buf;
-  }
 }
 
 // get input file list
 void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recurse){
   // if shared, only process 0 read file names
-  if(!sharedflag || (sharedflag && me == 0)){
+    if(!sharedflag || (sharedflag && me == 0)){
 
-    struct stat inpath_stat;
-    int err = stat(filepath, &inpath_stat);
-    if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
-
-    // regular file
-    if(S_ISREG(inpath_stat.st_mode)){
-      ifiles.push_back(std::string(filepath));
-    // dir
-    }else if(S_ISDIR(inpath_stat.st_mode)){
-
-      struct dirent *ep;
-      DIR *dp = opendir(filepath);
-      if(!dp) LOG_ERROR("%s", "Error in get input files\n");
-
-      while(ep = readdir(dp)){
-
-#ifdef BGQ
-        if(ep->d_name[1] == '.') continue;
-#else
-        if(ep->d_name[0] == '.') continue;
-#endif
-
-        char newstr[MAXLINE];
-#ifdef BGQ
-        sprintf(newstr, "%s/%s", filepath, &(ep->d_name[1]));
-#else
-        sprintf(newstr, "%s/%s", filepath, ep->d_name);
-#endif
-        err = stat(newstr, &inpath_stat);
+        struct stat inpath_stat;
+        int err = stat(filepath, &inpath_stat);
         if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
 
         // regular file
         if(S_ISREG(inpath_stat.st_mode)){
-          ifiles.push_back(std::string(newstr));
+            int64_t fsize = inpath_stat.st_size;
+            ifiles.push_back(\
+                std::make_pair<std::string,int64_t>(std::string(filepath),fsize));
         // dir
-        }else if(S_ISDIR(inpath_stat.st_mode) && recurse){
-          _get_input_files(newstr, sharedflag, recurse);
+        }else if(S_ISDIR(inpath_stat.st_mode)){
+
+            struct dirent *ep;
+            DIR *dp = opendir(filepath);
+            if(!dp) LOG_ERROR("%s", "Error in get input files\n");
+
+            while(ep = readdir(dp)){
+
+#ifdef BGQ
+                if(ep->d_name[1] == '.') continue;
+#else
+                if(ep->d_name[0] == '.') continue;
+#endif
+
+                char newstr[MAXLINE];
+#ifdef BGQ
+                sprintf(newstr, "%s/%s", filepath, &(ep->d_name[1]));
+#else
+                sprintf(newstr, "%s/%s", filepath, ep->d_name);
+#endif
+                err = stat(newstr, &inpath_stat);
+                if(err) LOG_ERROR("Error in get input files, err=%d\n", err);
+
+                // regular file
+                if(S_ISREG(inpath_stat.st_mode)){
+                    int64_t fsize = inpath_stat.st_size;
+                    ifiles.push_back(\
+                        std::make_pair<std::string,int64_t>(std::string(newstr),fsize));
+                // dir
+                }else if(S_ISDIR(inpath_stat.st_mode) && recurse){
+                    _get_input_files(newstr, sharedflag, recurse);
+                }
+            }
         }
-      }
     }
-  }
 }
 
 #if 1

@@ -324,7 +324,7 @@ private:
     OpPhase phase;                   ///< operation mode
     KeyValue  *kv;                   ///< KV container
     Communicator *c;                 ///< communicator
-    std::vector<std::string> ifiles; ///< input file list
+    std::vector<std::pair<std::string,int64_t> > ifiles;
 
     UserHash     myhash;             ///< user-define hash function
     UserCombiner mycombiner;         ///< user-defined combiner function
