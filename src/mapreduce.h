@@ -141,6 +141,9 @@ public:
     void add_key_value(char *key, int keybytes,
         char *value, int valuebytes);
 
+    void combine_key_value(char *key, int keybytes,
+        char *value, int valuebytes);
+
     void output(int type=0, FILE *fp=stdout, int format=0);
 
     void set_key_length();

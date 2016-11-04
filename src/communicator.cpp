@@ -56,7 +56,7 @@ Communicator::~Communicator(){
 }
 
 int Communicator::setup(int64_t _sbufsize, KeyValue *_kv, \
-    MapReduce *_mr, UserCombiner _combiner){
+    MapReduce *_mr, UserCombiner _combiner, UserHash _hash){
     if(_sbufsize < (int64_t)COMM_UNIT_SIZE*(int64_t)size){
       LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n", \
         _sbufsize, COMM_UNIT_SIZE, size);
@@ -64,7 +64,8 @@ int Communicator::setup(int64_t _sbufsize, KeyValue *_kv, \
 
     kv=_kv;
     mr=_mr;
-    combiner=_combiner;
+    mycombiner=_combiner;
+    myhash=_hash;
 
     // Calculate the send buffer to each process
     send_buf_size = (_sbufsize/COMM_UNIT_SIZE/size)*COMM_UNIT_SIZE;
@@ -92,7 +93,7 @@ int Communicator::setup(int64_t _sbufsize, KeyValue *_kv, \
       for(int j = 0; j < size; j++) send_offsets[i][j] = 0;
     }
 
-    if(combiner != NULL)
+    if(mycombiner != NULL)
         bucket = new CombinerHashBucket(kv);
 
     return 0;

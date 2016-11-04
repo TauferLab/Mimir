@@ -87,6 +87,7 @@ int KeyValue::addKV(char *key, int keybytes, char *value, int valuebytes){
             char *kvbuf=u->kv, *ukey, *uvalue;
             int  ukeybytes, uvaluebytes, kvsize;
             GET_KV_VARS(kvtype,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,prekvsize, this);
+            combiner(mr,key,keybytes,uvalue,uvaluebytes,value,valuebytes, ptr);
             if(kvsize<=prekvsize){
                 PUT_KV_VARS(kvtype, kvbuf, key, keybytes, value, valuebytes, kvsize);
                 if(kvsize < prekvsize)

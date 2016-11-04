@@ -25,9 +25,10 @@ public:
     Communicator(MPI_Comm _comm, int _commtype);
     virtual ~Communicator();
 
-    virtual int setup(int64_t, KeyValue *kv, MapReduce *mr, UserCombiner combiner)=0;
+    virtual int setup(int64_t, KeyValue *kv, MapReduce *mr, \
+        UserCombiner combiner, UserHash myhash)=0;
 
-    virtual int sendKV(int, char *, int, char *, int) = 0;
+    virtual int sendKV(char *, int, char *, int) = 0;
 
     virtual void wait() = 0;
 
@@ -43,9 +44,10 @@ protected:
     int medone, pdone;
 
     /// data object
-    MapReduce *mr;
-    UserCombiner combiner;
-    KeyValue *kv;
+    MapReduce    *mr;
+    UserCombiner mycombiner;
+    UserHash     myhash;
+    KeyValue    *kv;
     //int blockid;
 
     /// buffer information

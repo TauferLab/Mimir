@@ -20,8 +20,8 @@ public:
     Alltoall(MPI_Comm);
     ~Alltoall();
 
-    int setup(int64_t, KeyValue *, MapReduce *, UserCombiner);
-    int sendKV(int, char *, int, char *, int);
+    int setup(int64_t, KeyValue *, MapReduce *, UserCombiner, UserHash);
+    int sendKV(char *, int, char *, int);
     void wait();
 
     void gc();

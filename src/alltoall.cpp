@@ -9,6 +9,7 @@
 
 using namespace MIMIR_NS;
 
+#include "hash.h"
 #include "stat.h"
 
 #define SAVE_ALL_DATA(ii) \
@@ -88,8 +89,8 @@ Alltoall::~Alltoall(){
 }
 
 int Alltoall::setup(int64_t _sbufsize, KeyValue *_data, \
-    MapReduce *_mr, UserCombiner _combiner){
-    Communicator::setup(_sbufsize, _data, _mr, _combiner);
+    MapReduce *_mr, UserCombiner _combiner, UserHash _hash){
+    Communicator::setup(_sbufsize, _data, _mr, _combiner, _hash);
 
     int64_t total_send_buf_size=(int64_t)send_buf_size*size;
 
@@ -129,7 +130,16 @@ comm buffer size=%ld, type_log_bytes=%d)\n", \
     return 0;
 }
 
-int Alltoall::sendKV(int target, char *key, int keysize, char *val, int valsize){
+int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
+    int target = 0;
+    if(myhash != NULL){
+        target=myhash(key, keysize)%size;
+    }else{
+        uint32_t hid = 0;
+        hid = hashlittle(key, keysize, 0);
+        target = hid%(uint32_t)size;
+    }
+
     if(target < 0 || target >= size){
         LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
     }
@@ -141,7 +151,7 @@ int Alltoall::sendKV(int target, char *key, int keysize, char *val, int valsize)
     int inserted=0;
     while(1){
         /* without combiner */
-        if(combiner==NULL){
+        if(mycombiner==NULL){
             if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
                 int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                 char *gbuf=buf+global_buf_off;
@@ -202,7 +212,7 @@ int Alltoall::sendKV(int target, char *key, int keysize, char *val, int valsize)
             }
         }
         if(inserted) break;
-        if(combiner!=NULL) gc();
+        if(mycombiner!=NULL) gc();
         exchange_kv();
     }
 
@@ -264,7 +274,7 @@ void Alltoall::save_data(int ibuf){
 
 
 void Alltoall::gc(){
-    if(combiner!=NULL && slices.empty()==false){
+    if(mycombiner!=NULL && slices.empty()==false){
         int dst_off=0, src_off=0;
         char *dst_buf=NULL, *src_buf=NULL;
 

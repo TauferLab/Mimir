@@ -153,7 +153,7 @@ uint64_t MapReduce::map_text_file( \
 
     if(_comm){
         c=Communicator::Create(comm, KV_EXCH_COMM);
-        c->setup(COMM_BUF_SIZE, kv, this, mycombiner);
+        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
         phase = MapPhase;
     // local map
     }else{
@@ -449,20 +449,10 @@ uint64_t MapReduce::reduce(UserReduce _myreduce, void* _ptr){
 #if 0
   LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: reduce start.\n", me, nprocs);
 
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
-  PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, data->gettotalsize());
-
-  if(estimate){
-    int64_t estimate_kv_count = global_kvs_count/nprocs;
-    nbucket=1;
-    while(nbucket<=pow(2,MAX_BUCKET_SIZE) && \
-      factor*nbucket<estimate_kv_count)
-      nbucket*=2;
-    nset=nbucket;
-  }
+  TRACKER_RECORD_EVENT(EVENT_MR_GENERAL);
+  //PROFILER_RECORD_COUNT(0, COUNTER_RDC_INPUT_KV, data->gettotalsize());
 
   KeyValue *kv = (KeyValue*)data;
-  int kvtype=kv->getKVtype();
 
   // create new data object
   KeyValue *outkv = new KeyValue(kvtype,
@@ -538,17 +528,9 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
 
     // Map Phase
     if(phase == MapPhase){
-        int target = 0;
-        if(myhash != NULL){
-            target=myhash(key, keybytes)%nprocs;
-        }else{
-            uint32_t hid = 0;
-            hid = hashlittle(key, keybytes, nprocs);
-            target = hid%(uint32_t)nprocs;
-        }
 
         // Send KV
-        c->sendKV(target, key, keybytes, value, valuebytes);
+        c->sendKV(key, keybytes, value, valuebytes);
 
         return;
     // Local Mode
@@ -563,6 +545,9 @@ reduce and combiner callbacks\n");
     return;
 }
 
+void MapReduce::combine_key_value(char *key, int keybytes, char *value, int valuebytes){
+    
+}
 
 /**
    Scan <key,value>
