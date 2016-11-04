@@ -87,6 +87,8 @@ int DataObject::add_page(){
     pages[pageid].datasize=0;
     pages[pageid].buffer=(char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
 
+    ipage = pageid;
+
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d add one page %d.\n", id, pageid);
 
     return pageid;

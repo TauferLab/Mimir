@@ -28,8 +28,8 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype){
 
     medone=pdone=0;
 
-    data=NULL;
-    blockid=-1;
+    kv=NULL;
+    //blockid=-1;
 
     send_buf_size = 0;
     nbuf = 0;
@@ -39,10 +39,10 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype){
 
 Communicator::~Communicator(){
 
-    if(data != NULL){
-      if(blockid!=-1)
-        data->release_page(blockid);
-    }
+    //if(data != NULL){
+    //  if(blockid!=-1)
+    //    data->release_page(blockid);
+    //}
 
     for(int i = 0; i < nbuf; i++){
       if(send_buffers != NULL && send_buffers[i]) mem_aligned_free(send_buffers[i]);
@@ -51,13 +51,20 @@ Communicator::~Communicator(){
 
     if(send_buffers != NULL) delete [] send_buffers;
     if(send_offsets != NULL) delete [] send_offsets;
+
+    if(bucket != NULL) delete bucket;
 }
 
-int Communicator::setup(int64_t _sbufsize, DataObject *_data){
+int Communicator::setup(int64_t _sbufsize, KeyValue *_kv, \
+    MapReduce *_mr, UserCombiner _combiner){
     if(_sbufsize < (int64_t)COMM_UNIT_SIZE*(int64_t)size){
       LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n", \
         _sbufsize, COMM_UNIT_SIZE, size);
     }
+
+    kv=_kv;
+    mr=_mr;
+    combiner=_combiner;
 
     // Calculate the send buffer to each process
     send_buf_size = (_sbufsize/COMM_UNIT_SIZE/size)*COMM_UNIT_SIZE;
@@ -67,8 +74,7 @@ int Communicator::setup(int64_t _sbufsize, DataObject *_data){
     }
 
     medone=pdone=0;
-    data=_data;
-    blockid=-1;
+    //blockid=-1;
 
 #ifndef MIMIR_COMM_NONBLOCKING
     nbuf = 1;
@@ -86,7 +92,10 @@ int Communicator::setup(int64_t _sbufsize, DataObject *_data){
       for(int j = 0; j < size; j++) send_offsets[i][j] = 0;
     }
 
-    //PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_BUF, total_send_buf_size*nbuf);
+    if(combiner != NULL)
+        bucket = new CombinerHashBucket(kv);
 
     return 0;
 }
+
+

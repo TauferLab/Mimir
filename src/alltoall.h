@@ -20,9 +20,11 @@ public:
     Alltoall(MPI_Comm);
     ~Alltoall();
 
-    int setup(int64_t, DataObject *);
+    int setup(int64_t, KeyValue *, MapReduce *, UserCombiner);
     int sendKV(int, char *, int, char *, int);
     void wait();
+
+    void gc();
 
 private:
     void exchange_kv();

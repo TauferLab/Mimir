@@ -1,6 +1,10 @@
 #ifndef CONSTANT_H
 #define CONSTANT_H
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 //#define ALIGNKV 4
 //#define ALIGNK  ALIGNKV
 //#define ALIGNV  ALIGNKV
@@ -20,6 +24,18 @@
 #define MAX_COMM_SIZE        0x40000000
 
 //#define ROUNDUP(A,B) (char *) (((uint64_t) A + B) & ~B);
+
+/// KVType represents KV Type
+enum KVType{
+    GeneralKV,
+    StringKV,
+    FixedKV,
+    StringKFixedV,
+    FixedKStringV,
+    GeneralKStringV,
+    GeneralKFixedV,
+    StringKGeneralV,
+    FixedKGeneralV};
 
 // general type
 #define GET_KV_VARS(kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,data) \

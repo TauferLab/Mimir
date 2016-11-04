@@ -21,18 +21,6 @@
 
 namespace MIMIR_NS {
 
-/// KVType represents KV Type
-enum KVType{
-    GeneralKV,
-    StringKV,
-    FixedKV,
-    StringKFixedV,
-    FixedKStringV,
-    GeneralKStringV,
-    GeneralKFixedV,
-    StringKGeneralV,
-    FixedKGeneralV};
-
 class MapReduce;
 class Communicator;
 class DataObject;

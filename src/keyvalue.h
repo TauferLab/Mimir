@@ -15,8 +15,11 @@
 
 #include "dataobject.h"
 #include "mapreduce.h"
+#include "hashbucket.h"
 
 namespace MIMIR_NS {
+
+class CombinerHashBucket;
 
 class KeyValue : public DataObject{
 public:
@@ -35,6 +38,8 @@ public:
 
     // Add KVs one by one
     int addKV(char *, int, char *, int);
+
+    void gc();
 
     void set_combiner(MapReduce *_mr, UserCombiner _combiner);
 
@@ -61,7 +66,9 @@ public:
 
     MapReduce *mr;
     UserCombiner combiner;
-    std::unordered_map<void*, int> slices;
+
+    std::unordered_map<char*, int> slices;
+    CombinerHashBucket *bucket;
 };
 
 }

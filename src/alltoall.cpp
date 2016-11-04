@@ -87,8 +87,9 @@ Alltoall::~Alltoall(){
     //LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall destroy.\n", rank, size);
 }
 
-int Alltoall::setup(int64_t _sbufsize, DataObject *_data){
-    Communicator::setup(_sbufsize, _data);
+int Alltoall::setup(int64_t _sbufsize, KeyValue *_data, \
+    MapReduce *_mr, UserCombiner _combiner){
+    Communicator::setup(_sbufsize, _data, _mr, _combiner);
 
     int64_t total_send_buf_size=(int64_t)send_buf_size*size;
 
@@ -130,32 +131,79 @@ comm buffer size=%ld, type_log_bytes=%d)\n", \
 
 int Alltoall::sendKV(int target, char *key, int keysize, char *val, int valsize){
     if(target < 0 || target >= size){
-      LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
+        LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
     }
 
     int kvsize = 0;
-    KeyValue *kv = (KeyValue*)data;
+    int goff=off[target];
     GET_KV_SIZE(kv->kvtype, keysize, valsize, kvsize);
 
-    /* copy kv into local buffer */
+    int inserted=0;
     while(1){
-        // communication
-        if(switchflag != 0){
-            exchange_kv();
-            switchflag = 0;
-        }
-
-        int goff=off[target];
-        if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
-            int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
-            char *gbuf=buf+global_buf_off;
-            KeyValue *kv = (KeyValue*)data;
-            PUT_KV_VARS(kv->kvtype,gbuf,key,keysize,val,valsize,kvsize);
-            off[target]+=kvsize;
-            break;
+        /* without combiner */
+        if(combiner==NULL){
+            if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
+                int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
+                char *gbuf=buf+global_buf_off;
+                PUT_KV_VARS(kv->kvtype,gbuf,key,keysize,val,valsize,kvsize);
+                off[target]+=kvsize;
+                inserted=1;
+            }
+        /* with combiner */
         }else{
-            switchflag=1;
+            /* find the unique */
+            CombinerUnique *u = bucket->findElem(key, keysize);
+            if(u==NULL){
+                /* find a hole to save the KV */
+                std::unordered_map<char*,int>::iterator iter;
+                for(iter=slices.begin(); iter!=slices.end(); iter++){
+                    char *sbuf=iter->first;
+                    int  ssize=iter->second;
+                    if(ssize >= kvsize){
+                        char *ptr = sbuf+(ssize-kvsize);
+                        PUT_KV_VARS(kv->kvtype, ptr, key, keysize, val, valsize, kvsize);
+                        iter->second-=kvsize; 
+                        inserted=1;
+                        break;
+                    }
+                }
+                /* no hole find */
+                if(iter==slices.end()){
+                    if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
+                        int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
+                        char *gbuf=buf+global_buf_off;
+                        PUT_KV_VARS(kv->kvtype,gbuf,key,keysize,val,valsize,kvsize);
+                        off[target]+=kvsize;
+                        inserted=1;
+                    }
+                }
+            }else{
+                int prekvsize;
+                char *kvbuf=u->kv, *ukey, *uvalue;
+                int  ukeybytes, uvaluebytes, kvsize;
+                GET_KV_VARS(kv->kvtype,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,prekvsize, kv);
+                /* new KV is smaller than previous KV */
+                if(kvsize<=prekvsize){
+                    PUT_KV_VARS(kv->kvtype, kvbuf, key, keysize, val, valsize, kvsize);
+                    inserted=1;
+                    /* record slice */
+                    if(kvsize < prekvsize)
+                        slices.insert(std::make_pair(kvbuf,prekvsize-kvsize));
+                }else{
+                     if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
+                        slices.insert(std::make_pair(u->kv, prekvsize));
+                        int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
+                        char *gbuf=buf+global_buf_off;
+                        PUT_KV_VARS(kv->kvtype,gbuf,key,keysize,val,valsize,kvsize);
+                        off[target]+=kvsize;
+                        inserted=1;
+                    }                   
+                }
+            }
         }
+        if(inserted) break;
+        if(combiner!=NULL) gc();
+        exchange_kv();
     }
 
     return 0;
@@ -192,13 +240,60 @@ void Alltoall::wait(){
            //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
            if(recvcount > 0) {
-               SAVE_ALL_DATA(i);
+               save_data(i);
            }
        }
    }
 #endif
 
    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);
+}
+
+void Alltoall::save_data(int ibuf){
+    char *src_buf=recv_buf[ibuf];
+    int k=0;
+    for(k=0; k<size; k++){
+        char *key, *value;
+        int  keybytes, valuebytes, kvsize;
+        GET_KV_VARS(kv->kvtype,src_buf,key,keybytes,value,valuebytes,kvsize,kv);
+        kv->addKV(key,keybytes,value,valuebytes);
+        int padding=recv_count[ibuf][k]&((0x1<<type_log_bytes)-0x1);
+        src_buf+=padding;
+    }
+}
+
+
+void Alltoall::gc(){
+    if(combiner!=NULL && slices.empty()==false){
+        int dst_off=0, src_off=0;
+        char *dst_buf=NULL, *src_buf=NULL;
+
+        int k=0;
+        for(int k=0; k<size; k++){
+            dst_off = src_off = 0;
+            int64_t global_buf_off=k*(int64_t)send_buf_size;
+            while(src_off < off[k]){
+
+                src_buf = buf+global_buf_off+src_off;
+                dst_buf = buf+global_buf_off+dst_off;
+
+                std::unordered_map<char*,int>::iterator iter=slices.find(src_buf);
+                // Skip the hole
+                if(iter != slices.end()){
+                    src_off+=iter->second;
+                }else{
+                    char *key, *value;
+                    int  keybytes, valuebytes, kvsize;
+                    GET_KV_VARS(kv->kvtype,src_buf,key,keybytes,value,valuebytes,kvsize,kv);
+                    if(src_off!=dst_off) memcpy(dst_buf, src_buf-kvsize, kvsize);
+                    dst_off+=kvsize;         
+                    src_off+=kvsize; 
+                }
+            }
+            off[k] = dst_off;
+        }
+
+    } 
 }
 
 void Alltoall::exchange_kv(){
@@ -267,7 +362,7 @@ void Alltoall::exchange_kv(){
     //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
     if(recvcount > 0) {
-        SAVE_ALL_DATA(ibuf);
+        save_data(ibuf);
     }
 
     //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
@@ -295,7 +390,8 @@ void Alltoall::exchange_kv(){
         //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
 
         if(recvcount > 0) {
-            SAVE_ALL_DATA(ibuf);
+            save_data(ibuf);
+            //SAVE_ALL_DATA(ibuf);
         }
 
         //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);

@@ -149,10 +149,11 @@ uint64_t MapReduce::map_text_file( \
 
     // Create KV Container
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    kv->set_combiner(this, mycombiner);
 
     if(_comm){
         c=Communicator::Create(comm, KV_EXCH_COMM);
-        c->setup(COMM_BUF_SIZE, kv);
+        c->setup(COMM_BUF_SIZE, kv, this, mycombiner);
         phase = MapPhase;
     // local map
     }else{
