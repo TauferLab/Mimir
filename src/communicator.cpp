@@ -35,6 +35,8 @@ Communicator::Communicator(MPI_Comm _comm, int _commtype){
     nbuf = 0;
     send_buffers = NULL;
     send_offsets = NULL;
+
+    bucket=NULL;
 }
 
 Communicator::~Communicator(){

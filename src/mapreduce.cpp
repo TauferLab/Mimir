@@ -139,6 +139,8 @@ uint64_t MapReduce::map_text_file( \
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
+    myptr = _ptr;
+
     // Distribute file list
     ifiles.clear();
     _dist_input_files(_filepath, _shared, _recurse);
@@ -262,7 +264,11 @@ uint64_t MapReduce::map_text_file( \
         c = NULL;
     }
 
+    // Garbage collection
+    kv->gc();
+
     DataObject::addRef(kv);
+
     phase = NonePhase;
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -279,116 +285,69 @@ uint64_t MapReduce::map_text_file( \
 uint64_t MapReduce::map_key_value(MapReduce *_mr,
     UserMapKV _mymap, void *_ptr, int _comm){
 
-#if 0
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (KV as input)\n", \
-    me, nprocs);
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map start. (KV as input)\n");
 
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+    //TRACKER_RECORD_EVENT(EVENT_MR_GENERAL);
 
-  DataObject::addRef(_mr->data);
-  DataObject::subRef(data);
+    DataObject::addRef(_mr->kv);
+    DataObject::subRef(kv);
 
-  KeyValue *inputkv = (KeyValue*)(_mr->data);
+    KeyValue *inputkv = _mr->kv;
 
-  // create new data object
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: new data KV. (KV as input)\n", \
-    me, nprocs);
-  KeyValue *kv = new KeyValue(kvtype,
-                              blocksize,
-                              nmaxblock,
-                              maxmemsize,
-                              outofcore,
-                              tmpfpath);
-  kv->setKVsize(ksize, vsize);
-  data = kv;
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: alloc data KV. (KV as input)\n", \
-    me, nprocs);
+    // create new data object
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: new data KV. (KV as input)\n");
+    kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    kv->set_combiner(this, mycombiner);
 
-  if(_mycompress!=NULL){
-    u=new UniqueInfo();
-    u->ubucket = new Unique*[nbucket];
-    u->unique_pool=new Spool(nbucket*sizeof(Unique));
-    u->nunique=0;
-    u->ubuf=u->unique_pool->add_block();
-    u->ubuf_end=u->ubuf+u->unique_pool->blocksize;
-    memset(u->ubucket, 0, nbucket*(int)sizeof(Unique*));
-    mycompress=_mycompress;
-    ptr=_ptr;
-    mode=CompressMode;
-  }else if(_comm){
-    c=Communicator::Create(comm, commmode);
-    c->setup(gbufsize, kv);
-    //c->init(kv);
-    mode = CommMode;
-  }else{
-    mode = LocalMode;
-  }
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: alloc data KV. (KV as input)\n");
 
-  //KeyValue *inputkv = (KeyValue*)data;
-
-  nitem=0;
-  blockid=-1;
-
-  char *key, *value;
-  int keybytes, valuebytes;
-
-  int i;
-  for(i = 0; i < inputkv->nblock; i++){
-    int64_t offset = 0;
-
-    inputkv->acquire_block(i);
-
-    offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
-
-    while(offset != -1){
-
-      _mymap(this, key, keybytes, value, valuebytes, _ptr);
-
-      offset = inputkv->getNextKV(i, offset, &key, keybytes, &value, valuebytes);
-    }
-
-    inputkv->delete_block(i);
-    inputkv->release_block(i);
-  }
-
-  //DataObject::subRef(data);
-  DataObject::subRef(inputkv);
-
-  if(_mycompress != NULL){
     if(_comm){
-      c=Communicator::Create(comm, commmode);
-      c->setup(gbufsize, kv);
-      //c->init(kv);
-      mode = CommMode;
+        c=Communicator::Create(comm, KV_EXCH_COMM);
+        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
+        phase = MapPhase;
     }else{
-      mode = LocalMode;
+        phase = LocalMapPhase;
     }
 
-    _cps_unique2kv(u);
+    char *key, *value;
+    int keybytes, valuebytes;
 
-    delete [] u->ubucket;
-    delete u->unique_pool;
-    delete u;
-  }
+    int i;
+    for(i = 0; i < inputkv->get_npages(); i++){
+        int64_t offset = 0;
 
-  if(_comm){
-    c->wait();
-    delete c;
-    c = NULL;
-  }
+        inputkv->acquire_page(i);
 
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_KV, data->gettotalsize());
-  PROFILER_RECORD_COUNT(0, COUNTER_MAP_OUTPUT_PAGE, data->nblock);
-  DataObject::addRef(data);
-  mode=NoneMode;
+        offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
 
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+        while(offset != -1){
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (KV as input)\n", \
-    me, nprocs);
+            _mymap(this, key, keybytes, value, valuebytes, _ptr);
 
-#endif
-  return _get_kv_count();
+            offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
+        }
+
+        inputkv->delete_page(i);
+        inputkv->release_page(i);
+    }
+
+    DataObject::subRef(inputkv);
+
+    if(_comm){
+        c->wait();
+        delete c;
+        c = NULL;
+    }
+
+    kv->gc();
+    DataObject::addRef(kv);
+    phase=NonePhase;
+
+    //TRACKER_RECORD_EVENT(EVENT_MAP_COMPUTING);
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map end. (KV as input)\n");
+
+    return _get_kv_count();
 }
 
 
@@ -398,48 +357,38 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
   void *_ptr, int _comm){
 
-#if 0
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map start. (no input)\n", me, nprocs);
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map start. (no input)\n");
 
-  TRACKER_RECORD_EVENT(0, EVENT_MR_GENERAL);
+    //TRACKER_RECORD_EVENT(EVENT_MR_GENERAL);
 
-  DataObject::subRef(data);
-  KeyValue *kv = new KeyValue(kvtype,
-                              blocksize,
-                              nmaxblock,
-                              maxmemsize,
-                              outofcore,
-                              tmpfpath);
-  data=kv;
-  DataObject::addRef(data);
-  kv->setKVsize(ksize,vsize);
+    DataObject::subRef(kv);
+    kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    kv->set_combiner(this, mycombiner);
 
-  if(_comm){
-    c=Communicator::Create(comm, commmode);
-    c->setup(gbufsize, kv);
-    mode = CommMode;
-  }else{
-    mode = LocalMode;
-  }
+    if(_comm){
+        c=Communicator::Create(comm, KV_EXCH_COMM);
+        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
+        phase = MapPhase;
+    }else{
+        phase = LocalMapPhase;
+    }
 
-  nitem=0;
-  blockid=-1;
-  _myinit(this, _ptr);
-  // wait all processes done
-  if(_comm){
-    c->wait();
-    delete c;
-    c = NULL;
-  }
+    _myinit(this, _ptr);
 
-  mode = NoneMode;
+    // wait all processes done
+    if(_comm){
+        c->wait();
+        delete c;
+        c = NULL;
+    }
 
-  TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
+    phase = NonePhase;
 
-  LOG_PRINT(DBG_GEN, "%d[%d] MapReduce: map end. (no input)\n", \
-    me, nprocs);
-#endif
-  return _get_kv_count();
+    //TRACKER_RECORD_EVENT(EVENT_MAP_COMPUTING);
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map end. (no input)\n");
+
+    return _get_kv_count();
 }
 
 /**
@@ -535,18 +484,35 @@ void MapReduce::add_key_value(char *key, int keybytes, char *value, int valuebyt
         return;
     // Local Mode
     }else if(phase == LocalMapPhase || phase == ReducePhase){
+
+        // Add KV
         kv->addKV(key, keybytes, value, valuebytes);
+
+        return;
     }else{
         LOG_ERROR("%s", \
-          "Error: add_key_value function can be invoked in map, \
-reduce and combiner callbacks\n");
+          "Error: add_key_value function can be invoked in map and \
+reduce callbacks\n");
     }
 
     return;
 }
 
-void MapReduce::combine_key_value(char *key, int keybytes, char *value, int valuebytes){
-    
+void MapReduce::update_key_value(
+    char *key, 
+    int keybytes, 
+    char *value, 
+    int valuebytes){
+    if(phase == MapPhase || phase == LocalMapPhase){
+        newkey = key;
+        newkeysize = keybytes;
+        newval = value;
+        newvalsize = valuebytes;
+    }else{
+        LOG_ERROR("%s", \
+          "Error: update_key_value function can be invoked in \
+combiner callbacks\n");
+    }
 }
 
 /**
@@ -1418,7 +1384,10 @@ void MapReduce::output_stat(const char *filename){
  *  fp:     file pointer
  *  format: hasn't been used
  */
-void MapReduce::output(int type, FILE* fp, int format){
+void MapReduce::output(FILE *fp, ElemType ktype, ElemType vtype){
+    if(kv){
+        kv->print(fp, ktype, vtype);
+    }
   //if(data){
   //  data->print(type, fp, format);
   //}else{

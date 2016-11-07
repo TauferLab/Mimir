@@ -61,6 +61,10 @@ public:
 
     int add_page();
 
+    int get_npages(){
+        return npages;
+    }
+
     int64_t get_page_size(int pageid){
         CHECK_PAGEID(pageid);
         return pages[pageid].datasize;
@@ -79,7 +83,6 @@ public:
     int64_t get_total_size(){
         return totalsize;
     }
-
 
     virtual void print(int type = 0, FILE *fp=stdout, int format=0);
 

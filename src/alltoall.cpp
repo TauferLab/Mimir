@@ -144,6 +144,8 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
         LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
     }
 
+    printf("send: key=%s, target=%d\n", key, target); fflush(stdout);
+
     int kvsize = 0;
     int goff=off[target];
     GET_KV_SIZE(kv->kvtype, keysize, valsize, kvsize);
@@ -188,20 +190,32 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                     }
                 }
             }else{
-                int prekvsize;
+                int ukvsize;
                 char *kvbuf=u->kv, *ukey, *uvalue;
                 int  ukeybytes, uvaluebytes, kvsize;
-                GET_KV_VARS(kv->kvtype,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,prekvsize, kv);
+                GET_KV_VARS(kv->kvtype,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,ukvsize, kv);
+
+                // invoke KV information
+                mycombiner(mr,key,keysize,uvalue,uvaluebytes,val,valsize, mr->myptr);
+
+                // check if the key is same 
+                if(mr->newkeysize!=keysize || \
+                    memcmp(mr->newkey, ukey, keysize)!=0)
+                    LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
+
+                // get key size
+                GET_KV_SIZE(kv->kvtype, mr->newkeysize, mr->newvalsize, kvsize);
+
                 /* new KV is smaller than previous KV */
-                if(kvsize<=prekvsize){
+                if(kvsize<=ukvsize){
                     PUT_KV_VARS(kv->kvtype, kvbuf, key, keysize, val, valsize, kvsize);
                     inserted=1;
                     /* record slice */
-                    if(kvsize < prekvsize)
-                        slices.insert(std::make_pair(kvbuf,prekvsize-kvsize));
+                    if(kvsize < ukvsize)
+                        slices.insert(std::make_pair(kvbuf,ukvsize-kvsize));
                 }else{
                      if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
-                        slices.insert(std::make_pair(u->kv, prekvsize));
+                        slices.insert(std::make_pair(u->kv, ukvsize));
                         int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                         char *gbuf=buf+global_buf_off;
                         PUT_KV_VARS(kv->kvtype,gbuf,key,keysize,val,valsize,kvsize);
@@ -227,6 +241,7 @@ void Alltoall::wait(){
 
     // do exchange kv until all processes done
     do{
+        if(mycombiner!=NULL) gc();
         exchange_kv();
     }while(pdone < size);
 
@@ -263,10 +278,14 @@ void Alltoall::save_data(int ibuf){
     char *src_buf=recv_buf[ibuf];
     int k=0;
     for(k=0; k<size; k++){
-        char *key, *value;
-        int  keybytes, valuebytes, kvsize;
-        GET_KV_VARS(kv->kvtype,src_buf,key,keybytes,value,valuebytes,kvsize,kv);
-        kv->addKV(key,keybytes,value,valuebytes);
+        int count=0;
+        while(count<recv_count[ibuf][k]){
+            char *key, *value;
+            int  keybytes, valuebytes, kvsize;
+            GET_KV_VARS(kv->kvtype,src_buf,key,keybytes,value,valuebytes,kvsize,kv);
+            kv->addKV(key,keybytes,value,valuebytes);
+            count+=kvsize;
+        }
         int padding=recv_count[ibuf][k]&((0x1<<type_log_bytes)-0x1);
         src_buf+=padding;
     }
@@ -274,6 +293,7 @@ void Alltoall::save_data(int ibuf){
 
 
 void Alltoall::gc(){
+    //printf("")
     if(mycombiner!=NULL && slices.empty()==false){
         int dst_off=0, src_off=0;
         char *dst_buf=NULL, *src_buf=NULL;
@@ -302,7 +322,7 @@ void Alltoall::gc(){
             }
             off[k] = dst_off;
         }
-
+        slices.clear();
     } 
 }
 
@@ -369,7 +389,7 @@ void Alltoall::exchange_kv(){
     int64_t recvcount = recvcounts[ibuf];
     //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
-    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
+    LOG_PRINT(DBG_COMM, rank, size, "Comm: receive data. (count=%ld)\n", recvcount);
 
     if(recvcount > 0) {
         save_data(ibuf);
@@ -397,7 +417,7 @@ void Alltoall::exchange_kv(){
         //TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
         //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
-        //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
+        LOG_PRINT(DBG_COMM, rank, size, "Comm: receive data. (count=%ld)\n", recvcount);
 
         if(recvcount > 0) {
             save_data(ibuf);
@@ -425,5 +445,5 @@ void Alltoall::exchange_kv(){
 
     //TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
 
-    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: exchange KV. (send count=%ld, done count=%d)\n", rank, size, sendcount, pdone);
+    LOG_PRINT(DBG_COMM, rank, size, "Comm: exchange KV. (send count=%ld, done count=%d)\n", sendcount, pdone);
 }

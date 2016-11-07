@@ -37,6 +37,11 @@ enum KVType{
     StringKGeneralV,
     FixedKGeneralV};
 
+enum ElemType{
+    StringType,
+    Int32Type,
+    Int64Type};
+
 // general type
 #define GET_KV_VARS(kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,data) \
 {\

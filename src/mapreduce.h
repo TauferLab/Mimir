@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "config.h"
+#include "const.h"
 
 namespace MIMIR_NS {
 
@@ -141,13 +142,18 @@ public:
     void add_key_value(char *key, int keybytes,
         char *value, int valuebytes);
 
-    void combine_key_value(char *key, int keybytes,
+    void update_key_value(char *key, int keybytes,
         char *value, int valuebytes);
 
-    void output(int type=0, FILE *fp=stdout, int format=0);
+    void output(FILE *fp, ElemType key, ElemType val);
 
     void set_key_length();
     void set_value_length();
+
+    void set_combiner(UserCombiner combiner){
+        mycombiner = combiner;
+    }
+
 
     static void output_stat(const char *filename);
 
@@ -319,6 +325,13 @@ private:
 
     UserHash     myhash;             ///< user-define hash function
     UserCombiner mycombiner;         ///< user-defined combiner function
+
+public:
+    char *newkey, *newval;
+    int newkeysize, newvalsize;
+    void *myptr;
+
+private:
 
     ////////////////// internal functions //////////////////////
 

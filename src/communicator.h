@@ -18,7 +18,8 @@
 
 namespace MIMIR_NS {
 
-class CombinerHashBucket;
+template<class ElemType>
+class HashBucket;
 
 class Communicator{
 public:
