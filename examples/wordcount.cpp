@@ -12,7 +12,7 @@ using namespace MIMIR_NS;
 int rank, size;
 
 void map(MapReduce *mr, char *word, void *ptr);
-void countword(MapReduce *, char *, int,  void*);
+void countword(MapReduce *, char *, int,  MultiValueIterator *iter, void*);
 void combiner(MapReduce *, char *, int, \
     char *, int, char *, int, void*);
 
@@ -34,9 +34,11 @@ int main(int argc, char *argv[])
 
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-    mr->set_combiner(combiner);
+    //mr->set_combiner(combiner);
 
     mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
+
+    mr->output(stdout, StringType, Int64Type);
 
     mr->reduce(countword, NULL);
 
@@ -67,10 +69,10 @@ void map(MapReduce *mr, char *word, void *ptr){
         mr->add_key_value(word,len,(char*)&one,sizeof(one));
 }
 
-void countword(MapReduce *mr, char *key, int keysize, void* ptr){
+void countword(MapReduce *mr, char *key, int keysize, MultiValueIterator *iter, void* ptr){
     int64_t count=0;
 
-#if 0
+#if 1
     for(iter->Begin(); !iter->Done(); iter->Next()){
         count+=*(int64_t*)iter->getValue();
     }

@@ -45,6 +45,8 @@ public:
     }
 
 
+    virtual int copy();
+
     // Comapre key with elem
     virtual int compare(char *key, int keybytes, ElemType *)=0;
 
@@ -120,6 +122,7 @@ protected:
     int     maxbuf;
     int     usize, nbuf;
     char  **buffers;
+    char   *cur_buf;
 
     int64_t nunique;
 
@@ -140,6 +143,22 @@ public:
     int compare(char *key, int keybytes, CombinerUnique *);
 
     int getkey(CombinerUnique *, char **pkey, int *pkeybytes);
+};
+
+struct ReducerUnique{
+    char *kv;
+    CombinerUnique *next;
+};
+
+class ReducerHashBucket : public HashBucket<ReducerUnique>{
+public:
+    ReducerHashBucket(KeyValue *_kv) : \
+        HashBucket<ReducerUnique>(_kv){
+    }
+ 
+    int compare(char *key, int keybytes, ReducerUnique *);
+
+    int getkey(ReducerUnique *, char **pkey, int *pkeybytes);
 };
 
 }

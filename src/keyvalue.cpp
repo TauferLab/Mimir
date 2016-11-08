@@ -265,6 +265,8 @@ void KeyValue::print(FILE *fp, ElemType ktype, ElemType vtype){
   char *key, *value;
   int keybytes, valuebytes;
 
+  printf("key\tvalue\n");
+
   for(int i = 0; i < npages; i++){
     acquire_page(i);
 

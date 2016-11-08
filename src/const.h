@@ -201,7 +201,9 @@ enum ElemType{
 #define GET_KMV_VARS(kmvtype,kvbuf,key,keybytes,nvalue,values,valuebytes,mvbytes,kmvsize,data) \
 {\
     char *kvbuf_start=kvbuf;\
-    if(kmvtype==GeneralKV || kmvtype==StringKGeneralV || kmvtype==FixedKGeneralV){\
+    if(kmvtype==GeneralKV || \
+kmvtype==StringKGeneralV || \
+kmvtype==FixedKGeneralV){\
         keybytes=*(int*)kvbuf;\
         kvbuf+=oneintlen;\
         mvbytes=*(int*)kvbuf;\
@@ -215,7 +217,7 @@ enum ElemType{
         values=kvbuf;\
         kvbuf+=mvbytes;\
     }else if(kmvtype==StringKV || kmvtype==FixedKV || \
-        kmvtype==StringKFixedV || kmvtype==FixedKStringV \
+        kmvtype==StringKFixedV || kmvtype==FixedKStringV || \
         kmvtype==GeneralKStringV || kmvtype==GeneralKFixedV){\
         keybytes=*(int*)kvbuf;\
         kvbuf+=oneintlen;\

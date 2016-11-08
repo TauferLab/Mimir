@@ -42,7 +42,7 @@ typedef void (*UserMapFile) (MapReduce *, char *, void *);
 typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
 
 /// reduce callback
-typedef void (*UserReduce)(MapReduce *, char *, int,  void*);
+typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*);
 
 /// combiner callback
 typedef void (*UserCombiner)(MapReduce *, 
@@ -363,18 +363,18 @@ private:
     //void *ptr;
 
 
-    //MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre, int cps=0);
-    //void _unique2set(UniqueInfo *);
+    MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre, int cps=0);
+    void _unique2set(UniqueInfo *);
 
-    //int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *,
-    //UserReduce myreduce, void *, int shared=1);
+    int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *,
+        UserReduce myreduce, void *, int shared=1);
 
-    //void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
-    //void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *,
-    //UserReduce myreduce, void*, int shared=1);
+    void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
+    void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *,
+        UserReduce myreduce, void*, int shared=1);
 
-    //void _mv2kmv(DataObject *,UniqueInfo *,int,
-    //UserReduce myreduce, void *);
+    void _mv2kmv(DataObject *,UniqueInfo *,int,
+        UserReduce myreduce, void *);
 
   //uint64_t _cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char *value, int valuebytes, UserBiReduce, void *);
   //uint64_t _cps_unique2kv(UniqueInfo *u);
