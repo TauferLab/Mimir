@@ -14,6 +14,7 @@
 #include "mapreduce.h"
 #include "memory.h"
 
+
 // Please set MR_BUCKET_SIZE, MR_INBUF_SIZE, MR_PAGE_SIZE, MR_COMM_SIZE
 int nbucket, estimate=0, factor=32;
 const char* inputsize;
@@ -51,8 +52,6 @@ void expand(MapReduce *, char *, int, char *, int, void *);
 void shrink(MapReduce *, char *, int, char *, int, void *);
 // compress function
 void compress(MapReduce *, char *, int, char *, int, char *, int, void*);
-
-void output(const char *,const char *,const char *,MapReduce*);
 
 // CSR graph
 int rank, size;
@@ -119,17 +118,6 @@ int main(int argc, char **argv)
     printf("tmp dir=%s\n", tmpdir); fflush(stdout);
   }
 
-  char *bucket_str = getenv("MR_BUCKET_SIZE");
-  inputsize = getenv("MR_INBUF_SIZE");
-  blocksize = getenv("MR_PAGE_SIZE");
-  gbufsize = getenv("MR_COMM_SIZE");
-  if(bucket_str==NULL || inputsize==NULL\
-    || blocksize==NULL || gbufsize==NULL){
-    if(rank==0) printf("Please set correct environranknt variables!\n");
-    MPI_Abort(MPI_COMM_WORLD, 1);
-  }
-  nbucket = atoi(bucket_str);
-
   // compute vertex partition range
   quot = nglobalverts/size;
   rem  = nglobalverts%size;
@@ -152,12 +140,12 @@ int main(int argc, char **argv)
 
   // Initialize MapReduce
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-  mr->set_sendbufsize(gbufsize);
-  mr->set_blocksize(blocksize);
-  mr->set_inputsize(inputsize);
-  mr->set_commmode(commmode);
-  mr->set_nbucket(estimate,nbucket,factor);
-  mr->set_maxmem(32);
+  //mr->set_sendbufsize(gbufsize);
+  //mr->set_blocksize(blocksize);
+  //mr->set_inputsize(inputsize);
+  //mr->set_commmode(commmode);
+  //mr->set_nbucket(estimate,nbucket,factor);
+  //mr->set_maxmem(32);
   mr->set_hash(mypartition);
   //mr->set_outofcore(0);
 
@@ -217,7 +205,7 @@ int main(int argc, char **argv)
 
   if(rank==0) fprintf(stdout, "begin make graph.\n");
 
-  mr->map_key_value(mr, makegraph, NULL, NULL, 0);
+  mr->map_key_value(mr, makegraph, NULL, 0);
 
   delete [] rowinserts;
 
@@ -252,7 +240,7 @@ int main(int argc, char **argv)
 #ifdef KV_HINT
     mr->set_KVtype(FixedKV, sizeof(int64_t), 0);
 #endif
-    mr->map_key_value(mr, shrink, NULL, NULL, 0);
+    mr->map_key_value(mr, shrink, NULL, 0);
 #ifdef KV_HINT
     mr->set_KVtype(FixedKV, sizeof(int64_t), sizeof(int64_t));
 #endif
@@ -273,8 +261,6 @@ int main(int argc, char **argv)
 #endif
   }
 
-  output("mtmr.bfs", outdir, prefix, mr);
-
   MPI_Barrier(MPI_COMM_WORLD);
 
   delete [] vis;
@@ -288,6 +274,9 @@ int main(int argc, char **argv)
 #else
   free(columns);
 #endif
+
+  //output();
+
   delete mr;
 
 #ifdef OUTPUT_RESULT
@@ -452,47 +441,4 @@ void printresult(int64_t *pred, size_t nlocalverts){
   }
 }
 
-void output(const char *filenarank, const char *outdir, const char *prefix, MapReduce *mr){
-  char header[1000];
-  char tmp[1000];
 
-  if(estimate)
-    sprintf(header, "%s/%s_c%s-b%s-i%s-f%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, factor, commmode, size);
-  else
-    sprintf(header, "%s/%s_c%s-b%s-i%s-h%d-%s.%d", \
-      outdir, prefix, gbufsize, blocksize, inputsize, nbucket, commmode, size);
-
-  sprintf(tmp, "%s.%d.txt", header, rank);
-
-  FILE *fp = fopen(tmp, "w+");
-  //mr->print_stat(fp);
-  MapReduce::print_stat(mr, fp);
-  fclose(fp);
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  if(rank==0){
-    time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    char tirankstr[1024];
-    sprintf(tirankstr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-    char infile[1024+1];
-    sprintf(infile, "%s.*.txt", header);
-    char outfile[1024+1];
-    sprintf(outfile, "%s_%s.txt", header, tirankstr);
-#ifdef BGQ
-    FILE* finalize_script = fopen(prefix, "w");
-    fprintf(finalize_script, "#!/bin/zsh\n");
-    fprintf(finalize_script, "cat %s>>%s\n", infile, outfile);
-    fprintf(finalize_script, "rm %s\n", infile);
-    fclose(finalize_script);
-#else
-    char cmd[8192+1];
-    sprintf(cmd, "cat %s>>%s", infile, outfile);
-    system(cmd);
-    sprintf(cmd, "rm %s", infile);
-    system(cmd);
-#endif
-  }
-}

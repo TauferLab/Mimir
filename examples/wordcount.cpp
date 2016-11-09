@@ -44,14 +44,6 @@ int main(int argc, char *argv[])
 
     mr->output(stdout, StringType, Int64Type);
 
-//#ifdef OUTPUT_KV
-//  char tmpfile[100];
-//  sprintf(tmpfile, "results%d.txt", me);
-//  FILE *outfile=fopen(tmpfile, "w");
-//  mr->output(1, outfile);
-//  fclose(outfile);
-//#endif
-
     output();
 
     delete mr;

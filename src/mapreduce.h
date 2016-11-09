@@ -34,7 +34,7 @@ class ReducerUnique;
 class ReducerSet;
 
 /// hash callback
-typedef  uint32_t (*UserHash)(char *, int);
+typedef  int64_t (*UserHash)(char *, int);
 
 /// map callback to init KVs
 typedef void (*UserInitKV)(MapReduce *, void *);
@@ -215,9 +215,11 @@ public:
     else if(strcmp(_commmode, "p2p")==0)
       commmode = 1;
   }
-  void set_hash(int64_t (*_myhash)(char *, int)){
+#endif
+  void set_hash(UserHash _myhash){
     myhash = _myhash;
   }
+#if 0
   uint64_t get_global_KVs(){
     return global_kvs_count;
   }

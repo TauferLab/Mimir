@@ -33,11 +33,10 @@ using namespace MIMIR_NS;
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
 void rankrgeword(MapReduce *, char *, int, char *, int, char *, int, void*);
-void sum(MapReduce *, char *, int,  MultiValueIterator *, int, void*);
+void sum(MapReduce *, char *, int,  MultiValueIterator *, void*);
 void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
 double slope(double[], double[], int);
 
-void output(const char *,const char *,const char *,double,MapReduce*,MapReduce *);
 
 #define digits 15
 int64_t thresh=5;
@@ -87,22 +86,22 @@ int main(int argc, char **argv)
 
   MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
 
-  mr_convert->set_threadbufsize(lbufsize);
-  mr_convert->set_sendbufsize(gbufsize);
-  mr_convert->set_blocksize(blocksize);
-  mr_convert->set_inputsize(inputsize);
-  mr_convert->set_commmode(commmode);
-  mr_convert->set_nbucket(estimate,nbucket,factor);
-  mr_convert->set_maxmem(32);
+  //mr_convert->set_threadbufsize(lbufsize);
+  //mr_convert->set_sendbufsize(gbufsize);
+  //mr_convert->set_blocksize(blocksize);
+  //mr_convert->set_inputsize(inputsize);
+  //mr_convert->set_commmode(commmode);
+  //mr_convert->set_nbucket(estimate,nbucket,factor);
+  //mr_convert->set_maxmem(32);
 
-  mr_convert->set_outofcore(0);
+  //mr_convert->set_outofcore(0);
 
 #ifdef KV_HINT
   mr_convert->set_KVtype(FixedKV, digits, 0);
 #endif
 
   char whitespace[10] = "\n";
-  uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, NULL, 0);
+  uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, 0);
 
   thresh=(int64_t)((float)nwords*density);
   if(rank==0){
@@ -111,32 +110,22 @@ int main(int argc, char **argv)
 
   MapReduce *mr_level=new MapReduce(MPI_COMM_WORLD);
   //mr_level->set_threadbufsize(lbufsize);
-  mr_level->set_sendbufsize(gbufsize);
-  mr_level->set_blocksize(blocksize);
-  mr_level->set_inputsize(inputsize);
-  mr_level->set_commmode(commmode);
-  mr_level->set_nbucket(estimate,nbucket,factor);
-  mr_level->set_maxmem(32);
-
-  mr_level->set_outofcore(0);
+  //mr_level->set_sendbufsize(gbufsize);
+  //mr_level->set_blocksize(blocksize);
+  //mr_level->set_inputsize(inputsize);
+  //mr_level->set_commmode(commmode);
+  //mr_level->set_nbucket(estimate,nbucket,factor);
+  //mr_level->set_maxmem(32);
+  //mr_level->set_outofcore(0);
 
   while ((min_limit+1) != max_limit){
 #ifdef KV_HINT
     mr_level->set_KVtype(FixedKV, level, sizeof(int64_t));
 #endif
 
-#ifndef COMPRESS
     mr_level->map_key_value(mr_convert, gen_leveled_octkey);
-#else
-    mr_level->map_key_value(mr_convert, gen_leveled_octkey, rankrgeword);
-#endif
 
-#ifdef PART_REDUCE
-    uint64_t nkv = mr_level->reducebykey(rankrgeword, NULL);
-    nkv = mr_level->map_key_value(mr_level, sum_map, NULL, NULL, 0);
-#else
-    uint64_t nkv = mr_level->reduce(sum, 0, NULL);
-#endif
+    uint64_t nkv = mr_level->reduce(sum, NULL);
 
     if(nkv >0){
       min_limit=level;
@@ -147,7 +136,7 @@ int main(int argc, char **argv)
     }
   }
 
-  output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level);
+  //output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level);
 
   delete mr_level;
   delete mr_convert;
@@ -171,7 +160,7 @@ void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void
     mr->add_key_value(key, keysize, (char*)&count, sizeof(int64_t));
 }
 
-void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, int lastreduce, void* ptr){
+void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
 
   int64_t sum=0;
   for(iter->Begin(); !iter->Done(); iter->Next()){
@@ -263,47 +252,4 @@ double slope(double x[], double y[], int num_atoms){
   return slope;
 }
 
-void output(const char *filenarank, const char *outdir, const char *prefix, double density, MapReduce *mr1, MapReduce *mr2){
-  char header[1000];
-  char tmp[1000];
 
-  if(estimate)
-    sprintf(header, "%s/%s_d%.2f-c%s-b%s-i%s-f%d-%s.%d", \
-      outdir, prefix, density, gbufsize, blocksize, inputsize, factor, commmode, size);
-  else
-    sprintf(header, "%s/%s_d%.2f-c%s-b%s-i%s-h%d-%s.%d", \
-      outdir, prefix, density, gbufsize, blocksize, inputsize, nbucket, commmode, size);
-
-  sprintf(tmp, "%s.%d.txt", header, rank);
-
-  FILE *fp = fopen(tmp, "w+");
-  //mr1->print_stat(fp);
-  MapReduce::print_stat(mr2, fp);
-  fclose(fp);
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  if(rank==0){
-    time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    char tirankstr[1024];
-    sprintf(tirankstr, "%d-%d-%d-%d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-    char infile[1024+1];
-    sprintf(infile, "%s.*.txt", header);
-    char outfile[1024+1];
-    sprintf(outfile, "%s_%s.txt", header, tirankstr);
-#ifdef BGQ
-    FILE* finalize_script = fopen(prefix, "w");
-    fprintf(finalize_script, "#!/bin/zsh\n");
-    fprintf(finalize_script, "cat %s>>%s\n", infile, outfile);
-    fprintf(finalize_script, "rm %s\n", infile);
-    fclose(finalize_script);
-#else
-    char cmd[8192+1];
-    sprintf(cmd, "cat %s>>%s", infile, outfile);
-    system(cmd);
-    sprintf(cmd, "rm %s", infile);
-    system(cmd);
-#endif
-  }
-}

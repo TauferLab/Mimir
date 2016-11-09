@@ -10,8 +10,8 @@ all: wordcount bfs octree
 wordcount: wordcount.o common.o
 	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) wordcount.o common.o $(USERLIBS) -o wordcount
 
-bfs: bfs.o
-	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) bfs.o $(USERLIBS) -o bfs 
+bfs: bfs.o common.o
+	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) bfs.o common.o $(USERLIBS) -o bfs 
 
 octree: octree_move_lg.o
 	$(CPPLINK) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o $(USERLIBS) -o octree
