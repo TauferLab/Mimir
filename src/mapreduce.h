@@ -28,6 +28,10 @@ class DataObject;
 class KeyValue;
 class Spool;
 class MultiValueIterator;
+class ReducerHashBucket;
+
+class ReducerUnique;
+class ReducerSet;
 
 /// hash callback
 typedef  uint32_t (*UserHash)(char *, int);
@@ -362,6 +366,8 @@ private:
     //User
     //void *ptr;
 
+    void _reduce(ReducerHashBucket *u, UserReduce _myreduce, void* ptr);
+    void _convert(KeyValue *inkv, DataObject *mv, ReducerHashBucket *u);
 
     MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre, int cps=0);
     void _unique2set(UniqueInfo *);
@@ -387,44 +393,46 @@ private:
 class MultiValueIterator{
 public:
 
-  MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize);
-  MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv, int _kvtype);
-  ~MultiValueIterator(){
-  }
+  //MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize);
+  //MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv, int _kvtype);
+    MultiValueIterator(ReducerUnique *ukey);
 
-  int Done(){
-    return isdone;
-  }
-  void Begin();
-  void Next();
-  const char *getValue(){
-    return value;
-  }
-  int getSize(){
-    return valuesize;
-  }
-  int getCount(){
-    return nvalue;
-  }
+    void set_kv_type(enum KVType, int, int);
+
+    void Begin();
+    void Next();
+
+    int Done(){
+        return isdone;
+    }
+    const char *getValue(){
+        return value;
+    }
+    int getSize(){
+      return valuesize;
+    }
+    int getCount(){
+        return nvalue;
+    }
 
 private:
-  int mode,kvtype,vsize;
+    enum KVType kvtype;
+    int    ksize, vsize;
 
-  int  nvalue;
-  int *valuebytes;
-  char *values;
+    int  nvalue;
+    int *valuebytes;
+    char *values;
 
-  int ivalue;
-  int value_start;
-  int value_end;
+    int ivalue;
+    int value_start;
+    int value_end;
 
-  DataObject *mv;
-  MapReduce::Unique *ukey;
-  MapReduce::Set *pset;
+    int isdone;
+    char *value;
+    int valuesize;
 
-  int isdone;
-  char *value;
-  int valuesize;
+    ReducerUnique *ukey;
+    ReducerSet *pset;
 };
 
 }//namespace

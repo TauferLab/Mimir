@@ -72,11 +72,9 @@ void map(MapReduce *mr, char *word, void *ptr){
 void countword(MapReduce *mr, char *key, int keysize, MultiValueIterator *iter, void* ptr){
     int64_t count=0;
 
-#if 1
     for(iter->Begin(); !iter->Done(); iter->Next()){
         count+=*(int64_t*)iter->getValue();
     }
-#endif
 
     mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }

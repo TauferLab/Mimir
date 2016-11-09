@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-//#include "hashbucket.h"
 #include "const.h"
 #include "hash.h"
 #include "memory.h"
@@ -32,10 +31,13 @@ public:
         for(int i=0; i<maxbuf; i++)
             buffers[i] = NULL;
 
+        cur_buf=NULL;
+        cur_off=0;
+
         nunique=0;
     }
 
-    ~HashBucket(){
+    virtual ~HashBucket(){
         for(int i=0; i< maxbuf; i++){
             if(buffers[i] != NULL)
                 mem_aligned_free(buffers[i]);
@@ -44,21 +46,16 @@ public:
         mem_aligned_free(buckets);
     }
 
-
-    virtual int copy();
-
     // Comapre key with elem
     virtual int compare(char *key, int keybytes, ElemType *)=0;
-
     virtual int getkey(ElemType *, char **pkey, int *pkeybytes)=0;
+    virtual ElemType* insertElem(ElemType *elem)=0;
 
     ElemType* findElem(char *key, int keybytes){    
 
         int ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
         ElemType *ptr = buckets[ibucket];
-
-        //printf("find: key=%s,elem=%p\n", key, ptr); fflush(stdout);
 
         while(ptr!=NULL){
             if(compare(key, keybytes, ptr) != 0)
@@ -68,61 +65,14 @@ public:
         return ptr;
     }
 
-
-    ElemType* insertElem(ElemType *elem){
-        char *key;
-        int  keybytes;
-
-        getkey(elem, &key, &keybytes);
-
-        nunique+=1;
-
-        if(nbuf == (nunique/nbucket)){
-            buffers[nbuf]=(char*)mem_aligned_malloc(\
-                MEMPAGE_SIZE, usize);
-            nbuf+=1;
-        }
-
-        ElemType *newelem=(ElemType*)buffers[nunique/nbucket]+nunique%nbucket;
-        memcpy(newelem, elem, sizeof(ElemType));
-
-        int ibucket = hashlittle(key, keybytes, 0) % nbucket;
-
-        ElemType *ptr = buckets[ibucket];
-
-        // New unique key
-        if(ptr==NULL){
-            buckets[ibucket] = newelem;
-            printf("insert: key=%s, elem=%p, kv=%p\n", key, newelem, newelem->kv);
-            fflush(stdout);
-            return NULL;
-        }
-        else{
-            // Compare
-            while(ptr!=NULL){
-                if(compare(key, keybytes, ptr) != 0)
-                    break;
-                ptr=ptr->next;
-            }
-            // New unique key
-            if(ptr==NULL){
-                ElemType *tmp = buckets[ibucket];
-                buckets[ibucket] = newelem;
-                elem->next = tmp;
-                return NULL;
-            }
-        }
-        return ptr;
-    }
-
 protected:
     int        nbucket;
     ElemType **buckets;
-    
-    int     maxbuf;
-    int     usize, nbuf;
+  
+    int     usize, maxbuf, nbuf, ibuf;
     char  **buffers;
     char   *cur_buf;
+    int     cur_off;
 
     int64_t nunique;
 
@@ -139,26 +89,131 @@ public:
     CombinerHashBucket(KeyValue *_kv) : \
         HashBucket<CombinerUnique>(_kv){
     }
+
+    CombinerUnique* insertElem(CombinerUnique *elem);
  
     int compare(char *key, int keybytes, CombinerUnique *);
 
     int getkey(CombinerUnique *, char **pkey, int *pkeybytes);
 };
 
+struct ReducerSet{
+    int       pid;
+    int64_t   ivalue;
+    int64_t   nvalue;
+    int64_t   mvbytes;
+    int      *soffset; 
+    char     *voffset;
+    ReducerSet *next;
+};
+
 struct ReducerUnique{
-    char *kv;
-    CombinerUnique *next;
+    char *key;
+    int keybytes;
+    int64_t nvalue;
+    int64_t mvbytes;
+    ReducerSet *firstset;
+    ReducerSet *lastset;
+    ReducerUnique *next;
 };
 
 class ReducerHashBucket : public HashBucket<ReducerUnique>{
 public:
     ReducerHashBucket(KeyValue *_kv) : \
         HashBucket<ReducerUnique>(_kv){
+
+        maxset = MAX_PAGE_COUNT;
+        setsize = nbucket*sizeof(ReducerUnique);
+
+        sets = (char**)mem_aligned_malloc(\
+            MEMPAGE_SIZE, maxset*sizeof(char*));
+        isetbuf = nsetbuf = 0;
+
+        iset = nset = 0;
+
+        mvbytes=0;
+
+        cur_unique=NULL;
     }
+
+    ~ReducerHashBucket(){
+        for(int i=0; i< maxset; i++){
+            if(sets[i] != NULL)
+                mem_aligned_free(sets[i]);
+        }
+
+        mem_aligned_free(sets);
+    }
+
+    ReducerUnique* insertElem(ReducerUnique *elem);
  
     int compare(char *key, int keybytes, ReducerUnique *);
 
     int getkey(ReducerUnique *, char **pkey, int *pkeybytes);
+
+    ReducerUnique* BeginUnique(){
+        if(nbuf>0){
+            ibuf=0;
+            cur_buf=buffers[ibuf];
+            cur_off=0;
+            cur_unique=(ReducerUnique*)(cur_buf+cur_off);
+            cur_off+=sizeof(ReducerUnique);
+            cur_off+=cur_unique->keybytes;
+        }else{
+            cur_unique=NULL;
+            return NULL;
+        }
+        return cur_unique;
+    }
+
+    ReducerUnique* NextUnique(){
+        cur_unique=(ReducerUnique*)(cur_buf+cur_off);
+        if((usize-cur_off)<sizeof(ReducerUnique) || \
+            cur_unique->key==NULL){
+            ibuf+=1;
+            if(ibuf<nbuf){
+                cur_buf=buffers[ibuf];
+                cur_off=0;
+            }else{
+                cur_unique=NULL;
+                return NULL;
+            }
+        }
+        cur_off+=sizeof(ReducerUnique);
+        cur_off+=cur_unique->keybytes;
+        return cur_unique;
+    }
+
+    ReducerSet* BeginSet(){
+        ReducerSet *pset=NULL;
+        if(nset<=0) return NULL;
+        else{
+            iset = 0;
+            pset=(ReducerSet*)sets[iset/nbucket]+iset%nbucket;
+            return pset;
+        }
+        return pset;
+    }
+
+    ReducerSet* NextSet(){
+        ReducerSet *pset=NULL;
+        iset += 1;
+        if(iset>=nset) return NULL;
+        else{
+            pset=(ReducerSet*)sets[iset/nbucket]+iset%nbucket;
+        }
+        return pset;
+    }
+
+
+private:
+    ReducerUnique *cur_unique;
+
+    int64_t nset, iset;
+    int  setsize, maxset, nsetbuf, isetbuf;
+    char **sets;
+
+    int64_t mvbytes;
 };
 
 }
