@@ -210,56 +210,6 @@ void KeyValue::gc(){
     } 
 }
 
-// Add KVs one by one
-//int addKV(char *, int, char *, int);
-
-
-
-#if 0
-int64_t KeyValue::getNextKV(int blockid, int64_t offset, char **key, int &keybytes, char **value, int &valuebytes, int *kff, int *vff){
-  if(offset >= blocks[blockid].datasize) return -1;
-
-  int bufferid = blocks[blockid].bufferid;
-  char *buf = buffers[bufferid].buf + offset;
-
-  int kvsize=0;
-  GET_KV_VARS(kvtype,buf,*key,keybytes,*value,valuebytes,kvsize,this);
-
-  offset+=kvsize;
-
-  return offset;
-}
-#endif
-
-#if 0
-/*
- * Add a KV
- * return 0 if success, else return -1
- */
-int KeyValue::addKV(int blockid, char *key, int &keybytes, char *value, int &valuebytes){
-  int kvbytes = 0;
-
-  GET_KV_SIZE(kvtype, keybytes, valuebytes, kvbytes);
-
-#if SAFE_CHECK
-  if(kvbytes > blocksize){
-     LOG_ERROR("Error: KV size is larger than block size. (KV size=%d, block size=%ld)\n", kvbytes, blocksize);
-  }
-#endif
-
-  int64_t datasize = blocks[blockid].datasize;
-  if(kvbytes+datasize > blocksize) return -1;
-
-  int bufferid = blocks[blockid].bufferid;
-  char *buf = buffers[bufferid].buf+datasize;
-
-  PUT_KV_VARS(kvtype, buf, key, keybytes, value, valuebytes, kvbytes);
-  blocks[blockid].datasize += kvbytes;
-
-  return 0;
-}
-#endif
-
 void KeyValue::print(FILE *fp, ElemType ktype, ElemType vtype){
 
   char *key, *value;
