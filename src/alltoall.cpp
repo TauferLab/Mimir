@@ -12,52 +12,6 @@ using namespace MIMIR_NS;
 #include "hash.h"
 #include "stat.h"
 
-#define SAVE_ALL_DATA(ii) \
-{\
-  int k=0;\
-  int64_t spacesize=0;\
-  char *src_buf=NULL, *dst_buf=NULL;\
-  src_buf=recv_buf[ii];\
-  if(blockid!=-1){\
-    dst_buf=data->get_page_buffer(blockid);\
-    int64_t datasize=data->get_page_size(blockid);\
-    dst_buf += datasize;\
-    spacesize=data->pagesize-datasize;\
-  }else{\
-    blockid=data->add_page();\
-    data->acquire_page(blockid);\
-    dst_buf=data->get_page_buffer(blockid);\
-    spacesize=data->pagesize;\
-  }\
-  while(k<size){\
-    int copysize=0;\
-    int padding=0;\
-    while(k<size && spacesize>=recv_count[ii][k]){\
-      copysize+=recv_count[ii][k];\
-      spacesize-=recv_count[ii][k];\
-      padding=recv_count[ii][k]&((0x1<<type_log_bytes)-0x1);\
-      k++;\
-      if(padding !=0 ){\
-        break;\
-      }\
-    }\
-    memcpy(dst_buf, src_buf, copysize);\
-    int64_t datasize=data->get_page_size(blockid);\
-    data->set_page_size(blockid,datasize+copysize);\
-    dst_buf+=copysize;\
-    src_buf+=copysize;\
-    if(padding!=0){\
-      src_buf+=padding;\
-    }else if(k<size){\
-      data->release_page(blockid);\
-      blockid=data->add_page();\
-      data->acquire_page(blockid);\
-      dst_buf=data->get_page_buffer(blockid);\
-      spacesize=data->pagesize;\
-    }\
-  }\
-}
-
 Alltoall::Alltoall(MPI_Comm _comm):Communicator(_comm, 0){
     switchflag=0;
     ibuf=0;

@@ -25,11 +25,8 @@
 #include <vector>
 
 #include "mapreduce.h"
-#include "dataobject.h"
 #include "keyvalue.h"
-#include "communicator.h"
 #include "alltoall.h"
-//#include "spool.h"
 #include "log.h"
 #include "config.h"
 #include "const.h"
@@ -70,44 +67,19 @@ MapReduce::MapReduce(MPI_Comm _caller)
    @return return new MapReduce Object.
 */
 MapReduce::MapReduce(const MapReduce &_mr){
-#if 0
-  // copy stats
-  local_kvs_count=_mr.local_kvs_count;
-  global_kvs_count=_mr.global_kvs_count;
-  // copy configures
-  kvtype=_mr.kvtype;
-  ksize=_mr.ksize;
-  vsize=_mr.vsize;
-  nmaxblock=_mr.nmaxblock;
-  maxmemsize=_mr.maxmemsize;
-  outofcore=_mr.outofcore;
-  commmode=_mr.commmode;
-  lbufsize=_mr.lbufsize;
-  gbufsize=_mr.gbufsize;
-  blocksize=_mr.blocksize;
-  tmpfpath=_mr.tmpfpath;
-  myhash=_mr.myhash;
-  nbucket=_mr.nbucket;
-  nset=_mr.nset;
-  // copy internal states
-  comm=_mr.comm;
-  //me=_mr.me;
-  //nprocs=_mr.nprocs;
-  //tnum=_mr.tnum;
-  mode=_mr.mode;
-  ukeyoffset=_mr.ukeyoffset;
-  // copy data
-  data=_mr.data;
-  DataObject::addRef(data);
 
-  c=NULL;
-  ifiles.clear();
+    comm=_mr.comm;
+    me=_mr.me;
+    nprocs=_mr.nprocs;
+    
+    kv=_mr.kv;
+    DataObject::addRef(kv);
 
-  tnum=1;
-  TRACKER_START(1);
-  PROFILER_START(1);
-  TRACKER_TIMER_INIT(0);
-#endif
+    myhash=_mr.myhash;
+    mycombiner=_mr.mycombiner;
+
+    phase=NonePhase;
+    c=NULL;
 
     INIT_STAT(me, nprocs); 
 
@@ -406,13 +378,16 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
    
     phase = ReducePhase;
 
+    // Create DataObject and HashBucket to hold KMVs
     DataObject *mv = new DataObject(me,nprocs,ByteType,\
         DATA_PAGE_SIZE, MAX_PAGE_COUNT);    
     ReducerHashBucket *u = new ReducerHashBucket(kv);
 
+    // Convert input KVs to KMVs
     _convert(kv, mv, u);
     DataObject::subRef(kv);
 
+    // Apply user-defined reduce
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT); 
     _reduce(u, myreduce, ptr);
     delete mv;
@@ -488,9 +463,11 @@ combiner callbacks\n");
 void MapReduce::scan(
   void (_myscan)(char *, int, char *, int ,void *),
   void * _ptr){
-  LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan begin\n");
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan begin\n");
 
   //TRACKER_RECORD_EVENT(EVENT_MR_GENERAL);
+
+    phase=ScanPhase;
 
     char *key, *value;
     int keybytes, valuebytes;
@@ -513,12 +490,15 @@ void MapReduce::scan(
         kv->release_page(i);
     }
 
+    phase=NonePhase;
+
     //TRACKER_RECORD_EVENT(EVENT_SCAN_COMPUTING);
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan end.\n");
 }
 
 void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
+    // Apply user-defined reduce one-by-one
     ReducerUnique *u = h->BeginUnique();
     while(u!=NULL){
         ReducerSet *set = u->firstset;
@@ -559,7 +539,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
         inputkv->release_page(i);
     }
 
-    // Set pointers
+    // Set pointers to hold MVs
     char *page_buf=NULL, page_off=0, page_id=0;
     ReducerSet *pset = h->BeginSet();
     while(pset!=NULL){
@@ -590,6 +570,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
         pset = h->NextSet();
     }
 
+    // Modify the pointers
     ReducerUnique *uq = h->BeginUnique();    
     while(uq!=NULL){
         uq->lastset = uq->firstset;
@@ -613,10 +594,6 @@ void MapReduce::_convert(KeyValue *inputkv, \
               inputkv->kvtype==FixedKGeneralV){
                 pset->soffset[pset->ivalue]=valuebytes;
             }
-
-            //printf("%d\t%ld\t%ld\t%p\t%p\t%p\n", 
-            //   pset->pid, pset->nvalue, pset->mvbytes,
-            //   pset, pset->soffset, pset->voffset); 
 
             memcpy(pset->curoff, value, valuebytes);
             pset->curoff+=valuebytes;
@@ -661,11 +638,6 @@ void MapReduce::output(FILE *fp, ElemType ktype, ElemType vtype){
     if(kv){
         kv->print(fp, ktype, vtype);
     }
-  //if(data){
-  //  data->print(type, fp, format);
-  //}else{
-  //  LOG_ERROR("%s","Error to output empty data object\n");
-  //}
 }
 
 // private function
@@ -751,9 +723,7 @@ void MapReduce::_get_default_values(){
         if(flag != 0){
             DBG_LEVEL |= (DBG_IO);
         }
-    }
-
-    
+    }    
 }
 
 int64_t MapReduce::_convert_to_int64(const char *_str){
@@ -960,9 +930,6 @@ void MultiValueIterator::Begin(){
         value_end=pset->nvalue;
     }
     
-    printf("\t\t%p\t%p\t%p\n", pset, pset->soffset, pset->voffset); 
-    fflush(stdout);
-
     value=values;
 
     if(kv->kvtype==GeneralKV || kv->kvtype==StringKGeneralV || \
@@ -1004,9 +971,5 @@ void MultiValueIterator::Next(){
         kv->kvtype==GeneralKFixedV)
         valuesize=kv->vsize;
     }
-
-    printf("value=%p,valuesize=%d\n", value, valuesize); 
-    fflush(stdout);
-
 }
 

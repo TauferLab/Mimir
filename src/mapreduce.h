@@ -157,170 +157,18 @@ public:
     void set_combiner(UserCombiner combiner){
         mycombiner = combiner;
     }
-
+    void set_hash(UserHash _myhash){
+        myhash = _myhash;
+    }
 
     static void output_stat(const char *filename);
 
-  //static void print_memsize();
+private:
+    friend class MultiValueIterator;
 
-  /**
-    Set <key,value> type. The KV type can be GeneralKV, StringKV, FixedKV.
-
-    @param[in]  _kvtype <key,value> type (GeneralKV, StringKV, FixedKV)
-    @param[in]  _ksize  key size (only valid for FixedKV type)
-    @param[in]  _vsize  value size (only valid for Fixed type)
-  */
-#if 0
-  void set_KVtype(enum KVType _kvtype, int _ksize=-1, int _vsize=-1){
-    kvtype = _kvtype;
-    ksize = _ksize;
-    vsize = _vsize;
-    if(kvtype==FixedKV || kvtype==StringKFixedV){
-      maxvaluebytes=vsize;
-    }else{
-      maxvaluebytes=MAX_VALUE_SIZE;
-    }
-  }
-  void set_blocksize(const char *_blocksize){
-    blocksize = _stringtoint(_blocksize);
-  }
-  void set_nbucket(int _estimate, int _nbucket, int _factor){
-    estimate = _estimate;
-    nbucket = (int)pow(2,_nbucket);
-    nset = nbucket;
-    factor = _factor;
-  }
-  void set_inputsize(const char *_inputsize){
-    inputsize = _stringtoint(_inputsize);
-  }
-  void set_sendbufsize(const char* _sbufsize){
-    gbufsize = _stringtoint(_sbufsize);
-  }
-  void set_maxblocks(int _nmaxblock){
-    nmaxblock = _nmaxblock;
-  }
-  void set_maxmem(int _maxmemsize){
-    maxmemsize = _maxmemsize;
-  }
-  void set_filepath(const char *_fpath){
-    tmpfpath = std::string(_fpath);
-  }
-  void set_outofcore(int _flag){
-    outofcore = _flag;
-  }
-  void set_commmode(const char* _commmode){
-    commmode = -1;
-    if(strcmp(_commmode,"a2a")==0)
-      commmode = 0;
-    else if(strcmp(_commmode, "p2p")==0)
-      commmode = 1;
-  }
-#endif
-  void set_hash(UserHash _myhash){
-    myhash = _myhash;
-  }
-#if 0
-  uint64_t get_global_KVs(){
-    return global_kvs_count;
-  }
-  uint64_t get_local_KVs(){
-    return local_kvs_count;
-  }
-  uint64_t get_unique_count(){
-    return nunique;
-  }
-#endif
+    enum OpPhase{NonePhase,MapPhase,LocalMapPhase,ReducePhase,ScanPhase};
 
 private:
-  friend class MultiValueIterator;
-
-  /** \enum OpMode
-   * \brief Operation Mode, used in add_key_value function.
-   *
-   * NoneMode: add_key_value invoked outside any map/reduce functions. \n
-   * MapMode: add_key_value invoked in map function with communication. \n
-   * MapLocalMode: add_key_value invoked in map function without communication. \n
-   * ReduceMode: add_key_value invoked in reduce function.
-   */
-  enum OpPhase{NonePhase, MapPhase, LocalMapPhase, ReducePhase, ScanPhase};
-
-  /// \brief The set is the partial KMV within one page
-  /// The set is the partial KMV within one pages
-  struct Set
-  {
-    int       myid;    ///< set id
-    int       nvalue;  ///< number of values
-    int       mvbytes; ///< bytes of multiple values
-    int      *soffset; ///< start pointer of value size array
-    char     *voffset; ///< start pointer of values
-    int       s_off;   ///< offset in the page of value size array
-    int       v_off;   ///< offset in the page pf values
-    int       pid;     ///< partition id to generate this set
-    Set      *next;    ///< Set pointer in the next page
-  };
-
-  /// \brief Partition is a range of a KV object
-  struct Partition
-  {
-    int     start_blockid; ///< start block
-    int     start_offset;  ///< start offset
-    int     end_blockid;   ///< end block
-    int     end_offset;    ///< end offset
-    int     start_set;     ///< start set
-    int     end_set;       ///< end set
-  };
-
-  /// \brief Unique is used to record unique key
-  struct Unique
-  {
-    char      *key;        ///< key data
-    int        keybytes;   ///< key bytes
-    int        nvalue;     ///< number of value
-    int        mvbytes;    ///< multiple value bytes
-    int       *soffset;    ///< start pointer of value size array
-    char      *voffset;    ///< start pointer of values
-    Set       *firstset;   ///< first set
-    Set       *lastset;    ///< last set
-    int        flag;       ///< flag
-    Unique    *next;       ///< next key
-  };
-
-  struct UniqueCPS
-  {
-    //char      *key;
-    //int        keybytes;
-    //char      *value;
-    //int        valuebytes;
-    UniqueCPS *next;
-  };
-
-  /// \brief UniqueInfo is used to convert KVs to KMVs
-  struct UniqueInfo
-  {
-    int        nunique;       ///< number of unique key
-    int        nset;          ///< number of set
-    char       *ubuf;
-    char       *ubuf_end;
-    Unique   **ubucket;       ///< hash bucket
-    Spool     *unique_pool;   ///< memory pool of unique keys
-    Spool     *set_pool;      ///< memory pool of sets
-  };
-
-private:
-  // Statatics Variables
-    //uint64_t global_kvs_count, local_kvs_count;
-private:
-    // Configuable parameters
-    //enum KVType kvtype;        ///< KV type
-    //int ksize, vsize;          ///< length of key or value in KV
-    //int commmode;              ///< communication mode: a2a or p2p
-    //int nmaxpage;              ///< max number of pages
-    //int nbucket,nset;          ///< number of bucket
-    //int maxstringbytes;        ///< maximum bytes of string
-    //int64_t comm_buf_size;     ///< communication buffer size
-    //int64_t data_page_size;    ///< the page size
-    //int64_t input_buf_size;    ///< input buffer size
-
     MPI_Comm comm;                   ///< MPI communicator
     int me,nprocs;                   ///< MPI communicator information
 
@@ -339,8 +187,6 @@ public:
 
 private:
 
-    ////////////////// internal functions //////////////////////
-
     // Get default values
     void _get_default_values();
 
@@ -356,39 +202,11 @@ private:
     // distribute input file list
     void _dist_input_files(const char *, int, int);
 
-
-    //int ukeyoffset;
-    //int 
-
-    //uint64_t nitem;
-    //int       blockid; 
-
-    //UniqueCPS *cur_ukey;  ///< number of unique key
-    //UniqueInfo *u;
-    //User
-    //void *ptr;
-
+    // reduce phase
     void _reduce(ReducerHashBucket *u, UserReduce _myreduce, void* ptr);
+    
+    // convert phase
     void _convert(KeyValue *inkv, DataObject *mv, ReducerHashBucket *u);
-
-    MapReduce::Unique* _findukey(Unique **, int, char *, int, Unique *&pre, int cps=0);
-    void _unique2set(UniqueInfo *);
-
-    int  _kv2unique(int, KeyValue *, UniqueInfo *, DataObject *,
-        UserReduce myreduce, void *, int shared=1);
-
-    void _unique2mv(int, KeyValue *, Partition *, UniqueInfo *, DataObject *, int shared=1);
-    void _unique2kmv(int, KeyValue *, UniqueInfo *, DataObject *,
-        UserReduce myreduce, void*, int shared=1);
-
-    void _mv2kmv(DataObject *,UniqueInfo *,int,
-        UserReduce myreduce, void *);
-
-  //uint64_t _cps_kv2unique(UniqueInfo *u, char *key, int keybytes, char *value, int valuebytes, UserBiReduce, void *);
-  //uint64_t _cps_unique2kv(UniqueInfo *u);
-
-  //uint64_t _reduce(KeyValue *, UserReduce, void*);
-  //uint64_t _reduce_compress(KeyValue *, UserReduce, void*);
 
 };//class MapReduce
 
@@ -416,8 +234,6 @@ public:
     }
 
 private:
-    //enum KVType kvtype;
-    //int    ksize, vsize;
 
     int  nvalue;
     int *valuebytes;
