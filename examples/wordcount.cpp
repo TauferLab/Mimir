@@ -66,6 +66,7 @@ void countword(MapReduce *mr, char *key, int keysize, MultiValueIterator *iter, 
 
     for(iter->Begin(); !iter->Done(); iter->Next()){
         count+=*(int64_t*)iter->getValue();
+        //printf("count=%ld\n", count);
     }
 
     mr->add_key_value(key, keysize, (char*)&count, sizeof(count));

@@ -521,12 +521,9 @@ void MapReduce::scan(
 void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
     ReducerUnique *u = h->BeginUnique();
     while(u!=NULL){
-        ReducerSet *set = u->lastset;
-        printf("%s\t%d\t%ld\t%ld\n", u->key, u->keybytes, \
-            u->nvalue, u->mvbytes);
-        printf("\t\t%ld\t%ld\n", set->nvalue, set->mvbytes);
-        MultiValueIterator *iter=new MultiValueIterator(u);
-        //_myreduce(this, u->key, u->keybytes, iter, ptr);
+        ReducerSet *set = u->firstset;
+        MultiValueIterator *iter=new MultiValueIterator(kv, u);
+        _myreduce(this, u->key, u->keybytes, iter, ptr);
         delete iter;
         u = h->NextUnique();
     }
@@ -540,6 +537,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
     int keybytes, valuebytes;
     int i;
 
+    // Construct Unique structure
     ReducerUnique u;
     for(i = 0; i < inputkv->get_npages(); i++){
         int64_t offset = 0;
@@ -550,25 +548,22 @@ void MapReduce::_convert(KeyValue *inputkv, \
 
         while(offset != -1){
 
-            //printf("1.key=%s\n", key); fflush(stdout);
-
             u.key = key;
             u.keybytes = keybytes;
             u.mvbytes = valuebytes;
             h->insertElem(&u);
-            //_mymap(this, key, keybytes, value, valuebytes, _ptr);
             
             offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
         }
 
-        //inputkv->delete_page(i);
         inputkv->release_page(i);
     }
 
+    // Set pointers
     char *page_buf=NULL, page_off=0, page_id=0;
-    ReducerSet *set = h->BeginSet();
-    while(set!=NULL){
-        if(page_buf==NULL || page_id!=set->pid){
+    ReducerSet *pset = h->BeginSet();
+    while(pset!=NULL){
+        if(page_buf==NULL || page_id!=pset->pid){
             page_id=mv->add_page();
             page_buf=mv->get_page_buffer(page_id);
             page_off=0;
@@ -576,16 +571,32 @@ void MapReduce::_convert(KeyValue *inputkv, \
         if(inputkv->kvtype==GeneralKV ||\
           inputkv->kvtype==StringKGeneralV || \
           inputkv->kvtype==FixedKGeneralV){
-            set->soffset=(int*)(page_buf+page_off);
-            page_off+=sizeof(int)*set->nvalue;
+            pset->soffset=(int*)(page_buf+page_off);
+            page_off+=sizeof(int)*(pset->nvalue);
         }else{
-            set->soffset=NULL;
+            pset->soffset=NULL;
         }
-        set->voffset=page_buf+page_off;
-        page_off+=set->mvbytes;
-        set = h->NextSet();
+
+        pset->voffset=page_buf+page_off;
+        pset->curoff=pset->voffset;
+        page_off+=pset->mvbytes;
+
+        printf("%d\t%ld\t%ld\t%p\t%p\t%p\n", 
+           pset->pid, pset->nvalue, pset->mvbytes,
+           pset, pset->soffset, pset->voffset); 
+        
+        fflush(stdout);
+
+        pset = h->NextSet();
     }
 
+    ReducerUnique *uq = h->BeginUnique();    
+    while(uq!=NULL){
+        uq->lastset = uq->firstset;
+        uq = h->NextUnique();
+    }
+
+    // Get the MVs
     for(i = 0; i < inputkv->get_npages(); i++){
         int64_t offset = 0;
 
@@ -595,21 +606,24 @@ void MapReduce::_convert(KeyValue *inputkv, \
 
         while(offset != -1){
             ReducerUnique *punique = h->findElem(key, keybytes);
-            ReducerSet *pset = punique->firstset;
+            ReducerSet *pset = punique->lastset;
 
             if(inputkv->kvtype==GeneralKV ||\
               inputkv->kvtype==StringKGeneralV || \
               inputkv->kvtype==FixedKGeneralV){
-                set->soffset[set->ivalue]=valuebytes;
-                memcpy(set->voffset, value, valuebytes);
-                set->voffset+=valuebytes;
-                set->ivalue+=1;
-                if(set->ivalue==set->nvalue){
-                    punique->firstset=punique->firstset->next;
-                }
-                page_off+=sizeof(int)*set->nvalue;
-            }else{
-                set->soffset=NULL;
+                pset->soffset[pset->ivalue]=valuebytes;
+            }
+
+            //printf("%d\t%ld\t%ld\t%p\t%p\t%p\n", 
+            //   pset->pid, pset->nvalue, pset->mvbytes,
+            //   pset, pset->soffset, pset->voffset); 
+
+            memcpy(pset->curoff, value, valuebytes);
+            pset->curoff+=valuebytes;
+            pset->ivalue+=1;
+
+            if(pset->ivalue==pset->nvalue){
+                punique->lastset=punique->lastset->next;
             }
            
             offset = inputkv->getNextKV(&key,keybytes,&value,valuebytes);
@@ -914,7 +928,6 @@ void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recur
     }
 }
 
-#if 1
 inline uint64_t MapReduce::_get_kv_count(){
     uint64_t local_count=0,global_count=0;
     local_count=kv->get_local_count();
@@ -922,12 +935,17 @@ inline uint64_t MapReduce::_get_kv_count(){
     kv->set_global_count(global_count);
     TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
     return  global_count;
-  }
-#endif
+}
 
 
-MultiValueIterator::MultiValueIterator(ReducerUnique *_ukey){
+MultiValueIterator::MultiValueIterator(
+    KeyValue *_kv, 
+    ReducerUnique *_ukey){
+
+    kv = _kv;
     ukey = _ukey;
+
+    nvalue = ukey->nvalue;
 } 
 
 void MultiValueIterator::Begin(){
@@ -941,16 +959,22 @@ void MultiValueIterator::Begin(){
         values=pset->voffset;
         value_end=pset->nvalue;
     }
+    
+    printf("\t\t%p\t%p\t%p\n", pset, pset->soffset, pset->voffset); 
+    fflush(stdout);
+
     value=values;
-    if(kvtype==GeneralKV || kvtype==StringKGeneralV || \
-        kvtype==FixedKGeneralV)
+
+    if(kv->kvtype==GeneralKV || kv->kvtype==StringKGeneralV || \
+        kv->kvtype==FixedKGeneralV)
         valuesize=valuebytes[ivalue-value_start];
-    else if(kvtype==StringKV || kvtype==FixedKStringV || \
-        kvtype==GeneralKStringV)
+    else if(kv->kvtype==StringKV || kv->kvtype==FixedKStringV || \
+        kv->kvtype==GeneralKStringV)
         valuesize=(int)strlen(value)+1;
-    else if(kvtype==FixedKV || kvtype==StringKFixedV || \
-        kvtype==GeneralKFixedV)
-        valuesize=vsize;
+    else if(kv->kvtype==FixedKV || kv->kvtype==StringKFixedV || \
+        kv->kvtype==GeneralKFixedV)
+        valuesize=kv->vsize;
+
 }
 
 void MultiValueIterator::Next(){
@@ -970,15 +994,19 @@ void MultiValueIterator::Next(){
       }else{
         value+=valuesize;
       }
-      if(kvtype==GeneralKV || kvtype==StringKGeneralV || \
-        kvtype==FixedKGeneralV)
+      if(kv->kvtype==GeneralKV || kv->kvtype==StringKGeneralV || \
+        kv->kvtype==FixedKGeneralV)
         valuesize=valuebytes[ivalue-value_start];
-      else if(kvtype==StringKV || kvtype==FixedKStringV || \
-        kvtype==GeneralKStringV)
+      else if(kv->kvtype==StringKV || kv->kvtype==FixedKStringV || \
+        kv->kvtype==GeneralKStringV)
         valuesize=(int)strlen(value)+1;
-      else if(kvtype==FixedKV || kvtype==StringKFixedV || \
-        kvtype==GeneralKFixedV)
-        valuesize=vsize;
+      else if(kv->kvtype==FixedKV || kv->kvtype==StringKFixedV || \
+        kv->kvtype==GeneralKFixedV)
+        valuesize=kv->vsize;
     }
+
+    printf("value=%p,valuesize=%d\n", value, valuesize); 
+    fflush(stdout);
+
 }
 

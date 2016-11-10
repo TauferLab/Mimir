@@ -104,6 +104,7 @@ struct ReducerSet{
     int64_t   mvbytes;
     int      *soffset; 
     char     *voffset;
+    char     *curoff;
     ReducerSet *next;
 };
 

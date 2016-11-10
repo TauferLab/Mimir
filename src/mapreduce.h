@@ -395,9 +395,7 @@ private:
 class MultiValueIterator{
 public:
 
-  //MultiValueIterator(int _nvalue, int *_valuebytes, char *_values, int _kvtype, int _vsize);
-  //MultiValueIterator(MapReduce::Unique *_ukey, DataObject *_mv, int _kvtype);
-    MultiValueIterator(ReducerUnique *ukey);
+    MultiValueIterator(KeyValue *kv, ReducerUnique *ukey);
 
     void set_kv_type(enum KVType, int, int);
 
@@ -418,8 +416,8 @@ public:
     }
 
 private:
-    enum KVType kvtype;
-    int    ksize, vsize;
+    //enum KVType kvtype;
+    //int    ksize, vsize;
 
     int  nvalue;
     int *valuebytes;
@@ -433,6 +431,7 @@ private:
     char *value;
     int valuesize;
 
+    KeyValue *kv;
     ReducerUnique *ukey;
     ReducerSet *pset;
 };
