@@ -96,58 +96,6 @@ enum ElemType{
     kvsize=(int)(kvbuf-kvbuf_start);\
 }
 
-#if 0
-#define GET_KMV_VARS(kmvtype,kvbuf,key,keybytes,nvalue,values,valuebytes,mvbytes,kmvsize,data) \
-{\
-    char *kvbuf_start=kvbuf;\
-    if(kmvtype==GeneralKV || \
-kmvtype==StringKGeneralV || \
-kmvtype==FixedKGeneralV){\
-        keybytes=*(int*)kvbuf;\
-        kvbuf+=oneintlen;\
-        mvbytes=*(int*)kvbuf;\
-        kvbuf+=oneintlen;\
-        nvalue=*(int*)kvbuf;\
-        kvbuf+=oneintlen;\
-        valuebytes=(int*)kvbuf;\
-        kvbuf+=nvalue*oneintlen;\
-        key=kvbuf;\
-        kvbuf+=keybytes;\
-        values=kvbuf;\
-        kvbuf+=mvbytes;\
-    }else if(kmvtype==StringKV || kmvtype==FixedKV || \
-        kmvtype==StringKFixedV || kmvtype==FixedKStringV || \
-        kmvtype==GeneralKStringV || kmvtype==GeneralKFixedV){\
-        keybytes=*(int*)kvbuf;\
-        kvbuf+=oneintlen;\
-        mvbytes=*(int*)kvbuf;\
-        kvbuf+=oneintlen;\
-        nvalue=*(int*)kvbuf;\
-        kvbuf+=oneintlen;\
-        valuebytes=NULL;\
-        key=kvbuf;\
-        kvbuf+=keybytes;\
-        values=kvbuf;\
-        kvbuf+=mvbytes;\
-    }\
-    kmvsize=(int)(kvbuf-kvbuf_start);\
-}
-#endif
-
-#if 0
-  else if(kmvtype==3){\
-    keybytes=*(int*)kvbuf;\
-    kvbuf+=oneintlen;\
-    mvbytes=*(int*)kvbuf;\
-    kvbuf+=oneintlen;\
-    nvalue=*(int*)kvbuf;\
-    kvbuf+=oneintlen;\
-    valuebytes=NULL;\
-    key=kvbuf;\
-    kvbuf+=keybytes;\
-    values=NULL;\
-  }
-#endif
 
 extern int oneintlen;
 extern int twointlen;

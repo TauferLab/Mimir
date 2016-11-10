@@ -54,7 +54,7 @@ void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner){
 
 // add KVs one by one
 int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
-    printf("addKV: key=%s\n", key); fflush(stdout); 
+    printf("add: key=%s\n", key); fflush(stdout); 
    
     // add the first page
     if(ipage==-1) add_page();
@@ -79,25 +79,27 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
         pages[ipage].datasize+=kvsize;
     }else{
 
-        printf("add kv (key=%s) with combiner\n", key); fflush(stdout);
+        //printf("add kv (key=%s) with combiner\n", key); fflush(stdout);
  
         // find the key
         CombinerUnique *u = bucket->findElem(key, keybytes);
 
-        //printf("key=%s, u=%p\n", key, u);
+        //printf("find: key=%s, u=%p\n",key, u); 
+        //fflush(stdout);
 
         // the first one
         if(u == NULL){
-            CombinerUnique u;
-            u.next=NULL; 
+            CombinerUnique tmp;
+            tmp.next=NULL; 
             // find a space in the slices space
             std::unordered_map<char*,int>::iterator iter;
             for(iter=slices.begin(); iter!=slices.end(); iter++){
                 if(iter->second >= kvsize){
-                    char *ptr = (char*)iter->first+(iter->second-kvsize);
-                    u.kv=ptr;
+                    tmp.kv = (char*)iter->first+(iter->second-kvsize);
 
-                    PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
+                    PUT_KV_VARS(ksize, vsize, tmp.kv, \
+                        key, keybytes, value, valuebytes, kvsize);
+
                     if(iter->second == kvsize)
                         slices.erase(iter);
                     else
@@ -110,20 +112,32 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
                 if(kvsize>pagesize-pages[ipage].datasize)
                     add_page();
                 
-                char *ptr=pages[ipage].buffer+pages[ipage].datasize;
-                u.kv=ptr;
+                tmp.kv=pages[ipage].buffer+pages[ipage].datasize;
 
-                PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
+                PUT_KV_VARS(ksize,vsize,tmp.kv,\
+                    key,keybytes,value,valuebytes,kvsize);
+
                 pages[ipage].datasize+=kvsize;
             }
-            printf("insert: kv=%p\n", u.kv);
-            bucket->insertElem(&u);
+
+            //printf("insert<start>: key=%s, kv=%p\n",key, u.kv); 
+            //fflush(stdout);
+
+            bucket->insertElem(&tmp);
+
+            //printf("insert end: key=%s, u=%p, kv=%p\n",key, u, u.kv); 
+            //fflush(stdout);
+
         }else{
+
+            //printf("find: key=%s, u=%p, kv=%p\n",key, u, u->kv); 
+            //fflush(stdout);
+
             // get previous KV information
             int  ukvsize;
-            char *kvbuf=u->kv, *ukey, *uvalue;
+            char *ukey, *uvalue;
             int  ukeybytes, uvaluebytes;
-            GET_KV_VARS(ksize,vsize,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
+            GET_KV_VARS(ksize,vsize,u->kv,ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
 
             // invoke KV information
             mycombiner(mr,key,keybytes,uvalue,uvaluebytes,value,valuebytes, mr->myptr);
@@ -138,18 +152,17 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
 
             // update the value of the key
             if(kvsize<=ukvsize){
-                kvbuf=u->kv;
-                PUT_KV_VARS(ksize, vsize, kvbuf, key, keybytes, mr->newval, mr->newvalsize, kvsize);
+                //printf("u->kv=%p\n", u->kv);
+                PUT_KV_VARS(ksize, vsize, u->kv, key, keybytes, mr->newval, mr->newvalsize, kvsize);
                 if(kvsize < ukvsize)
-                    slices.insert(std::make_pair(kvbuf,ukvsize-kvsize));
+                    slices.insert(std::make_pair(u->kv,ukvsize-kvsize));
             }else{
                 // add memory slice information
                 slices.insert(std::make_pair(u->kv, ukvsize));
                 // add at the end of buffers
                 if( kvsize>(pagesize-pages[ipage].datasize) ) add_page();
-                char *ptr=pages[ipage].buffer+pages[ipage].datasize;
-                u->kv=ptr;
-                PUT_KV_VARS(vsize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
+                u->kv=pages[ipage].buffer+pages[ipage].datasize;
+                PUT_KV_VARS(vsize, vsize, u->kv, key, keybytes, value, valuebytes, kvsize);
                 pages[ipage].datasize+=kvsize;
             }
         }
@@ -158,7 +171,7 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
 
 
 void KeyValue::gc(){
-    printf("gc: combiner=%p, npages=%d, %d\n", mycombiner, npages, slices.empty());
+    //printf("gc: combiner=%p, npages=%d, %d\n", mycombiner, npages, slices.empty());
     if(mycombiner!=NULL && npages>0 && slices.empty()==false){
         int dst_pid=0,src_pid=0;
         int64_t dst_off=0,src_off=0;

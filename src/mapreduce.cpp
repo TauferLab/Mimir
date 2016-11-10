@@ -81,6 +81,9 @@ MapReduce::MapReduce(const MapReduce &_mr){
     phase=NonePhase;
     c=NULL;
 
+    // Get default values
+    _get_default_values();
+
     INIT_STAT(me, nprocs); 
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: copy\n");
@@ -563,11 +566,11 @@ void MapReduce::_convert(KeyValue *inputkv, \
         pset->curoff=pset->voffset;
         page_off+=pset->mvbytes;
 
-        printf("%d\t%ld\t%ld\t%p\t%p\t%p\n", 
-           pset->pid, pset->nvalue, pset->mvbytes,
-           pset, pset->soffset, pset->voffset); 
+        //printf("%d\t%ld\t%ld\t%p\t%p\t%p\n", 
+        //   pset->pid, pset->nvalue, pset->mvbytes,
+        //   pset, pset->soffset, pset->voffset); 
         
-        fflush(stdout);
+        //fflush(stdout);
 
         pset = h->NextSet();
     }
@@ -688,7 +691,7 @@ void MapReduce::_get_default_values(){
         if(DATA_PAGE_SIZE<=0)
             LOG_ERROR("Error: set page size error, please set DATA_PAGE_SIZE (%s) correctly!\n", env);
     } 
-    env = getenv("MIMIR_INBUF_SIZE");
+    env = getenv("MIMIR_IBUF_SIZE");
     if(env){
         INPUT_BUF_SIZE=_convert_to_int64(env);
         if(INPUT_BUF_SIZE<=0)
@@ -739,7 +742,9 @@ void MapReduce::_get_default_values(){
         if(flag != 0){
             DBG_LEVEL |= (DBG_IO);
         }
-    }    
+    }   
+
+    printf("DBG_LEVEL=%x\n", DBG_LEVEL); 
 }
 
 int64_t MapReduce::_convert_to_int64(const char *_str){

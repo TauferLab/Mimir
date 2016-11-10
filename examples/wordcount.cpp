@@ -32,9 +32,13 @@ int main(int argc, char *argv[])
     const char *prefix = argv[2];
     const char *outdir = argv[3];
 
+    check_envars(rank, size);
+
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
     //mr->set_combiner(combiner);
+    //mr->set_key_length(-1);
+    //mr->set_value_length(sizeof(int64_t));
 
     mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
 
@@ -44,7 +48,7 @@ int main(int argc, char *argv[])
 
     mr->output(stdout, StringType, Int64Type);
 
-    output();
+    output(rank, size, prefix, outdir);
 
     delete mr;
 
@@ -53,7 +57,7 @@ int main(int argc, char *argv[])
 
 
 void map(MapReduce *mr, char *word, void *ptr){
-    printf("word=%s\n", word);
+    //printf("word=%s\n", word);
 
     int len=(int)strlen(word)+1;
     int64_t one=1;

@@ -119,15 +119,23 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
         }else{
             /* find the unique */
             CombinerUnique *u = bucket->findElem(key, keysize);
+
+            printf("send: key=%s, target=%d, u=%p\n", key, target, u); 
+            fflush(stdout);
+
             if(u==NULL){
+                CombinerUnique tmp;
+                tmp.next=NULL; 
+
                 /* find a hole to save the KV */
                 std::unordered_map<char*,int>::iterator iter;
                 for(iter=slices.begin(); iter!=slices.end(); iter++){
                     char *sbuf=iter->first;
                     int  ssize=iter->second;
                     if(ssize >= kvsize){
-                        char *ptr = sbuf+(ssize-kvsize);
-                        PUT_KV_VARS(kv->ksize, kv->vsize, ptr, key, keysize, val, valsize, kvsize);
+                        tmp.kv = sbuf+(ssize-kvsize);
+                        PUT_KV_VARS(kv->ksize, kv->vsize, tmp.kv, \
+                            key, keysize, val, valsize, kvsize);
                         iter->second-=kvsize; 
                         inserted=1;
                         break;
@@ -137,20 +145,27 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                 if(iter==slices.end()){
                     if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
                         int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
-                        char *gbuf=buf+global_buf_off;
-                        PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,key,keysize,val,valsize,kvsize);
+                        tmp.kv=buf+global_buf_off;
+                        PUT_KV_VARS(kv->ksize,kv->vsize,tmp.kv,\
+                            key,keysize,val,valsize,kvsize);
                         off[target]+=kvsize;
                         inserted=1;
                     }
                 }
+                bucket->insertElem(&tmp);
             }else{
                 int ukvsize;
-                char *kvbuf=u->kv, *ukey, *uvalue;
+                char *ukey, *uvalue;
                 int  ukeybytes, uvaluebytes, kvsize;
-                GET_KV_VARS(kv->ksize,kv->vsize,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
+                GET_KV_VARS(kv->ksize,kv->vsize,u->kv,\
+                    ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
+
+                printf("val1=%ld,val2=%ld\n", \
+                    *(int64_t*)uvalue,*(int64_t*)val);
 
                 // invoke KV information
-                mycombiner(mr,key,keysize,uvalue,uvaluebytes,val,valsize, mr->myptr);
+                mycombiner(mr,key,keysize,\
+                    uvalue,uvaluebytes,val,valsize, mr->myptr);
 
                 // check if the key is same 
                 if(mr->newkeysize!=keysize || \
@@ -162,17 +177,19 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
 
                 /* new KV is smaller than previous KV */
                 if(kvsize<=ukvsize){
-                    PUT_KV_VARS(kv->ksize, kv->vsize, kvbuf, key, keysize, val, valsize, kvsize);
+                    PUT_KV_VARS(kv->ksize, kv->vsize, u->kv, \
+                        key, keysize, mr->newval, mr->newvalsize, kvsize);
                     inserted=1;
                     /* record slice */
                     if(kvsize < ukvsize)
-                        slices.insert(std::make_pair(kvbuf,ukvsize-kvsize));
+                        slices.insert(std::make_pair(u->kv,ukvsize-kvsize));
                 }else{
                      if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
                         slices.insert(std::make_pair(u->kv, ukvsize));
                         int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                         char *gbuf=buf+global_buf_off;
-                        PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,key,keysize,val,valsize,kvsize);
+                        PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,\
+                            key,keysize,val,valsize,kvsize);
                         off[target]+=kvsize;
                         inserted=1;
                     }                   

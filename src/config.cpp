@@ -2,7 +2,7 @@
 
 
 /// Number of hash bucket (2^x)
-int BUCKET_COUNT=1024*1024;
+int BUCKET_COUNT=131072;
 
 /// Communication buffer size
 int64_t COMM_BUF_SIZE=64*1024*1024;

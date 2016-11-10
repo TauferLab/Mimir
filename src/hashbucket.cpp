@@ -13,17 +13,18 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
 
     getkey(elem, &key, &keybytes);
 
-    nunique+=1;
-
     if(nbuf == (nunique/nbucket)){
         buffers[nbuf]=(char*)mem_aligned_malloc(\
             MEMPAGE_SIZE, usize);
         nbuf+=1;
     }
 
-    CombinerUnique *newelem=(CombinerUnique*)buffers[nunique/nbucket]\
+    CombinerUnique *newelem=\
+        (CombinerUnique*)buffers[nunique/nbucket]\
         +nunique%nbucket;
-    memcpy(newelem, elem, sizeof(ElemType));
+    memcpy(newelem, elem, sizeof(CombinerUnique));
+
+    nunique+=1;
 
     int ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
@@ -43,14 +44,14 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
 }
 
 int CombinerHashBucket::compare(char *key, int keybytes, CombinerUnique *u){
-    char *kvbuf = u->kv;
     char *ukey, *uvalue;
     int  ukeybytes, uvaluebytes, kvsize;
 
-    printf("comprare: key=%s, ptr=%p, kv=%p\n", key, u, kvbuf);
+    //printf("compare: u=%p, kv=%p\n", u, u->kv);
 
-    //KeyValue *kv=(KeyValue*)data; 
-    GET_KV_VARS(kv->ksize,kv->vsize,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,kvsize);
+    GET_KV_VARS(kv->ksize,kv->vsize,u->kv,\
+        ukey,ukeybytes,uvalue,uvaluebytes,kvsize);
+
     if(keybytes==ukeybytes && memcmp(key, ukey, keybytes)==0)
         return 1;
 
@@ -59,12 +60,12 @@ int CombinerHashBucket::compare(char *key, int keybytes, CombinerUnique *u){
 
 int CombinerHashBucket::getkey(CombinerUnique *u, char **pkey, int *pkeybytes){
 
-    char *kvbuf = u->kv;
     char *ukey, *uvalue;
     int  ukeybytes, uvaluebytes, kvsize;
    
-    //KeyValue *kv=(KeyValue*)data; 
-    GET_KV_VARS(kv->ksize,kv->vsize,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,kvsize);
+    GET_KV_VARS(kv->ksize,kv->vsize,u->kv,
+        ukey,ukeybytes,uvalue,uvaluebytes,kvsize);
+
     *pkey=ukey;
     *pkeybytes=ukeybytes;
 
