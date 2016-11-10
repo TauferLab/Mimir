@@ -102,7 +102,7 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
 
     int kvsize = 0;
     int goff=off[target];
-    GET_KV_SIZE(kv->kvtype, keysize, valsize, kvsize);
+    GET_KV_SIZE(kv->ksize,kv->vsize, keysize, valsize, kvsize);
 
     int inserted=0;
     while(1){
@@ -111,7 +111,7 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
             if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
                 int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                 char *gbuf=buf+global_buf_off;
-                PUT_KV_VARS(kv->kvtype,gbuf,key,keysize,val,valsize,kvsize);
+                PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,key,keysize,val,valsize,kvsize);
                 off[target]+=kvsize;
                 inserted=1;
             }
@@ -127,7 +127,7 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                     int  ssize=iter->second;
                     if(ssize >= kvsize){
                         char *ptr = sbuf+(ssize-kvsize);
-                        PUT_KV_VARS(kv->kvtype, ptr, key, keysize, val, valsize, kvsize);
+                        PUT_KV_VARS(kv->ksize, kv->vsize, ptr, key, keysize, val, valsize, kvsize);
                         iter->second-=kvsize; 
                         inserted=1;
                         break;
@@ -138,7 +138,7 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                     if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
                         int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                         char *gbuf=buf+global_buf_off;
-                        PUT_KV_VARS(kv->kvtype,gbuf,key,keysize,val,valsize,kvsize);
+                        PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,key,keysize,val,valsize,kvsize);
                         off[target]+=kvsize;
                         inserted=1;
                     }
@@ -147,7 +147,7 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                 int ukvsize;
                 char *kvbuf=u->kv, *ukey, *uvalue;
                 int  ukeybytes, uvaluebytes, kvsize;
-                GET_KV_VARS(kv->kvtype,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,ukvsize, kv);
+                GET_KV_VARS(kv->ksize,kv->vsize,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
 
                 // invoke KV information
                 mycombiner(mr,key,keysize,uvalue,uvaluebytes,val,valsize, mr->myptr);
@@ -158,11 +158,11 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                     LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
 
                 // get key size
-                GET_KV_SIZE(kv->kvtype, mr->newkeysize, mr->newvalsize, kvsize);
+                GET_KV_SIZE(kv->ksize,kv->vsize, mr->newkeysize, mr->newvalsize, kvsize);
 
                 /* new KV is smaller than previous KV */
                 if(kvsize<=ukvsize){
-                    PUT_KV_VARS(kv->kvtype, kvbuf, key, keysize, val, valsize, kvsize);
+                    PUT_KV_VARS(kv->ksize, kv->vsize, kvbuf, key, keysize, val, valsize, kvsize);
                     inserted=1;
                     /* record slice */
                     if(kvsize < ukvsize)
@@ -172,7 +172,7 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                         slices.insert(std::make_pair(u->kv, ukvsize));
                         int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                         char *gbuf=buf+global_buf_off;
-                        PUT_KV_VARS(kv->kvtype,gbuf,key,keysize,val,valsize,kvsize);
+                        PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,key,keysize,val,valsize,kvsize);
                         off[target]+=kvsize;
                         inserted=1;
                     }                   
@@ -236,7 +236,8 @@ void Alltoall::save_data(int ibuf){
         while(count<recv_count[ibuf][k]){
             char *key, *value;
             int  keybytes, valuebytes, kvsize;
-            GET_KV_VARS(kv->kvtype,src_buf,key,keybytes,value,valuebytes,kvsize,kv);
+            GET_KV_VARS(kv->ksize,kv->vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
+            src_buf+=kvsize;
             kv->addKV(key,keybytes,value,valuebytes);
             count+=kvsize;
         }
@@ -268,7 +269,8 @@ void Alltoall::gc(){
                 }else{
                     char *key, *value;
                     int  keybytes, valuebytes, kvsize;
-                    GET_KV_VARS(kv->kvtype,src_buf,key,keybytes,value,valuebytes,kvsize,kv);
+                    GET_KV_VARS(kv->ksize,kv->vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
+                    src_buf+=kvsize;
                     if(src_off!=dst_off) memcpy(dst_buf, src_buf-kvsize, kvsize);
                     dst_off+=kvsize;         
                     src_off+=kvsize; 

@@ -13,8 +13,8 @@ KeyValue::KeyValue(
     int maxpages):
     DataObject(me, nprocs, KVType, pagesize, maxpages)
 {
-    kvtype = GeneralKV;
-    ksize = vsize = 0;
+    //kvtype = GeneralKV;
+    ksize = vsize = KVGeneral;
     local_kvs_count = 0;
     global_kvs_count = 0;
     mr = NULL;
@@ -36,8 +36,9 @@ int KeyValue::getNextKV(char **pkey, int &keybytes, \
         return -1;
 
     int kvsize;
-    GET_KV_VARS(kvtype, ptr, *pkey, keybytes, \
-        *pvalue, valuebytes, kvsize, this);
+    GET_KV_VARS(ksize, vsize, ptr, *pkey, keybytes, \
+        *pvalue, valuebytes, kvsize);
+    ptr+=kvsize;
     off+=kvsize;
 
     return kvsize;
@@ -60,7 +61,7 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
 
     // get the size of the KV
     int kvsize=0;
-    GET_KV_SIZE(kvtype, keybytes, valuebytes, kvsize);
+    GET_KV_SIZE(ksize, vsize, keybytes, valuebytes, kvsize);
 
     // KV size should be smaller than page size.
     if(kvsize > pagesize)
@@ -74,7 +75,7 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
 
         // put KV data in
         char *ptr=pages[ipage].buffer+pages[ipage].datasize;
-        PUT_KV_VARS(kvtype, ptr, key, keybytes, value, valuebytes, kvsize);
+        PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
         pages[ipage].datasize+=kvsize;
     }else{
 
@@ -96,7 +97,7 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
                     char *ptr = (char*)iter->first+(iter->second-kvsize);
                     u.kv=ptr;
 
-                    PUT_KV_VARS(kvtype, ptr, key, keybytes, value, valuebytes, kvsize);
+                    PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
                     if(iter->second == kvsize)
                         slices.erase(iter);
                     else
@@ -112,7 +113,7 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
                 char *ptr=pages[ipage].buffer+pages[ipage].datasize;
                 u.kv=ptr;
 
-                PUT_KV_VARS(kvtype, ptr, key, keybytes, value, valuebytes, kvsize);
+                PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
                 pages[ipage].datasize+=kvsize;
             }
             printf("insert: kv=%p\n", u.kv);
@@ -122,7 +123,7 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
             int  ukvsize;
             char *kvbuf=u->kv, *ukey, *uvalue;
             int  ukeybytes, uvaluebytes;
-            GET_KV_VARS(kvtype,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,ukvsize, this);
+            GET_KV_VARS(ksize,vsize,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
 
             // invoke KV information
             mycombiner(mr,key,keybytes,uvalue,uvaluebytes,value,valuebytes, mr->myptr);
@@ -133,12 +134,12 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
                 LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
             
             // get key size
-            GET_KV_SIZE(kvtype, mr->newkeysize, mr->newvalsize, kvsize);
+            GET_KV_SIZE(ksize, vsize, mr->newkeysize, mr->newvalsize, kvsize);
 
             // update the value of the key
             if(kvsize<=ukvsize){
                 kvbuf=u->kv;
-                PUT_KV_VARS(kvtype, kvbuf, key, keybytes, mr->newval, mr->newvalsize, kvsize);
+                PUT_KV_VARS(ksize, vsize, kvbuf, key, keybytes, mr->newval, mr->newvalsize, kvsize);
                 if(kvsize < ukvsize)
                     slices.insert(std::make_pair(kvbuf,ukvsize-kvsize));
             }else{
@@ -148,7 +149,7 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
                 if( kvsize>(pagesize-pages[ipage].datasize) ) add_page();
                 char *ptr=pages[ipage].buffer+pages[ipage].datasize;
                 u->kv=ptr;
-                PUT_KV_VARS(kvtype, ptr, key, keybytes, value, valuebytes, kvsize);
+                PUT_KV_VARS(vsize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
                 pages[ipage].datasize+=kvsize;
             }
         }
@@ -180,7 +181,8 @@ void KeyValue::gc(){
                     // get the kv
                     char *key, *value;
                     int  keybytes, valuebytes, kvsize;
-                    GET_KV_VARS(kvtype,src_buf,key,keybytes,value,valuebytes,kvsize,this);
+                    GET_KV_VARS(ksize,vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
+                    src_buf+=kvsize;
                     // need copy
                     if(dst_buf!=NULL && src_buf != dst_buf){
                         // jump to the next page

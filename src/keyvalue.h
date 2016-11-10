@@ -31,7 +31,10 @@ public:
 
     ~KeyValue();
 
-    void set_kv_type(enum KVType, int, int);
+    void set_kv_size(int _ksize, int _vsize){
+        ksize = _ksize;
+        vsize = _vsize;
+    }
 
     // Scan KVs one by one
     int getNextKV(char **, int &, char **, int &);
@@ -57,7 +60,7 @@ public:
     void print(FILE *fp, ElemType ktype, ElemType vtype);
 
 public:
-    enum KVType kvtype;
+    //enum KVType kvtype;
     int    ksize, vsize;
     uint64_t local_kvs_count, global_kvs_count; 
 

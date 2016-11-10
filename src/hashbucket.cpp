@@ -50,7 +50,7 @@ int CombinerHashBucket::compare(char *key, int keybytes, CombinerUnique *u){
     printf("comprare: key=%s, ptr=%p, kv=%p\n", key, u, kvbuf);
 
     //KeyValue *kv=(KeyValue*)data; 
-    GET_KV_VARS(kv->kvtype,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,kvsize,kv);
+    GET_KV_VARS(kv->ksize,kv->vsize,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,kvsize);
     if(keybytes==ukeybytes && memcmp(key, ukey, keybytes)==0)
         return 1;
 
@@ -64,7 +64,7 @@ int CombinerHashBucket::getkey(CombinerUnique *u, char **pkey, int *pkeybytes){
     int  ukeybytes, uvaluebytes, kvsize;
    
     //KeyValue *kv=(KeyValue*)data; 
-    GET_KV_VARS(kv->kvtype,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,kvsize,kv);
+    GET_KV_VARS(kv->ksize,kv->vsize,kvbuf,ukey,ukeybytes,uvalue,uvaluebytes,kvsize);
     *pkey=ukey;
     *pkeybytes=ukeybytes;
 
@@ -148,9 +148,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         ptr->mvbytes+=elem->mvbytes;
 
         int64_t onemv=sizeof(int)+elem->mvbytes;
-        if(kv->kvtype==GeneralKV ||\
-          kv->kvtype==StringKGeneralV || \
-          kv->kvtype==FixedKGeneralV){
+        if(kv->vsize==KVGeneral){
             onemv+=sizeof(int);
         }
         int64_t onemvbytes=elem->mvbytes;

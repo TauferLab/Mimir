@@ -27,15 +27,9 @@
 
 /// KVType represents KV Type
 enum KVType{
-    GeneralKV,
-    StringKV,
-    FixedKV,
-    StringKFixedV,
-    FixedKStringV,
-    GeneralKStringV,
-    GeneralKFixedV,
-    StringKGeneralV,
-    FixedKGeneralV};
+    KVGeneral=-2,
+    KVString,
+    KVFixed};
 
 enum ElemType{
     StringType,
@@ -43,161 +37,66 @@ enum ElemType{
     Int64Type};
 
 // general type
-#define GET_KV_VARS(kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize,data) \
+#define GET_KV_VARS(ksize,vsize,buf,key,keybytes,value,valuebytes,kvsize) \
 {\
-    /* <general, general> */\
-    if(kvtype==GeneralKV){\
-        char *kvbuf_start=kvbuf;\
-        keybytes = *(int*)(kvbuf);\
-        valuebytes = *(int*)(kvbuf+oneintlen);\
-        kvbuf += twointlen;\
-        key = kvbuf;\
-        kvbuf += keybytes;\
-        value = kvbuf;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
-    /* <string, string> */\
-    }else if(kvtype==StringKV){\
-        char *kvbuf_start=kvbuf;\
-        key = kvbuf; \
-        keybytes = (int)strlen(key)+1;\
-        kvbuf += keybytes;\
-        value = kvbuf;\
-        valuebytes = (int)strlen(value)+1;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
-    /* <fixed, fixed> */\
-    }else if(kvtype==FixedKV){\
-        char *kvbuf_start=kvbuf;\
-        keybytes = data->ksize;\
-        valuebytes = data->vsize;\
-        key = kvbuf;\
-        kvbuf += keybytes;\
-        value = kvbuf;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
-    /* <string,fixed> */\
-    }else if(kvtype==StringKFixedV){\
-        char *kvbuf_start=kvbuf;\
-        key = kvbuf;\
-        keybytes = (int)strlen(key)+1;\
-        kvbuf += keybytes;\
-        valuebytes = data->vsize;\
-        value = kvbuf;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
-    /* <fixed,string> */\
-    }else if(kvtype==FixedKStringV){\
-        char *kvbuf_start=kvbuf;\
-        key = kvbuf;\
-        keybytes = data->ksize;\
-        kvbuf += keybytes;\
-        value = kvbuf;\
-        valuebytes = (int)strlen(value)+1;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
-    /* <general,string> */\
-    }else if(kvtype==GeneralKStringV){\
-        char *kvbuf_start=kvbuf;\
+    char *kvbuf_start=buf;\
+    char *kvbuf=buf;\
+    if(ksize==KVGeneral){\
         keybytes = *(int*)(kvbuf);\
         kvbuf += oneintlen;\
-        key = kvbuf;\
-        kvbuf += keybytes;\
-        value = kvbuf;\
-        valuebytes = (int)strlen(value)+1;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
-    /* <general,fixed> */\
-    }else if(kvtype==GeneralKFixedV){\
-        char *kvbuf_start=kvbuf;\
-        keybytes = *(int*)(kvbuf);\
-        kvbuf += oneintlen;\
-        key = kvbuf;\
-        kvbuf += keybytes;\
-        value = kvbuf;\
-        valuebytes = data->vsize;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
-    }else if(kvtype==StringKGeneralV){\
-        char *kvbuf_start=kvbuf;\
+    }\
+    if(vsize==KVGeneral){\
         valuebytes = *(int*)(kvbuf);\
         kvbuf += oneintlen;\
-        key = kvbuf;\
+    }\
+    key=kvbuf;\
+    if(ksize==KVString){\
         keybytes = (int)strlen(key)+1;\
-        kvbuf += keybytes;\
-        value = kvbuf;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
-    }else if(kvtype==FixedKGeneralV){\
-        char *kvbuf_start=kvbuf;\
-        valuebytes = *(int*)(kvbuf);\
-        kvbuf += oneintlen;\
-        key = kvbuf;\
-        keybytes = data->ksize;\
-        kvbuf += keybytes;\
-        value = kvbuf;\
-        kvbuf += valuebytes;\
-        kvsize=(int)(kvbuf-kvbuf_start);\
+    }else if(ksize!=KVGeneral){\
+        keybytes = ksize;\
     }\
+    kvbuf+=keybytes;\
+    value=kvbuf;\
+    if(vsize==KVString){\
+        valuebytes = (int)strlen(value)+1;\
+    }else if(vsize!=KVGeneral){\
+        valuebytes = vsize;\
+    }\
+    kvbuf+=valuebytes;\
+    kvsize=kvbuf-kvbuf_start;\
 }
 
-#define GET_KV_SIZE(kvtype, keybytes, valuebytes, kvsize) \
+#define GET_KV_SIZE(ksize, vsize, keybytes, valuebytes, kvsize) \
 {\
-    char *buf=0;\
-    char *buf_start=0;\
-    if(kvtype==GeneralKV){\
-        buf+=twointlen;\
-        buf+=keybytes;\
-        buf+=valuebytes;\
-    }else if(kvtype==StringKV || kvtype==FixedKV || \
-        kvtype == StringKFixedV || kvtype==FixedKStringV){\
-        buf+=keybytes;\
-        buf+=valuebytes;\
-    }else if(kvtype==GeneralKStringV || kvtype==GeneralKFixedV || \
-        kvtype==StringKGeneralV || kvtype==FixedKGeneralV){\
-        buf+=oneintlen;\
-        buf+=keybytes;\
-        buf+=valuebytes;\
-    }\
-    kvsize=(int)(buf-buf_start);\
+    int end=0;\
+    int start=0;\
+    if(ksize==KVGeneral) end+=oneintlen;\
+    if(vsize==KVGeneral) end+=oneintlen;\
+    end+=keybytes;\
+    end+=valuebytes;\
+    kvsize=end-start;\
 }
 
-#define PUT_KV_VARS(kvtype,kvbuf,key,keybytes,value,valuebytes,kvsize) \
+#define PUT_KV_VARS(ksize,vsize,buf,key,keybytes,value,valuebytes,kvsize) \
 {\
-    char *kvbuf_start=kvbuf;\
-    if(kvtype==GeneralKV){\
+    char *kvbuf_start=buf;\
+    char *kvbuf=buf;\
+    if(ksize==KVGeneral){\
         *(int*)kvbuf=keybytes;\
         kvbuf+=oneintlen;\
-        *(int*)kvbuf=valuebytes;\
-        kvbuf+=oneintlen;\
-        memcpy(kvbuf, key, keybytes);\
-        kvbuf += keybytes;\
-        memcpy(kvbuf, value, valuebytes);\
-        kvbuf += valuebytes;\
-    }else if(kvtype==StringKV || kvtype==FixedKV ||\
-        kvtype==StringKFixedV || kvtype==FixedKStringV){\
-        memcpy(kvbuf, key, keybytes);\
-        kvbuf += keybytes;\
-        memcpy(kvbuf, value, valuebytes);\
-        kvbuf += valuebytes;\
-    }else if(kvtype==GeneralKStringV || kvtype==GeneralKFixedV){\
-        *(int*)kvbuf=keybytes;\
-        kvbuf+=oneintlen;\
-        memcpy(kvbuf, key, keybytes);\
-        kvbuf += keybytes;\
-        memcpy(kvbuf, value, valuebytes);\
-        kvbuf += valuebytes;\
-    }else if(kvtype==StringKGeneralV || kvtype==FixedKGeneralV){\
-        *(int*)kvbuf=valuebytes;\
-        kvbuf+=oneintlen;\
-        memcpy(kvbuf, key, keybytes);\
-        kvbuf += keybytes;\
-        memcpy(kvbuf, value, valuebytes);\
-        kvbuf += valuebytes;\
     }\
+    if(vsize==KVGeneral){\
+        *(int*)kvbuf=valuebytes;\
+        kvbuf+=oneintlen;\
+    }\
+    memcpy(kvbuf, key, keybytes);\
+    kvbuf+=keybytes;\
+    memcpy(kvbuf, value, valuebytes);\
+    kvbuf+=valuebytes;\
     kvsize=(int)(kvbuf-kvbuf_start);\
 }
 
+#if 0
 #define GET_KMV_VARS(kmvtype,kvbuf,key,keybytes,nvalue,values,valuebytes,mvbytes,kmvsize,data) \
 {\
     char *kvbuf_start=kvbuf;\
@@ -233,6 +132,7 @@ kmvtype==FixedKGeneralV){\
     }\
     kmvsize=(int)(kvbuf-kvbuf_start);\
 }
+#endif
 
 #if 0
   else if(kmvtype==3){\

@@ -124,6 +124,7 @@ uint64_t MapReduce::map_text_file( \
 
     // Create KV Container
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    kv->set_kv_size(ksize, vsize);
     kv->set_combiner(this, mycombiner);
 
     if(_comm){
@@ -270,6 +271,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     // create new data object
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: new data KV. (KV as input)\n");
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    kv->set_kv_size(ksize, vsize);
     kv->set_combiner(this, mycombiner);
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: alloc data KV. (KV as input)\n");
@@ -336,6 +338,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 
     DataObject::subRef(kv);
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    kv->set_kv_size(ksize, vsize);
     kv->set_combiner(this, mycombiner);
 
     if(_comm){
@@ -389,6 +392,7 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
 
     // Apply user-defined reduce
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT); 
+    kv->set_kv_size(ksize, vsize);
     _reduce(u, myreduce, ptr);
     delete mv;
     delete u;
@@ -548,9 +552,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
             page_buf=mv->get_page_buffer(page_id);
             page_off=0;
         }
-        if(inputkv->kvtype==GeneralKV ||\
-          inputkv->kvtype==StringKGeneralV || \
-          inputkv->kvtype==FixedKGeneralV){
+        if(inputkv->vsize==KVGeneral){
             pset->soffset=(int*)(page_buf+page_off);
             page_off+=sizeof(int)*(pset->nvalue);
         }else{
@@ -589,9 +591,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
             ReducerUnique *punique = h->findElem(key, keybytes);
             ReducerSet *pset = punique->lastset;
 
-            if(inputkv->kvtype==GeneralKV ||\
-              inputkv->kvtype==StringKGeneralV || \
-              inputkv->kvtype==FixedKGeneralV){
+            if(inputkv->vsize==KVGeneral){
                 pset->soffset[pset->ivalue]=valuebytes;
             }
 
@@ -611,6 +611,17 @@ void MapReduce::_convert(KeyValue *inputkv, \
     }
 }
 
+void MapReduce::set_key_length(int _ksize){
+    if(_ksize==0 || _ksize<-1)
+       LOG_ERROR("Error: key length (%d) should be larger than zero or -1(string)\n", _ksize);
+    ksize=_ksize;
+}
+
+void MapReduce::set_value_length(int _vsize){
+    if(_vsize < -1)
+       LOG_ERROR("Error: value length (%d) should be equal or larger than zero or -1(string)\n", _vsize);
+    vsize=_vsize; 
+}
 
 void MapReduce::output_stat(const char *filename){
   
@@ -646,11 +657,16 @@ void MapReduce::output(FILE *fp, ElemType ktype, ElemType vtype){
 // process init
 void MapReduce::_get_default_values(){ 
     /// Initialize member of MapReduce
-    myhash = NULL;
-    mycombiner = NULL;
     phase = NonePhase;
+
     kv = NULL;
     c = NULL;
+
+    myhash = NULL;
+    mycombiner = NULL;
+
+    //kvtype = GeneralKV;
+    ksize = vsize = KVGeneral;
 
     /// Configure main parameters
     char *env = NULL;
@@ -932,16 +948,9 @@ void MultiValueIterator::Begin(){
     
     value=values;
 
-    if(kv->kvtype==GeneralKV || kv->kvtype==StringKGeneralV || \
-        kv->kvtype==FixedKGeneralV)
-        valuesize=valuebytes[ivalue-value_start];
-    else if(kv->kvtype==StringKV || kv->kvtype==FixedKStringV || \
-        kv->kvtype==GeneralKStringV)
-        valuesize=(int)strlen(value)+1;
-    else if(kv->kvtype==FixedKV || kv->kvtype==StringKFixedV || \
-        kv->kvtype==GeneralKFixedV)
-        valuesize=kv->vsize;
-
+    if(kv->vsize==KVGeneral) valuesize=valuebytes[ivalue-value_start];
+    else if(kv->vsize==KVString) valuesize=(int)strlen(value)+1;
+    else valuesize=kv->vsize;
 }
 
 void MultiValueIterator::Next(){
@@ -961,15 +970,9 @@ void MultiValueIterator::Next(){
       }else{
         value+=valuesize;
       }
-      if(kv->kvtype==GeneralKV || kv->kvtype==StringKGeneralV || \
-        kv->kvtype==FixedKGeneralV)
-        valuesize=valuebytes[ivalue-value_start];
-      else if(kv->kvtype==StringKV || kv->kvtype==FixedKStringV || \
-        kv->kvtype==GeneralKStringV)
-        valuesize=(int)strlen(value)+1;
-      else if(kv->kvtype==FixedKV || kv->kvtype==StringKFixedV || \
-        kv->kvtype==GeneralKFixedV)
-        valuesize=kv->vsize;
+      if(kv->vsize==KVGeneral) valuesize=valuebytes[ivalue-value_start];
+      else if(kv->vsize==KVString) valuesize=(int)strlen(value)+1;
+      else valuesize=kv->vsize;
     }
 }
 

@@ -151,8 +151,8 @@ public:
 
     void output(FILE *fp, ElemType key, ElemType val);
 
-    void set_key_length();
-    void set_value_length();
+    void set_key_length(int);
+    void set_value_length(int);
 
     void set_combiner(UserCombiner combiner){
         mycombiner = combiner;
@@ -179,6 +179,9 @@ private:
 
     UserHash     myhash;             ///< user-define hash function
     UserCombiner mycombiner;         ///< user-defined combiner function
+
+    //enum KVType kvtype;              ///< KV types
+    int    ksize, vsize;             
 
 public:
     char *newkey, *newval;
