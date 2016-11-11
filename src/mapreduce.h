@@ -211,6 +211,9 @@ private:
     // convert phase
     void _convert(KeyValue *inkv, DataObject *mv, ReducerHashBucket *u);
 
+public:
+    static int ref;
+
 };//class MapReduce
 
 class MultiValueIterator{

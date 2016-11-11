@@ -38,13 +38,14 @@ public:
     }
 
     virtual ~HashBucket(){
-        for(int i=0; i< maxbuf; i++){
-            if(buffers[i] != NULL)
-                mem_aligned_free(buffers[i]);
-        }
         mem_aligned_free(buffers);
         mem_aligned_free(buckets);
     }
+
+    //static int64_t get_mem_bytes(){
+    //    return 0;
+        //return HashBucket<ElemType>::mem_bytes;
+    //}
 
     // Comapre key with elem
     virtual int compare(char *key, int keybytes, ElemType *)=0;
@@ -77,7 +78,13 @@ protected:
     int64_t nunique;
 
     KeyValue *kv;
+
+//public:
+    //static int64_t mem_bytes;
 };
+
+//template<typename ElemType>
+//int64_t HashBucket<ElemType>::mem_bytes=0;
 
 struct CombinerUnique{
     char *kv;
@@ -90,11 +97,23 @@ public:
         HashBucket<CombinerUnique>(_kv){
     }
 
+    ~CombinerHashBucket(){
+        for(int i=0; i< maxbuf; i++){
+            if(buffers[i] != NULL){
+                CombinerHashBucket::mem_bytes-=usize;
+                mem_aligned_free(buffers[i]);
+            }
+        } 
+    }
+
     CombinerUnique* insertElem(CombinerUnique *elem);
  
     int compare(char *key, int keybytes, CombinerUnique *);
 
     int getkey(CombinerUnique *, char **pkey, int *pkeybytes);
+
+public:
+    static int64_t mem_bytes;
 };
 
 struct ReducerSet{
@@ -138,8 +157,16 @@ public:
     }
 
     ~ReducerHashBucket(){
+        for(int i=0; i< maxbuf; i++){
+            if(buffers[i] != NULL){
+                ReducerHashBucket::mem_bytes-=usize;
+                mem_aligned_free(buffers[i]);
+            }
+        } 
+
         for(int i=0; i< maxset; i++){
             if(sets[i] != NULL)
+                ReducerHashBucket::mem_bytes-=setsize;
                 mem_aligned_free(sets[i]);
         }
 
@@ -215,6 +242,9 @@ private:
     char **sets;
 
     int64_t mvbytes;
+
+public:
+    static int64_t mem_bytes;
 };
 
 }

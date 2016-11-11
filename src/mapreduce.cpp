@@ -37,6 +37,7 @@
 
 using namespace MIMIR_NS;
 
+int MapReduce::ref = 0;
 
 /**
    Create MapReduce Object
@@ -51,11 +52,13 @@ MapReduce::MapReduce(MPI_Comm _caller)
     MPI_Comm_rank(comm,&me);
     MPI_Comm_size(comm,&nprocs);
 
+    // Initalize stat
+    INIT_STAT(me, nprocs); 
+
     // Get default values
     _get_default_values();
 
-    // Initalize stat
-    INIT_STAT(me, nprocs); 
+    MapReduce::ref++;
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: create.\n");
 }
@@ -82,9 +85,11 @@ MapReduce::MapReduce(const MapReduce &_mr){
     c=NULL;
 
     // Get default values
-    _get_default_values();
+    //_get_default_values();
 
     INIT_STAT(me, nprocs); 
+
+    MapReduce::ref++;
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: copy\n");
 }
@@ -98,6 +103,19 @@ MapReduce::~MapReduce()
     if(c) delete c;
 
     UNINT_STAT; 
+
+    MapReduce::ref--;
+
+#if 0
+    if(MapReduce::ref == 0){
+        if(DataObject::mem_bytes != 0)
+            LOG_ERROR("%s", "Error: page buffers memory leak!\n");
+        if(CombinerHashBucket::mem_bytes != 0)
+            LOG_ERROR("%s", "Error: hash bucket buffers memory leak!\n");
+        if(ReducerHashBucket::mem_bytes != 0)
+            LOG_ERROR("%s", "Error: hash bucket buffers memory leak!\n") 
+    }
+#endif
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: destroy.\n");
 }
@@ -769,7 +787,10 @@ void MapReduce::_get_default_values(){
         }
     }   
 
-    printf("DBG_LEVEL=%x\n", DBG_LEVEL); 
+    //printf("DBG_LEVEL=%x\n", DBG_LEVEL); 
+
+    PROFILER_RECORD_COUNT(COUNTER_COMM_SIZE, COMM_BUF_SIZE, OPSUM);
+    PROFILER_RECORD_COUNT(COUNTER_PAGE_SIZE, DATA_PAGE_SIZE, OPSUM);
 }
 
 int64_t MapReduce::_convert_to_int64(const char *_str){

@@ -62,6 +62,10 @@ typedef struct _tracker_info{
 #define COUNTER_FILE_COUNT         "counter_file_count"
 #define COUNTER_FILE_SIZE          "counter_file_size"
 #define COUNTER_INBUF_SIZE         "counter_inbuf_size"
+#define COUNTER_PAGE_SIZE          "counter_page_size"
+#define COUNTER_COMM_SIZE          "counter_comm_size"
+#define COUNTER_MEM_PAGES          "counter_mem_pages"
+#define COUNTER_MEM_BUCKET         "counter_mem_bucket"
 
 enum OpType{OPSUM, OPMAX};
 

@@ -7,6 +7,9 @@
 
 using namespace MIMIR_NS;
 
+int64_t CombinerHashBucket::mem_bytes=0;
+int64_t ReducerHashBucket::mem_bytes=0;
+
 CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     char *key;
     int  keybytes;
@@ -16,6 +19,8 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     if(nbuf == (nunique/nbucket)){
         buffers[nbuf]=(char*)mem_aligned_malloc(\
             MEMPAGE_SIZE, usize);
+        CombinerHashBucket::mem_bytes+=usize;
+
         nbuf+=1;
     }
 
@@ -95,7 +100,10 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         if(cur_buf == NULL || \
             (usize-cur_off)<sizeof(ReducerUnique)+elem->keybytes){
+
             buffers[nbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, usize);
+            ReducerHashBucket::mem_bytes+=usize;
+            
             if(cur_buf!=NULL) 
                 memset(cur_buf+cur_off, 0, usize-cur_off);
             cur_buf=buffers[nbuf];
@@ -126,6 +134,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         if(nsetbuf == (nset/nbucket)){
             sets[nsetbuf]=(char*)mem_aligned_malloc(\
                 MEMPAGE_SIZE, setsize);
+            ReducerHashBucket::mem_bytes+=setsize;
             nsetbuf+=1;
         }
 
@@ -158,6 +167,8 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
             if(nsetbuf == (nset/nbucket)){
                 sets[nsetbuf]=(char*)mem_aligned_malloc(\
                     MEMPAGE_SIZE, setsize);
+                ReducerHashBucket::mem_bytes+=setsize;
+
                 nsetbuf+=1;
             }
 

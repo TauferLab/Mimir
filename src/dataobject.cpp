@@ -16,12 +16,16 @@
 #include "memory.h"
 #include "mapreduce.h"
 
+#include "stat.h"
+
 using namespace MIMIR_NS;
 
 
 int DataObject::object_id = 0;
-int DataObject::cur_page_count=0;
-int DataObject::max_page_count=0;
+
+int64_t DataObject::mem_bytes=0;
+
+//int DataObject::max_page_count=0;
 
 void DataObject::addRef(DataObject *data){
   if(data)
@@ -74,7 +78,7 @@ DataObject::~DataObject(){
         if(pages[i].buffer != NULL) mem_aligned_free(pages[i].buffer);
     }
     mem_aligned_free(pages);
-    //DataObject::cur_page_count-=npages;
+    DataObject::mem_bytes-=(npages*pagesize);
 
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d destory.\n", id);
 }
@@ -87,6 +91,11 @@ int DataObject::add_page(){
     pages[pageid].datasize=0;
     pages[pageid].buffer=(char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
 
+    DataObject::mem_bytes+=pagesize;
+
+    PROFILER_RECORD_COUNT(COUNTER_MEM_PAGES, \
+        DataObject::mem_bytes, OPMAX);
+  
     ipage = pageid;
 
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d add one page %d.\n", id, pageid);
