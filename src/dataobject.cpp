@@ -74,7 +74,7 @@ DataObject::~DataObject(){
         if(pages[i].buffer != NULL) mem_aligned_free(pages[i].buffer);
     }
     mem_aligned_free(pages);
-    DataObject::cur_page_count-=npages;
+    //DataObject::cur_page_count-=npages;
 
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d destory.\n", id);
 }

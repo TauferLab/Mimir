@@ -154,6 +154,8 @@ uint64_t MapReduce::map_text_file( \
     char *text = (char*)mem_aligned_malloc(\
         MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
+    PROFILER_RECORD_COUNT(COUNTER_INBUF_SIZE, \
+        input_buffer_size+MAX_STR_SIZE+1, OPSUM);
    
     for(int i = 0; i < fcount; i++){
         int64_t input_char_size=0, fsize=0;
@@ -162,10 +164,14 @@ uint64_t MapReduce::map_text_file( \
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
+        PROFILER_RECORD_TIME_START;
         FILE *fp = fopen(ifiles[i].first.c_str(), "r");
         if(fp == NULL){
             LOG_ERROR("Error: open file %s error!", ifiles[i].first.c_str());
         }
+        PROFILER_RECORD_TIME_END(TIMER_DISK_IO);
+
+        PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
 
         LOG_PRINT(DBG_IO, me, nprocs, "open file %s, fsize=%ld\n", \
             ifiles[i].first.c_str(), ifiles[i].second);
@@ -177,6 +183,8 @@ uint64_t MapReduce::map_text_file( \
         int64_t readsize=0;
 
         do{
+            PROFILER_RECORD_TIME_START;
+
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
             // Read file
@@ -186,7 +194,11 @@ uint64_t MapReduce::map_text_file( \
 
             readsize = fread(text+boff, 1, input_buffer_size, fp);
 
+            PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, readsize, OPSUM);
+
             TRACKER_RECORD_EVENT(EVENT_DISK_READ);
+
+            PROFILER_RECORD_TIME_END(TIMER_DISK_IO);
 
             // read a block
             text[boff+readsize] = '\0';
@@ -224,7 +236,9 @@ uint64_t MapReduce::map_text_file( \
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
+        PROFILER_RECORD_TIME_START;
         fclose(fp);
+        PROFILER_RECORD_TIME_END(TIMER_DISK_IO);
 
         TRACKER_RECORD_EVENT(EVENT_DISK_CLOSE);
 
@@ -262,9 +276,10 @@ uint64_t MapReduce::map_text_file( \
 uint64_t MapReduce::map_key_value(MapReduce *_mr,
     UserMapKV _mymap, void *_ptr, int _comm){
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map start. (KV as input)\n");
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", \
+        "MapReduce: map start. (KV as input)\n");
 
-    //TRACKER_RECORD_EVENT(EVENT_MR_GENERAL);
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
     DataObject::addRef(_mr->kv);
     DataObject::subRef(kv);
@@ -321,9 +336,10 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     DataObject::addRef(kv);
     phase=NonePhase;
 
-    //TRACKER_RECORD_EVENT(EVENT_MAP_COMPUTING);
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map end. (KV as input)\n");
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", \
+        "MapReduce: map end. (KV as input)\n");
 
     return _get_kv_count();
 }
@@ -337,7 +353,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map start. (no input)\n");
 
-    //TRACKER_RECORD_EVENT(EVENT_MR_GENERAL);
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
     DataObject::subRef(kv);
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
@@ -363,9 +379,10 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 
     phase = NonePhase;
 
-    //TRACKER_RECORD_EVENT(EVENT_MAP_COMPUTING);
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map end. (no input)\n");
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", \
+        "MapReduce: map end. (no input)\n");
 
     return _get_kv_count();
 }
@@ -381,7 +398,9 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: reduce start.\n");
-   
+
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);  
+
     phase = ReducePhase;
 
     // Create DataObject and HashBucket to hold KMVs
@@ -402,6 +421,8 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
 
     DataObject::addRef(kv);
     phase = NonePhase;
+
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_RDC);
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: reduce end.\n");
 
@@ -470,9 +491,10 @@ combiner callbacks\n");
 void MapReduce::scan(
   void (_myscan)(char *, int, char *, int ,void *),
   void * _ptr){
+    
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan begin\n");
 
-  //TRACKER_RECORD_EVENT(EVENT_MR_GENERAL);
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
     phase=ScanPhase;
 
@@ -499,7 +521,7 @@ void MapReduce::scan(
 
     phase=NonePhase;
 
-    //TRACKER_RECORD_EVENT(EVENT_SCAN_COMPUTING);
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_SCAN);
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan end.\n");
 }
@@ -633,12 +655,15 @@ void MapReduce::output_stat(const char *filename){
     sprintf(tmp, "%s.profiler.%d.%d", filename, stat_size, stat_rank);
     FILE *fp = fopen(tmp, "w+");
     PROFILER_PRINT(fp);
+    fprintf(fp, "\n");
     fclose(fp);
 
     sprintf(tmp, "%s.trace.%d.%d", filename, stat_size, stat_rank);
     fp = fopen(tmp, "w+");
     TRACKER_PRINT(fp);
+    fprintf(fp, "\n");
     fclose(fp);
+
 }
 
 
@@ -920,11 +945,22 @@ void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recur
 }
 
 inline uint64_t MapReduce::_get_kv_count(){
+
     uint64_t local_count=0,global_count=0;
+
     local_count=kv->get_local_count();
-    MPI_Allreduce(&local_count, &global_count, 1, MPI_UINT64_T, MPI_SUM, comm);
+
+    PROFILER_RECORD_TIME_START;
+
+    MPI_Allreduce(&local_count, &global_count, 1, \
+        MPI_UINT64_T, MPI_SUM, comm);
+
+    PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
+
     kv->set_global_count(global_count);
+
     TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
+
     return  global_count;
 }
 

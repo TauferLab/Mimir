@@ -16,30 +16,34 @@
 int64_t peakmem=0;
 
 int64_t get_mem_usage(){
-  int64_t memsize = 0;
+
+    int64_t memsize = 0;
 
 #ifdef BGQ
-  long unsigned int shared = 0;
-  long unsigned int persist = 0;
-  long unsigned int heapavail = 0;
-  long unsigned int stackavail = 0;
-  long unsigned int stacksize = 0;
-  long unsigned int heap = 0;
-  long unsigned int guard = 0;
-  long unsigned int mmap = 0;
 
-  Kernel_GetMemorySize(KERNEL_MEMSIZE_GUARD, &guard);
-  Kernel_GetMemorySize(KERNEL_MEMSIZE_SHARED, &shared);
-  Kernel_GetMemorySize(KERNEL_MEMSIZE_PERSIST, &persist);
-  Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAPAVAIL, &heapavail);
-  Kernel_GetMemorySize(KERNEL_MEMSIZE_STACKAVAIL, &stackavail);
-  Kernel_GetMemorySize(KERNEL_MEMSIZE_STACK, &stacksize);
-  Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAP, &heap);
-  Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
+    long unsigned int shared = 0;
+    long unsigned int persist = 0;
+    long unsigned int heapavail = 0;
+    long unsigned int stackavail = 0;
+    long unsigned int stacksize = 0;
+    long unsigned int heap = 0;
+    long unsigned int guard = 0;
+    long unsigned int mmap = 0;
 
-  memsize = heap + stacksize;
+    Kernel_GetMemorySize(KERNEL_MEMSIZE_GUARD, &guard);
+    Kernel_GetMemorySize(KERNEL_MEMSIZE_SHARED, &shared);
+    Kernel_GetMemorySize(KERNEL_MEMSIZE_PERSIST, &persist);
+    Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAPAVAIL, &heapavail);
+    Kernel_GetMemorySize(KERNEL_MEMSIZE_STACKAVAIL, &stackavail);
+    Kernel_GetMemorySize(KERNEL_MEMSIZE_STACK, &stacksize);
+    Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAP, &heap);
+    Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
+
+    memsize = heap + stacksize;
 
 #else
+
+#if 0
   pid_t pid=getpid();
 
   int64_t vmsize=0;
@@ -59,65 +63,73 @@ int64_t get_mem_usage(){
   memsize=vmsize;
 #endif
 
-  return memsize;
+    memsize=get_max_mmap();
+
+#endif
+
+    return memsize;
 }
 
 void record_memory_usage(){
-  int64_t vmsize=get_mem_usage();
-  if(vmsize>peakmem) peakmem=vmsize;
+    int64_t vmsize=get_mem_usage();
+    if(vmsize>peakmem) peakmem=vmsize;
 }
 
 int64_t get_max_mmap(){
 #define BUFSIZE 1024
+
     int stderr_save;
     char buffer[BUFSIZE]={'\0'};
-    fflush(stderr); //clean everything first
-    stderr_save = dup(STDERR_FILENO); //save the stdout state
-    freopen("/dev/null", "a", stderr); //redirect stdout to null pointer
-    setvbuf(stderr, buffer, _IOFBF, BUFSIZE); //set buffer to stdout
+    fflush(stderr);
+    stderr_save = dup(STDERR_FILENO); 
+    freopen("/dev/null", "a", stderr);
+    setvbuf(stderr, buffer, _IOFBF, BUFSIZE);
     malloc_stats();
-    freopen("/dev/null", "a", stderr); //redirect stdout to null again
-    dup2(stderr_save, STDERR_FILENO); //restore the previous state of stdout
-    setvbuf(stderr, NULL, _IONBF, BUFSIZE); //disable buffer to print to screen instantly
+    freopen("/dev/null", "a", stderr);
+    dup2(stderr_save, STDERR_FILENO);
+    setvbuf(stderr, NULL, _IONBF, BUFSIZE);
+
     char *p, *temp=NULL;
     int64_t maxmmap=0;
     p = strtok_r(buffer, "\n", &temp);
-    do {
-      if(strncmp(p, "max mmap bytes   =", 18) == 0){
-        char *word = p + 18;
-        while(isspace(*word)) ++word;
-        maxmmap=strtoull(word, NULL, 0);
-      }
+    do{
+        if(strncmp(p, "max mmap bytes   =", 18) == 0){
+            char *word = p + 18;
+            while(isspace(*word)) ++word;
+            maxmmap=strtoull(word, NULL, 0);
+        }
       p = strtok_r(NULL, "\n", &temp);
     } while (p != NULL);
-    //fprintf(out, ",maxmmap:%ld", maxmmap);
+
     return maxmmap;
 }
 
 void *mem_aligned_malloc(size_t alignment, size_t size){
-  void *ptr=NULL;
+    void *ptr=NULL;
 
-  size_t align_size = (size+alignment-1)/alignment*alignment;
-  posix_memalign(&ptr, alignment, align_size);
+    size_t align_size = (size+alignment-1)/alignment*alignment;
+    posix_memalign(&ptr, alignment, align_size);
 
-  //ptr=malloc(align_size);
-  if(ptr == NULL){
-    int64_t memsize=get_mem_usage();
-    LOG_ERROR("Error: malloc memory with alignment %ld and size %ld, aligned_size %ld error!, \
-memsize=%ld\n", alignment, size, align_size, memsize);
-    return NULL;
-  }
+    //ptr=malloc(align_size);
 
-  record_memory_usage();
+    if(ptr == NULL){
+        int64_t memsize=get_mem_usage();
+        LOG_ERROR("Error: malloc memory error (align=%ld; size=%ld; \
+aligned_size=%ld; memsize=%ld)\n", \
+         alignment, size, align_size, memsize);
+        return NULL;
+    }
 
-  return ptr;
+    record_memory_usage();
+
+    return ptr;
 }
 
 void *mem_aligned_free(void *ptr){
-  free(ptr);
-  record_memory_usage();
+    free(ptr);
+    record_memory_usage();
 
-  return NULL;
+    return NULL;
 }
 
 int mem_alloc_init()

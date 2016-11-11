@@ -91,8 +91,11 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
     }else{
         uint32_t hid = 0;
         hid = hashlittle(key, keysize, 0);
+        printf("hid=%u\n", hid);
         target = hid%(uint32_t)size;
     }
+
+    printf("target=%d, size=%d\n", target, size); fflush(stdout);
 
     if(target < 0 || target >= size){
         LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
@@ -304,14 +307,16 @@ void Alltoall::exchange_kv(){
     int64_t sendcount=0;
     for(i=0; i<size; i++) sendcount += (int64_t)off[i];
 
-    // exchange send count
-    //TRACKER_RECORD_EVENT(0, EVENT_MAP_COMPUTING);
-    //PROFILER_RECORD_COUNT(0, COUNTER_COMM_SEND_SIZE, sendcount);
+    PROFILER_RECORD_COUNT(COUNTER_SEND_BYTES, sendcount, OPSUM);
+
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
     // exchange send and recv counts
+    PROFILER_RECORD_TIME_START;
     MPI_Alltoall(off, 1, MPI_INT, recv_count[ibuf], 1, MPI_INT, comm);
+    PROFILER_RECORD_TIME_END(TIMER_COMM_A2A);
 
-    //TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALL);
+    TRACKER_RECORD_EVENT(EVENT_COMM_ALLTOALL);
 
     recvcounts[ibuf] = (int64_t)recv_count[ibuf][0];
     for(i = 1; i < size; i++){
@@ -353,17 +358,20 @@ void Alltoall::exchange_kv(){
 #ifndef MIMIR_COMM_NONBLOCKING
     char *recvbuf=recv_buf[ibuf];
 
+    PROFILER_RECORD_TIME_START;    
     MPI_Alltoallv(send_buffers[ibuf], \
       a2a_s_count, a2a_s_displs, comm_type, \
       recvbuf, a2a_r_count, a2a_r_displs, comm_type, comm);
-    
-    //TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLTOALLV);
+    PROFILER_RECORD_TIME_END(TIMER_COMM_A2AV);
 
+    TRACKER_RECORD_EVENT(EVENT_COMM_ALLTOALLV);
+    
     int64_t recvcount = recvcounts[ibuf];
     //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
     LOG_PRINT(DBG_COMM, rank, size, "Comm: receive data. (count=%ld)\n", recvcount);
 
+    PROFILER_RECORD_COUNT(COUNTER_RECV_BYTES, recvcount, OPSUM);
     if(recvcount > 0) {
         save_data(ibuf);
     }
@@ -413,10 +421,11 @@ void Alltoall::exchange_kv(){
     delete [] a2a_r_count;
     delete [] a2a_r_displs;
 
-
+    PROFILER_RECORD_TIME_START;
     MPI_Allreduce(&medone, &pdone, 1, MPI_INT, MPI_SUM, comm);
+    PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
-    //TRACKER_RECORD_EVENT(0, EVENT_COMM_ALLREDUCE);
+    TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
 
     LOG_PRINT(DBG_COMM, rank, size, "Comm: exchange KV. (send count=%ld, done count=%d)\n", sendcount, pdone);
 }
