@@ -176,7 +176,6 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
     if(stat_rank==0){\
         MPI_Status st;\
         for(int i=0; i<stat_size-1; i++){\
-            printf("recv1\n");\
             MPI_Recv(tmp, total_bytes, MPI_BYTE, MPI_ANY_SOURCE, 0x11, stat_comm, &st);\
             int recv_rank=st.MPI_SOURCE;\
             int recv_count=0;\
@@ -191,7 +190,6 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
             }\
         }\
         for(int i=0; i<stat_size-1; i++){\
-            printf("recv2\n");\
             MPI_Recv(tmp, total_bytes, MPI_BYTE, MPI_ANY_SOURCE, 0x22, stat_comm, &st);\
             int recv_rank=st.MPI_SOURCE;\
             int recv_count=0;\
@@ -214,7 +212,6 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
             memcpy(tmp+off, &(iter->second), sizeof(iter->second));\
             off+=sizeof(iter->second);\
         }\
-        printf("send1: off=%d\n", off);\
         MPI_Send(tmp, off, MPI_BYTE, 0, 0x11, stat_comm);\
         off=0;\
         std::map<std::string,uint64_t>::iterator iter1;\
@@ -224,7 +221,6 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
             memcpy(tmp+off, &(iter1->second), sizeof(iter1->second));\
             off+=sizeof(iter1->second);\
         }\
-        printf("send2: off=%d\n", off);\
         MPI_Send(tmp, off, MPI_BYTE, 0, 0x22, stat_comm);\
     }\
     mem_aligned_free(tmp);\

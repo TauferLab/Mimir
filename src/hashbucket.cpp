@@ -139,7 +139,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         if(nsetbuf == (nset/nbucket)){
             sets[nsetbuf]=(char*)mem_aligned_malloc(\
                 MEMPAGE_SIZE, setsize);
-            printf("sets[0]=%p\n", sets[0]);
+            //printf("sets[0]=%p\n", sets[0]);
             ReducerHashBucket::mem_bytes+=setsize;
         
             PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);

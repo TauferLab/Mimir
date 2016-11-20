@@ -54,7 +54,7 @@ void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner){
 
 // add KVs one by one
 int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
-    printf("add: key=%s\n", key); fflush(stdout); 
+    //printf("add: key=%s\n", key); fflush(stdout); 
    
     // add the first page
     if(ipage==-1) add_page();

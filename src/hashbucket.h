@@ -159,7 +159,7 @@ public:
     }
 
     ~ReducerHashBucket(){
-        printf("test1\n"); fflush(stdout);
+        //printf("test1\n"); fflush(stdout);
         for(int i=0; i< maxbuf; i++){
             if(buffers[i] != NULL){
                 ReducerHashBucket::mem_bytes-=usize;
@@ -167,7 +167,7 @@ public:
             }
         } 
 
-        printf("test2, maxset=%d, nsetbuf=%d, sets[0]=%p\n", maxset, nsetbuf, sets[0]); fflush(stdout);
+        //printf("test2, maxset=%d, nsetbuf=%d, sets[0]=%p\n", maxset, nsetbuf, sets[0]); fflush(stdout);
         for(int i=0; i< maxset; i++){
             if(sets[i] != NULL){
                 ReducerHashBucket::mem_bytes-=setsize;
@@ -175,9 +175,9 @@ public:
             }
         }
 
-        printf("test3\n"); fflush(stdout);
+        //printf("test3\n"); fflush(stdout);
         mem_aligned_free(sets);
-        printf("test4\n"); fflush(stdout);
+        //printf("test4\n"); fflush(stdout);
     }
 
     ReducerUnique* insertElem(ReducerUnique *elem);

@@ -435,9 +435,7 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
     kv->set_kv_size(ksize, vsize);
     _reduce(u, myreduce, ptr);
     delete mv;
-    printf("delete u start\n");
     delete u;
-    printf("delete u end\n");
 
     DataObject::addRef(kv);
     phase = NonePhase;
@@ -672,8 +670,6 @@ void MapReduce::output_stat(const char *filename){
 
     PROFILER_GATHER; 
     TRACKER_GATHER; 
-
-    printf("gather end\n");
 
     PROFILER_PRINT(filename, fp);
     TRACKER_PRINT(filename, fp);

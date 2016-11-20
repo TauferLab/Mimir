@@ -91,17 +91,17 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
     }else{
         uint32_t hid = 0;
         hid = hashlittle(key, keysize, 0);
-        printf("hid=%u\n", hid);
+        //printf("hid=%u\n", hid);
         target = hid%(uint32_t)size;
     }
 
-    printf("target=%d, size=%d\n", target, size); fflush(stdout);
+    //printf("target=%d, size=%d\n", target, size); fflush(stdout);
 
     if(target < 0 || target >= size){
         LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
     }
 
-    printf("send: key=%s, target=%d\n", key, target); fflush(stdout);
+    //printf("send: key=%s, target=%d\n", key, target); fflush(stdout);
 
     int kvsize = 0;
     int goff=off[target];
