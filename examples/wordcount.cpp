@@ -36,9 +36,15 @@ int main(int argc, char *argv[])
 
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
+#ifdef COMBINE
     mr->set_combiner(combiner);
-    //mr->set_key_length(-1);
-    //mr->set_value_length(sizeof(int64_t));
+#endif
+#ifdef KHINT
+    mr->set_key_length(-1);
+#endif
+#ifdef VHINT
+    mr->set_value_length(sizeof(int64_t));
+#endif
 
     mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
 

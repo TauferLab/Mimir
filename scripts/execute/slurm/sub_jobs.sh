@@ -66,7 +66,7 @@ do
       done
     done
   done
-  if [[ $TESTTYPE == "weekscale"* ]]
+  if [[ $TESTTYPE == "weakscale"* ]]
   then
     let nnode=nnode*2
   fi
