@@ -147,6 +147,8 @@ public:
 
         sets = (char**)mem_aligned_malloc(\
             MEMPAGE_SIZE, maxset*sizeof(char*));
+        for(int i=0; i<maxset; i++) sets[i]=NULL;
+
         isetbuf = nsetbuf = 0;
 
         iset = nset = 0;
@@ -157,6 +159,7 @@ public:
     }
 
     ~ReducerHashBucket(){
+        printf("test1\n"); fflush(stdout);
         for(int i=0; i< maxbuf; i++){
             if(buffers[i] != NULL){
                 ReducerHashBucket::mem_bytes-=usize;
@@ -164,13 +167,17 @@ public:
             }
         } 
 
+        printf("test2, maxset=%d, nsetbuf=%d, sets[0]=%p\n", maxset, nsetbuf, sets[0]); fflush(stdout);
         for(int i=0; i< maxset; i++){
-            if(sets[i] != NULL)
+            if(sets[i] != NULL){
                 ReducerHashBucket::mem_bytes-=setsize;
                 mem_aligned_free(sets[i]);
+            }
         }
 
+        printf("test3\n"); fflush(stdout);
         mem_aligned_free(sets);
+        printf("test4\n"); fflush(stdout);
     }
 
     ReducerUnique* insertElem(ReducerUnique *elem);

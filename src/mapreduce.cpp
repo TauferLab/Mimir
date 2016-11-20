@@ -53,7 +53,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
     MPI_Comm_size(comm,&nprocs);
 
     // Initalize stat
-    INIT_STAT(me, nprocs); 
+    INIT_STAT(me, nprocs, comm); 
 
     // Get default values
     _get_default_values();
@@ -87,7 +87,7 @@ MapReduce::MapReduce(const MapReduce &_mr){
     // Get default values
     //_get_default_values();
 
-    INIT_STAT(me, nprocs); 
+    INIT_STAT(me, nprocs, comm); 
 
     MapReduce::ref++;
 
@@ -102,7 +102,7 @@ MapReduce::~MapReduce()
     DataObject::subRef(kv);
     if(c) delete c;
 
-    UNINT_STAT; 
+    UNINIT_STAT; 
 
     MapReduce::ref--;
 
@@ -435,7 +435,9 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
     kv->set_kv_size(ksize, vsize);
     _reduce(u, myreduce, ptr);
     delete mv;
+    printf("delete u start\n");
     delete u;
+    printf("delete u end\n");
 
     DataObject::addRef(kv);
     phase = NonePhase;
@@ -667,21 +669,14 @@ void MapReduce::set_value_length(int _vsize){
 }
 
 void MapReduce::output_stat(const char *filename){
-  
-    char tmp[1024];
 
-    sprintf(tmp, "%s.profiler.%d.%d", filename, stat_size, stat_rank);
-    FILE *fp = fopen(tmp, "w+");
-    PROFILER_PRINT(fp);
-    fprintf(fp, "\n");
-    fclose(fp);
+    PROFILER_GATHER; 
+    TRACKER_GATHER; 
 
-    sprintf(tmp, "%s.trace.%d.%d", filename, stat_size, stat_rank);
-    fp = fopen(tmp, "w+");
-    TRACKER_PRINT(fp);
-    fprintf(fp, "\n");
-    fclose(fp);
+    printf("gather end\n");
 
+    PROFILER_PRINT(filename, fp);
+    TRACKER_PRINT(filename, fp);
 }
 
 
@@ -740,6 +735,9 @@ void MapReduce::_get_default_values(){
         if(INPUT_BUF_SIZE<=0)
             LOG_ERROR("Error: set input buffer size error, please set INPUT_BUF_SIZE (%s) correctly!\n", env);
     }
+
+    fprintf(stdout, "BUCKET_COUNT=%ld, COMM_BUF_SIZE=%ld, DATA_PAGE_SIZE=%ld, INPUT_BUF_SIZE=%ld\n", \
+        BUCKET_COUNT, COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE); fflush(stdout);
 
     /// Configure unit size for communication buffer 
     env = NULL;

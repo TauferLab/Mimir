@@ -8,6 +8,7 @@ DEBUG = -g
 #local_CFLAGS = $(DEBUG) -O3  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER
 
 local_CFLAGS = $(DEBUG) -O3 -std=c++11 -DENABLE_PROFILER -DENABLE_TRACKER
+#local_CFLAGS = $(DEBUG) -O3 -std=c++11
 
 LFLAGS =
 ARCHIEVE = ar

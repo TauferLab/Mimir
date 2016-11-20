@@ -43,14 +43,20 @@ void output(int rank, int size, \
     pagesize = getenv("MIMIR_PAGE_SIZE");
     ibufsize = getenv("MIMIR_IBUF_SIZE");
 
+    char timestr[1024];
+    get_time_str(timestr);
+
     char filename[1024];
-    sprintf(filename, "%s/%s_c%s-p%s-i%s", outdir, prefix, \
-        commsize, pagesize, ibufsize);
+    sprintf(filename, "%s/%s-%d_c%s-p%s-i%s_%s", outdir, prefix, size, \
+        commsize, pagesize, ibufsize, timestr);
 
     MapReduce::output_stat(filename);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
+}
+
+#if 0
     if(rank==0){
         char timestr[1024];
         get_time_str(timestr);
@@ -91,8 +97,8 @@ void output(int rank, int size, \
         ret = system((const char*)cmd);
 #endif
     }
+#endif
 
-}
 
 #if 0
 void output(const char *filenarank, const char *outdir, const char *prefix, double density, MapReduce *mr1, MapReduce *mr2){

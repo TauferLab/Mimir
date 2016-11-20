@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-    //mr->set_combiner(combiner);
+    mr->set_combiner(combiner);
     //mr->set_key_length(-1);
     //mr->set_value_length(sizeof(int64_t));
 
