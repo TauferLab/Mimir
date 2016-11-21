@@ -219,16 +219,13 @@ public:
         if((usize-cur_off)<sizeof(ReducerUnique) || \
             cur_unique->key==NULL){
             if(ibuf<nbuf){
+                ibuf+=1;
                 cur_buf=buffers[ibuf];
                 cur_off=0;
-                ibuf+=1;
                 //printf("iunique=%d\n", iunique);
                 cur_unique=(ReducerUnique*)(cur_buf+cur_off);
                 iunique++;
-            }else{
-                cur_unique=NULL;
-                return NULL;
-            }
+            } 
         }else{
             cur_unique=(ReducerUnique*)(cur_buf+cur_off);
             iunique++;
