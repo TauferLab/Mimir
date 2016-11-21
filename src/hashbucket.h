@@ -191,7 +191,6 @@ public:
 
     ReducerUnique* BeginUnique(){
         iunique=0;
-        //printf("iunique=%ld, nunique=%ld\n", iunique, nunique); fflush(stdout);
         if(iunique>=nunique) return NULL;
         if(nbuf>0){
             ibuf=0;
@@ -204,25 +203,38 @@ public:
         }else{
             return NULL;
         }
+
+        //printf("iunique=%ld, nunique=%ld, cur_unique=%p\n", iunique, nunique, cur_unique);
+        //fflush(stdout);
+
         return cur_unique;
     }
 
     ReducerUnique* NextUnique(){
+
         if(iunique>=nunique) return NULL; 
         cur_unique=(ReducerUnique*)(cur_buf+cur_off);
+        //printf("usize=%d, cur_off=%d,ibuf=%d,nbuf=%d\n",\
+            usize,cur_off,ibuf,nbuf);fflush(stdout);
         if((usize-cur_off)<sizeof(ReducerUnique) || \
             cur_unique->key==NULL){
-            ibuf+=1;
             if(ibuf<nbuf){
                 cur_buf=buffers[ibuf];
                 cur_off=0;
+                ibuf+=1;
+                //printf("iunique=%d\n", iunique);
                 cur_unique=(ReducerUnique*)(cur_buf+cur_off);
                 iunique++;
             }else{
                 cur_unique=NULL;
                 return NULL;
             }
+        }else{
+            cur_unique=(ReducerUnique*)(cur_buf+cur_off);
+            iunique++;
         }
+        //printf("iunique=%ld, nunique=%ld, cur_unique=%p\n", iunique, nunique, cur_unique); 
+        //fflush(stdout);
         cur_off+=sizeof(ReducerUnique);
         cur_off+=cur_unique->keybytes;
         return cur_unique;

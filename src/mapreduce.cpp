@@ -597,7 +597,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
         inputkv->release_page(i);
     }
 
-    //printf("%d[%d] construct unique structure end\n", me, nprocs); fflush(stdout);
+    printf("%d[%d] construct unique structure end\n", me, nprocs); fflush(stdout);
 
     // Set pointers to hold MVs
     char *page_buf=NULL, page_off=0, page_id=0;
@@ -628,22 +628,22 @@ void MapReduce::_convert(KeyValue *inputkv, \
         pset = h->NextSet();
     }
 
-    //printf("%d[%d] set pointer end\n", me, nprocs); fflush(stdout);
+    printf("%d[%d] set pointer end\n", me, nprocs); fflush(stdout);
 
     // Modify the pointers
     ReducerUnique *uq = h->BeginUnique();    
     while(uq!=NULL){
 
-        uq->lastset = uq->firstset;
+        printf("%d[%d] key: %s, uq=%p, firstset=%p, lastset=%p, next=%p\n", me, nprocs, uq->key, \
+            uq, uq->firstset, uq->lastset, uq->lastset->next);
+        fflush(stdout);
 
-        //printf("%d[%d] key: %s, uq=%p, firstset=%p, lastset=%p\n", me, nprocs, uq->key, \
-            uq, uq->firstset, uq->lastset);
-        //fflush(stdout);
+        uq->lastset = uq->firstset;
 
         uq = h->NextUnique();
     }
 
-    //printf("%d[%d] modify pointer end\n", me, nprocs); fflush(stdout);
+    printf("%d[%d] modify pointer end\n", me, nprocs); fflush(stdout);
 
     // Get the MVs
     for(i = 0; i < inputkv->get_npages(); i++){

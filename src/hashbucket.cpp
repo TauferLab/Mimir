@@ -112,7 +112,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         if(cur_buf == NULL || \
             (usize-cur_off)<sizeof(ReducerUnique)+elem->keybytes){
 
-            buffers[nbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, usize);
+            buffers[nbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE,usize);
 
             ReducerHashBucket::mem_bytes+=usize;
             PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
@@ -185,7 +185,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         mvbytes+=onemvbytes;
 
-        //printf("key=%s, mvbytes=%ld\n", newelem->key, mvbytes); fflush(stdout);
+        printf("key=%s, pid=%d, mvbytes=%ld\n", newelem->key, pid, mvbytes); fflush(stdout);
 
         return newelem;
     }else{
@@ -242,7 +242,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         mvbytes+=onemvbytes;
     
-        //printf("key=%s, mvbytes=%ld\n", ptr->key, mvbytes); fflush(stdout);
+        printf("key=%s, pid=%d, mvbytes=%ld\n", ptr->key, pid, mvbytes); fflush(stdout);
      
         return ptr;
     }
