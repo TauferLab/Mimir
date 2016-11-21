@@ -49,8 +49,8 @@ MapReduce::MapReduce(MPI_Comm _caller)
 {
     // Get coommunicator information
     comm = _caller;
-    MPI_Comm_rank(comm,&me);
-    MPI_Comm_size(comm,&nprocs);
+    MPI_Comm_rank(comm, &me);
+    MPI_Comm_size(comm, &nprocs);
 
     // Initalize stat
     INIT_STAT(me, nprocs, comm); 
@@ -696,8 +696,15 @@ void MapReduce::set_value_length(int _vsize){
 
 void MapReduce::output_stat(const char *filename){
 
+    //printf("gather start!\n");
+
     PROFILER_GATHER; 
+
+    //printf("gather middle!\n");
+
     TRACKER_GATHER; 
+
+    //printf("gather end!\n");
 
     PROFILER_PRINT(filename, fp);
     TRACKER_PRINT(filename, fp);

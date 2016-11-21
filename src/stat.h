@@ -157,21 +157,22 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
 
 #define PROFILER_GATHER \
 {\
-    int total_bytes=0;\
+    int total_bytes=0, max_bytes=0;\
     double total_wtime=MR_GET_WTIME()-init_wtime;\
     (profiler_timer[0])["timer_total"]=total_wtime;\
     (profiler_counter[0])["peakmem"]=peakmem;\
     std::map<std::string,double>::iterator iter;\
     for(iter=profiler_timer[0].begin(); iter!=profiler_timer[0].end(); iter++){\
-        total_bytes+=strlen(iter->first.c_str())+1;\
-        total_bytes+=sizeof(iter->second);\
+        max_bytes+=strlen(iter->first.c_str())+1;\
+        max_bytes+=sizeof(iter->second);\
     }\
     std::map<std::string,uint64_t>::iterator iter1;\
     for(iter1=profiler_counter[0].begin(); iter1!=profiler_counter[0].end(); iter1++){\
-        total_bytes+=strlen(iter1->first.c_str())+1;\
-        total_bytes+=sizeof(iter1->second);\
+        max_bytes+=strlen(iter1->first.c_str())+1;\
+        max_bytes+=sizeof(iter1->second);\
     }\
-    MPI_Allreduce(&total_bytes, &total_bytes, 1, MPI_INT, MPI_MAX, stat_comm);\
+    MPI_Reduce(&max_bytes, &total_bytes, 1, MPI_INT, MPI_MAX, 0, stat_comm);\
+    if(max_bytes>total_bytes) total_bytes=max_bytes;\
     char *tmp=(char*)mem_aligned_malloc(MEMPAGE_SIZE, total_bytes);\
     if(stat_rank==0){\
         MPI_Status st;\
@@ -290,13 +291,14 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
 
 #define TRACKER_GATHER \
 {\
-    int total_bytes=0;\
+    int total_bytes=0, max_bytes=0;\
     std::vector<std::pair<std::string,double> >::iterator iter;\
     for(iter=tracker_event[0].begin(); iter!=tracker_event[0].end(); iter++){\
-        total_bytes+=strlen(iter->first.c_str())+1;\
-        total_bytes+=sizeof(iter->second);\
+        max_bytes+=strlen(iter->first.c_str())+1;\
+        max_bytes+=sizeof(iter->second);\
     }\
-    MPI_Allreduce(&total_bytes, &total_bytes, 1, MPI_INT, MPI_MAX, stat_comm);\
+    MPI_Reduce(&max_bytes, &total_bytes, 1, MPI_INT, MPI_MAX, 0, stat_comm);\
+    if(max_bytes>total_bytes) total_bytes=max_bytes;\
     char *tmp=(char*)mem_aligned_malloc(MEMPAGE_SIZE, total_bytes);\
     if(stat_rank==0){\
         MPI_Status st;\
