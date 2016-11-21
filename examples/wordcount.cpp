@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 
     mr->reduce(countword, NULL);
 
-    //mr->output(stdout, StringType, Int64Type);
+    mr->output(stdout, StringType, Int64Type);
 
     output(rank, size, prefix, outdir);
 

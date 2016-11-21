@@ -190,6 +190,7 @@ public:
     int getkey(ReducerUnique *, char **pkey, int *pkeybytes);
 
     ReducerUnique* BeginUnique(){
+
         iunique=0;
         if(iunique>=nunique) return NULL;
         if(nbuf>0){
@@ -200,12 +201,13 @@ public:
             cur_off+=sizeof(ReducerUnique);
             cur_off+=cur_unique->keybytes;
             iunique++;
-        }else{
-            return NULL;
         }
 
         //printf("iunique=%ld, nunique=%ld, cur_unique=%p\n", iunique, nunique, cur_unique);
         //fflush(stdout);
+
+        if(cur_unique==NULL)
+             LOG_ERROR("%s", "Error: unique strcuture is NULL!\n");
 
         return cur_unique;
     }
@@ -234,6 +236,10 @@ public:
         //fflush(stdout);
         cur_off+=sizeof(ReducerUnique);
         cur_off+=cur_unique->keybytes;
+
+        if(cur_unique==NULL)
+             LOG_ERROR("%s", "Error: unique strcuture is NULL!\n");
+
         return cur_unique;
     }
 

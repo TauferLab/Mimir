@@ -634,9 +634,9 @@ void MapReduce::_convert(KeyValue *inputkv, \
     ReducerUnique *uq = h->BeginUnique();    
     while(uq!=NULL){
 
-        printf("%d[%d] key: %s, uq=%p, firstset=%p, lastset=%p, next=%p\n", me, nprocs, uq->key, \
+        //printf("%d[%d] key: %s, uq=%p, firstset=%p, lastset=%p, next=%p\n", me, nprocs, uq->key, \
             uq, uq->firstset, uq->lastset, uq->lastset->next);
-        fflush(stdout);
+        //fflush(stdout);
 
         uq->lastset = uq->firstset;
 

@@ -86,98 +86,90 @@ FILE *rf = NULL;
 
 int main(int argc, char **argv)
 {
-  // Initalize MPI
-  MPI_Init(&argc, &argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
+    // Initalize MPI
+    MPI_Init(&argc, &argv);
 
-  // Get pararankters
-  if (argc < 7) {
-    if (rank == 0) printf("Syntax: bfs N indir prefix outdir tmpdir seed\n");
-    MPI_Abort(MPI_COMM_WORLD,1);
-  }
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  nglobalverts = strtoull(argv[1], NULL, 0);
-  char *indir = argv[2];
-  const char *prefix = argv[3];
-  const char *outdir = argv[4];
-  const char *tmpdir = argv[5];
+    // Get pararankters
+    if (argc < 7) {
+        if (rank == 0) 
+            printf("Syntax: bfs N indir prefix outdir tmpdir seed\n");
+        MPI_Abort(MPI_COMM_WORLD,1);
+    }
 
-  srand(atoi(argv[6]));
+    nglobalverts = strtoull(argv[1], NULL, 0);
+    char *indir = argv[2];
+    const char *prefix = argv[3];
+    const char *outdir = argv[4];
+    const char *tmpdir = argv[5];
 
-  if(nglobalverts<=0){
-    if (rank == 0) printf("The global vertexs should be larger than zero\n");
-    MPI_Abort(MPI_COMM_WORLD,1);
-  }
+    srand(atoi(argv[6]));
 
-  if(rank==0){
-    printf("global vertexs=%ld\n", nglobalverts);
-    printf("input dir=%s\n", indir);
-    printf("prefix=%s\n", prefix);
-    printf("output dir=%s\n", outdir);
-    printf("tmp dir=%s\n", tmpdir); fflush(stdout);
-  }
+    if(nglobalverts<=0){
+        if (rank == 0) 
+            printf("The global vertexs should be larger than zero\n");
+        MPI_Abort(MPI_COMM_WORLD,1);
+    }
 
-  // compute vertex partition range
-  quot = nglobalverts/size;
-  rem  = nglobalverts%size;
-  if(rank<rem) {
-    nlocalverts=quot+1;
-    nvertoffset=rank*(quot+1);
-  }
-  else {
-    nlocalverts=quot;
-    nvertoffset=rank*quot+rem;
-  }
+    if(rank==0){
+        printf("global vertexs=%ld\n", nglobalverts);
+        printf("input dir=%s\n", indir);
+        printf("prefix=%s\n", prefix);
+        printf("output dir=%s\n", outdir);
+        printf("tmp dir=%s\n", tmpdir); fflush(stdout);
+    }
+
+    // compute vertex partition range
+    quot = nglobalverts/size;
+    rem  = nglobalverts%size;
+    if(rank<rem) {
+        nlocalverts=quot+1;
+        nvertoffset=rank*(quot+1);
+    }
+    else {
+        nlocalverts=quot;
+        nvertoffset=rank*quot+rem;
+    }
 
 #ifdef OUTPUT_RESULT
-  if(rank==0){
-    char rfile[100];
-    sprintf(rfile, "%s_result.txt", prefix);
-    rf = fopen(rfile, "a+");
-  }
+    if(rank==0){
+        char rfile[100];
+        sprintf(rfile, "%s_result.txt", prefix);
+        rf = fopen(rfile, "a+");
+    }
 #endif
 
-  // Initialize MapReduce
-  MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-  //mr->set_sendbufsize(gbufsize);
-  //mr->set_blocksize(blocksize);
-  //mr->set_inputsize(inputsize);
-  //mr->set_commmode(commmode);
-  //mr->set_nbucket(estimate,nbucket,factor);
-  //mr->set_maxmem(32);
-  mr->set_hash(mypartition);
-  //mr->set_outofcore(0);
+    // Initialize MapReduce
+    MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
+    mr->set_hash(mypartition);
 
-  if(rank==0) fprintf(stdout, "make CSR graph start.\n");
+    if(rank==0) fprintf(stdout, "make CSR graph start.\n");
 
-  // make graph
-  MPI_Barrier(MPI_COMM_WORLD);
+    // make graph
+    MPI_Barrier(MPI_COMM_WORLD);
 
-#ifdef KV_HINT
-  mr->set_KVtype(FixedKV, sizeof(int64_t), sizeof(int64_t));
-#endif
+    // partition file
+    char whitespace[10] = "\n";
+    uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread);
+    nglobaledges = nedges;
 
-  // partition file
-  char whitespace[10] = "\n";
-  uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread);
-  nglobaledges = nedges;
+    rowstarts = new size_t[nlocalverts+1];
+    rowinserts = new size_t[nlocalverts];
+    rowstarts[0] = 0;
+    for(int64_t i = 0; i < nlocalverts; i++){
+        rowstarts[i+1] = 0;
+        rowinserts[i] =0;
+    }
+    nlocaledges = 0;
+    mr->scan(countedge,NULL);
 
-  rowstarts = new size_t[nlocalverts+1];
-  rowinserts = new size_t[nlocalverts];
-  rowstarts[0] = 0;
-  for(int64_t i = 0; i < nlocalverts; i++){
-    rowstarts[i+1] = 0;
-    rowinserts[i] =0;
-  }
-  nlocaledges = 0;
-  mr->scan(countedge,NULL);
+    for(int64_t i = 0; i < nlocalverts; i++){
+        rowstarts[i+1] += rowstarts[i];
+    }
 
-  for(int64_t i = 0; i < nlocalverts; i++){
-    rowstarts[i+1] += rowstarts[i];
-  }
-
-  if(rank==0) { fprintf(stdout, "local edge=%ld\n", nlocaledges); fflush(stdout);}
+    if(rank==0) { fprintf(stdout, "local edge=%ld\n", nlocaledges); fflush(stdout);}
 
   // columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
 #ifndef COLUMN_SINGLE_BUFFER
