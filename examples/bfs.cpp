@@ -169,246 +169,241 @@ int main(int argc, char **argv)
         rowstarts[i+1] += rowstarts[i];
     }
 
-    if(rank==0) { fprintf(stdout, "local edge=%ld\n", nlocaledges); fflush(stdout);}
-
-  // columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
-#ifndef COLUMN_SINGLE_BUFFER
-  ncolumn=(int)(nlocaledges/ncolumnedge)+1;
-  if(rank==0) { fprintf(stdout, "ncolumn=%d\n", ncolumn); fflush(stdout); }
-  int64_t edge_left=nlocaledges;
-  columns = new int64_t*[ncolumn];
-  for(int i=0; i<ncolumn-1; i++){
-    columns[i]=(int64_t*)mem_aligned_malloc(4096, ncolumnedge*sizeof(int64_t));
-    if(columns[i] == NULL){
-      fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!\n", \
-        nlocaledges);
-       MPI_Abort(MPI_COMM_WORLD, 1);
+    if(rank==0) { 
+        fprintf(stdout, "local edge=%ld\n", nlocaledges); 
+        fflush(stdout);
     }
-    edge_left-=ncolumnedge;
-  }
-  columns[ncolumn-1]=(int64_t*)mem_aligned_malloc(4096, edge_left*sizeof(int64_t));
-#else
-  columns=(int64_t*)mem_aligned_malloc(4096, nlocaledges*sizeof(int64_t));
-  if(columns == NULL){
-     fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!\n", nlocaledges);
-     MPI_Abort(MPI_COMM_WORLD, 1);
-  }
-#endif
 
-  if(rank==0) fprintf(stdout, "begin make graph.\n");
-
-  mr->map_key_value(mr, makegraph, NULL, 0);
-
-  delete [] rowinserts;
-
-  if(rank==0) {
-     fprintf(stdout, "make CSR graph end.\n");
-  }
-
-  // make data structure
-  int64_t bitmapsize = (nlocalverts + LONG_BITS - 1) / LONG_BITS;
-  vis  = new unsigned long[bitmapsize];
-  pred = new int64_t[nlocalverts];
-
-  if(rank==0) fprintf(stdout, "BFS traversal start.\n");
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  // Choose the root vertex
-  root    = getrootvert();
-  memset(vis, 0, sizeof(unsigned long)*(bitmapsize));
-  for(int64_t i = 0; i < nlocalverts; i++){
-    pred[i] = -1;
-  }
-
-  if(rank==0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
-
-  // Inialize the child  vertexes of root
-  mr->init_key_value(rootvisit, NULL);
-
-  // BFS search
-  int level = 0;
-  do{
-#ifdef KV_HINT
-    mr->set_KVtype(FixedKV, sizeof(int64_t), 0);
-#endif
-    mr->map_key_value(mr, shrink, NULL, 0);
-#ifdef KV_HINT
-    mr->set_KVtype(FixedKV, sizeof(int64_t), sizeof(int64_t));
-#endif
-#ifdef COMPRESS
-    nactives[level] = mr->map_key_value(mr, expand, compress);
-#else
-    nactives[level] = mr->map_key_value(mr, expand);
-#endif
-    level++;
-  }while(nactives[level-1]);
-
-  if(rank==0) {
-    fprintf(stdout, "BFS traversal end.\n");
-#ifdef OUTPUT_RESULT
-    fprintf(rf, "%ld\n", root);
-    for(int i=0;i<level;i++)
-      fprintf(rf, "%ld\n", nactives[i]);
-#endif
-  }
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  delete [] vis;
-  delete [] pred;
-
-  delete [] rowstarts;
+    // columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
 #ifndef COLUMN_SINGLE_BUFFER
-  for(int i=0; i<ncolumn; i++)
-    free(columns[i]);
-  delete [] columns;
+    ncolumn=(int)(nlocaledges/ncolumnedge)+1;
+    if(rank==0) { 
+        fprintf(stdout, "ncolumn=%d\n", ncolumn); 
+        fflush(stdout); 
+    }
+    int64_t edge_left=nlocaledges;
+    columns = new int64_t*[ncolumn];
+    for(int i=0; i<ncolumn-1; i++){
+        columns[i]=(int64_t*)mem_aligned_malloc(4096, ncolumnedge*sizeof(int64_t));
+       if(columns[i] == NULL){
+           fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!\n", nlocaledges);
+           MPI_Abort(MPI_COMM_WORLD, 1);
+       }
+       edge_left-=ncolumnedge;
+    }
+    columns[ncolumn-1]=(int64_t*)mem_aligned_malloc(4096, edge_left*sizeof(int64_t));
 #else
-  free(columns);
+    columns=(int64_t*)mem_aligned_malloc(4096, nlocaledges*sizeof(int64_t));
+    if(columns == NULL){
+        fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!\n", nlocaledges);
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+#endif
+
+    if(rank==0) fprintf(stdout, "begin make graph.\n");
+
+    mr->map_key_value(mr, makegraph, NULL, 0);
+
+    delete [] rowinserts;
+
+    if(rank==0) {
+        fprintf(stdout, "make CSR graph end.\n");
+    }
+
+    // make data structure
+    int64_t bitmapsize = (nlocalverts + LONG_BITS - 1) / LONG_BITS;
+    vis  = new unsigned long[bitmapsize];
+    pred = new int64_t[nlocalverts];
+
+    if(rank==0) fprintf(stdout, "BFS traversal start.\n");
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    // Choose the root vertex
+    root    = getrootvert();
+    memset(vis, 0, sizeof(unsigned long)*(bitmapsize));
+    for(int64_t i = 0; i < nlocalverts; i++){
+         pred[i] = -1;
+    }
+
+    if(rank==0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
+
+    // Inialize the child  vertexes of root
+    mr->init_key_value(rootvisit, NULL);
+
+    // BFS search
+    int level = 0;
+    do{
+        mr->map_key_value(mr, shrink, NULL, 0);
+        nactives[level] = mr->map_key_value(mr, expand);
+        level++;
+    }while(nactives[level-1]);
+
+    if(rank==0) {
+        fprintf(stdout, "BFS traversal end.\n");
+#ifdef OUTPUT_RESULT
+        fprintf(rf, "%ld\n", root);
+        for(int i=0;i<level;i++)
+            fprintf(rf, "%ld\n", nactives[i]);
+#endif
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    delete [] vis;
+    delete [] pred;
+
+    delete [] rowstarts;
+#ifndef COLUMN_SINGLE_BUFFER
+    for(int i=0; i<ncolumn; i++)
+        free(columns[i]);
+    delete [] columns;
+#else
+    free(columns);
 #endif
 
   //output();
 
-  delete mr;
+    delete mr;
 
 #ifdef OUTPUT_RESULT
-  if(rank==0){
-    fclose(rf);
-  }
+    if(rank==0){
+        fclose(rf);
+    }
 #endif
 
-  MPI_Finalize();
+    MPI_Finalize();
 }
 
 // partiton <key,value> based on the key
 int64_t mypartition(char *key, int keybytes){
-  int64_t v = *(int64_t*)key;
-  if(v<quot*rem+rem)
-    return v/(quot+1);
-  else
-    return (v-rem)/quot;
+    int64_t v = *(int64_t*)key;
+    if(v<quot*rem+rem)
+        return v/(quot+1);
+    else
+        return (v-rem)/quot;
 }
 
 // count edge number of each vertex
 void countedge(char *key, int keybytes, char *value, int valbytes,void *ptr){
-  nlocaledges += 1;
-  int64_t v0=*(int64_t*)key;
-  rowstarts[v0-nvertoffset+1] += 1;
+    nlocaledges += 1;
+    int64_t v0=*(int64_t*)key;
+    rowstarts[v0-nvertoffset+1] += 1;
 }
 
 // read edge list from files
 void fileread(MapReduce *mr, char *word, void *ptr)
 {
-  char sep[10] = " ";
-  char *v0, *v1;
-  char *saveptr = NULL;
-  v0 = strtok_r(word,sep,&saveptr);
-  v1 = strtok_r(NULL,sep,&saveptr);
+    char sep[10] = " ";
+    char *v0, *v1;
+    char *saveptr = NULL;
+    v0 = strtok_r(word,sep,&saveptr);
+    v1 = strtok_r(NULL,sep,&saveptr);
 
-  // skip self-loop edge
-  if(strcmp(v0, v1) == 0){
-    return;
-  }
-  int64_t int_v0 = strtoull(v0,NULL,0);
-  int64_t int_v1 = strtoull(v1,NULL,0);
-  if(int_v0>=nglobalverts || int_v1>=nglobalverts){
-    fprintf(stderr, "The vertex index <%ld,%ld> is larger than maximum value %ld!\n", int_v0, int_v1, nglobalverts);
-    exit(1);
-  }
-  mr->add_key_value((char*)&int_v0,sizeof(int64_t),(char*)&int_v1,sizeof(int64_t));
+    // skip self-loop edge
+    if(strcmp(v0, v1) == 0){
+        return;
+    }
+    int64_t int_v0 = strtoull(v0,NULL,0);
+    int64_t int_v1 = strtoull(v1,NULL,0);
+    if(int_v0>=nglobalverts || int_v1>=nglobalverts){
+        fprintf(stderr, "The vertex index <%ld,%ld> is larger than maximum value %ld!\n", int_v0, int_v1, nglobalverts);
+        exit(1);
+    }
+    mr->add_key_value((char*)&int_v0,sizeof(int64_t),(char*)&int_v1,sizeof(int64_t));
 }
 
 // make CSR graph based edge list
 void makegraph(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
-  int64_t v0, v0_local, v1;
-  v0 = *(int64_t*)key;
-  v0_local = v0 - nvertoffset;
+    int64_t v0, v0_local, v1;
+    v0 = *(int64_t*)key;
+    v0_local = v0 - nvertoffset;
 
-  v1=*(int64_t*)value;
+    v1=*(int64_t*)value;
 #ifndef COLUMN_SINGLE_BUFFER
-  size_t pos=rowstarts[v0_local]+rowinserts[v0_local];
-  columns[GET_COL_IDX(pos)][GET_COL_OFF(pos)] = v1;
+    size_t pos=rowstarts[v0_local]+rowinserts[v0_local];
+    columns[GET_COL_IDX(pos)][GET_COL_OFF(pos)] = v1;
 #else
-  columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
+    columns[rowstarts[v0_local]+rowinserts[v0_local]] = v1;
 #endif
-  rowinserts[v0_local]++;
+    rowinserts[v0_local]++;
 }
 
 // expand child vertexes of root
 void rootvisit(MapReduce* mr, void *ptr){
-  if(mypartition((char*)&root,sizeof(int64_t)) == rank){
-    int64_t root_local = root-nvertoffset;
-    pred[root_local] = root;
-    SET_VISITED(root_local, vis);
-    size_t p_end = rowstarts[root_local+1];
-    for(size_t p = rowstarts[root_local]; p < p_end; p++){
+    if(mypartition((char*)&root,sizeof(int64_t)) == rank){
+        int64_t root_local = root-nvertoffset;
+        pred[root_local] = root;
+        SET_VISITED(root_local, vis);
+        size_t p_end = rowstarts[root_local+1];
+        for(size_t p = rowstarts[root_local]; p < p_end; p++){
 #ifndef COLUMN_SINGLE_BUFFER
-      int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
+            int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
 #else
-      int64_t v1 = columns[p];
+            int64_t v1 = columns[p];
 #endif
-      mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&root, sizeof(int64_t));
+            mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&root, sizeof(int64_t));
+        }
     }
-  }
 }
 
 // Keep active vertexes in next level only
 void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
-  int64_t v = *(int64_t*)key;
-  int64_t v_local = v - nvertoffset;
+    int64_t v = *(int64_t*)key;
+    int64_t v_local = v - nvertoffset;
 
-  int64_t v0 = *(int64_t*)value;
+    int64_t v0 = *(int64_t*)value;
 
-  if(!TEST_VISITED(v_local, vis)){
-    SET_VISITED(v_local, vis);
-    pred[v_local] = v0;
-    mr->add_key_value(key, keybytes, NULL, 0);
-  }
+    if(!TEST_VISITED(v_local, vis)){
+        SET_VISITED(v_local, vis);
+        pred[v_local] = v0;
+        mr->add_key_value(key, keybytes, NULL, 0);
+    }
 }
 
 // Expand vertexes with the active vertexes
 void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
 
-  int64_t v = *(int64_t*)key;
-  int64_t v_local = v-nvertoffset;
+    int64_t v = *(int64_t*)key;
+    int64_t v_local = v-nvertoffset;
 
-  size_t p_end = rowstarts[v_local+1];
-  for(size_t p = rowstarts[v_local]; p < p_end; p++){
+    size_t p_end = rowstarts[v_local+1];
+    for(size_t p = rowstarts[v_local]; p < p_end; p++){
 #ifndef COLUMN_SINGLE_BUFFER
-    int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
+        int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
 #else
-    int64_t v1 = columns[p];
+        int64_t v1 = columns[p];
 #endif
-    mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
-  }
+        mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
+    }
 }
 
 // Compress KV with the sarank key
 void compress(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
 
-  mr->add_key_value(key, keysize, val1, val1size);
+    mr->add_key_value(key, keysize, val1, val1size);
 }
 
 // Rondom chosen a vertex in the CC part of the graph
 int64_t getrootvert(){
-  int64_t myroot;
+    int64_t myroot;
    // Get a root
-  do{
-    if(rank==0){
-      myroot = rand() % nglobalverts;
-    }
-    MPI_Bcast((void*)&myroot, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
-    int64_t myroot_proc=mypartition((char*)&myroot, (int)sizeof(int64_t));
-    if(myroot_proc==rank){
-      int64_t root_local=myroot-nvertoffset;
-      if(rowstarts[root_local+1]-rowstarts[root_local]==0){
-        myroot=-1;
-      }
+    do{
+        if(rank==0){
+            myroot = rand() % nglobalverts;
+        }
+        MPI_Bcast((void*)&myroot, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+        int64_t myroot_proc=mypartition((char*)&myroot, (int)sizeof(int64_t));
+        if(myroot_proc==rank){
+        int64_t root_local=myroot-nvertoffset;
+        if(rowstarts[root_local+1]-rowstarts[root_local]==0){
+            myroot=-1;
+        }
     }
     MPI_Bcast((void*)&myroot, 1, MPI_INT64_T,(int)myroot_proc, MPI_COMM_WORLD);
-  }while(myroot==-1);
-  return myroot;
+    }while(myroot==-1);
+    return myroot;
 }
 
 #if 0
@@ -427,10 +422,8 @@ void printgraph(){
 #endif
 
 void printresult(int64_t *pred, size_t nlocalverts){
-  for(size_t i = 0; i < nlocalverts; i++){
-    size_t v = nlocalverts*rank+i;
-    printf("%ld:%ld\n", v, pred[i]);
-  }
+    for(size_t i = 0; i < nlocalverts; i++){
+        size_t v = nlocalverts*rank+i;
+        printf("%ld:%ld\n", v, pred[i]);
+    }
 }
-
-
