@@ -75,6 +75,7 @@ protected:
     char   *cur_buf;
     int     cur_off;
 
+    int64_t iunique;
     int64_t nunique;
 
     KeyValue *kv;
@@ -156,6 +157,8 @@ public:
         mvbytes=0;
 
         cur_unique=NULL;
+
+        pid=0;
     }
 
     ~ReducerHashBucket(){
@@ -187,6 +190,9 @@ public:
     int getkey(ReducerUnique *, char **pkey, int *pkeybytes);
 
     ReducerUnique* BeginUnique(){
+        iunique=0;
+        //printf("iunique=%ld, nunique=%ld\n", iunique, nunique); fflush(stdout);
+        if(iunique>=nunique) return NULL;
         if(nbuf>0){
             ibuf=0;
             cur_buf=buffers[ibuf];
@@ -194,14 +200,15 @@ public:
             cur_unique=(ReducerUnique*)(cur_buf+cur_off);
             cur_off+=sizeof(ReducerUnique);
             cur_off+=cur_unique->keybytes;
+            iunique++;
         }else{
-            cur_unique=NULL;
             return NULL;
         }
         return cur_unique;
     }
 
     ReducerUnique* NextUnique(){
+        if(iunique>=nunique) return NULL; 
         cur_unique=(ReducerUnique*)(cur_buf+cur_off);
         if((usize-cur_off)<sizeof(ReducerUnique) || \
             cur_unique->key==NULL){
@@ -209,6 +216,8 @@ public:
             if(ibuf<nbuf){
                 cur_buf=buffers[ibuf];
                 cur_off=0;
+                cur_unique=(ReducerUnique*)(cur_buf+cur_off);
+                iunique++;
             }else{
                 cur_unique=NULL;
                 return NULL;
@@ -236,6 +245,8 @@ public:
         if(iset>=nset) return NULL;
         else{
             pset=(ReducerSet*)sets[iset/nbucket]+iset%nbucket;
+            //printf("iset=%ld, nbucket=%d, pset=%p\n", iset, nbucket, pset); 
+            //fflush(stdout);
         }
         return pset;
     }
@@ -243,6 +254,8 @@ public:
 
 private:
     ReducerUnique *cur_unique;
+
+    int pid;
 
     int64_t nset, iset;
     int  setsize, maxset, nsetbuf, isetbuf;

@@ -19,6 +19,7 @@ void combiner(MapReduce *, char *, int, \
 int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
+
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -78,6 +79,8 @@ void countword(MapReduce *mr, char *key, int keysize, MultiValueIterator *iter, 
         count+=*(int64_t*)iter->getValue();
         //printf("count=%ld\n", count);
     }
+
+    //printf("sum: key=%s, count=%ld\n", key, count);
 
     mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }

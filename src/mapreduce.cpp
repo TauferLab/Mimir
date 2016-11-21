@@ -431,7 +431,7 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
     DataObject::subRef(kv);
 
     // Apply user-defined reduce
-    kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT); 
+    kv = new KeyValue(me,nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT); 
     kv->set_kv_size(ksize, vsize);
     _reduce(u, myreduce, ptr);
     delete mv;
@@ -545,6 +545,9 @@ void MapReduce::scan(
 }
 
 void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce start.\n");
+
     // Apply user-defined reduce one-by-one
     ReducerUnique *u = h->BeginUnique();
     while(u!=NULL){
@@ -554,11 +557,15 @@ void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
         delete iter;
         u = h->NextUnique();
     }
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce end.\n");
 }
 
 void MapReduce::_convert(KeyValue *inputkv, \
     DataObject *mv, \
     ReducerHashBucket *h){
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _convert start.\n"); fflush(stdout);
 
     char *key, *value;
     int keybytes, valuebytes;
@@ -578,7 +585,11 @@ void MapReduce::_convert(KeyValue *inputkv, \
             u.key = key;
             u.keybytes = keybytes;
             u.mvbytes = valuebytes;
-            h->insertElem(&u);
+
+            ReducerUnique* ru = h->insertElem(&u);
+
+            //printf("%d[%d] insert: key=%s, u=%p, u->firstset=%p, u->lastset=%p\n", me, nprocs, key, \
+                ru, ru->firstset, ru->lastset); fflush(stdout);
             
             offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
         }
@@ -586,10 +597,13 @@ void MapReduce::_convert(KeyValue *inputkv, \
         inputkv->release_page(i);
     }
 
+    //printf("%d[%d] construct unique structure end\n", me, nprocs); fflush(stdout);
+
     // Set pointers to hold MVs
     char *page_buf=NULL, page_off=0, page_id=0;
     ReducerSet *pset = h->BeginSet();
     while(pset!=NULL){
+        //printf("pset=%p, page_id=%d, pset->pid=%d\n", pset, page_id, pset->pid); fflush(stdout);
         if(page_buf==NULL || page_id!=pset->pid){
             page_id=mv->add_page();
             page_buf=mv->get_page_buffer(page_id);
@@ -608,19 +622,28 @@ void MapReduce::_convert(KeyValue *inputkv, \
 
         //printf("%d\t%ld\t%ld\t%p\t%p\t%p\n", 
         //   pset->pid, pset->nvalue, pset->mvbytes,
-        //   pset, pset->soffset, pset->voffset); 
-        
+        //   pset, pset->soffset, pset->voffset);         
         //fflush(stdout);
 
         pset = h->NextSet();
     }
 
+    //printf("%d[%d] set pointer end\n", me, nprocs); fflush(stdout);
+
     // Modify the pointers
     ReducerUnique *uq = h->BeginUnique();    
     while(uq!=NULL){
+
         uq->lastset = uq->firstset;
+
+        //printf("%d[%d] key: %s, uq=%p, firstset=%p, lastset=%p\n", me, nprocs, uq->key, \
+            uq, uq->firstset, uq->lastset);
+        //fflush(stdout);
+
         uq = h->NextUnique();
     }
+
+    //printf("%d[%d] modify pointer end\n", me, nprocs); fflush(stdout);
 
     // Get the MVs
     for(i = 0; i < inputkv->get_npages(); i++){
@@ -633,6 +656,9 @@ void MapReduce::_convert(KeyValue *inputkv, \
         while(offset != -1){
             ReducerUnique *punique = h->findElem(key, keybytes);
             ReducerSet *pset = punique->lastset;
+
+            //printf("%d[%d] key=%s, pset=%p, ivalue=%ld, nvalue=%ld\n", me, nprocs, key, pset, \
+                pset->ivalue, pset->nvalue); fflush(stdout);
 
             if(inputkv->vsize==KVGeneral){
                 pset->soffset[pset->ivalue]=valuebytes;
@@ -652,6 +678,8 @@ void MapReduce::_convert(KeyValue *inputkv, \
         inputkv->delete_page(i);
         inputkv->release_page(i);
     }
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _convert end.\n");
 }
 
 void MapReduce::set_key_length(int _ksize){

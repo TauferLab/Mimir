@@ -84,50 +84,65 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
     char *key;
     int  keybytes;
 
+    // Get key and keybytes from ReducerUnique structure
     getkey(elem, &key, &keybytes);
 
+    // Get the bucket index
     int ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
+    // Get the bucket header
     ReducerUnique *ptr = buckets[ibucket];
 
-    // Compare
+    // Find if there is a unique structure existing
     while(ptr != NULL){
         if(compare(key, keybytes, ptr) != 0)
             break;
         ptr=ptr->next;
     }
 
+    int64_t onemvbytes=elem->mvbytes;
+    if(kv->vsize==KVGeneral) onemvbytes+=sizeof(int);
+
     // New unique key
     if(ptr==NULL){
+
         nunique+=1;
 
+        // Insert a new buffer
         if(cur_buf == NULL || \
             (usize-cur_off)<sizeof(ReducerUnique)+elem->keybytes){
 
             buffers[nbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, usize);
-            ReducerHashBucket::mem_bytes+=usize;
 
+            ReducerHashBucket::mem_bytes+=usize;
             PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
             
             if(cur_buf!=NULL)  memset(cur_buf+cur_off, 0, usize-cur_off);
 
             cur_buf=buffers[nbuf];
             cur_off=0;
+
             nbuf+=1;
         }
 
+        // Get the ReducerUnique structure 
         ReducerUnique *newelem=(ReducerUnique*)(cur_buf+cur_off);
         cur_off += sizeof(ReducerUnique);
+
+        // Set the element information
         newelem->key=cur_buf+cur_off;
         newelem->keybytes=elem->keybytes;
         newelem->nvalue=1;
         newelem->mvbytes=elem->mvbytes;
+
         newelem->firstset=NULL;
         newelem->lastset=NULL;
         newelem->next=NULL;
+
         memcpy(cur_buf+cur_off, elem->key, elem->keybytes);
         cur_off += elem->keybytes;
 
+        // Insert unique to the bucket
         if(buckets[ibucket]==NULL)
             buckets[ibucket] = newelem;
         else{
@@ -136,21 +151,27 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
             newelem->next = tmp;
         }
 
+        // Insert new set buffer
         if(nsetbuf == (nset/nbucket)){
-            sets[nsetbuf]=(char*)mem_aligned_malloc(\
-                MEMPAGE_SIZE, setsize);
-            //printf("sets[0]=%p\n", sets[0]);
+            sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
+            
             ReducerHashBucket::mem_bytes+=setsize;
-        
             PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
  
             nsetbuf+=1;
         }
 
+        // Set the set information
         ReducerSet *set=(ReducerSet*)sets[nset/nbucket]+nset%nbucket;
         nset+=1;
 
-        set->pid=0;
+        if(mvbytes+onemvbytes>kv->pagesize) {
+            mvbytes=0;
+            pid++;
+        }
+
+        // Set set information
+        set->pid=pid;
         set->ivalue=0;
         set->nvalue=1;
         set->mvbytes=elem->mvbytes;
@@ -158,54 +179,71 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         set->voffset=NULL;
         set->next=NULL;
 
+        // Insert set to the unique structure
         newelem->firstset=set;
         newelem->lastset=set;
 
+        mvbytes+=onemvbytes;
+
+        //printf("key=%s, mvbytes=%ld\n", newelem->key, mvbytes); fflush(stdout);
+
         return newelem;
-    }else{        
+    }else{
+        // Add the MV information        
         ptr->nvalue+=1;
         ptr->mvbytes+=elem->mvbytes;
 
-        int64_t onemv=sizeof(int)+elem->mvbytes;
-        if(kv->vsize==KVGeneral){
-            onemv+=sizeof(int);
-        }
-        int64_t onemvbytes=elem->mvbytes;
+        //int64_t onemvbytes=elem->mvbytes;
+        //if(kv->vsize==KVGeneral){
+        //    onemvbytes+=sizeof(int);
+        //}
+        //int64_t onemvbytes=elem->mvbytes;
         ReducerSet *set=NULL;
-        if(mvbytes+onemv>kv->pagesize){
-            if(nsetbuf == (nset/nbucket)){
-                sets[nsetbuf]=(char*)mem_aligned_malloc(\
-                    MEMPAGE_SIZE, setsize);
-                ReducerHashBucket::mem_bytes+=setsize;
+        if(mvbytes+onemvbytes>kv->pagesize){
 
+            mvbytes=0;
+            pid++;
+
+            // Insert set buffer
+            if(nsetbuf == (nset/nbucket)){
+                sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
+
+                ReducerHashBucket::mem_bytes+=setsize;
                 PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
 
                 nsetbuf+=1;
             }
 
+            // Get a new set
             set=(ReducerSet*)sets[nset/nbucket]+nset%nbucket;
             nset+=1;
 
-            set->pid=0;
+            // Set information
+            set->pid=pid;
             set->ivalue=0;
-            set->nvalue=1;
-            set->mvbytes=elem->mvbytes;
+            set->nvalue=0;
+            set->mvbytes=0;
+
             set->soffset=NULL;
             set->voffset=NULL;
             set->next=NULL;
 
+            // Move the set to next
             ptr->lastset->next=set;
             ptr->lastset=set;
 
-            mvbytes = onemvbytes;
         }else{
-            mvbytes += onemvbytes;
             set=ptr->lastset;
         }
 
+        // Set the set information
         set->nvalue+=1;
         set->mvbytes+=elem->mvbytes;
-       
+
+        mvbytes+=onemvbytes;
+    
+        //printf("key=%s, mvbytes=%ld\n", ptr->key, mvbytes); fflush(stdout);
+     
         return ptr;
     }
 }

@@ -74,8 +74,13 @@ DataObject::DataObject(int _me, int _nprocs,
 }
 
 DataObject::~DataObject(){
+    //printf("id=%d, ref=%d\n", id, ref); fflush(stdout);
+
     for(int i = 0; i < npages; i++){
-        if(pages[i].buffer != NULL) mem_aligned_free(pages[i].buffer);
+        if(pages[i].buffer != NULL) {
+            //printf("id=%d, buffer=%p\n", id, pages[i].buffer); fflush(stdout);
+            mem_aligned_free(pages[i].buffer);
+        }
     }
     mem_aligned_free(pages);
     DataObject::mem_bytes-=(npages*pagesize);
@@ -90,6 +95,8 @@ int DataObject::add_page(){
        LOG_ERROR("Error: page count (%d) is larger than than maximum (%d).", npages, maxpages);
     pages[pageid].datasize=0;
     pages[pageid].buffer=(char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
+
+    //printf("DataObject %d: pageid=%d, buffer=%p\n", id, pageid, pages[pageid].buffer); fflush(stdout);
 
     DataObject::mem_bytes+=pagesize;
 
