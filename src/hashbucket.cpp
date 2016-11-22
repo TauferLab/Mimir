@@ -30,11 +30,15 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     CombinerUnique *newelem=\
         (CombinerUnique*)buffers[nunique/nbucket]\
         +nunique%nbucket;
-    memcpy(newelem, elem, sizeof(CombinerUnique));
+    newelem->kv=elem->kv;
+    newelem->next=NULL;
+    //memcpy(newelem, elem, sizeof(CombinerUnique));
+   
+    int ibucket = hashlittle(key, keybytes, 0) % nbucket;
+
+    //printf("insert: ibucket=%d, ptr=%p\n", ibucket, newelem);
 
     nunique+=1;
-
-    int ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
     CombinerUnique *ptr = buckets[ibucket];
 
@@ -45,7 +49,7 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     }else{
         CombinerUnique *tmp = buckets[ibucket];
         buckets[ibucket] = newelem;
-        elem->next = tmp;
+        newelem->next = tmp;
         return NULL;
     }
     return ptr;

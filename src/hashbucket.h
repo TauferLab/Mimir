@@ -61,6 +61,7 @@ public:
         while(ptr!=NULL){
             if(compare(key, keybytes, ptr) != 0)
                 break;
+            //printf("find: ibucket=%d, ptr=%p\n", ibucket, ptr);
             ptr=ptr->next;
         }
         return ptr;

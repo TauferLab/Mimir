@@ -49,11 +49,11 @@ int main(int argc, char *argv[])
 
     mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
 
-    //mr->output(stdout, StringType, Int64Type);
+    mr->output(stdout, StringType, Int64Type);
 
     mr->reduce(countword, NULL);
 
-    //mr->output(stdout, StringType, Int64Type);
+    mr->output(stdout, StringType, Int64Type);
 
     output(rank, size, prefix, outdir);
 

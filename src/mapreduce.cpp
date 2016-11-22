@@ -106,8 +106,9 @@ MapReduce::~MapReduce()
 
     MapReduce::ref--;
 
-#if 0
+#if 1
     if(MapReduce::ref == 0){
+        printf("DataObject=%ld, CombinerHashBucket=%ld, ReducerHashBucket=%ld\n", DataObject::mem_bytes, CombinerHashBucket::mem_bytes, ReducerHashBucket::mem_bytes);
         if(DataObject::mem_bytes != 0)
             LOG_ERROR("%s", "Error: page buffers memory leak!\n");
         if(CombinerHashBucket::mem_bytes != 0)
