@@ -116,7 +116,7 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
 #define PROFILER_RECORD_TIME_END(timer_type)
 #define PROFILER_RECORD_COUNT(counter_type, count, op)
 #define PROFILER_GATHER
-#define PROFILER_PRINT(filename, out)
+#define PROFILER_PRINT(filename)
 
 #else
 
@@ -228,23 +228,24 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
     MPI_Barrier(stat_comm);\
 }
 
-#define PROFILER_PRINT(filename, out) \
+#define PROFILER_PRINT(filename) \
 {\
     char tmp[1024];\
     if(stat_rank==0){\
         sprintf(tmp, "%s_profiler.txt", filename);\
+        printf("filename=%s\n", tmp);\
         FILE *fp = fopen(tmp, "w+");\
         for(int i=0; i<stat_size; i++){\
-            fprintf(out, "rank:%d,size:%d",i,stat_size);\
+            fprintf(fp, "rank:%d,size:%d",i,stat_size);\
             std::map<std::string,double>::iterator iter;\
             for(iter=profiler_timer[i].begin(); \
                 iter!=profiler_timer[i].end(); iter++){\
-                fprintf(out, ",%s:%g", iter->first.c_str(), iter->second);\
+                fprintf(fp, ",%s:%g", iter->first.c_str(), iter->second);\
             }\
             std::map<std::string,uint64_t>::iterator iter1;\
             for(iter1=profiler_counter[i].begin(); \
                 iter1!=profiler_counter[i].end(); iter1++){\
-                fprintf(out, ",%s:%ld", iter1->first.c_str(), iter1->second);\
+                fprintf(fp, ",%s:%ld", iter1->first.c_str(), iter1->second);\
             }\
             fprintf(fp, "\n");\
         }\
@@ -331,18 +332,18 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
     MPI_Barrier(stat_comm);\
 }
 
-#define TRACKER_PRINT(filename, out) \
+#define TRACKER_PRINT(filename) \
 {\
     char tmp[1024];\
     if(stat_rank==0){\
         sprintf(tmp, "%s_trace.txt", filename);\
         FILE *fp = fopen(tmp, "w+");\
         for(int i=0; i<stat_size; i++){\
-            fprintf(out, "rank:%d,size:%d",i,stat_size);\
+            fprintf(fp, "rank:%d,size:%d",i,stat_size);\
             std::vector<std::pair<std::string,double> >::iterator iter;\
             for(iter=tracker_event[i].begin(); \
                 iter!=tracker_event[i].end(); iter++){\
-                fprintf(out, ",%s:%g", iter->first.c_str(), iter->second);\
+                fprintf(fp, ",%s:%g", iter->first.c_str(), iter->second);\
             }\
             fprintf(fp, "\n");\
         }\

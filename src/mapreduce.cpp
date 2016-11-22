@@ -548,6 +548,7 @@ void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce start.\n");
 
+#if 0
     // Apply user-defined reduce one-by-one
     ReducerUnique *u = h->BeginUnique();
     while(u!=NULL){
@@ -557,6 +558,7 @@ void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
         delete iter;
         u = h->NextUnique();
     }
+#endif
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce end.\n");
 }
@@ -645,6 +647,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
 
     printf("%d[%d] modify pointer end\n", me, nprocs); fflush(stdout);
 
+#if 0
     // Get the MVs
     for(i = 0; i < inputkv->get_npages(); i++){
         int64_t offset = 0;
@@ -678,7 +681,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
         inputkv->delete_page(i);
         inputkv->release_page(i);
     }
-
+#endif
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _convert end.\n");
 }
 
@@ -706,8 +709,8 @@ void MapReduce::output_stat(const char *filename){
 
     //printf("gather end!\n");
 
-    PROFILER_PRINT(filename, fp);
-    TRACKER_PRINT(filename, fp);
+    PROFILER_PRINT(filename);
+    //TRACKER_PRINT(filename);
 }
 
 
