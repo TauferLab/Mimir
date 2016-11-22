@@ -108,7 +108,7 @@ MapReduce::~MapReduce()
 
 #if 1
     if(MapReduce::ref == 0){
-        printf("DataObject=%ld, CombinerHashBucket=%ld, ReducerHashBucket=%ld\n", DataObject::mem_bytes, CombinerHashBucket::mem_bytes, ReducerHashBucket::mem_bytes);
+        //printf("DataObject=%ld, CombinerHashBucket=%ld, ReducerHashBucket=%ld\n", DataObject::mem_bytes, CombinerHashBucket::mem_bytes, ReducerHashBucket::mem_bytes);
         if(DataObject::mem_bytes != 0)
             LOG_ERROR("%s", "Error: page buffers memory leak!\n");
         if(CombinerHashBucket::mem_bytes != 0)
@@ -278,7 +278,6 @@ uint64_t MapReduce::map_text_file( \
     kv->gc();
 
     DataObject::addRef(kv);
-
     phase = NonePhase;
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -305,11 +304,20 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
     KeyValue *inputkv = _mr->kv;
 
+    //printf("inputkv=%p, npages=%d, comm=%d\n", \
+        inputkv, inputkv->get_npages(), _comm);
+
     // create new data object
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: new data KV. (KV as input)\n");
+
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+
+    //printf("inputkv=%p, npages=%d, kv=%p, comm=%d\n", \
+        inputkv, inputkv->get_npages(), kv, _comm);
+
     kv->set_kv_size(ksize, vsize);
     kv->set_combiner(this, mycombiner);
+
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: alloc data KV. (KV as input)\n");
 
@@ -326,6 +334,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
     int i;
     for(i = 0; i < inputkv->get_npages(); i++){
+
+        //printf("i=%d\n", i);
+
         int64_t offset = 0;
 
         inputkv->acquire_page(i);
@@ -333,6 +344,8 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
         offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
 
         while(offset != -1){
+
+            //printf("map_key_value: v0=%ld\n", *(int64_t*)key);
 
             _mymap(this, key, keybytes, value, valuebytes, _ptr);
 
@@ -396,6 +409,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
         c = NULL;
     }
 
+    DataObject::addRef(kv);
     phase = NonePhase;
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);

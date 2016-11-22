@@ -11,32 +11,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "mapreduce.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <cstdlib>
-#include "string.h"
 #include <cmath>
 
-int rank, size;
-int nbucket, estimate=0, factor=32;
-const char* inputsize;
-const char* blocksize;
-const char* gbufsize;
-const char* lbufsize="4K";
-const char* commmode="a2a";
+#include "mapreduce.h"
+#include "common.h"
 
 using namespace MIMIR_NS;
+int rank, size;
 
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
-void rankrgeword(MapReduce *, char *, int, char *, int, char *, int, void*);
+void combiner(MapReduce *, char *, int, char *, int, char *, int, void*);
 void sum(MapReduce *, char *, int,  MultiValueIterator *, void*);
-void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
+//void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
 double slope(double[], double[], int);
-
 
 #define digits 15
 int64_t thresh=5;
@@ -45,120 +38,81 @@ int level;
 
 int main(int argc, char **argv)
 {
-  MPI_Init(&argc, &argv);
+    MPI_Init(&argc, &argv);
 
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  if (argc <= 5) {
-    if (rank == 0) printf("Syntax: octree_move_lg indir threshold prefix outdir tmpdir\n");
-    MPI_Abort(MPI_COMM_WORLD,1);
-  }
-
-  double density = atof(argv[1]);
-  char *indir = argv[2];
-  const char *prefix = argv[3];
-  const char *outdir = argv[4];
-  //const char *tmpdir = argv[5];
-
-  if(rank==0){
-    printf("density=%.2lf\n", density);
-    printf("input dir=%s\n", indir);
-    printf("prefix=%s\n", prefix);
-    printf("output dir=%s\n", outdir);
-  }
-
-  char *bucket_str = getenv("MR_BUCKET_SIZE");
-  inputsize = getenv("MR_INBUF_SIZE");
-  blocksize = getenv("MR_PAGE_SIZE");
-  gbufsize = getenv("MR_COMM_SIZE");
-  if(bucket_str==NULL || inputsize==NULL\
-    || blocksize==NULL || gbufsize==NULL){
-    if(rank==0) printf("Please set correct environranknt variables!\n");
-    MPI_Abort(MPI_COMM_WORLD, 1);
-  }
-  nbucket = atoi(bucket_str);
-
-  int min_limit, max_limit;
-  min_limit=0;
-  max_limit=digits+1;
-  level=(int)floor((max_limit+min_limit)/2);
-
-  MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
-
-  //mr_convert->set_threadbufsize(lbufsize);
-  //mr_convert->set_sendbufsize(gbufsize);
-  //mr_convert->set_blocksize(blocksize);
-  //mr_convert->set_inputsize(inputsize);
-  //mr_convert->set_commmode(commmode);
-  //mr_convert->set_nbucket(estimate,nbucket,factor);
-  //mr_convert->set_maxmem(32);
-
-  //mr_convert->set_outofcore(0);
-
-#ifdef KV_HINT
-  mr_convert->set_KVtype(FixedKV, digits, 0);
-#endif
-
-  char whitespace[10] = "\n";
-  uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, 0);
-
-  thresh=(int64_t)((float)nwords*density);
-  if(rank==0){
-    printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
-  }
-
-  MapReduce *mr_level=new MapReduce(MPI_COMM_WORLD);
-  //mr_level->set_threadbufsize(lbufsize);
-  //mr_level->set_sendbufsize(gbufsize);
-  //mr_level->set_blocksize(blocksize);
-  //mr_level->set_inputsize(inputsize);
-  //mr_level->set_commmode(commmode);
-  //mr_level->set_nbucket(estimate,nbucket,factor);
-  //mr_level->set_maxmem(32);
-  //mr_level->set_outofcore(0);
-
-  while ((min_limit+1) != max_limit){
-#ifdef KV_HINT
-    mr_level->set_KVtype(FixedKV, level, sizeof(int64_t));
-#endif
-
-    mr_level->map_key_value(mr_convert, gen_leveled_octkey);
-
-    uint64_t nkv = mr_level->reduce(sum, NULL);
-
-    if(nkv >0){
-      min_limit=level;
-      level= (int)floor((max_limit+min_limit)/2);
-    }else{
-      max_limit=level;
-      level = (int) floor((max_limit+min_limit)/2);
+    if (argc < 5) {
+        if (rank == 0) printf("Syntax: octree_move_lg threshold indir prefix outdir\n");
+        MPI_Abort(MPI_COMM_WORLD,1);
     }
-  }
 
-  //output("mtmr.wc", outdir, prefix, density, mr_convert, mr_level);
+    double density = atof(argv[1]);
+    char *indir = argv[2];
+    char *prefix = argv[3];
+    char *outdir = argv[4];
 
-  delete mr_level;
-  delete mr_convert;
+    check_envars(rank, size);
 
-  if(rank==0) printf("level=%d\n", level);
+    int min_limit, max_limit;
+    min_limit=0;
+    max_limit=digits+1;
+    level=(int)floor((max_limit+min_limit)/2);
 
-  MPI_Finalize();
+    MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
+
+    char whitespace[10] = "\n";
+    uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, 0);
+
+    thresh=(int64_t)((float)nwords*density);
+    if(rank==0){
+        printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
+    }
+
+    MapReduce *mr_level=new MapReduce(MPI_COMM_WORLD);
+
+#ifdef COMBINE
+    mr_level->set_combiner(combiner);
+#endif
+
+    while ((min_limit+1) != max_limit){
+        mr_level->map_key_value(mr_convert, gen_leveled_octkey);
+        uint64_t nkv = mr_level->reduce(sum, NULL);
+
+        if(nkv >0){
+            min_limit=level;
+            level= (int)floor((max_limit+min_limit)/2);
+        }else{
+            max_limit=level;
+            level = (int) floor((max_limit+min_limit)/2);
+        }
+    }
+
+    delete mr_level;
+
+    output(rank, size, prefix, outdir);
+
+    delete mr_convert;
+
+    if(rank==0) printf("level=%d\n", level);
+
+    MPI_Finalize();
 }
 
-void rankrgeword(MapReduce *mr, char *key, int keysize, \
+void combiner(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
   int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
 
-  mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
+  mr->update_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
-void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
-{
-  int64_t count=*(int64_t*)val;
-  if(count > thresh)
-    mr->add_key_value(key, keysize, (char*)&count, sizeof(int64_t));
-}
+//void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
+//{
+//  int64_t count=*(int64_t*)val;
+//  if(count > thresh)
+//    mr->add_key_value(key, keysize, (char*)&count, sizeof(int64_t));
+//}
 
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
 

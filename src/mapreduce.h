@@ -34,7 +34,7 @@ class ReducerUnique;
 class ReducerSet;
 
 /// hash callback
-typedef  int64_t (*UserHash)(char *, int);
+typedef  int (*UserHash)(char *, int);
 
 /// map callback to init KVs
 typedef void (*UserInitKV)(MapReduce *, void *);

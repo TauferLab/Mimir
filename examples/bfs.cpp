@@ -13,14 +13,7 @@
 
 #include "mapreduce.h"
 #include "memory.h"
-
-
-// Please set MR_BUCKET_SIZE, MR_INBUF_SIZE, MR_PAGE_SIZE, MR_COMM_SIZE
-int nbucket, estimate=0, factor=32;
-const char* inputsize;
-const char* blocksize;
-const char* gbufsize;
-const char* commmode="a2a";
+#include "common.h"
 
 using namespace MIMIR_NS;
 
@@ -34,7 +27,7 @@ using namespace MIMIR_NS;
   ((vis[(v)/LONG_BITS]) |= (1UL << ((v)%LONG_BITS)))
 
 // graph partition
-int64_t mypartition(char *, int);
+int mypartition(char *, int);
 // read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
@@ -51,7 +44,7 @@ void expand(MapReduce *, char *, int, char *, int, void *);
 // shrink vertex
 void shrink(MapReduce *, char *, int, char *, int, void *);
 // compress function
-void compress(MapReduce *, char *, int, char *, int, char *, int, void*);
+void combiner(MapReduce *, char *, int, char *, int, char *, int, void*);
 
 // CSR graph
 int rank, size;
@@ -63,6 +56,7 @@ int64_t  nvertoffset;      // local vertex's offset
 int64_t quot, rem;         // quotient and reminder of globalverts/size
 
 size_t   *rowstarts;          // rowstarts
+
 #ifndef COLUMN_SINGLE_BUFFER
 int       ncolumn=0;
 int64_t   ncolumnedge=8*1024*1024;
@@ -72,6 +66,7 @@ int64_t **columns;            // columns
 #else
 int64_t  *columns;         // columns
 #endif
+
 unsigned long* vis;        // visited bitmap
 int64_t *pred;             // pred map
 int64_t root;              // root vertex
@@ -93,33 +88,19 @@ int main(int argc, char **argv)
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     // Get pararankters
-    if (argc < 7) {
+    if (argc < 6) {
         if (rank == 0) 
-            printf("Syntax: bfs N indir prefix outdir tmpdir seed\n");
+            printf("Syntax: bfs N indir prefix outdir seed\n");
         MPI_Abort(MPI_COMM_WORLD,1);
     }
 
     nglobalverts = strtoull(argv[1], NULL, 0);
     char *indir = argv[2];
-    const char *prefix = argv[3];
-    const char *outdir = argv[4];
-    const char *tmpdir = argv[5];
+    char *prefix = argv[3];
+    char *outdir = argv[4];
+    srand(atoi(argv[5]));
 
-    srand(atoi(argv[6]));
-
-    if(nglobalverts<=0){
-        if (rank == 0) 
-            printf("The global vertexs should be larger than zero\n");
-        MPI_Abort(MPI_COMM_WORLD,1);
-    }
-
-    if(rank==0){
-        printf("global vertexs=%ld\n", nglobalverts);
-        printf("input dir=%s\n", indir);
-        printf("prefix=%s\n", prefix);
-        printf("output dir=%s\n", outdir);
-        printf("tmp dir=%s\n", tmpdir); fflush(stdout);
-    }
+    check_envars(rank, size);
 
     // compute vertex partition range
     quot = nglobalverts/size;
@@ -147,13 +128,12 @@ int main(int argc, char **argv)
 
     if(rank==0) fprintf(stdout, "make CSR graph start.\n");
 
-    // make graph
-    MPI_Barrier(MPI_COMM_WORLD);
-
     // partition file
     char whitespace[10] = "\n";
     uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread);
     nglobaledges = nedges;
+
+    mr->output(stdout, Int64Type, Int64Type);
 
     rowstarts = new size_t[nlocalverts+1];
     rowinserts = new size_t[nlocalverts];
@@ -169,10 +149,7 @@ int main(int argc, char **argv)
         rowstarts[i+1] += rowstarts[i];
     }
 
-    if(rank==0) { 
-        fprintf(stdout, "local edge=%ld\n", nlocaledges); 
-        fflush(stdout);
-    }
+    if(rank==0) fprintf(stdout, "local edge=%ld\n", nlocaledges); 
 
     // columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
 #ifndef COLUMN_SINGLE_BUFFER
@@ -206,6 +183,8 @@ int main(int argc, char **argv)
 
     delete [] rowinserts;
 
+    mr->output(stdout, Int64Type, Int64Type);
+
     if(rank==0) {
         fprintf(stdout, "make CSR graph end.\n");
     }
@@ -228,14 +207,24 @@ int main(int argc, char **argv)
 
     if(rank==0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
 
+#ifdef COMBINE
+    mr->set_combiner(combiner);
+#endif
+
     // Inialize the child  vertexes of root
     mr->init_key_value(rootvisit, NULL);
+
+    mr->output(stdout, Int64Type, Int64Type);
 
     // BFS search
     int level = 0;
     do{
         mr->map_key_value(mr, shrink, NULL, 0);
+        mr->output(stdout, Int64Type, Int64Type);
+
         nactives[level] = mr->map_key_value(mr, expand);
+        mr->output(stdout, Int64Type, Int64Type);
+
         level++;
     }while(nactives[level-1]);
 
@@ -262,7 +251,7 @@ int main(int argc, char **argv)
     free(columns);
 #endif
 
-  //output();
+    output(rank, size, prefix, outdir);
 
     delete mr;
 
@@ -276,12 +265,14 @@ int main(int argc, char **argv)
 }
 
 // partiton <key,value> based on the key
-int64_t mypartition(char *key, int keybytes){
+int mypartition(char *key, int keybytes){
     int64_t v = *(int64_t*)key;
+    int v_rank=0;
     if(v<quot*rem+rem)
-        return v/(quot+1);
+        v_rank = (int)(v/(quot+1));
     else
-        return (v-rem)/quot;
+        v_rank = (int)((v-rem)/quot);
+    return v_rank;
 }
 
 // count edge number of each vertex
@@ -354,6 +345,8 @@ void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
 
     int64_t v0 = *(int64_t*)value;
 
+    printf("v0=%ld\n", v0);
+
     if(!TEST_VISITED(v_local, vis)){
         SET_VISITED(v_local, vis);
         pred[v_local] = v0;
@@ -379,10 +372,10 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
 }
 
 // Compress KV with the sarank key
-void compress(MapReduce *mr, char *key, int keysize, \
+void combiner(MapReduce *mr, char *key, int keysize, \
   char *val1, int val1size, char *val2, int val2size, void* ptr){
 
-    mr->add_key_value(key, keysize, val1, val1size);
+    mr->update_key_value(key, keysize, val1, val1size);
 }
 
 // Rondom chosen a vertex in the CC part of the graph

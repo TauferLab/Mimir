@@ -92,12 +92,12 @@ public:
 protected:
     int me, nprocs;
 
-    int id,ref;
+    int id, ref;
 
-    int64_t totalsize;    ///< datasize
+    int64_t totalsize;     ///< datasize
 
-    DataType datatype;    ///< data type
-    int npages,maxpages;  ///< number of page
+    DataType datatype;     ///< data type
+    int npages ,maxpages;  ///< number of page
 
     int      ipage;        ///< index of current page
     char    *ptr;
