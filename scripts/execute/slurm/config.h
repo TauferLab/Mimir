@@ -1,4 +1,4 @@
-export PPN=1
+export PPN=24
 export BASEDIR=/oasis/scratch/comet/taogao/temp_project
 export OUTDIR=$BASEDIR/results/comet_tpds/debug/
 #export OUTDIR=$BASEDIR/results/test/

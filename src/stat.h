@@ -262,7 +262,7 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
 #define TRACKER_END
 #define TRACKER_RECORD_EVENT(event_type)
 #define TRACKER_GATHER
-#define TRACKER_PRINT(filename, out)
+#define TRACKER_PRINT(filename)
 
 #else
 

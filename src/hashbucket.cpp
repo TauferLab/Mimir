@@ -112,6 +112,8 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         if(cur_buf == NULL || \
             (usize-cur_off)<sizeof(ReducerUnique)+elem->keybytes){
 
+            //printf("add a buffer!\n");
+
             buffers[nbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE,usize);
 
             ReducerHashBucket::mem_bytes+=usize;
@@ -153,6 +155,8 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         // Insert new set buffer
         if(nsetbuf == (nset/nbucket)){
+            //printf("add a set!\n");
+
             sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
             
             ReducerHashBucket::mem_bytes+=setsize;
@@ -185,7 +189,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         mvbytes+=onemvbytes;
 
-        printf("key=%s, pid=%d, mvbytes=%ld\n", newelem->key, pid, mvbytes); fflush(stdout);
+        //printf("key=%s, pid=%d, mvbytes=%ld\n", newelem->key, pid, mvbytes); fflush(stdout);
 
         return newelem;
     }else{
@@ -206,6 +210,8 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
             // Insert set buffer
             if(nsetbuf == (nset/nbucket)){
+                //printf("add a set!\n");
+
                 sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
 
                 ReducerHashBucket::mem_bytes+=setsize;
@@ -242,7 +248,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         mvbytes+=onemvbytes;
     
-        printf("key=%s, pid=%d, mvbytes=%ld\n", ptr->key, pid, mvbytes); fflush(stdout);
+        //printf("key=%s, pid=%d, mvbytes=%ld\n", ptr->key, pid, mvbytes); fflush(stdout);
      
         return ptr;
     }
