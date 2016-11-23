@@ -44,6 +44,8 @@ extern std::vector<std::pair<std::string,double> > *tracker_event;
 extern const char* timer_str[];
 extern const char* counter_str[];
 
+extern char timestr[];
+
 #define MR_GET_WTIME() MPI_Wtime()
 
 // Timers
@@ -116,6 +118,21 @@ extern const char* counter_str[];
     }\
 }
 
+#define GET_CUR_TIME \
+{\
+    if(stat_rank==0){\
+        time_t t = time(NULL);\
+        struct tm tm = *localtime(&t);\
+        sprintf(timestr, "%d-%d-%d-%d:%d:%d", \
+            tm.tm_year + 1900,\
+            tm.tm_mon + 1,\
+            tm.tm_mday,\
+            tm.tm_hour,\
+            tm.tm_min,\
+            tm.tm_sec);\
+    }\
+}
+
 // Define profiler
 #ifndef ENABLE_PROFILER
 
@@ -164,18 +181,9 @@ extern const char* counter_str[];
 {\
     profiler_timer[TIMER_TOTAL]=MR_GET_WTIME()-init_wtime;\
     profiler_counter[COUNTER_PEAKMEM_USE]=peakmem;\
-    char fullname[1024], timestr[1024];\
+    char fullname[1024];\
     FILE *fp=NULL;\
     if(stat_rank==0){\
-        time_t t = time(NULL);\
-        struct tm tm = *localtime(&t);\
-        sprintf(timestr, "%d-%d-%d-%d:%d:%d", \
-            tm.tm_year + 1900,\
-            tm.tm_mon + 1,\
-            tm.tm_mday,\
-            tm.tm_hour,\
-            tm.tm_min,\
-            tm.tm_sec);\
         sprintf(fullname, "%s_%s_profiler.txt", filename, timestr);\
         printf("filename=%s\n", fullname);\
         fp = fopen(fullname, "w+");\
@@ -189,12 +197,11 @@ extern const char* counter_str[];
     if(stat_rank==0){\
         MPI_Status st;\
         for(int i=1; i<stat_size; i++){\
-            fprintf(fp, "%s,%d,%d", timestr, i, stat_size);\
+            fprintf(fp, "\n%s,%d,%d", timestr, i, stat_size);\
             MPI_Recv(profiler_timer, TIMER_NUM, MPI_DOUBLE, i, 0x11, stat_comm, &st);\
             for(int i=0; i<TIMER_NUM; i++) fprintf(fp, ",%g", profiler_timer[i]);\
             MPI_Recv(profiler_counter, COUNTER_NUM, MPI_UINT64_T, i, 0x22, stat_comm, &st);\
             for(int i=0; i<COUNTER_NUM; i++) fprintf(fp, ",%ld", profiler_counter[i]);\
-            fprintf(fp, "\n");\
         }\
     }else{\
         MPI_Send(profiler_timer, TIMER_NUM, MPI_DOUBLE, 0, 0x11, stat_comm);\
@@ -280,18 +287,9 @@ extern const char* counter_str[];
         MPI_Send(tmp, off, MPI_BYTE, 0, 0x33, stat_comm);\
     }\
     mem_aligned_free(tmp);\
-    char fullname[1024], timestr[1024];\
+    char fullname[1024];\
     FILE *fp=NULL;\
     if(stat_rank==0){\
-        time_t t = time(NULL);\
-        struct tm tm = *localtime(&t);\
-        sprintf(timestr, "%d-%d-%d-%d:%d:%d", \
-            tm.tm_year + 1900,\
-            tm.tm_mon + 1,\
-            tm.tm_mday,\
-            tm.tm_hour,\
-            tm.tm_min,\
-            tm.tm_sec);\
         sprintf(fullname, "%s_%s_trace.txt", filename, timestr);\
         printf("filename=%s\n", fullname);\
         fp = fopen(fullname, "w+");\

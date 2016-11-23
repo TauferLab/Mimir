@@ -104,11 +104,11 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
     //printf("send: key=%s, target=%d\n", key, target); fflush(stdout);
 
     int kvsize = 0;
-    int goff=off[target];
     GET_KV_SIZE(kv->ksize,kv->vsize, keysize, valsize, kvsize);
 
     int inserted=0;
     while(1){
+        int goff=off[target];
         /* without combiner */
         if(mycombiner==NULL){
             if((int64_t)goff+(int64_t)kvsize<=send_buf_size){

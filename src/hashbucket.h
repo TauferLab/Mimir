@@ -16,11 +16,11 @@ public:
     HashBucket(KeyValue *_kv){
         kv = _kv;
 
-        nbucket = BUCKET_COUNT;
+        nbucket = pow(2,BUCKET_COUNT);
         usize = nbucket*sizeof(ElemType);
         maxbuf = MAX_PAGE_COUNT;
         buckets = (ElemType**)mem_aligned_malloc(\
-            MEMPAGE_SIZE, sizeof(ElemType*)*BUCKET_COUNT);
+            MEMPAGE_SIZE, sizeof(ElemType*)*nbucket);
         buffers = (char**)mem_aligned_malloc(\
             MEMPAGE_SIZE, maxbuf*sizeof(char*));
 

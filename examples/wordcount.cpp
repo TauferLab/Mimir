@@ -33,6 +33,12 @@ int main(int argc, char *argv[])
     const char *prefix = argv[2];
     const char *outdir = argv[3];
 
+    if(rank==0){
+        printf("input dir=%s\n", filedir);
+        printf("prefix=%s\n", prefix);
+        printf("output dir=%s\n", outdir);
+    }
+
     check_envars(rank, size);
 
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
@@ -49,11 +55,11 @@ int main(int argc, char *argv[])
 
     mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
 
-    mr->output(stdout, StringType, Int64Type);
+    //mr->output(stdout, StringType, Int64Type);
 
     mr->reduce(countword, NULL);
 
-    mr->output(stdout, StringType, Int64Type);
+    //mr->output(stdout, StringType, Int64Type);
 
     output(rank, size, prefix, outdir);
 

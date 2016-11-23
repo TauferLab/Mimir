@@ -13,6 +13,8 @@ Profiler_info profiler_info;
 double *profiler_timer=NULL;
 uint64_t *profiler_counter=NULL;
 
+char timestr[1024];
+
 const char* timer_str[TIMER_NUM]={
     "total_time",
     "pfs_io_time",

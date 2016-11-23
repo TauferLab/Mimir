@@ -720,6 +720,7 @@ void MapReduce::set_value_length(int _vsize){
 }
 
 void MapReduce::output_stat(const char *filename){
+    GET_CUR_TIME;
 
     PROFILER_PRINT(filename);
 
@@ -761,7 +762,7 @@ void MapReduce::_get_default_values(){
     char *env = NULL;
     env = getenv("MIMIR_BUCKET_SIZE");
     if(env){
-        BUCKET_COUNT=pow(2,atoi(env));
+        BUCKET_COUNT=atoi(env);
         if(BUCKET_COUNT<=0)
             LOG_ERROR("Error: set bucket size error, please set MIMIR_BUCKET_SIZE (%s) correctly!\n", env);
     }
@@ -783,9 +784,6 @@ void MapReduce::_get_default_values(){
         if(INPUT_BUF_SIZE<=0)
             LOG_ERROR("Error: set input buffer size error, please set INPUT_BUF_SIZE (%s) correctly!\n", env);
     }
-
-    fprintf(stdout, "BUCKET_COUNT=%d, COMM_BUF_SIZE=%ld, DATA_PAGE_SIZE=%ld, INPUT_BUF_SIZE=%ld\n", \
-        BUCKET_COUNT, COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE); fflush(stdout);
 
     /// Configure unit size for communication buffer 
     env = NULL;
@@ -832,6 +830,14 @@ void MapReduce::_get_default_values(){
             DBG_LEVEL |= (DBG_IO);
         }
     }   
+
+    if(me==0){
+        fprintf(stdout, "bucket size(2^x)=%d, comm_buf_size=%ld, \
+data_page_size=%ld, input_buf_size=%ld\n", \
+        BUCKET_COUNT, COMM_BUF_SIZE, \
+        DATA_PAGE_SIZE, INPUT_BUF_SIZE); 
+    }
+    fflush(stdout);
 
     //printf("DBG_LEVEL=%x\n", DBG_LEVEL); 
     PROFILER_RECORD_COUNT(COUNTER_BUCKET_SIZE, BUCKET_COUNT, OPMAX);
