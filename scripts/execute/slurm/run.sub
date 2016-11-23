@@ -15,24 +15,10 @@ echo "param:"$PARAM
 echo "input dir:"$INDIR
 echo "prefix":$PREFIX
 echo "output dir:"$OUTDIR
-echo "temp dir:"$TMPDIR
-echo "thread num:"$THRS
-echo "use tau:"$USETAU
-echo "tau file:"$TAUFILE
+echo "test index:"$TESTINDEX
 
 let NPROC=PPN*NODE
 
-#export TAU_TRACK_HEAP=1
-#export TAU_CALLPATH=1
-#export TAU_CALLPATH_DEPTH=100
-
-export OMP_NUM_THRADS=$THRS
 mpiexec -n $NPROC -bind-to core ./$EXE $PARAM $INDIR $PREFIX $OUTDIR $TMPDIR $TESTINDEX
 
-#if [ $USETAU == "true" ]
-#then
-#  pprof | grep "  Heap Memory Used (KB) at Exit" | \
-#    awk -v np=$PPN -v data=$DATASIZE '{print data","np","i++","$2}' \
-#    >> $TAUFILE
-  #rm profile.*
-#fi
+
