@@ -100,7 +100,7 @@ int DataObject::add_page(){
 
     DataObject::mem_bytes+=pagesize;
 
-    PROFILER_RECORD_COUNT(COUNTER_MEM_PAGES, \
+    PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, \
         DataObject::mem_bytes, OPMAX);
   
     ipage = pageid;

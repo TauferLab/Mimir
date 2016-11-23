@@ -22,7 +22,7 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
             MEMPAGE_SIZE, usize);
         CombinerHashBucket::mem_bytes+=usize;
 
-        PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, CombinerHashBucket::mem_bytes, OPMAX);
+        PROFILER_RECORD_COUNT(COUNTER_COMBINE_BUCKET, CombinerHashBucket::mem_bytes, OPMAX);
  
         nbuf+=1;
     }
@@ -121,7 +121,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
             buffers[nbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE,usize);
 
             ReducerHashBucket::mem_bytes+=usize;
-            PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
+            PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
             
             if(cur_buf!=NULL)  memset(cur_buf+cur_off, 0, usize-cur_off);
 
@@ -164,7 +164,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
             sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
             
             ReducerHashBucket::mem_bytes+=setsize;
-            PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
+            PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
  
             nsetbuf+=1;
         }
@@ -219,7 +219,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
                 sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
 
                 ReducerHashBucket::mem_bytes+=setsize;
-                PROFILER_RECORD_COUNT(COUNTER_MEM_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
+                PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
 
                 nsetbuf+=1;
             }

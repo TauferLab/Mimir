@@ -173,8 +173,7 @@ uint64_t MapReduce::map_text_file( \
     char *text = (char*)mem_aligned_malloc(\
         MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
-    PROFILER_RECORD_COUNT(COUNTER_INBUF_SIZE, \
-        input_buffer_size+MAX_STR_SIZE+1, OPSUM);
+    PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, input_buffer_size, OPMAX);
    
     for(int i = 0; i < fcount; i++){
         int64_t input_char_size=0, fsize=0;
@@ -188,14 +187,14 @@ uint64_t MapReduce::map_text_file( \
         if(fp == NULL){
             LOG_ERROR("Error: open file %s error!", ifiles[i].first.c_str());
         }
-        PROFILER_RECORD_TIME_END(TIMER_DISK_IO);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
 
         PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
 
         LOG_PRINT(DBG_IO, me, nprocs, "open file %s, fsize=%ld\n", \
             ifiles[i].first.c_str(), ifiles[i].second);
 
-        TRACKER_RECORD_EVENT(EVENT_DISK_OPEN);
+        TRACKER_RECORD_EVENT(EVENT_PFS_OPEN);
 
         // Process the file
         int64_t foff = 0, boff = 0;
@@ -209,15 +208,15 @@ uint64_t MapReduce::map_text_file( \
             // Read file
             fseek(fp, foff, SEEK_SET);
 
-            TRACKER_RECORD_EVENT(EVENT_DISK_SEEK);
+            TRACKER_RECORD_EVENT(EVENT_PFS_SEEK);
 
             readsize = fread(text+boff, 1, input_buffer_size, fp);
 
             PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, readsize, OPSUM);
 
-            TRACKER_RECORD_EVENT(EVENT_DISK_READ);
+            TRACKER_RECORD_EVENT(EVENT_PFS_READ);
 
-            PROFILER_RECORD_TIME_END(TIMER_DISK_IO);
+            PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
 
             // read a block
             text[boff+readsize] = '\0';
@@ -257,9 +256,9 @@ uint64_t MapReduce::map_text_file( \
 
         PROFILER_RECORD_TIME_START;
         fclose(fp);
-        PROFILER_RECORD_TIME_END(TIMER_DISK_IO);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
 
-        TRACKER_RECORD_EVENT(EVENT_DISK_CLOSE);
+        TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
 
         LOG_PRINT(DBG_IO, me, nprocs, "close file %s\n", ifiles[i].first.c_str());
     }
@@ -722,17 +721,10 @@ void MapReduce::set_value_length(int _vsize){
 
 void MapReduce::output_stat(const char *filename){
 
-    //printf("gather start!\n");
+    PROFILER_PRINT(filename);
 
-    PROFILER_GATHER; 
-
-    //printf("gather middle!\n");
 
     TRACKER_GATHER; 
-
-    //printf("gather end!\n");
-
-    PROFILER_PRINT(filename);
     TRACKER_PRINT(filename);
 }
 
@@ -843,9 +835,10 @@ void MapReduce::_get_default_values(){
     }   
 
     //printf("DBG_LEVEL=%x\n", DBG_LEVEL); 
-
-    PROFILER_RECORD_COUNT(COUNTER_COMM_SIZE, COMM_BUF_SIZE, OPSUM);
-    PROFILER_RECORD_COUNT(COUNTER_PAGE_SIZE, DATA_PAGE_SIZE, OPSUM);
+    PROFILER_RECORD_COUNT(COUNTER_BUCKET_SIZE, BUCKET_COUNT, OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_INBUF_SIZE, INPUT_BUF_SIZE, OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_COMM_SIZE, COMM_BUF_SIZE, OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_PAGE_SIZE, DATA_PAGE_SIZE, OPMAX);
 }
 
 int64_t MapReduce::_convert_to_int64(const char *_str){
