@@ -11,6 +11,7 @@ const char* commsize = NULL;
 const char* pagesize = NULL;
 const char* ibufsize = NULL;
 
+#if 0
 void get_time_str(char *timestr){
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
@@ -22,6 +23,7 @@ void get_time_str(char *timestr){
         tm.tm_min, 
         tm.tm_sec);
 }
+#endif
 
 void check_envars(int rank, int size){
     if(getenv("MIMIR_COMM_SIZE")==NULL ||\
@@ -43,12 +45,12 @@ void output(int rank, int size, \
     pagesize = getenv("MIMIR_PAGE_SIZE");
     ibufsize = getenv("MIMIR_IBUF_SIZE");
 
-    char timestr[1024];
-    get_time_str(timestr);
+    //char timestr[1024];
+    //get_time_str(timestr);
 
     char filename[1024];
-    sprintf(filename, "%s/%s-%d_c%s-p%s-i%s_%s", outdir, prefix, size, \
-        commsize, pagesize, ibufsize, timestr);
+    sprintf(filename, "%s/%s-%d_c%s-p%s-i%s", outdir, prefix, size, \
+        commsize, pagesize, ibufsize);
 
     MapReduce::output_stat(filename);
 

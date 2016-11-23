@@ -723,8 +723,7 @@ void MapReduce::output_stat(const char *filename){
 
     PROFILER_PRINT(filename);
 
-
-    TRACKER_GATHER; 
+    //TRACKER_GATHER; 
     TRACKER_PRINT(filename);
 }
 
@@ -785,7 +784,7 @@ void MapReduce::_get_default_values(){
             LOG_ERROR("Error: set input buffer size error, please set INPUT_BUF_SIZE (%s) correctly!\n", env);
     }
 
-    fprintf(stdout, "BUCKET_COUNT=%ld, COMM_BUF_SIZE=%ld, DATA_PAGE_SIZE=%ld, INPUT_BUF_SIZE=%ld\n", \
+    fprintf(stdout, "BUCKET_COUNT=%d, COMM_BUF_SIZE=%ld, DATA_PAGE_SIZE=%ld, INPUT_BUF_SIZE=%ld\n", \
         BUCKET_COUNT, COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE); fflush(stdout);
 
     /// Configure unit size for communication buffer 

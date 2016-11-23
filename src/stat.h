@@ -212,7 +212,7 @@ extern const char* counter_str[];
 #define TRACKER_START
 #define TRACKER_END
 #define TRACKER_RECORD_EVENT(event_type)
-#define TRACKER_GATHER
+//#define TRACKER_GATHER
 #define TRACKER_PRINT(filename)
 
 #else
@@ -241,7 +241,7 @@ extern const char* counter_str[];
     tracker_info.prev_wtime=t_end;\
 }
 
-#define TRACKER_GATHER \
+#define TRACKER_PRINT(filename) \
 {\
     int total_bytes=0, max_bytes=0;\
     std::vector<std::pair<std::string,double> >::iterator iter;\
@@ -280,9 +280,36 @@ extern const char* counter_str[];
         MPI_Send(tmp, off, MPI_BYTE, 0, 0x33, stat_comm);\
     }\
     mem_aligned_free(tmp);\
+    char fullname[1024], timestr[1024];\
+    FILE *fp=NULL;\
+    if(stat_rank==0){\
+        time_t t = time(NULL);\
+        struct tm tm = *localtime(&t);\
+        sprintf(timestr, "%d-%d-%d-%d:%d:%d", \
+            tm.tm_year + 1900,\
+            tm.tm_mon + 1,\
+            tm.tm_mday,\
+            tm.tm_hour,\
+            tm.tm_min,\
+            tm.tm_sec);\
+        sprintf(fullname, "%s_%s_trace.txt", filename, timestr);\
+        printf("filename=%s\n", fullname);\
+        fp = fopen(fullname, "w+");\
+        for(int i=0; i<stat_size; i++){\
+            fprintf(fp, "rank:%d,size:%d",i,stat_size);\
+            std::vector<std::pair<std::string,double> >::iterator iter;\
+            for(iter=tracker_event[i].begin(); \
+                iter!=tracker_event[i].end(); iter++){\
+                fprintf(fp, ",%s:%g", iter->first.c_str(), iter->second);\
+            }\
+            fprintf(fp, "\n");\
+        }\
+        fclose(fp);\
+    }\
     MPI_Barrier(stat_comm);\
 }
 
+#if 0
 #define TRACKER_PRINT(filename) \
 {\
     char tmp[1024];\
@@ -301,6 +328,7 @@ extern const char* counter_str[];
         fclose(fp);\
     }\
 }
+#endif
 
 #endif
 
