@@ -126,8 +126,8 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
             /* find the unique */
             CombinerUnique *u = bucket->findElem(key, keysize);
 
-            printf("send: key=%s, target=%d, u=%p\n", key, target, u); 
-            fflush(stdout);
+            //printf("send: key=%s, target=%d, u=%p\n", key, target, u); 
+            //fflush(stdout);
 
             if(u==NULL){
                 CombinerUnique tmp;
@@ -166,7 +166,7 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                 GET_KV_VARS(kv->ksize,kv->vsize,u->kv,\
                     ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
 
-                printf("val1=%ld,val2=%ld\n", \
+                //printf("val1=%ld,val2=%ld\n", \
                     *(int64_t*)uvalue,*(int64_t*)val);
 
                 // invoke KV information
