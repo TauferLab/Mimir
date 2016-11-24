@@ -11,7 +11,7 @@
 #define DBG_DATA    2
 #define DBG_COMM    4
 #define DBG_IO      8
-#define DBG_CVT    16
+#define DBG_MEM    16
 
 #ifdef _DEBUG
 #define LOG_PRINT(type, rank, size, format, ...) \

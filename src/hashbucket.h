@@ -145,7 +145,7 @@ public:
         HashBucket<ReducerUnique>(_kv){
 
         maxset = MAX_PAGE_COUNT;
-        setsize = nbucket*sizeof(ReducerUnique);
+        setsize = nbucket*sizeof(ReducerSet);
 
         sets = (char**)mem_aligned_malloc(\
             MEMPAGE_SIZE, maxset*sizeof(char*));
@@ -249,6 +249,7 @@ public:
         if(nset<=0) return NULL;
         else{
             iset = 0;
+            //printf("iset=%ld\n", iset);
             pset=(ReducerSet*)sets[iset/nbucket]+iset%nbucket;
             return pset;
         }
@@ -260,6 +261,7 @@ public:
         iset += 1;
         if(iset>=nset) return NULL;
         else{
+            //printf("iset=%ld\n", iset); 
             pset=(ReducerSet*)sets[iset/nbucket]+iset%nbucket;
             //printf("iset=%ld, nbucket=%d, pset=%p\n", iset, nbucket, pset); 
             //fflush(stdout);
@@ -268,7 +270,7 @@ public:
     }
 
 
-private:
+public:
     ReducerUnique *cur_unique;
 
     int pid;

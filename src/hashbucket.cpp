@@ -95,6 +95,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
     int ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
     // Get the bucket header
+    ReducerSet *set=NULL;
     ReducerUnique *ptr = buckets[ibucket];
 
     // Find if there is a unique structure existing
@@ -104,8 +105,15 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         ptr=ptr->next;
     }
 
+    // Get the MV size
     int64_t onemvbytes=elem->mvbytes;
     if(kv->vsize==KVGeneral) onemvbytes+=sizeof(int);
+    
+    // Add a new partition if nessary
+    if(mvbytes+onemvbytes>kv->pagesize) {
+        mvbytes=0;
+        pid++;
+    }
 
     // New unique key
     if(ptr==NULL){
@@ -116,11 +124,9 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         if(cur_buf == NULL || \
             (usize-cur_off)<sizeof(ReducerUnique)+elem->keybytes){
 
-            //printf("add a buffer!\n");
-
             buffers[nbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE,usize);
-
             ReducerHashBucket::mem_bytes+=usize;
+
             PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
             
             if(cur_buf!=NULL)  memset(cur_buf+cur_off, 0, usize-cur_off);
@@ -159,24 +165,17 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         // Insert new set buffer
         if(nsetbuf == (nset/nbucket)){
-            //printf("add a set!\n");
-
             sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
-            
+           
             ReducerHashBucket::mem_bytes+=setsize;
             PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
  
             nsetbuf+=1;
         }
 
-        // Set the set information
-        ReducerSet *set=(ReducerSet*)sets[nset/nbucket]+nset%nbucket;
+        // Set the information
+        set=(ReducerSet*)sets[nset/nbucket]+nset%nbucket;
         nset+=1;
-
-        if(mvbytes+onemvbytes>kv->pagesize) {
-            mvbytes=0;
-            pid++;
-        }
 
         // Set set information
         set->pid=pid;
@@ -191,31 +190,15 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         newelem->firstset=set;
         newelem->lastset=set;
 
-        mvbytes+=onemvbytes;
-
-        //printf("key=%s, pid=%d, mvbytes=%ld\n", newelem->key, pid, mvbytes); fflush(stdout);
-
-        return newelem;
+        ptr=newelem;
     }else{
-        // Add the MV information        
+        // Add the MV information
         ptr->nvalue+=1;
         ptr->mvbytes+=elem->mvbytes;
 
-        //int64_t onemvbytes=elem->mvbytes;
-        //if(kv->vsize==KVGeneral){
-        //    onemvbytes+=sizeof(int);
-        //}
-        //int64_t onemvbytes=elem->mvbytes;
-        ReducerSet *set=NULL;
-        if(mvbytes+onemvbytes>kv->pagesize){
-
-            mvbytes=0;
-            pid++;
-
+        if(ptr->lastset->pid != pid){
             // Insert set buffer
             if(nsetbuf == (nset/nbucket)){
-                //printf("add a set!\n");
-
                 sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
 
                 ReducerHashBucket::mem_bytes+=setsize;
@@ -239,6 +222,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
             set->next=NULL;
 
             // Move the set to next
+            
             ptr->lastset->next=set;
             ptr->lastset=set;
 
@@ -250,12 +234,20 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
         set->nvalue+=1;
         set->mvbytes+=elem->mvbytes;
 
-        mvbytes+=onemvbytes;
     
-        //printf("key=%s, pid=%d, mvbytes=%ld\n", ptr->key, pid, mvbytes); fflush(stdout);
-     
-        return ptr;
     }
+
+    //printf("key=%s,nvalue=%ld, mvbytes=%ld, mvbytes=%ld, pid=%d\n", \
+        key, set->nvalue, set->mvbytes, mvbytes, pid);
+
+    //if(nset==30905){
+    //    printf("mvbytes=%ld,pid=%d,pset=%p\n", mvbytes, pid, set);
+    //    fflush(stdout);
+    //}
+
+    mvbytes+=onemvbytes;
+
+    return ptr;
 }
 
 int ReducerHashBucket::compare(char *key,int keybytes,ReducerUnique *u){

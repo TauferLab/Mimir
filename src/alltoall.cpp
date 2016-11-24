@@ -95,8 +95,6 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
         target = hid%(uint32_t)size;
     }
 
-    //printf("target=%d, size=%d\n", target, size); fflush(stdout);
-
     if(target < 0 || target >= size){
         LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
     }
@@ -105,10 +103,15 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
 
     int kvsize = 0;
     GET_KV_SIZE(kv->ksize,kv->vsize, keysize, valsize, kvsize);
+ 
+    if(kvsize>send_buf_size)
+        LOG_ERROR("Error: KV size (%d) is larger than send_buf_size (%ld)\n", kvsize, send_buf_size);
 
     int inserted=0;
     while(1){
         int goff=off[target];
+        //printf("target=%d, key=%s, goff=%d\n", target, key, goff);
+
         /* without combiner */
         if(mycombiner==NULL){
             if((int64_t)goff+(int64_t)kvsize<=send_buf_size){

@@ -96,6 +96,8 @@ int DataObject::add_page(){
     pages[pageid].datasize=0;
     pages[pageid].buffer=(char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
 
+    //printf("pageid=%d, buffer=%p\n", pageid, pages[pageid].buffer);
+
     //printf("DataObject %d: pageid=%d, buffer=%p\n", id, pageid, pages[pageid].buffer); fflush(stdout);
 
     DataObject::mem_bytes+=pagesize;
