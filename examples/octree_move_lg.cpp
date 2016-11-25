@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (argc < 5) {
+    if (argc < 6) {
         if (rank == 0) printf("Syntax: octree_move_lg threshold indir prefix outdir\n");
         MPI_Abort(MPI_COMM_WORLD,1);
     }
@@ -52,6 +52,15 @@ int main(int argc, char **argv)
     char *indir = argv[2];
     char *prefix = argv[3];
     char *outdir = argv[4];
+    const char *tmpdir = argv[5];
+ 
+    if(rank==0){
+        printf("density=%f\n", density);
+        printf("input dir=%s\n", indir);
+        printf("prefix=%s\n", prefix);
+        printf("output dir=%s\n", outdir);
+        printf("tmp dir=%s\n", tmpdir);  
+    }
 
     check_envars(rank, size);
 
@@ -61,6 +70,13 @@ int main(int argc, char **argv)
     level=(int)floor((max_limit+min_limit)/2);
 
     MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
+
+#ifdef KHINT
+    mr_convert->set_key_length(digits);
+#endif
+#ifdef VHINT
+    mr_convert->set_value_length(0);
+#endif
 
     char whitespace[10] = "\n";
     uint64_t nwords=mr_convert->map_text_file(indir, 1, 1, whitespace, generate_octkey, NULL, 0);
@@ -77,15 +93,24 @@ int main(int argc, char **argv)
 #endif
 
     while ((min_limit+1) != max_limit){
+#ifdef KHINT
+        mr_level->set_key_length(level);
+#endif
+#ifdef VHINT
+        mr_level->set_value_length(sizeof(int64_t));
+#endif
         mr_level->map_key_value(mr_convert, gen_leveled_octkey);
         uint64_t nkv = mr_level->reduce(sum, NULL);
+
+        //mr_level->output(stdout, StringType, Int64Type);
+        //if(rank==0) printf("nkv=%ld\n", nkv);
 
         if(nkv >0){
             min_limit=level;
             level= (int)floor((max_limit+min_limit)/2);
         }else{
             max_limit=level;
-            level = (int) floor((max_limit+min_limit)/2);
+            level = (int)floor((max_limit+min_limit)/2);
         }
     }
 
@@ -116,12 +141,15 @@ void combiner(MapReduce *mr, char *key, int keysize, \
 
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
 
-  int64_t sum=0;
-  for(iter->Begin(); !iter->Done(); iter->Next()){
-    sum+=*(int64_t*)iter->getValue();
-  }
-  if(sum>thresh)
-    mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
+    int64_t sum=0;
+    for(iter->Begin(); !iter->Done(); iter->Next()){
+        sum+=*(int64_t*)iter->getValue();
+    }
+    //printf("sum=%d, thresh=%ld\n", sum, thresh);
+    if(sum>thresh){
+        //printf("sum=%ld\n", sum); fflush(stdout);
+        mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
+    }
 }
 
 void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)

@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="mtmr-mpi"  
-#SBATCH --output="mtmr-mpi.%j.%N.out"  
+#SBATCH --job-name="mimir"  
+#SBATCH --output="mimir.%j.%N.out"  
 #SBATCH --partition=compute
 #SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL  
@@ -15,6 +15,7 @@ echo "param:"$PARAM
 echo "input dir:"$INDIR
 echo "prefix":$PREFIX
 echo "output dir:"$OUTDIR
+echo "tmp dir:"$TMPDIR
 echo "test index:"$TESTINDEX
 
 let NPROC=PPN*NODE

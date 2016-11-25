@@ -42,7 +42,7 @@ void rootvisit(MapReduce* , void *);
 // expand vertex
 void expand(MapReduce *, char *, int, char *, int, void *);
 // shrink vertex
-void shrink(MapReduce *, char *, int, char *, int, void *);
+//void shrink(MapReduce *, char *, int, char *, int, void *);
 // compress function
 void combiner(MapReduce *, char *, int, char *, int, char *, int, void*);
 
@@ -88,7 +88,7 @@ int main(int argc, char **argv)
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     // Get pararankters
-    if (argc < 6) {
+    if (argc < 7) {
         if (rank == 0) 
             printf("Syntax: bfs N indir prefix outdir seed\n");
         MPI_Abort(MPI_COMM_WORLD,1);
@@ -98,7 +98,17 @@ int main(int argc, char **argv)
     char *indir = argv[2];
     char *prefix = argv[3];
     char *outdir = argv[4];
-    srand(atoi(argv[5]));
+    const char *tmpdir = argv[4];
+    srand(atoi(argv[6]));
+
+    if(rank==0){
+        printf("globalverts=%ld\n", nglobalverts);
+        printf("input dir=%s\n", indir);
+        printf("prefix=%s\n", prefix);
+        printf("output dir=%s\n", outdir);
+        printf("tmp dir=%s\n", tmpdir); 
+        printf("index=%d\n", atoi(argv[6]));
+    }
 
     check_envars(rank, size);
 
@@ -128,12 +138,19 @@ int main(int argc, char **argv)
 
     if(rank==0) fprintf(stdout, "make CSR graph start.\n");
 
+#ifdef KHINT
+    mr->set_key_length(sizeof(int64_t));
+#endif
+#ifdef VHINT
+    mr->set_value_length(sizeof(int64_t));
+#endif
+
     // partition file
     char whitespace[10] = "\n";
     uint64_t nedges=mr->map_text_file(indir, 1, 1, whitespace, fileread);
     nglobaledges = nedges;
 
-    mr->output(stdout, Int64Type, Int64Type);
+    //mr->output(stdout, Int64Type, Int64Type);
 
     rowstarts = new size_t[nlocalverts+1];
     rowinserts = new size_t[nlocalverts];
@@ -183,7 +200,7 @@ int main(int argc, char **argv)
 
     delete [] rowinserts;
 
-    mr->output(stdout, Int64Type, Int64Type);
+    //mr->output(stdout, Int64Type, Int64Type);
 
     if(rank==0) {
         fprintf(stdout, "make CSR graph end.\n");
@@ -214,16 +231,24 @@ int main(int argc, char **argv)
     // Inialize the child  vertexes of root
     mr->init_key_value(rootvisit, NULL);
 
-    mr->output(stdout, Int64Type, Int64Type);
+    //mr->output(stdout, Int64Type, Int64Type);
 
     // BFS search
     int level = 0;
     do{
-        mr->map_key_value(mr, shrink, NULL, 0);
-        mr->output(stdout, Int64Type, Int64Type);
+        nactives[level] = mr->map_key_value(mr, expand);
+        //mr->output(stdout, Int64Type, Int64Type);
+#if 0
+#ifdef KHINT
+        mr->set_key_length(sizeof(int64_t));
+#endif
+#ifdef VHINT
+        mr->set_value_length(sizeof(int64_t));
+#endif
 
         nactives[level] = mr->map_key_value(mr, expand);
-        mr->output(stdout, Int64Type, Int64Type);
+        //mr->output(stdout, Int64Type, Int64Type);
+#endif
 
         level++;
     }while(nactives[level-1]);
@@ -339,21 +364,31 @@ void rootvisit(MapReduce* mr, void *ptr){
 }
 
 // Keep active vertexes in next level only
-void shrink(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
+void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
     int64_t v = *(int64_t*)key;
     int64_t v_local = v - nvertoffset;
 
     int64_t v0 = *(int64_t*)value;
 
-    printf("v0=%ld\n", v0);
+    //printf("v0=%ld\n", v0);
 
     if(!TEST_VISITED(v_local, vis)){
         SET_VISITED(v_local, vis);
         pred[v_local] = v0;
-        mr->add_key_value(key, keybytes, NULL, 0);
+        //mr->add_key_value(key, keybytes, NULL, 0);
+        size_t p_end = rowstarts[v_local+1];
+        for(size_t p = rowstarts[v_local]; p < p_end; p++){
+#ifndef COLUMN_SINGLE_BUFFER
+            int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
+#else
+            int64_t v1 = columns[p];
+#endif
+            mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
+        }
     }
 }
 
+#if 0
 // Expand vertexes with the active vertexes
 void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
 
@@ -370,6 +405,7 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
         mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
     }
 }
+#endif
 
 // Compress KV with the sarank key
 void combiner(MapReduce *mr, char *key, int keysize, \

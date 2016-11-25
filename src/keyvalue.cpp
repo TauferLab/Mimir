@@ -79,6 +79,8 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
 
         PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
         pages[ipage].datasize+=kvsize;
+
+        local_kvs_count +=1;
     }else{
 
         //printf("add kv (key=%s) with combiner\n", key); fflush(stdout);
@@ -130,6 +132,7 @@ int KeyValue::addKV(char *key,int keybytes,char *value,int valuebytes){
             //printf("insert end: key=%s, u=%p, kv=%p\n",key, u, u.kv); 
             //fflush(stdout);
 
+            local_kvs_count+=1;
         }else{
 
             //printf("find: key=%s, u=%p, kv=%p\n",key, u, u->kv); 

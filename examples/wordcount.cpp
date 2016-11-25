@@ -23,20 +23,22 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if(argc < 4){
+    if(argc < 5){
         if(rank == 0)
-            printf("Syntax: wordcount filepath prefix outdir\n");
+            printf("Syntax: wordcount filepath prefix outdir tmpdir\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
     char *filedir=argv[1];
     const char *prefix = argv[2];
     const char *outdir = argv[3];
+    const char *tmpdir = argv[4];
 
     if(rank==0){
         printf("input dir=%s\n", filedir);
         printf("prefix=%s\n", prefix);
         printf("output dir=%s\n", outdir);
+        printf("tmp dir=%s\n", tmpdir); 
     }
 
     check_envars(rank, size);

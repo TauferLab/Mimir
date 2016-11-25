@@ -1,6 +1,6 @@
 #bin/bash
 
-VERSION=mtmrmpi
+VERSION=mimir
 
 BENCHMARK=""
 SETLIST=""

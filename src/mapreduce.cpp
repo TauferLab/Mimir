@@ -562,7 +562,7 @@ void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce start.\n");
 
-#if 0
+#if 1
     // Apply user-defined reduce one-by-one
     ReducerUnique *u = h->BeginUnique();
     while(u!=NULL){
@@ -1030,6 +1030,8 @@ inline uint64_t MapReduce::_get_kv_count(){
 
     MPI_Allreduce(&local_count, &global_count, 1, \
         MPI_UINT64_T, MPI_SUM, comm);
+
+    //printf("local_count=%ld, global_count=%ld\n", local_count, global_count);
 
     PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
