@@ -10,10 +10,11 @@ DATALIST=""
 PARAMLIST=""
 NTIMES=0
 SCRIPT="run.sub"
+nnode=1
+outdir='./'
 PREJOB="none"
-nnode=0
 
-if [ $# == 9 ]
+if [ $# == 10 ]
 then
   BENCHMARK=$1
   SETLIST=$2
@@ -23,15 +24,16 @@ then
   PARAMLIST=($6)
   NTIMES=$7
   nnode=$8
-  PREJOB=$9
+  outdir=$9
+  PREJOB=$10
 else
   echo "./exe [benchmark] [setting list] [datatypes] [test type] \
-[data list] [param list] [run times] [node] [prev job]"
+[data list] [param list] [run times] [node] [outdir] [prev job]"
 fi
 
 source config.h
 
-export USETAU="false"
+export OUTDIR=$OUTBASEDIR/$outdir
 
 idx=0
 for list in $DATALIST

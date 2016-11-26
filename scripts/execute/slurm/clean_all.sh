@@ -2,4 +2,5 @@
 rm wordcount_*
 rm octree_*
 rm bfs_*
-rm mtmr-mpi.*.out
+rm mimir-*.txt
+rm mimir.*.out
