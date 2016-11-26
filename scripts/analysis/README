@@ -1,0 +1,5 @@
+This directory contains the scripts to analyze the results.
+-- cleanup_data.py : define functions to get the input data for figures
+-- draw_figures.py : define functions to draw different kinds of figures
+-- draw_mimir_memory_and_time.py : draw mimir memory usage and execution time
+-- draw_mimir_total_time.py : draw mimir execution time
