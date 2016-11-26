@@ -10,6 +10,7 @@ using namespace MIMIR_NS;
 const char* commsize = NULL;
 const char* pagesize = NULL;
 const char* ibufsize = NULL;
+int bucketsize;
 
 #if 0
 void get_time_str(char *timestr){
@@ -26,11 +27,12 @@ void get_time_str(char *timestr){
 #endif
 
 void check_envars(int rank, int size){
-    if(getenv("MIMIR_COMM_SIZE")==NULL ||\
+    if(getenv("MIMIR_BUCKET_SIZE")==NULL || \
+        getenv("MIMIR_COMM_SIZE")==NULL ||\
         getenv("MIMIR_PAGE_SIZE")==NULL ||\
         getenv("MIMIR_IBUF_SIZE")==NULL){
         if(rank==0)
-            printf("Please set MIMIR_COMM_SIZE, MIMIR_PAGE_SIZE and MIMIR_IBUF_SIZE environments!\n");
+            printf("Please set MIMIR_BUCKET_SIZE, MIMIR_COMM_SIZE, MIMIR_PAGE_SIZE and MIMIR_IBUF_SIZE environments!\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 }
@@ -44,13 +46,14 @@ void output(int rank, int size, \
     commsize = getenv("MIMIR_COMM_SIZE");
     pagesize = getenv("MIMIR_PAGE_SIZE");
     ibufsize = getenv("MIMIR_IBUF_SIZE");
+    bucketsize = atoi(getenv("MIMIR_BUCKET_SIZE"));
 
     //char timestr[1024];
     //get_time_str(timestr);
 
     char filename[1024];
-    sprintf(filename, "%s/%s-%d_c%s-p%s-i%s", outdir, prefix, size, \
-        commsize, pagesize, ibufsize);
+    sprintf(filename, "%s/%s-%d_c%s-p%s-i%s-h%d", outdir, prefix, size, \
+        commsize, pagesize, ibufsize, bucketsize);
 
     MapReduce::output_stat(filename);
 

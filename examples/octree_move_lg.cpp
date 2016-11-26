@@ -116,7 +116,9 @@ int main(int argc, char **argv)
 
     delete mr_level;
 
-    output(rank, size, prefix, outdir);
+    char newprefix[1000];
+    sprintf(newprefix, "%s-d%.2f", prefix, density);
+    output(rank, size, newprefix, outdir);
 
     delete mr_convert;
 

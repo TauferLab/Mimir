@@ -122,7 +122,7 @@ MapReduce::~MapReduce()
 }
 
 uint64_t MapReduce::map_text_file( \
-    char *_filepath, int _shared, int _recurse, char *_seperator, \
+    char *_filepath, int _shared, int _recurse, const char *_seperator, \
     UserMapFile _mymap, void *_ptr, int _comm){
 
     if(strlen(_seperator) == 0)

@@ -25,13 +25,16 @@ then
   NTIMES=$7
   nnode=$8
   outdir=$9
-  PREJOB=$10
+  PREJOB=${10}
 else
   echo "./exe [benchmark] [setting list] [datatypes] [test type] \
 [data list] [param list] [run times] [node] [outdir] [prev job]"
 fi
 
 source config.h
+
+#echo $outdir
+#echo $PREJOB
 
 export OUTDIR=$OUTBASEDIR/$outdir
 

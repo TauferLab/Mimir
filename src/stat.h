@@ -184,7 +184,7 @@ extern char timestr[];
     char fullname[1024];\
     FILE *fp=NULL;\
     if(stat_rank==0){\
-        sprintf(fullname, "%s_%s_profiler.txt", filename, timestr);\
+        sprintf(fullname, "%s_%s_profile.txt", filename, timestr);\
         printf("filename=%s\n", fullname);\
         fp = fopen(fullname, "w+");\
         fprintf(fp, "testtime,rank,size");\

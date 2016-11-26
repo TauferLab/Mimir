@@ -103,7 +103,7 @@ public:
       @return output <key,value> count
     */
     uint64_t map_text_file(char *filename, int shared, int recurse,
-      char *seperator, UserMapFile mymap, void *ptr=NULL, int comm=1);
+      const char *seperator, UserMapFile mymap, void *ptr=NULL, int comm=1);
 
     /**
       Map function with MapReduce object as input.
