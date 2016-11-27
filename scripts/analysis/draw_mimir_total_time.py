@@ -16,6 +16,7 @@ parser.add_argument('--config', default='c64M-p64M-i512M-h20', help='library con
 parser.add_argument('--settings', default='basic,kvhint,cbkvhint', help='library settings')
 parser.add_argument('--indir', default='../../data/comet', help='input directory')
 parser.add_argument('--outdir', default='../../figures', help='output directory')
+parser.add_argument('--outfile', default='test', help='output file')
 args = parser.parse_args()
 
 
@@ -35,7 +36,7 @@ def main():
     fig_data=draw_total_time(\
         data=fig_data, \
         outdir=args.outdir, \
-        outfile="test.pdf", \
+        outfile=args.outfile, \
         xticklist=datalist, \
         labellist=["Mimir", "Mimir(cb)", "Mimir(kvhint)", "Mimir(cb;kvhint)"],\
         colorlist=["coral", "yellow", "lightblue", "red"], \

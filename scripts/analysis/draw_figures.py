@@ -152,7 +152,7 @@ def draw_total_time(data, outdir, outfile, \
     print fig_data
     print markerlist
     ax=sns.pointplot(x='dataset', y='total_time', hue='setting', \
-        data=fig_data, scale=1.5, ci=None,\
+        data=fig_data, scale=1.5, \
         palette=rcolorlist, markers=markerlist, dodge=False, linestyles='-')
  
     """
