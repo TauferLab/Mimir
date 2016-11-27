@@ -1,6 +1,5 @@
 #!/bin/python
 import sys, os, glob
-import argparse
 import math
 import numpy as np
 import pandas as pd
@@ -16,7 +15,7 @@ def get_results_of_one_dataset(library, config, setting, \
     benchmark, datatype, testtype, datalabel, indir):
 
     prefix=library+'-'+setting+'-'+benchmark+'-'+datatype+'-'+testtype
-    filefilter=prefix+'-'+datalabel+'-*_'+config+'_*_profiler.txt'
+    filefilter=prefix+'-'+datalabel+'-*_'+config+'_*_profile.txt'
 
     print filefilter
 

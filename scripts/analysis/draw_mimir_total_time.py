@@ -1,27 +1,42 @@
 #!/bin/python
+import argparse
+
 from cleanup_data import *
 from draw_figures import * 
 
-config="c64M-p64M-i512M"
+config="c64M-p64M-i512M-h20"
 
+parser=argparse.ArgumentParser(\
+  description='Draw total execution time figure')
+parser.add_argument('benchmark', default='wordcount', help='benchmark name')
+parser.add_argument('datatype', default='wikipedia', help='data type')
+parser.add_argument('testtype', default='weakscale4G', help='test type')
+parser.add_argument('datalist', default='', help='data list')
+parser.add_argument('--config', default='c64M-p64M-i512M-h20', help='library configuration')
+parser.add_argument('--settings', default='basic,kvhint,cbkvhint', help='library settings')
+parser.add_argument('--indir', default='../../data/comet', help='input directory')
+parser.add_argument('--outdir', default='../../figures', help='output directory')
+args = parser.parse_args()
 
 
 def main():
+    settings=args.settings.split(',')
+    datalist=args.datalist.split(',')
     fig_data=get_results_of_one_benchmark(\
         library="mimir", \
-        config="c64M-p64M-i512M", \
-        settings=["basic", "cb", "kvhint", "cbkvhint"], \
-        benchmark="bfs", \
-        datatype="graph500", \
-        testtype="weakscale20", \
-        datalist=["s21", "s22", "s23", "s24", "s25", "s26"], \
-        indir="../../data/comet/bfs_weakscale20")
+        config=args.config, \
+        settings=settings, \
+        benchmark=args.benchmark, \
+        datatype=args.datatype, \
+        testtype=args.testtype, \
+        datalist=datalist, \
+        indir=args.indir)
     
     fig_data=draw_total_time(\
         data=fig_data, \
-        outdir="../../figures", \
+        outdir=args.outdir, \
         outfile="test.pdf", \
-        xticklist=["2^21", "2^22", "2^23", "2^24", "2^25", "2^26"], \
+        xticklist=datalist, \
         labellist=["Mimir", "Mimir(cb)", "Mimir(kvhint)", "Mimir(cb;kvhint)"],\
         colorlist=["coral", "yellow", "lightblue", "red"], \
         markerlist=["*","v","o","1"])
