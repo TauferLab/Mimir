@@ -144,6 +144,7 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                             key, keysize, val, valsize, kvsize);
                         iter->second-=kvsize; 
                         inserted=1;
+                        bucket->insertElem(&tmp);
                         break;
                     }
                 }
@@ -155,10 +156,10 @@ int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
                         PUT_KV_VARS(kv->ksize,kv->vsize,tmp.kv,\
                             key,keysize,val,valsize,kvsize);
                         off[target]+=kvsize;
+                        bucket->insertElem(&tmp);
                         inserted=1;
                     }
                 }
-                bucket->insertElem(&tmp);
             }else{
                 int ukvsize;
                 char *ukey, *uvalue;
