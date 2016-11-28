@@ -21,13 +21,13 @@ The input DataFrame should contain the following
 columns:
 ["dataset", "setting", "total_time", "peakmem_use"]
 """
-def draw_memory_and_time(fig_data, outdir, outfile, \
+def draw_memory_and_time(data, outdir, outfile, \
   xticklist=[], labellist=[], \
   memcolors=["red", "green", "blue"], \
   timecolors=["red", "green", "blue"], \
   markerlist=["*","v","o"]):
 
-    print fig_data
+    fig_data=data
 
     fig = plt.figure()
     ax_mem = fig.add_subplot(111)
