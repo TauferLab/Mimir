@@ -25,6 +25,12 @@ PARAM=$10
 export NPROC=$(($PPN*$NODE))
 export OMP_NUM_THRADS=1
 
+if [ $NPROC -et 16384 ]; then
+    COMM_UNIT_SIZE=$((64*1024*1024/$NPROC))B
+else
+    COMM_UNIT_SIZE=$((64*1024*1024/$NPROC))B
+fi
+
 if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
 
 for i in `seq 1 $NTIMES`; do
@@ -35,6 +41,7 @@ for i in `seq 1 $NTIMES`; do
         --envs MIMIR_IBUF_SIZE=$INBUFSIZE \
         --envs MIMIR_PAGE_SIZE=$PAGESIZE \
         --envs MIMIR_COMM_SIZE=$PAGESIZE \
+        --envs MIMIR_COMM_UNIT_SIZE=$COMM_UNIT_SIZE \
         --envs MIMIR_DBG_ALL=$MIMIR_DEBUG \
         : ./$EXE $PARAM $INDIR "$PREFIX" $OUTDIR "$TMPDIR" $i
     rm -rf "$TMPDIR"
