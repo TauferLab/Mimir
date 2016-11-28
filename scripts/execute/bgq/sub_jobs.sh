@@ -53,10 +53,10 @@ for ((n_node = $NNODE_MIN; n_node <= $NNODE_MAX; n_node = n_node * 2)); do
     TMPDIR="$OUTPUT_BASEDIR/tmp/$PREFIX-$n_node"
     echo $PREFIX
     echo $TMPDIR
-#     retry 10m \
-#         qsub -A MPICH_MCS -t $TIMEOUT -n $n_node --mode script \
-#             ./job.sh $n_node $EXE $INPUTDIR $OUTDIR $TMPDIR $PREFIX $NTIMES \
-#                 $INBUFSIZE $PAGESIZE $PARAMS
+    retry 10m \
+        qsub -A MPICH_MCS -t $TIMEOUT -n $n_node --mode script \
+            ./job.sh $n_node $EXE $INPUTDIR $OUTDIR $TMPDIR $PREFIX $NTIMES \
+                $INBUFSIZE $PAGESIZE $PARAMS
 
     echo "  =>" $n_node "nodes" $EXE $INPUTDIR $INBUFSIZE $PAGESIZE
 done
