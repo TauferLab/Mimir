@@ -5,8 +5,8 @@ if [ $# -lt 2 ]; then
     exit 1
 fi
 
-export  INPUT_BASEDIR=/projects/SSSPPg/yguo/mt-mrmpi/data
-export OUTPUT_BASEDIR=/projects/SSSPPg/yguo/mt-mrmpi/data
+export  INPUT_BASEDIR=/projects/SSSPPg/yguo/mimir/data
+export OUTPUT_BASEDIR=/projects/SSSPPg/yguo/mimir/data
 
 function run() {
     local N=$1
@@ -24,13 +24,10 @@ function run() {
 
     for ((i = n_start; i <= n_end; i = i * 2)); do
         param="0.01"
-        ./sub_jobs.sh basic       octree $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh cps         octree $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh pr          octree $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh kvhint      octree $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh cpskvhint   octree $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh prkvhint    octree $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh cpsprkvhint octree $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh basic       octree "1S" $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh cb          octree "1S" $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh kvhint      octree "1S" $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh cbkvhint    octree "1S" $input_dir_name 5 $i $i 512M 64M $timeout $param
     done
 }
 

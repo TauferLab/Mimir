@@ -31,14 +31,12 @@ for i in `seq 1 $NTIMES`; do
     echo "Run number" $i
     if [ ! -d "$TMPDIR" ]; then mkdir -p "$TMPDIR"; fi
     runjob --np $NPROC -p $PPN --block $COBALT_PARTNAME --verbose=INFO \
-        --envs MR_BUCKET_SIZE=17 \
-        --envs MR_INBUF_SIZE=$INBUFSIZE \
-        --envs MR_PAGE_SIZE=$PAGESIZE \
-        --envs MR_COMM_SIZE=$PAGESIZE \
+        --envs MIMIR_BUCKET_SIZE=17 \
+        --envs MIMIR_IBUF_SIZE=$INBUFSIZE \
+        --envs MIMIR_PAGE_SIZE=$PAGESIZE \
+        --envs MIMIR_COMM_SIZE=$PAGESIZE \
         --envs MIMIR_DBG_ALL=$MIMIR_DEBUG \
         : ./$EXE $PARAM $INDIR "$PREFIX" $OUTDIR "$TMPDIR" $i
-    /bin/zsh "$PREFIX"
-    rm -f "$PREFIX"
     rm -rf "$TMPDIR"
 done
 

@@ -5,8 +5,8 @@ if [ $# -lt 2 ]; then
     exit 1
 fi
 
-export  INPUT_BASEDIR=/projects/SSSPPg/yguo/mt-mrmpi/data
-export OUTPUT_BASEDIR=/projects/SSSPPg/yguo/mt-mrmpi/data
+export  INPUT_BASEDIR=/projects/SSSPPg/yguo/mimir/data
+export OUTPUT_BASEDIR=/projects/SSSPPg/yguo/mimir/data
 
 WC_TYPE=${4:-"uniform"}
 
@@ -32,12 +32,9 @@ function run() {
     for ((i = n_start; i <= n_end; i = i * 2)); do
         param=""
         ./sub_jobs.sh basic       wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh cps         wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh pr          wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh cb          wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
         ./sub_jobs.sh kvhint      wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh cpskvhint   wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh prkvhint    wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh cpsprkvhint wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh cbkvhint    wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
     done
 }
 
