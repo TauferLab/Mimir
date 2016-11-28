@@ -134,13 +134,6 @@ void combiner(MapReduce *mr, char *key, int keysize, \
   mr->update_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
-//void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
-//{
-//  int64_t count=*(int64_t*)val;
-//  if(count > thresh)
-//    mr->add_key_value(key, keysize, (char*)&count, sizeof(int64_t));
-//}
-
 void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
 
     int64_t sum=0;
@@ -235,5 +228,3 @@ double slope(double x[], double y[], int num_atoms){
   slope = xybar / xxbar;
   return slope;
 }
-
-

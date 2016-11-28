@@ -4,8 +4,6 @@ import argparse
 from cleanup_data import *
 from draw_figures import * 
 
-config="c64M-p64M-i512M-h20"
-
 parser=argparse.ArgumentParser(\
   description='Draw total execution time figure')
 parser.add_argument('benchmark', default='wordcount', help='benchmark name')

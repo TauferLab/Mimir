@@ -98,7 +98,7 @@ int main(int argc, char **argv)
     char *indir = argv[2];
     char *prefix = argv[3];
     char *outdir = argv[4];
-    const char *tmpdir = argv[4];
+    const char *tmpdir = argv[5];
     srand(atoi(argv[6]));
 
     if(rank==0){
