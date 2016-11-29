@@ -22,10 +22,16 @@ columns:
 ["dataset", "setting", "total_time", "peakmem_use"]
 """
 def draw_memory_and_time(data, outdir, outfile, \
-  xticklist=[], labellist=[], \
+  xticklist=[], \
+  labellist=[], \
+  xlabelname='', \
+  settings= [], \
   memcolors=["red", "green", "blue"], \
   timecolors=["red", "green", "blue"], \
-  markerlist=["*","v","o"]):
+  markerlist=["*","v","o"], \
+  hatches="x/o", \
+  memlim=[0, 6],\
+  timelim=[0, 400]):
 
     fig_data=data
 
@@ -34,77 +40,84 @@ def draw_memory_and_time(data, outdir, outfile, \
     ax_time = ax_mem.twinx()
 
     " Draw memory usage bar "
+    fig_data['peakmem_use']=fig_data['peakmem_use'].divide(1024*1024*1024)
     ax_mem=sns.barplot(x='dataset', y='peakmem_use', hue='setting', \
         data=fig_data, ax=ax_mem, linewidth=1, color='red', \
         palette=memcolors, fill=True)
 
     """
-    Set figure property
-    """ 
-    ax_mem.tick_params(labelsize=26)
-    ax_mem.set_xticklabels(xticklist, rotation=45)
-    #legend_mem=ax_mem.legend(loc='upper left', \
-    #    title='Peak Memory Usage', prop={'size':18}, ncol=args.ncol[0])
-    #legend_mem.get_title().set_fontsize('18') 
-    #legend_mem.get_title().set_fontweight('bold')  
-    #ax_mem.set_xlabel(args.xlabelname[0], fontsize=26, fontweight="bold")
-    #ax_mem.set_ylabel("peak memory usage (gb)", \
-    #    fontsize=26, fontweight="bold")
-    #ax_mem.set_ylim(ylim_mem)
-    
-    " Draw hatches "
-    #bars = ax_mem.patches
-    #hatches = ''.join(h*len(datasets) for h in args.hatches[0])
-    #print hatches
-    #for bar, hatch in zip(bars, hatches):
-    #    bar.set_hatch(hatch)
-    #print labellist
-    
-    """
     Ensure color, marker ... in the correct order.
     """
     mapper = [None]*len(labellist)
-    print mapper
+    #print mapper
     mid=0
     for label in labellist:
         item_data=fig_data[fig_data['setting']==label]
         mapper[mid]=len(item_data['dataset'].unique())
         mid+=1
     mapper = np.array(mapper).argsort()
-    rlabellist=np.array(labellist)[mapper].tolist()
+    rsettings=np.array(settings)[mapper].tolist()
     rtimecolors=np.array(timecolors)[mapper].tolist()
     markerlist=np.array(markerlist)[mapper].tolist()
     #print labellist
-    rlabellist.reverse()
+    rsettings.reverse()
     rtimecolors.reverse()
     markerlist.reverse()
+
 
     """
     Draw execution time
     """
-    print markerlist
-    print rlabellist
-    print rtimecolors
+    #print markerlist
+    #print rlabellist
+    #print rtimecolors
     ax_time=sns.pointplot(x='dataset', y='total_time', hue='setting', \
         data=fig_data, \
         markers=markerlist, \
-        #hue_order=rlabellist,\
+        hue_order=rsettings,\
         ax=ax_time, linestyles='-', errwidth=0.5, ci=None, \
         linewidth=0.5, join=True, scale=1.5, palette=rtimecolors)
 
+    " Draw hatches "
+    bars = ax_mem.patches
+    print hatches
+    hatches = ''.join(h*len(xticklist) for h in hatches)
+    print hatches
+    for bar, hatch in zip(bars, hatches):
+        bar.set_hatch(hatch)
+    #print labellist
+ 
+    """
+    Set figure property
+    """ 
+    ax_mem.tick_params(labelsize=26)
+    print xticklist
+    ax_mem.set_xticklabels(xticklist, rotation=45)
+    legend_mem=ax_mem.legend(loc='upper left', \
+        title='peak memory usage', prop={'size':18})
+    legend_mem.get_title().set_fontsize('18') 
+    legend_mem.get_title().set_fontweight('bold')  
+    ax_mem.set_xlabel(xlabelname, fontsize=26, fontweight="bold")
+    ax_mem.set_ylabel("peak memory usage (GB)", \
+        fontsize=26, fontweight="bold")
+    ax_mem.set_ylim(memlim)
+    
+   
     ax_time.tick_params(labelsize=26)
-    #handles, labels = ax_time.get_legend_handles_labels()
-    #handles=np.array(handles)[mapper].tolist()
-    #labels=np.array(labels)[mapper].tolist()
-    #handles.reverse()
-    #labels.reverse()
-    #legend_time=ax_time.legend(handles, labels, loc='upper right', \
-    #    title='execution time', prop={'size':18}, ncol=args.ncol[0]) 
-    #legend_time.get_title().set_fontsize('18') 
-    #legend_time.get_title().set_fontweight('bold')  
+    print xticklist
+    ax_time.set_xticklabels(xticklist, rotation=45)
+    handles, labels = ax_time.get_legend_handles_labels()
+    handles=np.array(handles)[mapper].tolist()
+    labels=np.array(labels)[mapper].tolist()
+    handles.reverse()
+    labels.reverse()
+    legend_time=ax_time.legend(handles, labels, loc='upper right', \
+        title='execution time', prop={'size':18}) 
+    legend_time.get_title().set_fontsize('18') 
+    legend_time.get_title().set_fontweight('bold')  
     ax_time.set_ylabel("execution time (second)", \
         fontsize=26, fontweight="bold")
-    #ax_time.set_ylim(ylim_time)
+    ax_time.set_ylim(timelim)
 
     """
     save figure
@@ -122,9 +135,13 @@ columns:
 ["dataset", "setting", "total_time"]
 """
 def draw_total_time(data, outdir, outfile, \
-  xticklist=[], labellist=[], \
+  xticklist=[], \
+  labellist=[], \
+  xlabelname='', \
+  settings= [], \
   colorlist=["red", "green", "blue"], \
-  markerlist=["*","v","o"]):
+  markerlist=["*","v","o"], \
+  ylim=[0, 0]):
 
     fig_data=data
 
@@ -145,21 +162,23 @@ def draw_total_time(data, outdir, outfile, \
     Draw figures
     """
     sns.set_style("ticks")
-    rlabellist=np.array(labellist)[mapper].tolist()
+    rsettings=np.array(settings)[mapper].tolist()
     rcolorlist=np.array(colorlist)[mapper].tolist()
     markerlist=np.array(markerlist)[mapper].tolist()
 
-    print fig_data
-    print markerlist
+    #print rxticklist
+    #print fig_data
+    #print markerlist
+    print rsettings
     ax=sns.pointplot(x='dataset', y='total_time', hue='setting', \
-        data=fig_data, scale=1.5, \
+        data=fig_data, scale=1.5, hue_order=rsettings, \
         palette=rcolorlist, markers=markerlist, dodge=False, linestyles='-')
  
     """
     Set figure properties
     """ 
-    #ax.set_ylim(args.ylim)
-    ax.tick_params(labelsize=28)
+    ax.set_ylim(ylim)
+    ax.tick_params(labelsize=28)    
     ax.set_xticklabels(xticklist, rotation=45)
     handles, labels = ax.get_legend_handles_labels()
 
@@ -171,7 +190,7 @@ def draw_total_time(data, outdir, outfile, \
     ax.legend(handles, labels,loc=2,prop={'size':23},ncol=1)
     #if args.legend[0]=='false':
     #    ax.legend().set_visible(False)
-    #ax.set_xlabel(args.xlabelname[0], fontsize=26, fontweight="bold")
+    ax.set_xlabel(xlabelname, fontsize=26, fontweight="bold")
     ax.set_ylabel("execution time(second)", \
         fontsize=26, fontweight="bold")
 
