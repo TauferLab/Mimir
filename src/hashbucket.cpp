@@ -55,7 +55,7 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     return ptr;
 }
 
-int CombinerHashBucket::compare(char *key, int keybytes, CombinerUnique *u){
+int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u){
     char *ukey, *uvalue;
     int  ukeybytes, uvaluebytes, kvsize;
 
@@ -250,7 +250,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
     return ptr;
 }
 
-int ReducerHashBucket::compare(char *key,int keybytes,ReducerUnique *u){
+int ReducerHashBucket::compare(const char *key,int keybytes,ReducerUnique *u){
     if(keybytes==u->keybytes && memcmp(key, u->key, keybytes)==0)
         return 1;
 

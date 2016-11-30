@@ -34,7 +34,7 @@ class ReducerUnique;
 class ReducerSet;
 
 /// hash callback
-typedef  int (*UserHash)(char *, int);
+typedef  int (*UserHash)(const char *, int);
 
 /// map callback to init KVs
 typedef void (*UserInitKV)(MapReduce *, void *);
@@ -50,7 +50,7 @@ typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, 
 
 /// combiner callback
 typedef void (*UserCombiner)(MapReduce *, 
-  char *, int, char *, int, char *, int, void*);
+  const char *, int, const char *, int, const char *, int, void*);
 
 /// User-defined scan function
 typedef void (*UserScan)(char *, int, char *, int ,void *);
@@ -143,8 +143,8 @@ public:
       @param[in]  valubytes value size
       @return nothing
     */
-    void add_key_value(char *key, int keybytes,
-        char *value, int valuebytes);
+    void add_key_value(const char *key, int keybytes,
+        const char *value, int valuebytes);
 
     void update_key_value(char *key, int keybytes,
         char *value, int valuebytes);

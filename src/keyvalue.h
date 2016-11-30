@@ -40,7 +40,7 @@ public:
     int getNextKV(char **, int &, char **, int &);
 
     // Add KVs one by one
-    int addKV(char *, int, char *, int);
+    int addKV(const char *, int, const char *, int);
 
     void gc();
 

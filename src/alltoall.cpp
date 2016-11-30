@@ -84,7 +84,7 @@ comm buffer size=%ld, type_log_bytes=%d)\n", \
     return 0;
 }
 
-int Alltoall::sendKV(char *key, int keysize, char *val, int valsize){
+int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize){
     int target = 0;
     if(myhash != NULL){
         target=myhash(key, keysize)%size;

@@ -29,7 +29,7 @@ public:
     virtual int setup(int64_t, KeyValue *kv, MapReduce *mr, \
         UserCombiner combiner, UserHash myhash)=0;
 
-    virtual int sendKV(char *, int, char *, int) = 0;
+    virtual int sendKV(const char *, int, const char *, int) = 0;
 
     virtual void wait() = 0;
 

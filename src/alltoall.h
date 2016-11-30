@@ -21,7 +21,7 @@ public:
     ~Alltoall();
 
     int setup(int64_t, KeyValue *, MapReduce *, UserCombiner, UserHash);
-    int sendKV(char *, int, char *, int);
+    int sendKV(const char *, int, const char *, int);
     void wait();
 
     void gc();

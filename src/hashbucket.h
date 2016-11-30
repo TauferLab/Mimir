@@ -48,11 +48,11 @@ public:
     //}
 
     // Comapre key with elem
-    virtual int compare(char *key, int keybytes, ElemType *)=0;
+    virtual int compare(const char *key, int keybytes, ElemType *)=0;
     virtual int getkey(ElemType *, char **pkey, int *pkeybytes)=0;
     virtual ElemType* insertElem(ElemType *elem)=0;
 
-    ElemType* findElem(char *key, int keybytes){    
+    ElemType* findElem(const char *key, int keybytes){    
 
         int ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
@@ -110,7 +110,7 @@ public:
 
     CombinerUnique* insertElem(CombinerUnique *elem);
  
-    int compare(char *key, int keybytes, CombinerUnique *);
+    int compare(const char *key, int keybytes, CombinerUnique *);
 
     int getkey(CombinerUnique *, char **pkey, int *pkeybytes);
 
@@ -186,7 +186,7 @@ public:
 
     ReducerUnique* insertElem(ReducerUnique *elem);
  
-    int compare(char *key, int keybytes, ReducerUnique *);
+    int compare(const char *key, int keybytes, ReducerUnique *);
 
     int getkey(ReducerUnique *, char **pkey, int *pkeybytes);
 
