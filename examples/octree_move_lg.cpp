@@ -26,7 +26,7 @@ int rank, size;
 
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
-void combiner(MapReduce *, char *, int, char *, int, char *, int, void*);
+void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void*);
 void sum(MapReduce *, char *, int,  MultiValueIterator *, void*);
 //void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
 double slope(double[], double[], int);
@@ -127,8 +127,8 @@ int main(int argc, char **argv)
     MPI_Finalize();
 }
 
-void combiner(MapReduce *mr, char *key, int keysize, \
-  char *val1, int val1size, char *val2, int val2size, void* ptr){
+void combiner(MapReduce *mr, const char *key, int keysize, \
+  const char *val1, int val1size, const char *val2, int val2size, void* ptr){
   int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
 
   mr->update_key_value(key, keysize, (char*)&count, sizeof(count));

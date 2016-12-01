@@ -204,7 +204,10 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
             }
         }
         if(inserted) break;
-        if(mycombiner!=NULL) gc();
+        if(mycombiner!=NULL) {
+            gc();
+            bucket->clear();
+        }
         exchange_kv();
     }
 

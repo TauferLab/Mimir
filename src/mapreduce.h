@@ -149,8 +149,8 @@ public:
     void add_key_value(const char *key, int keybytes,
         const char *value, int valuebytes);
 
-    void update_key_value(char *key, int keybytes,
-        char *value, int valuebytes);
+    void update_key_value(const char *key, int keybytes,
+        const char *value, int valuebytes);
 
     void output(FILE *fp, ElemType key, ElemType val);
 
@@ -187,7 +187,7 @@ private:
     int    ksize, vsize;             
 
 public:
-    char *newkey, *newval;
+    const char *newkey, *newval;
     int newkeysize, newvalsize;
     void *myptr;
 

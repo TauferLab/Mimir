@@ -17,7 +17,7 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
 
     getkey(elem, &key, &keybytes);
 
-    if(nbuf == (nunique/nbucket)){
+    if(nbuf == (nunique/nbucket) && buffers[nbuf]==NULL){
         buffers[nbuf]=(char*)mem_aligned_malloc(\
             MEMPAGE_SIZE, usize);
         CombinerHashBucket::mem_bytes+=usize;
@@ -39,7 +39,7 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     //printf("insert: ibucket=%d, ptr=%p\n", ibucket, newelem);
 
     nunique+=1;
-
+    
     CombinerUnique *ptr = buckets[ibucket];
 
     // New unique key

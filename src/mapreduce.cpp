@@ -497,9 +497,9 @@ reduce callbacks\n");
 }
 
 void MapReduce::update_key_value(
-    char *key, 
+    const char *key, 
     int keybytes, 
-    char *value, 
+    const char *value, 
     int valuebytes){
     if(phase == MapPhase || phase == LocalMapPhase){
         newkey = key;

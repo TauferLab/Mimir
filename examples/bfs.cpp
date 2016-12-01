@@ -27,7 +27,7 @@ using namespace MIMIR_NS;
   ((vis[(v)/LONG_BITS]) |= (1UL << ((v)%LONG_BITS)))
 
 // graph partition
-int mypartition(char *, int);
+int mypartition(const char *, int);
 // read edge lists from files
 void fileread(MapReduce *, char *, void *);
 // construct graph struct
@@ -44,7 +44,7 @@ void expand(MapReduce *, char *, int, char *, int, void *);
 // shrink vertex
 //void shrink(MapReduce *, char *, int, char *, int, void *);
 // compress function
-void combiner(MapReduce *, char *, int, char *, int, char *, int, void*);
+void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void*);
 
 // CSR graph
 int rank, size;
@@ -408,8 +408,8 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
 #endif
 
 // Compress KV with the sarank key
-void combiner(MapReduce *mr, char *key, int keysize, \
-  char *val1, int val1size, char *val2, int val2size, void* ptr){
+void combiner(MapReduce *mr, const char *key, int keysize, \
+  const char *val1, int val1size, const char *val2, int val2size, void* ptr){
 
     mr->update_key_value(key, keysize, val1, val1size);
 }

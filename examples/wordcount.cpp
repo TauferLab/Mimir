@@ -13,8 +13,8 @@ int rank, size;
 
 void map(MapReduce *mr, char *word, void *ptr);
 void countword(MapReduce *, char *, int,  MultiValueIterator *iter, void*);
-void combiner(MapReduce *, char *, int, \
-    char *, int, char *, int, void*);
+void combiner(MapReduce *, const char *, int, \
+    const char *, int, const char *, int, void*);
 
 int main(int argc, char *argv[])
 {
@@ -93,9 +93,9 @@ void countword(MapReduce *mr, char *key, int keysize, MultiValueIterator *iter, 
     mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
-void combiner(MapReduce *mr, char *key, int keysize, \
-    char *val1, int val1size, \
-    char *val2, int val2size, void* ptr){
+void combiner(MapReduce *mr, const char *key, int keysize, \
+    const char *val1, int val1size, \
+    const char *val2, int val2size, void* ptr){
 
     int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
 

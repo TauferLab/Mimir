@@ -42,15 +42,16 @@ public:
         mem_aligned_free(buckets);
     }
 
-    //static int64_t get_mem_bytes(){
-    //    return 0;
-        //return HashBucket<ElemType>::mem_bytes;
-    //}
-
     // Comapre key with elem
     virtual int compare(const char *key, int keybytes, ElemType *)=0;
     virtual int getkey(ElemType *, char **pkey, int *pkeybytes)=0;
     virtual ElemType* insertElem(ElemType *elem)=0;
+
+    virtual void clear(){
+        for(int i=0; i<nbucket; i++)
+            buckets[i] = NULL;
+        nunique=0; 
+    }
 
     ElemType* findElem(const char *key, int keybytes){    
 
