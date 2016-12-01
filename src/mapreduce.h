@@ -134,6 +134,9 @@ public:
     */
     void scan(UserScan myscan, void * ptr=NULL);
 
+    uint64_t bcast(int rank=0);
+    uint64_t collect(int rank=0);
+
     /**
       Add <key,value>. This function only can be invoked in callbacks.
 

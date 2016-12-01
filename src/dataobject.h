@@ -72,6 +72,7 @@ public:
 
     void set_page_size(int pageid, int64_t datasize){
         CHECK_PAGEID(pageid);
+        //totalsize+=datasize;
         pages[pageid].datasize=datasize;
     }
 
@@ -81,6 +82,9 @@ public:
     }
 
     int64_t get_total_size(){
+        totalsize=0;
+        for(int i=0; i<npages; i++)
+            totalsize+=pages[i].datasize;
         return totalsize;
     }
 

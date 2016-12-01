@@ -558,6 +558,91 @@ void MapReduce::scan(
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan end.\n");
 }
 
+uint64_t MapReduce::bcast(int _rank){
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: bcast begin\n");
+
+    // Bcast meta-information
+    int npages=0;
+    if(me==_rank) npages=kv->get_npages();
+    else{
+        DataObject::subRef(kv);
+        kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    }
+    MPI_Bcast(&npages, 1, MPI_INT, _rank, comm);
+    MPI_Bcast(&(kv->ksize), 1, MPI_INT, _rank, comm);
+    MPI_Bcast(&(kv->vsize), 1, MPI_INT, _rank, comm);
+
+    // Bcast the KVs
+    for(int i=0; i<npages; i++){
+        int newpage=0;
+        int64_t count=0;
+        void *buffer=NULL;
+        if(me==_rank){
+            buffer=kv->get_page_buffer(i);
+            count=kv->get_page_size(i);
+        }else{
+            newpage=kv->add_page();
+            buffer=kv->get_page_buffer(newpage);
+        }
+        MPI_Bcast(&count, 1, MPI_INT64_T, _rank, comm);
+        MPI_Bcast(buffer, count, MPI_BYTE, _rank, comm);
+        if(me!=_rank) kv->set_page_size(newpage, count);
+    }
+
+    MPI_Bcast(&(kv->local_kvs_count), 1, MPI_UINT64_T, _rank, comm);
+
+    if(me!=_rank){
+        DataObject::addRef(kv);
+    }
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: bcast end.\n");
+
+    return _get_kv_count();
+}
+
+uint64_t MapReduce::collect(int _rank){
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: collect begin.\n");
+
+    int npages=kv->get_npages();
+    int npages_sum=0;
+    MPI_Reduce(&npages, &npages_sum, 1, MPI_INT, MPI_SUM, _rank, comm);
+    
+    if(me==_rank){
+        npages=npages_sum;
+        int recv_count=kv->get_npages();
+        void *recv_buf=mem_aligned_malloc(MEMPAGE_SIZE,DATA_PAGE_SIZE);
+        int count=0;
+        while(recv_count<npages){
+            MPI_Status st;
+            MPI_Recv(recv_buf, DATA_PAGE_SIZE, MPI_BYTE, MPI_ANY_SOURCE, 0x0, comm, &st);
+            MPI_Get_count(&st, MPI_BYTE, &count);
+            int src_off=0;
+            char *src_buf=(char*)recv_buf;
+            while(src_off<count){
+                char *key, *value;
+                int  keybytes, valuebytes, kvsize;
+                GET_KV_VARS(kv->ksize,kv->vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
+                src_buf+=kvsize;
+                kv->addKV(key,keybytes,value,valuebytes);
+                src_off+=kvsize;
+            }
+            recv_count++;
+        }
+        mem_aligned_free(recv_buf);
+    }else{        
+        for(int i=0; i<npages; i++){
+            char *buffer=kv->get_page_buffer(i);
+            int count=(int)(kv->get_page_size(i));
+            MPI_Send(buffer, count, MPI_BYTE, _rank, 0x0, comm);
+        }
+        DataObject::subRef(kv);
+        kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+        DataObject::addRef(kv);
+    }
+
+    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: collect end.\n");
+}
+
 void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce start.\n");
