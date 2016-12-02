@@ -68,6 +68,10 @@ public:
         return ptr;
     }
 
+    int64_t get_nunique(){
+        return nunique;
+    }
+
 protected:
     int        nbucket;
     ElemType **buckets;

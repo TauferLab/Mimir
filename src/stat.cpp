@@ -37,6 +37,7 @@ const char* counter_str[COUNTER_NUM]={
     "reduce_bucket",
     "combine_bucket",
     "peakmem_use",
+    "max_unique_count",
 };
 
 // trace data

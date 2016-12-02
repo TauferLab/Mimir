@@ -647,6 +647,8 @@ void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce start.\n");
 
+    PROFILER_RECORD_COUNT(COUNTER_UNIQUE_KEY, h->get_nunique(), OPMAX);
+
 #if 1
     // Apply user-defined reduce one-by-one
     ReducerUnique *u = h->BeginUnique();

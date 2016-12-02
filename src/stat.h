@@ -71,7 +71,8 @@ extern char timestr[];
 #define COUNTER_REDUCE_BUCKET      10 // max reduce bucket
 #define COUNTER_COMBINE_BUCKET     11 // max combine bucket 
 #define COUNTER_PEAKMEM_USE        12 // peak memory usage
-#define COUNTER_NUM                13
+#define COUNTER_UNIQUE_KEY         13 // unique words
+#define COUNTER_NUM                14
 
 /// Events
 //  Computation
