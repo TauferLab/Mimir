@@ -290,7 +290,7 @@ int main(int argc, char **argv)
 }
 
 // partiton <key,value> based on the key
-int mypartition(char *key, int keybytes){
+int mypartition(const char *key, int keybytes){
     int64_t v = *(int64_t*)key;
     int v_rank=0;
     if(v<quot*rem+rem)
