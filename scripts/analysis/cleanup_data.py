@@ -11,6 +11,9 @@ from pandas import Series, DataFrame
 
 plt.switch_backend('agg')
 
+"""
+Get results ([benchmark]-[setting]-[dataset])
+"""
 def get_results_of_one_dataset(library, config, setting, \
     benchmark, datatype, testtype, datalabel, indir):
 
@@ -32,6 +35,9 @@ def get_results_of_one_dataset(library, config, setting, \
         result=pd.concat(datalist)
     return result
 
+"""
+Get results ([benchmark]-[setting])
+"""
 def get_results_of_one_setting(library, config, setting, \
     benchmark, datatype, testtype, datalist, indir):
     
@@ -46,6 +52,9 @@ def get_results_of_one_setting(library, config, setting, \
     result=pd.concat(results)
     return result
 
+"""
+Get results ([benchmark])
+"""
 def get_results_of_one_benchmark(library, config, settings, \
     benchmark, datatype, testtype, datalist, indir):
     
@@ -62,9 +71,24 @@ def get_results_of_one_benchmark(library, config, settings, \
     return result
 
 """
+Get results of ipdps data format ([benchmark])
+"""
+def get_ipdps_results_of_one_benchmark(library, config, settings, \
+    benchmark, datatype, testtype, datalist, indir):
+    
+    results=[]
+    for setting in settings:
+        print setting
+        filename=library+'-'+setting+'-'+benchmark+'-'+datatype+'-'+testtype+'_'+'config'+'.ppn*_phases.txt'
+        print filename
+
+"""
 Debug code
 """
 if __name__ == "__main__":
-    data=get_results_of_one_benchmark("mimir", "c64M-p64M-i512M", ["basic"], \
-        "bfs", "graph500s16", "singlenode", ["s20"], "../../data/comet/bfs_singlenode", 24)
-    print data
+    get_ipdps_results_of_one_benchmark(mrmpi, 'a2a',\)
+    #data=get_results_of_one_benchmark(\
+    #    "mimir", "c64M-p64M-i512M", ["basic"], \
+    #    "bfs", "graph500s16", "singlenode", ["s20"], \
+    #    "../../data/comet/bfs_singlenode", 24)
+    #print data

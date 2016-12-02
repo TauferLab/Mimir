@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH --job-name="mimir"  
+#SBATCH --output="mimir.%j.%N.out"  
+#SBATCH --partition=compute
+#SBATCH --ntasks-per-node=24
+#SBATCH --export=ALL  
+#SBATCH -t 00:30:00
+
+PREFIX=test
+OUTDIR=/oasis/scratch/comet/taogao/temp_project/wordcount/uniform/singlenode_test/8G
+FSIZE=8*1024*1024*1024
+NUNIQUE=100000
+
+mpiexec -n 16 -bind-to core gen_uniform_words $PREFIX $OUTDIR $FSIZE $NUNIQUE
