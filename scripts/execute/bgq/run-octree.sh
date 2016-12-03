@@ -17,17 +17,17 @@ function run() {
     fi
     local timeout=${4:-45}
 
-    local input_dir_name=weakscale$1
+    local input_dir_name="1S/weakscale$1"
     if [ $n_start -eq 1 ]; then
-        input_dir_name="singlenode/$1"
+        input_dir_name="1S/singlenode/$1"
     fi
 
     for ((i = n_start; i <= n_end; i = i * 2)); do
         param="0.01"
-        ./sub_jobs.sh basic       octree "1S" $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh cb          octree "1S" $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh kvhint      octree "1S" $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh cbkvhint    octree "1S" $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh basic       octree $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh cb          octree $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh kvhint      octree $input_dir_name 5 $i $i 512M 64M $timeout $param
+        ./sub_jobs.sh cbkvhint    octree $input_dir_name 5 $i $i 512M 64M $timeout $param
     done
 }
 
