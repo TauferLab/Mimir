@@ -136,8 +136,9 @@ int main(int argc, char *argv[])
         char* ptr = buf;
         MPI_Bcast(buf, sum, MPI_BYTE, 0, splitcomm);
         for (int i = 0; i < n_unique; i++) {
-            char* localbuf = (char*) malloc(sizeof(char) * size[i]);
+            char* localbuf = (char*) malloc(sizeof(char) * size[i] + 1);
             memcpy(localbuf, ptr, size[i]);
+            localbuf[size[i]] = 0;
             ptr += size[i];
             unique_words.push_back(string(localbuf));
             free(localbuf);
