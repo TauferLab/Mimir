@@ -27,7 +27,7 @@ int rank, size;
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
 void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void*);
-void sum(MapReduce *, char *, int,  MultiValueIterator *, void*);
+void sum(MapReduce *, char *, int,  void*);
 //void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
 double slope(double[], double[], int);
 
@@ -134,12 +134,20 @@ void combiner(MapReduce *mr, const char *key, int keysize, \
   mr->update_key_value(key, keysize, (char*)&count, sizeof(count));
 }
 
-void sum(MapReduce *mr, char *key, int keysize,  MultiValueIterator *iter, void* ptr){
+void sum(MapReduce *mr, char *key, int keysize,  void* ptr){
 
     int64_t sum=0;
-    for(iter->Begin(); !iter->Done(); iter->Next()){
-        sum+=*(int64_t*)iter->getValue();
+
+    const void *val=mr->get_first_value();
+    while(val != NULL){
+        sum+=*(int64_t*)val;
+        val=mr->get_next_value();
     }
+
+
+    //for(iter->Begin(); !iter->Done(); iter->Next()){
+    //    sum+=*(int64_t*)iter->getValue();
+    //}
     //printf("sum=%d, thresh=%ld\n", sum, thresh);
     if(sum>thresh){
         //printf("sum=%ld\n", sum); fflush(stdout);

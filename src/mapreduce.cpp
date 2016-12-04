@@ -643,6 +643,20 @@ uint64_t MapReduce::collect(int _rank){
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: collect end.\n");
 }
 
+const void *MapReduce::get_first_value(){
+   iter->Begin();
+   if(iter->Done()) return NULL;
+   const void *val=iter->getValue(); 
+   return val;
+}
+
+const void *MapReduce::get_next_value(){
+   iter->Next();
+   if(iter->Done()) return NULL;
+   const void *val=iter->getValue(); 
+   return val;
+}
+
 void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce start.\n");
@@ -654,9 +668,10 @@ void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
     ReducerUnique *u = h->BeginUnique();
     while(u!=NULL){
         ReducerSet *set = u->firstset;
-        MultiValueIterator *iter=new MultiValueIterator(kv, u);
-        _myreduce(this, u->key, u->keybytes, iter, ptr);
+        iter=new MultiValueIterator(kv, u);
+        _myreduce(this, u->key, u->keybytes, ptr);
         delete iter;
+        iter=NULL;
         u = h->NextUnique();
     }
 #endif

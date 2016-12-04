@@ -46,7 +46,7 @@ typedef void (*UserMapFile) (MapReduce *, char *, void *);
 typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
 
 /// reduce callback
-typedef void (*UserReduce)(MapReduce *, char *, int,  MultiValueIterator *iter, void*);
+typedef void (*UserReduce)(MapReduce *, char *, int, void*);
 
 /// combiner callback
 typedef void (*UserCombiner)(MapReduce *, 
@@ -164,6 +164,9 @@ public:
         myhash = _myhash;
     }
 
+    const void *get_first_value();
+    const void *get_next_value(); 
+
     static void output_stat(const char *filename);
 
 private:
@@ -190,6 +193,7 @@ public:
     const char *newkey, *newval;
     int newkeysize, newvalsize;
     void *myptr;
+    MultiValueIterator *iter;
 
 private:
 

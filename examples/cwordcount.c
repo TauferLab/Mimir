@@ -4,16 +4,14 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "mapreduce.h"
+#include "cmapreduce.h"
 #include "common.h"
-
-using namespace MIMIR_NS;
 
 int rank, size;
 
-void map(MapReduce *mr, char *word, void *ptr);
-void countword(MapReduce *, char *, int,  void*);
-void combiner(MapReduce *, const char *, int, \
+void map(void *mr, char *word, void *ptr);
+void countword(void *, char *, int,  void*);
+void combiner(void *, const char *, int, \
     const char *, int, const char *, int, void*);
 
 int main(int argc, char *argv[])
@@ -43,50 +41,52 @@ int main(int argc, char *argv[])
 
     check_envars(rank, size);
 
-    MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
+    void *mr = create_mr_object(MPI_COMM_WORLD);
 
 #ifdef COMBINE
-    mr->set_combiner(combiner);
+    set_combiner(mr, combiner);
 #endif
 #ifdef KHINT
-    mr->set_key_length(-1);
+    set_key_length(mr, -1);
 #endif
 #ifdef VHINT
-    mr->set_value_length(sizeof(int64_t));
+    set_value_length(mr, sizeof(int64_t));
 #endif
 
-    mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
+    map_text_file(mr, filedir, 1, 1, " \n", map, NULL, 1); 
 
     //mr->output(stdout, StringType, Int64Type);
 
-    mr->reduce(countword, NULL);
+    reduce(mr, countword, NULL);
 
     //mr->output(stdout, StringType, Int64Type);
 
     output(rank, size, prefix, outdir);
 
-    delete mr;
+    destroy_mr_object(mr);
 
     MPI_Finalize();
+
+    return 0;
 }
 
 
-void map(MapReduce *mr, char *word, void *ptr){
+void map(void *mr, char *word, void *ptr){
     //printf("word=%s\n", word);
 
     int len=(int)strlen(word)+1;
     int64_t one=1;
     if(len <= 1024)
-        mr->add_key_value(word,len,(char*)&one,sizeof(one));
+        add_key_value(mr, word,len,(char*)&one,sizeof(one));
 }
 
-void countword(MapReduce *mr, char *key, int keysize, void* ptr){
+void countword(void *mr, char *key, int keysize, void* ptr){
     int64_t count=0;
 
-    const void *val=mr->get_first_value();
+    const void *val=get_first_value(mr);
     while(val != NULL){
         count+=*(int64_t*)val;
-        val=mr->get_next_value();
+        val=get_next_value(mr);
     }
     //for(iter->Begin(); !iter->Done(); iter->Next()){
     //    count+=*(int64_t*)iter->getValue();
@@ -95,15 +95,15 @@ void countword(MapReduce *mr, char *key, int keysize, void* ptr){
 
     //printf("sum: key=%s, count=%ld\n", key, count);
 
-    mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
+    add_key_value(mr, key, keysize, (char*)&count, sizeof(count));
 }
 
-void combiner(MapReduce *mr, const char *key, int keysize, \
+void combiner(void *mr, const char *key, int keysize, \
     const char *val1, int val1size, \
     const char *val2, int val2size, void* ptr){
 
     int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
 
-    mr->update_key_value(key, keysize, (char*)&count, sizeof(count));
+    update_key_value(mr, key, keysize, (char*)&count, sizeof(count));
 }
 
