@@ -27,7 +27,7 @@ public:
     virtual ~Communicator();
 
     virtual int setup(int64_t, KeyValue *kv, MapReduce *mr, \
-        UserCombiner combiner, UserHash myhash)=0;
+        UserCombiner combiner, UserHash myhash);
 
     virtual int sendKV(const char *, int, const char *, int) = 0;
 

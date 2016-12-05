@@ -120,9 +120,9 @@ aligned_size=%ld; memsize=%ld)\n", \
         return NULL;
     }
 
-    record_memory_usage();
+    //record_memory_usage();
 
-    //printf("malloc: %p\n", ptr);
+    //printf("malloc: size=%ld, %p\n", align_size, ptr);
 
     return ptr;
 }
@@ -131,7 +131,7 @@ void *mem_aligned_free(void *ptr){
     //printf("free: %p\n", ptr);
 
     free(ptr);
-    record_memory_usage();
+    //record_memory_usage();
 
     return NULL;
 }

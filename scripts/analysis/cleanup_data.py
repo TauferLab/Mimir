@@ -73,20 +73,21 @@ def get_results_of_one_benchmark(library, config, settings, \
 """
 Get results of ipdps data format ([benchmark])
 """
-def get_ipdps_results_of_one_benchmark(library, config, settings, \
-    benchmark, datatype, testtype, datalist, indir):
+#def get_ipdps_results_of_one_benchmark(library, config, settings, \
+#    benchmark, datatype, testtype, datalist, indir):
     
-    results=[]
-    for setting in settings:
-        print setting
-        filename=library+'-'+setting+'-'+benchmark+'-'+datatype+'-'+testtype+'_'+'config'+'.ppn*_phases.txt'
-        print filename
+#    results=[]
+#    for setting in settings:
+#        print setting
+#        filename=library+'-'+setting+'-'+benchmark+'-'+datatype+'-'+testtype+'_'+'config'+'.ppn*_phases.txt'
+#        print filename
 
 """
 Debug code
 """
 if __name__ == "__main__":
-    get_ipdps_results_of_one_benchmark(mrmpi, 'a2a',\)
+    pass
+    #get_ipdps_results_of_one_benchmark(mrmpi, 'a2a',\)
     #data=get_results_of_one_benchmark(\
     #    "mimir", "c64M-p64M-i512M", ["basic"], \
     #    "bfs", "graph500s16", "singlenode", ["s20"], \

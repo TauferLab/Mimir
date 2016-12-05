@@ -1,5 +1,20 @@
 #!/bin/bash
 
+python draw_mimir_memory_and_time.py wordcount uniform \
+    singlenode 1G,2G,4G,8G,16G,32G,64G \
+    1G,2G,4G,8G,16G,32G,64G \
+     --indir ../../data/comet/wc_uniform_singlenode_c64M-p64M-i512M-h20/ \
+    --outfile comet-singlenode-wc-uniform-features-time.pdf \
+    --settings  "basic,kvhint,cbkvhint" \
+    --labellist "Mimir (basic),Mimir (hint),Mimir (cb;kvhint)" \
+    --memcolor  "coral,lightblue,lightgreen" \
+    --timecolor "darkviolet,blue,green" \
+    --markerlist "*,v,o" \
+    --xlabelname "dataset size" \
+    --memlim 0 6 \
+    --timelim 0 500
+
+
 python draw_mimir_memory_and_time.py wordcount wikipedia \
     singlenode 1G,2G,4G,8G,16G,32G,64G \
     1G,2G,4G,8G,16G,32G,64G \
