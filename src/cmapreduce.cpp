@@ -97,5 +97,9 @@ const void *get_next_value(void *_mr){
     return mr->get_next_value();
 }
 
-
-
+void output(void *_mr, FILE *_fp, int _key, int _val){
+    MapReduce *mr=(MapReduce*)_mr;
+    ElemType key = (ElemType)_key;
+    ElemType val = (ElemType)_val;
+    mr->output(_fp, key, val);
+}

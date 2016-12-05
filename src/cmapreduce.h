@@ -58,6 +58,8 @@ void set_value_length(void*, int vsize);
 const void *get_first_value(void*);
 const void *get_next_value(void*); 
 
+void output(void *, FILE *fp, int key, int val);
+
 #ifdef __cplusplus
 }
 #endif
