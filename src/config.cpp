@@ -32,4 +32,5 @@ int COMM_UNIT_SIZE=4096;
 /// Debug Level
 int DBG_LEVEL=0;
 
-
+/// Record peakmem
+int RECORD_PEAKMEM=1;

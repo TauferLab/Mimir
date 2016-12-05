@@ -18,4 +18,6 @@ extern int64_t INPUT_BUF_SIZE;
 extern int DBG_LEVEL;
 extern int COMM_UNIT_SIZE;
 
+extern int RECORD_PEAKMEM;
+
 #endif

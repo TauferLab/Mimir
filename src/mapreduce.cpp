@@ -934,7 +934,15 @@ void MapReduce::_get_default_values(){
         if(flag != 0){
             DBG_LEVEL |= (DBG_IO);
         }
-    }   
+    }
+ 
+    env = getenv("MIMIR_RECORD_PEAKMEM");
+    if(env){
+        int flag = atoi(env);
+        if(flag == 0){
+            RECORD_PEAKMEM = 0;
+        }
+    }
 
     if(me==0){
         fprintf(stdout, "bucket size(2^x)=%d, comm_buf_size=%ld, \

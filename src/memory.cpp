@@ -70,10 +70,10 @@ int64_t get_mem_usage(){
     return memsize;
 }
 
-void record_memory_usage(){
-    int64_t vmsize=get_mem_usage();
-    if(vmsize>peakmem) peakmem=vmsize;
-}
+//void record_memory_usage(){
+//    int64_t vmsize=get_mem_usage();
+//    if(vmsize>peakmem) peakmem=vmsize;
+//}
 
 int64_t get_max_mmap(){
 #define BUFSIZE 1024
@@ -120,18 +120,23 @@ aligned_size=%ld; memsize=%ld)\n", \
         return NULL;
     }
 
-    //record_memory_usage();
-
-    //printf("malloc: size=%ld, %p\n", align_size, ptr);
+    if(RECORD_PEAKMEM==1){
+        int64_t vmsize=get_mem_usage();
+        if(vmsize>peakmem) peakmem=vmsize;
+    }
 
     return ptr;
 }
 
-void *mem_aligned_free(void *ptr){
-    //printf("free: %p\n", ptr);
-
+void *mem_aligned_free(void *ptr)
+{
     free(ptr);
     //record_memory_usage();
+
+    if(RECORD_PEAKMEM==1){
+        int64_t vmsize=get_mem_usage();
+        if(vmsize>peakmem) peakmem=vmsize;
+    }
 
     return NULL;
 }
