@@ -7,7 +7,7 @@ SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib -lSPI_cnk
 LCFLAGS = -std=c++11 -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src $(SPI_CFLAGS)
 LFLAGS = -L ../src $(SPI_LDFLAGS)
 
-USERLIBS = -lmrmpi
+USERLIBS = -lmimir
 
 all: wordcount bfs octree
 

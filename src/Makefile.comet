@@ -18,7 +18,7 @@ OBJS = mapreduce.o cmapreduce.o dataobject.o keyvalue.o communicator.o alltoall.
 all: libmrmpi
 
 libmrmpi: $(OBJS)
-	$(ARCHIEVE) $(AFLAGS) libmrmpi.a $(OBJS)
+	$(ARCHIEVE) $(AFLAGS) libmimir.a $(OBJS)
 
 cmapreduce.o: cmapreduce.cpp cmapreduce.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c cmapreduce.cpp
@@ -57,4 +57,4 @@ config.o: config.cpp config.h
 	$(CPP) $(local_CFLAGS) $(CFLAGS) -c config.cpp
 
 clean:
-	-rm *.o libmrmpi.a
+	-rm *.o libmimir.a

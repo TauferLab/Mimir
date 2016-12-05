@@ -5,7 +5,7 @@ CPPLINK=mpicxx
 LCFLAGS = -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
 LFLAGS = -L ../src -lm
 
-USERLIBS = -lmrmpi
+USERLIBS = -lmimir
 
 all: wordcount bfs octree
 
