@@ -11,6 +11,7 @@ using namespace MIMIR_NS;
 
 #include "hash.h"
 #include "stat.h"
+#include "log.h"
 
 Alltoall::Alltoall(MPI_Comm _comm):Communicator(_comm, 0){
     switchflag=0;
@@ -25,7 +26,7 @@ Alltoall::Alltoall(MPI_Comm _comm):Communicator(_comm, 0){
 
     reqs=NULL;
 
-    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall create.\n", rank, size);
+    LOG_PRINT(DBG_COMM, rank, size, "%s", "Comm: alltoall create.\n");
 }
 
 Alltoall::~Alltoall(){
@@ -36,10 +37,11 @@ Alltoall::~Alltoall(){
 
     if(recv_count != NULL) delete [] recv_count;
     if(recv_buf != NULL) delete [] recv_buf;
+
     if(recvcounts != NULL) delete [] recvcounts;
     if(reqs != NULL) delete [] reqs;
 
-    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall destroy.\n", rank, size);
+    LOG_PRINT(DBG_COMM, rank, size, "%s", "Comm: alltoall destroy.\n");
 }
 
 int Alltoall::setup(int64_t _sbufsize, KeyValue *_data, \
@@ -77,9 +79,8 @@ int Alltoall::setup(int64_t _sbufsize, KeyValue *_data, \
 
     for(int i=0; i<size; i++) off[i] = 0;
 
-    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: alltoall setup. (\
-comm buffer size=%ld, type_log_bytes=%d)\n", \
-      rank, size, send_buf_size, type_log_bytes);
+    LOG_PRINT(DBG_COMM, rank, size, "Comm: alltoall setup. (\
+comm buffer size=%ld, type_log_bytes=%d)\n", send_buf_size, type_log_bytes);
 
     return 0;
 }
@@ -252,7 +253,7 @@ void Alltoall::wait(){
    }
 #endif
 
-   //LOG_PRINT(DBG_COMM, "%d[%d] Comm: finish wait.\n", rank, size);
+   LOG_PRINT(DBG_COMM, rank, size, "%s", "Comm: finish wait.\n");
 }
 
 void Alltoall::save_data(int ibuf){

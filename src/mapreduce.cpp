@@ -307,7 +307,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
         inputkv, inputkv->get_npages(), _comm);
 
     // create new data object
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: new data KV. (KV as input)\n");
+    //LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: new data KV. (KV as input)\n");
 
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
 
@@ -318,7 +318,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     kv->set_combiner(this, mycombiner);
 
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: alloc data KV. (KV as input)\n");
+    //LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: alloc data KV. (KV as input)\n");
 
     if(_comm){
         c=Communicator::Create(comm, KV_EXCH_COMM);
@@ -938,9 +938,9 @@ void MapReduce::_get_default_values(){
 
     if(me==0){
         fprintf(stdout, "bucket size(2^x)=%d, comm_buf_size=%ld, \
-data_page_size=%ld, input_buf_size=%ld\n", \
+data_page_size=%ld, input_buf_size=%ld, DBG_LEVEL=%x\n", \
         BUCKET_COUNT, COMM_BUF_SIZE, \
-        DATA_PAGE_SIZE, INPUT_BUF_SIZE); 
+        DATA_PAGE_SIZE, INPUT_BUF_SIZE, DBG_LEVEL); 
     }
     fflush(stdout);
 

@@ -74,11 +74,8 @@ DataObject::DataObject(int _me, int _nprocs,
 }
 
 DataObject::~DataObject(){
-    //printf("id=%d, ref=%d\n", id, ref); fflush(stdout);
-
     for(int i = 0; i < npages; i++){
         if(pages[i].buffer != NULL) {
-            //printf("id=%d, buffer=%p\n", id, pages[i].buffer); fflush(stdout);
             mem_aligned_free(pages[i].buffer);
         }
     }
