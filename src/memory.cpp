@@ -15,7 +15,58 @@
 
 int64_t peakmem=0;
 
-int64_t get_mem_usage(){
+// Get max maps
+inline int64_t get_max_mmap(){
+#define BUFSIZE 1024
+    int stderr_save;
+    char buffer[BUFSIZE]={'\0'};
+    fflush(stderr);
+    stderr_save = dup(STDERR_FILENO); 
+    freopen("/dev/null", "a", stderr);
+    setvbuf(stderr, buffer, _IOFBF, BUFSIZE);
+    malloc_stats();
+    freopen("/dev/null", "a", stderr);
+    dup2(stderr_save, STDERR_FILENO);
+    setvbuf(stderr, NULL, _IONBF, BUFSIZE);
+
+    char *p, *temp=NULL;
+    int64_t maxmmap=0;
+    p = strtok_r(buffer, "\n", &temp);
+    do{
+        if(strncmp(p, "max mmap bytes   =", 18) == 0){
+            char *word = p + 18;
+            while(isspace(*word)) ++word;
+            maxmmap=strtoull(word, NULL, 0);
+        }
+      p = strtok_r(NULL, "\n", &temp);
+    } while (p != NULL);
+
+    return maxmmap;
+}
+
+/// Get vm size
+inline int64_t get_vmsize(){
+    pid_t pid=getpid();
+
+    int64_t vmsize=0;
+    char procname[100], line[100];
+    sprintf(procname,"/proc/%ld/status", (long)pid);
+    FILE *fp=fopen(procname,"r");
+
+    while(fgets(line, 100, fp)){
+        if(strncmp(line, "VmSize:", 7) == 0){
+            char *p = line + 7;
+            while(isspace(*p)) ++p;
+            vmsize=strtoull(p, NULL, 0);
+        }
+    }
+
+    fclose(fp);
+  
+    return vmsize;
+}
+
+inline int64_t get_mem_usage(){
 
     int64_t memsize = 0;
 
@@ -43,65 +94,11 @@ int64_t get_mem_usage(){
 
 #else
 
-#if 0
-  pid_t pid=getpid();
-
-  int64_t vmsize=0;
-  char procname[100], line[100];
-  sprintf(procname,"/proc/%ld/status", (long)pid);
-  FILE *fp=fopen(procname,"r");
-
-  while(fgets(line, 100, fp)){
-    if(strncmp(line, "VmSize:", 7) == 0){
-      char *p = line + 7;
-      while(isspace(*p)) ++p;
-      vmsize=strtoull(p, NULL, 0);
-    }
-  }
-
-  fclose(fp);
-  memsize=vmsize;
-#endif
-
     memsize=get_max_mmap();
 
 #endif
 
     return memsize;
-}
-
-//void record_memory_usage(){
-//    int64_t vmsize=get_mem_usage();
-//    if(vmsize>peakmem) peakmem=vmsize;
-//}
-
-int64_t get_max_mmap(){
-#define BUFSIZE 1024
-
-    int stderr_save;
-    char buffer[BUFSIZE]={'\0'};
-    fflush(stderr);
-    stderr_save = dup(STDERR_FILENO); 
-    freopen("/dev/null", "a", stderr);
-    setvbuf(stderr, buffer, _IOFBF, BUFSIZE);
-    malloc_stats();
-    freopen("/dev/null", "a", stderr);
-    dup2(stderr_save, STDERR_FILENO);
-    setvbuf(stderr, NULL, _IONBF, BUFSIZE);
-
-    char *p, *temp=NULL;
-    int64_t maxmmap=0;
-    p = strtok_r(buffer, "\n", &temp);
-    do{
-        if(strncmp(p, "max mmap bytes   =", 18) == 0){
-            char *word = p + 18;
-            while(isspace(*word)) ++word;
-            maxmmap=strtoull(word, NULL, 0);
-        }
-      p = strtok_r(NULL, "\n", &temp);
-    } while (p != NULL);
-
-    return maxmmap;
 }
 
 void *mem_aligned_malloc(size_t alignment, size_t size){
@@ -131,7 +128,6 @@ aligned_size=%ld; memsize=%ld)\n", \
 void *mem_aligned_free(void *ptr)
 {
     free(ptr);
-    //record_memory_usage();
 
     if(RECORD_PEAKMEM==1){
         int64_t vmsize=get_mem_usage();
@@ -140,33 +136,3 @@ void *mem_aligned_free(void *ptr)
 
     return NULL;
 }
-
-int mem_alloc_init()
-{
-#ifdef BGQ
-    /*
-     * Configuration suggested by Hal Finkel:
-     mallopt(M_MMAP_THRESHOLD, sysconf(_SC_PAGESIZE));                mallopt(M_MMAP_THRESHOLD, sysconf(_SC_PAGESIZE));
-     mallopt(M_TRIM_THRESHOLD, 0);                    mallopt(M_TRIM_THRESHOLD, 0);
-     mallopt(M_TOP_PAD, 0);                   mallopt(M_TOP_PAD, 0);
-     */
-
-    /*
-     * According to the glibc 2.12.2 patch ( https://repo.anl-external.org/viewvc/bgq-driver/V1R1M1/toolchain/glibc-2.12.2.diff?revision=1&content-type=text%2Fplain&pathrev=4 ),
-     * Blue Gene/Q uses these values:
-     *
-     * DEFAULT_TRIM_THRESHOLD is 1024 * 1024;
-     * DEFAULT_MMAP_THRESHOLD is 1024 * 1024;
-     * DEFAULT_TOP_PAD is 0.
-     *
-     * According to http://man7.org/linux/man-pages/man3/mallopt.3.html, the default value for these 3 arguments
-     * is 128 * 1024 in the glibc.
-     */
-
-    mallopt(M_MMAP_THRESHOLD, 1024 * 1024);
-    mallopt(M_TRIM_THRESHOLD, 1024 * 1024);
-    // mallopt(M_TOP_PAD, 128 * 1024);
-#endif
-    return 0;
-}
-

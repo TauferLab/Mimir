@@ -5,6 +5,7 @@
 #SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL  
 #SBATCH -t 00:30:00
+#SBATCH --mem 16G
 
 source config.h
 

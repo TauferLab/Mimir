@@ -1,4 +1,4 @@
-export PPN=24
+export PPN=16
 export BASEDIR=/oasis/scratch/comet/taogao/temp_project
 export OUTBASEDIR=$BASEDIR/results/comet_tpds/
 export TMPDIR=/scratch/$USER/$SLURM_JOB_ID
