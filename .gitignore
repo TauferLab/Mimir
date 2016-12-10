@@ -1,6 +1,9 @@
 *.cobaltlog
 *.error
 *.output
+*.o
+*.a
+.*
 core.*
 scripts/execute/slurm/*.txt
 scripts/execute/slurm/*.out
