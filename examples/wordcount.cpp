@@ -52,7 +52,11 @@ int main(int argc, char *argv[])
     mr->set_key_length(-1);
 #endif
 #ifdef VHINT
+#ifdef VALUE_STRING
+    mr->set_value_length(-1);
+#else
     mr->set_value_length(sizeof(int64_t));
+#endif
 #endif
 
     mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
