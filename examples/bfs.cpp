@@ -238,17 +238,6 @@ int main(int argc, char **argv)
     do{
         nactives[level] = mr->map_key_value(mr, expand);
         //mr->output(stdout, Int64Type, Int64Type);
-#if 0
-#ifdef KHINT
-        mr->set_key_length(sizeof(int64_t));
-#endif
-#ifdef VHINT
-        mr->set_value_length(sizeof(int64_t));
-#endif
-
-        nactives[level] = mr->map_key_value(mr, expand);
-        //mr->output(stdout, Int64Type, Int64Type);
-#endif
 
         level++;
     }while(nactives[level-1]);
@@ -388,25 +377,6 @@ void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes,
     }
 }
 
-#if 0
-// Expand vertexes with the active vertexes
-void expand(MapReduce *mr, char *key, int keybytes, char *value, int valuebytes, void *ptr){
-
-    int64_t v = *(int64_t*)key;
-    int64_t v_local = v-nvertoffset;
-
-    size_t p_end = rowstarts[v_local+1];
-    for(size_t p = rowstarts[v_local]; p < p_end; p++){
-#ifndef COLUMN_SINGLE_BUFFER
-        int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
-#else
-        int64_t v1 = columns[p];
-#endif
-        mr->add_key_value((char*)&v1, sizeof(int64_t), (char*)&v, sizeof(int64_t));
-    }
-}
-#endif
-
 // Compress KV with the sarank key
 void combiner(MapReduce *mr, const char *key, int keysize, \
   const char *val1, int val1size, const char *val2, int val2size, void* ptr){
@@ -434,21 +404,6 @@ int64_t getrootvert(){
     }while(myroot==-1);
     return myroot;
 }
-
-#if 0
-void printgraph(){
-  for(int i = 0; i < nlocalverts; i++){
-    int64_t v0 = rank*(nlocalverts)+i;
-    printf("%ld", v0);
-    size_t p_end = g->rowstarts[i+1];
-    for(size_t p = g->rowstarts[i]; p < p_end; p++){
-      int64_t v1 = g->columns[p];
-      printf(" %ld", v1);
-    }
-    printf("\n");
-  }
-}
-#endif
 
 void printresult(int64_t *pred, size_t nlocalverts){
     for(size_t i = 0; i < nlocalverts; i++){

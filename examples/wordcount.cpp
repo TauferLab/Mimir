@@ -57,11 +57,7 @@ int main(int argc, char *argv[])
 
     mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
 
-    //mr->output(stdout, StringType, Int64Type);
-
     mr->reduce(countword, NULL);
-
-    //mr->output(stdout, StringType, Int64Type);
 
     output(rank, size, prefix, outdir);
 
@@ -72,8 +68,6 @@ int main(int argc, char *argv[])
 
 
 void map(MapReduce *mr, char *word, void *ptr){
-    //printf("word=%s\n", word);
-
     int len=(int)strlen(word)+1;
     int64_t one=1;
     if(len <= 1024)
@@ -88,12 +82,6 @@ void countword(MapReduce *mr, char *key, int keysize, void* ptr){
         count+=*(int64_t*)val;
         val=mr->get_next_value();
     }
-    //for(iter->Begin(); !iter->Done(); iter->Next()){
-    //    count+=*(int64_t*)iter->getValue();
-        //printf("count=%ld\n", count);
-    //}
-
-    //printf("sum: key=%s, count=%ld\n", key, count);
 
     mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
 }

@@ -28,7 +28,6 @@ void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void*);
 void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void*);
 void sum(MapReduce *, char *, int,  void*);
-//void sum_map(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr);
 double slope(double[], double[], int);
 
 #define digits 15
@@ -102,9 +101,6 @@ int main(int argc, char **argv)
         mr_level->map_key_value(mr_convert, gen_leveled_octkey);
         uint64_t nkv = mr_level->reduce(sum, NULL);
 
-        //mr_level->output(stdout, StringType, Int64Type);
-        //if(rank==0) printf("nkv=%ld\n", nkv);
-
         if(nkv >0){
             min_limit=level;
             level= (int)floor((max_limit+min_limit)/2);
@@ -144,95 +140,89 @@ void sum(MapReduce *mr, char *key, int keysize,  void* ptr){
         val=mr->get_next_value();
     }
 
-
-    //for(iter->Begin(); !iter->Done(); iter->Next()){
-    //    sum+=*(int64_t*)iter->getValue();
-    //}
-    //printf("sum=%d, thresh=%ld\n", sum, thresh);
     if(sum>thresh){
-        //printf("sum=%ld\n", sum); fflush(stdout);
         mr->add_key_value(key, keysize, (char*)&sum, sizeof(int64_t));
     }
 }
 
 void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
-  int64_t count=1;
-  mr->add_key_value(key, level, (char*)&count, sizeof(int64_t));
+    int64_t count=1;
+    mr->add_key_value(key, level, (char*)&count, sizeof(int64_t));
 }
 
 void generate_octkey(MapReduce *mr, char *word, void *ptr)
 {
-  double range_up=4.0, range_down=-4.0;
-  char octkey[digits];
+    double range_up=4.0, range_down=-4.0;
+    char octkey[digits];
 
-  double b0, b1, b2;
-  char *saveptr;
-  char *token = strtok_r(word, " ", &saveptr);
-  b0=atof(token);
-  token = strtok_r(word, " ", &saveptr);
-  b1=atof(token);
-  token = strtok_r(word, " ", &saveptr);
-  b2=atof(token);
+    double b0, b1, b2;
+    char *saveptr;
+    char *token = strtok_r(word, " ", &saveptr);
+    b0=atof(token);
+    token = strtok_r(word, " ", &saveptr);
+    b1=atof(token);
+    token = strtok_r(word, " ", &saveptr);
+    b2=atof(token);
 
-  /*compute octkey, "digit" many digits*/
-  int count=0;//count how many digits are in the octkey
-  double minx = range_down, miny = range_down, minz = range_down;
-  double maxx = range_up, maxy = range_up, maxz = range_up;
-  while (count < digits){
-    int m0 = 0, m1 = 0, m2 = 0;
-    double rankdx = minx + ((maxx - minx)/2);
-    if (b0>rankdx){
-      m0=1;
-      minx=rankdx;
-    }else{
-      maxx=rankdx;
+    /*compute octkey, "digit" many digits*/
+    int count=0;//count how many digits are in the octkey
+    double minx = range_down, miny = range_down, minz = range_down;
+    double maxx = range_up, maxy = range_up, maxz = range_up;
+    while (count < digits){
+        int m0 = 0, m1 = 0, m2 = 0;
+        double rankdx = minx + ((maxx - minx)/2);
+        if (b0>rankdx){
+            m0=1;
+            minx=rankdx;
+        }else{
+            maxx=rankdx;
+        }
+
+        double rankdy = miny + ((maxy-miny)/2);
+        if (b1>rankdy){
+            m1=1;
+            miny=rankdy;
+        }else{
+            maxy=rankdy;
+        }
+        double rankdz = minz + ((maxz-minz)/2);
+        if (b2>rankdz){
+            m2=1;
+            minz=rankdz;
+        }else{
+            maxz=rankdz;
+        }
+
+        /*calculate the octant using the formula m0*2^0+m1*2^1+m2*2^2*/
+        int bit=m0+(m1*2)+(m2*4);
+        //char bitc=(char)(((int)'0') + bit); //int 8 => char '8'
+        octkey[count] = bit & 0x7f;
+        ++count;
     }
 
-    double rankdy = miny + ((maxy-miny)/2);
-    if (b1>rankdy){
-      m1=1;
-      miny=rankdy;
-    }else{
-      maxy=rankdy;
-    }
-    double rankdz = minz + ((maxz-minz)/2);
-    if (b2>rankdz){
-      m2=1;
-      minz=rankdz;
-    }else{
-      maxz=rankdz;
-    }
-
-    /*calculate the octant using the formula m0*2^0+m1*2^1+m2*2^2*/
-    int bit=m0+(m1*2)+(m2*4);
-    //char bitc=(char)(((int)'0') + bit); //int 8 => char '8'
-    octkey[count] = bit & 0x7f;
-    ++count;
-  }
-
-  mr->add_key_value(octkey, digits, NULL, 0);
+    mr->add_key_value(octkey, digits, NULL, 0);
 }
 
 
 double slope(double x[], double y[], int num_atoms){
-  double slope=0.0;
-  double sumx=0.0, sumy=0.0;
-  for (int i=0; i!=num_atoms; ++i){
-    sumx += x[i];
-    sumy += y[i];
-  }
+    double slope=0.0;
+    double sumx=0.0, sumy=0.0;
+    for (int i=0; i!=num_atoms; ++i){
+        sumx += x[i];
+        sumy += y[i];
+    }
 
-  double xbar = sumx/num_atoms;
-  double ybar = sumy/num_atoms;
+    double xbar = sumx/num_atoms;
+    double ybar = sumy/num_atoms;
 
-  double xxbar =0.0, yybar =0.0, xybar =0.0;
-  for (int i=0; i!=num_atoms; ++i){
-    xxbar += (x[i] - xbar) * (x[i] - xbar);
-    yybar += (y[i] - ybar) * (y[i] - ybar);
-    xybar += (x[i] - xbar) * (y[i] - ybar);
-  }
+    double xxbar =0.0, yybar =0.0, xybar =0.0;
+    for (int i=0; i!=num_atoms; ++i){
+        xxbar += (x[i] - xbar) * (x[i] - xbar);
+        yybar += (y[i] - ybar) * (y[i] - ybar);
+        xybar += (x[i] - xbar) * (y[i] - ybar);
+    }
 
-  slope = xybar / xxbar;
-  return slope;
+    slope = xybar / xxbar;
+    return slope;
 }
