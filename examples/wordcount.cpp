@@ -69,9 +69,15 @@ int main(int argc, char *argv[])
 
 void map(MapReduce *mr, char *word, void *ptr){
     int len=(int)strlen(word)+1;
-    int64_t one=1;
-    if(len <= 1024)
+    if(len <= 1024){
+#ifdef VALUE_STRING
+        char tmp[10]={"1"};
+        mr->add_key_value(word,len,tmp,2);
+#else
+        int64_t one=1;
         mr->add_key_value(word,len,(char*)&one,sizeof(one));
+#endif
+    }
 }
 
 void countword(MapReduce *mr, char *key, int keysize, void* ptr){
@@ -79,19 +85,35 @@ void countword(MapReduce *mr, char *key, int keysize, void* ptr){
 
     const void *val=mr->get_first_value();
     while(val != NULL){
+#ifdef VALUE_STRING
+        count+=strtoull((const char*)val, NULL, 0);
+#else
         count+=*(int64_t*)val;
+#endif
         val=mr->get_next_value();
     }
 
+#ifdef VALUE_STRING
+    char tmp[100];
+    sprintf(tmp, "%ld", count);
+    mr->add_key_value(key, keysize, tmp, (int)strlen(tmp)+1);
+#else
     mr->add_key_value(key, keysize, (char*)&count, sizeof(count));
+#endif
 }
 
 void combiner(MapReduce *mr, const char *key, int keysize, \
     const char *val1, int val1size, \
     const char *val2, int val2size, void* ptr){
 
+#ifdef VALUE_STRING
+    int64_t count=strtoull(val1, NULL, 0)+strtoull(val2, NULL, 0);
+    char tmp[100];
+    sprintf(tmp, "%ld", count);
+    mr->update_key_value(key, keysize, tmp, (int)strlen(tmp)+1);
+#else
     int64_t count=*(int64_t*)(val1)+*(int64_t*)(val2);
-
     mr->update_key_value(key, keysize, (char*)&count, sizeof(count));
+#endif
 }
 
