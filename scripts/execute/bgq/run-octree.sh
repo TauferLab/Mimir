@@ -5,8 +5,8 @@ if [ $# -lt 2 ]; then
     exit 1
 fi
 
-export  INPUT_BASEDIR=/projects/SSSPPg/yguo/mimir/data
-export OUTPUT_BASEDIR=/projects/SSSPPg/yguo/mimir/data
+export  INPUT_BASEDIR=/projects/MPICH_MCS/yguo/mimir/data
+export OUTPUT_BASEDIR=/projects/MPICH_MCS/yguo/mimir/data
 
 function run() {
     local N=$1

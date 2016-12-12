@@ -5,8 +5,8 @@ if [ $# -lt 2 ]; then
     exit 1
 fi
 
-export  INPUT_BASEDIR=/projects/SSSPPg/yguo/mimir/data
-export OUTPUT_BASEDIR=/projects/SSSPPg/yguo/mimir/data
+export  INPUT_BASEDIR=/projects/MPICH_MCS/yguo/mimir/data
+export OUTPUT_BASEDIR=/projects/MPICH_MCS/yguo/mimir/data
 
 WC_TYPE=${4:-"uniform"}
 
@@ -31,9 +31,9 @@ function run() {
 
     for ((i = n_start; i <= n_end; i = i * 2)); do
         param=""
-        ./sub_jobs.sh basic       wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
+#         ./sub_jobs.sh basic       wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
         ./sub_jobs.sh cb          wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
-        ./sub_jobs.sh kvhint      wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
+#         ./sub_jobs.sh kvhint      wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
         ./sub_jobs.sh cbkvhint    wordcount $input_dir_name 5 $i $i 512M 64M $timeout $param
     done
 }
