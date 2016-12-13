@@ -5,38 +5,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-//#define ALIGNKV 4
-//#define ALIGNK  ALIGNKV
-//#define ALIGNV  ALIGNKV
-//#define ALIGNT  ALIGNKV
-
-//#define INTMAX 0x7FFFFFFF
-
-//extern int me,nprocs,tnum;
-
 #define NIN(A,B) ((A) < (B)) ? (A) : (B)
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)
 
-//#define CACHELINE_SIZE               64
 #define MEMPAGE_SIZE               4096
 
 #define MAXLINE                    2048
 #define MAX_COMM_SIZE        0x40000000
 
-//#define ROUNDUP(A,B) (char *) (((uint64_t) A + B) & ~B);
-
-/// KVType represents KV Type
+/// KV Type
 enum KVType{
-    KVGeneral=-2,
-    KVString,
-    KVFixed};
+    KVGeneral=-2, // variable length bytes
+    KVString,     // string
+    KVFixed};     // fixed-size KV
 
 enum ElemType{
     StringType,
     Int32Type,
     Int64Type};
 
-// general type
+// Get KV information
 #define GET_KV_VARS(ksize,vsize,buf,key,keybytes,value,valuebytes,kvsize) \
 {\
     char *kvbuf_start=buf;\
@@ -63,7 +51,7 @@ enum ElemType{
         valuebytes = vsize;\
     }\
     kvbuf+=valuebytes;\
-    kvsize=kvbuf-kvbuf_start;\
+    kvsize=(int)(kvbuf-kvbuf_start);\
 }
 
 #define GET_KV_SIZE(ksize, vsize, keybytes, valuebytes, kvsize) \
