@@ -198,7 +198,6 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
 
 int Alltoall::updateKV(const char *newkey, int newkeysize, const char *newval, int newvalsize){
     int inserted=0;
-    int goff=off[target];
 
     // check if the key is same 
     if(newkeysize!=ukeysize || \
@@ -210,6 +209,8 @@ int Alltoall::updateKV(const char *newkey, int newkeysize, const char *newval, i
     GET_KV_SIZE(kv->ksize,kv->vsize, newkeysize, newvalsize, kvsize);
 
     while(1){
+        int goff=off[target];
+
         // new KV is smaller than previous KV */
         if(kvsize<=ukvsize){
             PUT_KV_VARS(kv->ksize, kv->vsize, u->kv, \
