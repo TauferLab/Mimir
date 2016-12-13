@@ -496,15 +496,11 @@ void MapReduce::update_key_value(
     const char *value, 
     int valuebytes){
     if(phase == MapPhase){
-        memcpy(c->newkey, (void*)key, keybytes);
-        c->newkeysize = keybytes;
-        memcpy(c->newval, (void*)value, valuebytes);
-        c->newvalsize = valuebytes; 
+        // Update the KV
+        c->updateKV(key, keybytes, value, valuebytes);
     }else if(phase == CombinePhase || phase == LocalMapPhase){
-        memcpy(kv->newkey, (void*)key, keybytes);
-        kv->newkeysize = keybytes;
-        memcpy(kv->newval, (void*)value, valuebytes);
-        kv->newvalsize = valuebytes;
+        // Update the KV
+        kv->updateKV(key, keybytes, value, valuebytes);
     }else{
         LOG_ERROR("%s", \
           "Error: update_key_value function can be invoked in \

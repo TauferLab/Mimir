@@ -30,9 +30,8 @@ public:
         UserCombiner combiner, UserHash myhash);
 
     virtual int sendKV(const char *, int, const char *, int) = 0;
-
+    virtual int updateKV(const char *, int, const char *, int) = 0;
     virtual void wait() = 0;
-
     virtual void gc() = 0;
 
 protected:
@@ -60,8 +59,10 @@ protected:
 public:
     std::unordered_map<char*, int> slices;
     CombinerHashBucket *bucket;
-    char *newkey, *newval;
-    int newkeysize, newvalsize;
+    CombinerUnique *u=NULL;
+    int target;
+    char *ukey, *uvalue;
+    int  ukeysize, uvaluesize, ukvsize;
 
 public:
     static Communicator* Create(MPI_Comm, int);

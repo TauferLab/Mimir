@@ -22,6 +22,7 @@ namespace MIMIR_NS {
 //class HashBucket;
 
 class CombinerHashBucket;
+struct CombinerUnique;
 
 class KeyValue : public DataObject{
 public:
@@ -41,6 +42,8 @@ public:
 
     // Add KVs one by one
     int addKV(const char *, int, const char *, int);
+
+    int updateKV(const char *, int, const char *, int);
 
     void gc();
 
@@ -70,8 +73,9 @@ public:
     std::unordered_map<char*, int> slices;
     CombinerHashBucket* bucket;
 
-    char *newkey, *newval;
-    int newkeysize, newvalsize;
+    CombinerUnique *u=NULL;
+    char *ukey, *uvalue;
+    int  ukeybytes, uvaluebytes, ukvsize;
 };
 
 }

@@ -27,8 +27,6 @@ KeyValue::~KeyValue()
 {
     if(bucket != NULL){
         delete bucket;
-        delete [] newkey;
-        delete [] newval;
     }
 
     LOG_PRINT(DBG_DATA, me, nprocs, "DATA: KV Destroy (id=%d).\n", id);
@@ -55,8 +53,6 @@ void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner){
 
     if(mycombiner != NULL){
         bucket = new CombinerHashBucket(this);
-        newkey = new char[MAX_KEY_SIZE];
-        newval = new char[MAX_VALUE_SIZE];
     }
 }
 
@@ -90,7 +86,7 @@ int KeyValue::addKV(const char *key,int keybytes,const char *value,int valuebyte
     // with combiner
     }else{
         // check the bucket
-        CombinerUnique *u = bucket->findElem(key, keybytes);
+        u = bucket->findElem(key, keybytes);
         // the key is not in the bucket 
         if(u == NULL){
             CombinerUnique tmp;
@@ -139,11 +135,6 @@ int KeyValue::addKV(const char *key,int keybytes,const char *value,int valuebyte
         // the key is in the bucket
         }else{
 
-            // get exisiting KV information
-            int  ukvsize;
-            char *ukey, *uvalue;
-            int  ukeybytes, uvaluebytes;
-
             GET_KV_VARS(ksize,vsize,u->kv,\
                 ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
 
@@ -151,41 +142,49 @@ int KeyValue::addKV(const char *key,int keybytes,const char *value,int valuebyte
             mycombiner(mr,key,keybytes,\
                 uvalue,uvaluebytes,value,valuebytes, mr->myptr);
 
-            // check if the key is same 
-            if(newkeysize!=keybytes || \
-                memcmp(newkey, ukey, keybytes)!=0)
-                LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
-            
-            // get combined KV size
-            GET_KV_SIZE(ksize, vsize, newkeysize, newvalsize, kvsize);
-
-            // replace the exsiting KV
-            if(kvsize<=ukvsize){
-
-                PUT_KV_VARS(ksize, vsize, u->kv, key, keybytes, newval, newvalsize, kvsize);
-
-                if(kvsize < ukvsize){
-                    slices.insert(std::make_pair((u->kv+ukvsize-kvsize), ukvsize-kvsize));
-                }
-
-            // add at the tail
-            }else{
-
-                slices.insert(std::make_pair(u->kv, ukvsize));
-
-                // add at the end of buffers
-                if( kvsize > (pagesize-pages[ipage].datasize) ) add_page();
-
-                u->kv=pages[ipage].buffer+pages[ipage].datasize;
-
-                PUT_KV_VARS(ksize, vsize, u->kv, key, keybytes, newval, newvalsize, kvsize);
-                pages[ipage].datasize+=kvsize;
- 
-            }
         }
     }
 
     local_kvs_count+=1;
+
+    return 0;
+}
+
+
+int KeyValue::updateKV(const char *newkey,int newkeysize,\
+    const char *newval,int newvalsize){
+             
+    // check if the key is same 
+    if(newkeysize!=ukeybytes || \
+        memcmp(newkey, ukey, ukeybytes)!=0)
+        LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
+    
+    int kvsize;        
+    // get combined KV size
+    GET_KV_SIZE(ksize, vsize, newkeysize, newvalsize, kvsize);
+
+    // replace the exsiting KV
+    if(kvsize<=ukvsize){
+
+        PUT_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes, newval, newvalsize, kvsize);
+
+        if(kvsize < ukvsize){
+            slices.insert(std::make_pair((u->kv+ukvsize-kvsize), ukvsize-kvsize));
+        }
+
+    // add at the tail
+    }else{
+
+        slices.insert(std::make_pair(u->kv, ukvsize));
+
+        // add at the end of buffers
+        if( kvsize > (pagesize-pages[ipage].datasize) ) add_page();
+
+        u->kv=pages[ipage].buffer+pages[ipage].datasize;
+
+        PUT_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes, newval, newvalsize, kvsize);
+        pages[ipage].datasize+=kvsize;
+    }
 
     return 0;
 }

@@ -22,6 +22,8 @@ public:
 
     int setup(int64_t, KeyValue *, MapReduce *, UserCombiner, UserHash);
     int sendKV(const char *, int, const char *, int);
+    int updateKV(const char *, int, const char *, int);
+
     void wait();
 
     void gc();

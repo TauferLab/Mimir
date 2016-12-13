@@ -87,7 +87,7 @@ comm buffer size=%ld, type_log_bytes=%d)\n", send_buf_size, type_log_bytes);
 
 int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize){
     // compute target process
-    int target = 0;
+    target = 0;
     if(myhash != NULL){
         target=myhash(key, keysize)%size;
     }else{
@@ -128,9 +128,7 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
         // with combiner
         }else{
             // check the key
-            CombinerUnique *u = bucket->findElem(key, keysize);
-            //printf("key=%s, u=%p\n", key, u);
-            // the key is not in the bucket
+            u = bucket->findElem(key, keysize);
             if(u==NULL){
                 CombinerUnique tmp;
                 tmp.next=NULL;
@@ -176,43 +174,15 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
                     }
                 }
             }else{
-                int ukvsize;
-                char *ukey, *uvalue;
-                int  ukeybytes, uvaluebytes, kvsize;
+
                 GET_KV_VARS(kv->ksize,kv->vsize,u->kv,\
-                    ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
+                    ukey,ukeysize,uvalue,uvaluesize,ukvsize);
 
                 // invoke KV information
                 mycombiner(mr,key,keysize,\
-                    uvalue,uvaluebytes,val,valsize, mr->myptr);
+                    uvalue,uvaluesize,val,valsize, mr->myptr);
 
-                // check if the key is same 
-                if(newkeysize!=keysize || \
-                    memcmp(newkey, ukey, keysize)!=0)
-                    LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
-
-                // get key size
-                GET_KV_SIZE(kv->ksize,kv->vsize, newkeysize, newvalsize, kvsize);
-
-                // new KV is smaller than previous KV */
-                if(kvsize<=ukvsize){
-                     PUT_KV_VARS(kv->ksize, kv->vsize, u->kv, \
-                        key, keysize, newval, newvalsize, kvsize);
-                    inserted=1;
-                    /* record slice */
-                    if(kvsize < ukvsize)
-                        slices.insert(std::make_pair(u->kv+ukvsize-kvsize,ukvsize-kvsize));
-                }else{
-                     if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
-                        slices.insert(std::make_pair(u->kv, ukvsize));
-                        int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
-                        char *gbuf=buf+global_buf_off;
-                        PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,\
-                            key,keysize,newval,newvalsize,kvsize);
-                        off[target]+=kvsize;
-                        inserted=1;
-                    }                   
-                }
+                inserted=1;
             }
         }
         if(inserted) break;
@@ -220,6 +190,48 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
             gc();
             bucket->clear();
         }
+        exchange_kv();
+    }
+
+    return 0;
+}
+
+int Alltoall::updateKV(const char *newkey, int newkeysize, const char *newval, int newvalsize){
+    int inserted=0;
+    int goff=off[target];
+
+    // check if the key is same 
+    if(newkeysize!=ukeysize || \
+        memcmp(newkey, ukey, ukeysize)!=0)
+        LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
+
+    int kvsize;
+    // get key size
+    GET_KV_SIZE(kv->ksize,kv->vsize, newkeysize, newvalsize, kvsize);
+
+    while(1){
+        // new KV is smaller than previous KV */
+        if(kvsize<=ukvsize){
+            PUT_KV_VARS(kv->ksize, kv->vsize, u->kv, \
+                 ukey, ukeysize, newval, newvalsize, kvsize);
+            inserted=1;
+            /* record slice */
+            if(kvsize < ukvsize)
+                slices.insert(std::make_pair(u->kv+ukvsize-kvsize,ukvsize-kvsize));
+        }else{
+            if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
+                slices.insert(std::make_pair(u->kv, ukvsize));
+                int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
+                char *gbuf=buf+global_buf_off;
+                PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,\
+                    ukey,ukeysize,newval,newvalsize,kvsize);
+                off[target]+=kvsize;
+                inserted=1;
+            }
+        }
+        if(inserted) break;
+        gc();
+        bucket->clear();
         exchange_kv();
     }
 

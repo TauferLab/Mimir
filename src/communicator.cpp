@@ -56,8 +56,6 @@ Communicator::~Communicator(){
 
     if(bucket != NULL){
         delete bucket;
-        delete [] newkey;
-        delete [] newval; 
     }
 }
 
@@ -101,8 +99,6 @@ int Communicator::setup(int64_t _sbufsize, KeyValue *_kv, \
 
     if(mycombiner != NULL){
         bucket = new CombinerHashBucket(kv);
-        newkey = new char[MAX_KEY_SIZE];
-        newval = new char[MAX_VALUE_SIZE]; 
     }
 
     return 0;

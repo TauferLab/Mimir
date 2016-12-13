@@ -35,6 +35,3 @@ int DBG_LEVEL=0;
 /// Record peakmem
 int RECORD_PEAKMEM=1;
 
-/// Max Value size
-int MAX_KEY_SIZE=8192;
-int MAX_VALUE_SIZE=8192;
