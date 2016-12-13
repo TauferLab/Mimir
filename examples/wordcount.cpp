@@ -63,11 +63,11 @@ int main(int argc, char *argv[])
 
     uint64_t nwords=mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
 
-    mr->output(stdout, StringType, Int64Type);
+    //mr->output(stdout, StringType, Int64Type);
 
     uint64_t nunique=mr->reduce(countword, NULL);
 
-    fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", nwords, nunique);
+    if(rank==0) fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", nwords, nunique);
 
     //mr->output(stdout, StringType, StringType);
 
