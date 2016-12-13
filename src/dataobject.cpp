@@ -88,19 +88,17 @@ DataObject::~DataObject(){
 int DataObject::add_page(){
     int pageid=npages;
     npages++;
-    if(npages>maxpages) 
+
+    if(npages>=maxpages) 
        LOG_ERROR("Error: page count (%d) is larger than than maximum (%d).", npages, maxpages);
+
     pages[pageid].datasize=0;
     pages[pageid].buffer=(char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
-
-    //printf("pageid=%d, buffer=%p\n", pageid, pages[pageid].buffer);
-
-    //printf("DataObject %d: pageid=%d, buffer=%p\n", id, pageid, pages[pageid].buffer); fflush(stdout);
 
     DataObject::mem_bytes+=pagesize;
 
     PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, \
-        DataObject::mem_bytes, OPMAX);
+        (uint64_t)DataObject::mem_bytes, OPMAX);
   
     ipage = pageid;
 
@@ -113,7 +111,7 @@ int DataObject::add_page(){
  * print the bytes data in this object
  */
 void DataObject::print(int type, FILE *fp, int format){
-  int line = 10;
+  //int line = 10;
   printf("nblock=%d\n", npages);
   for(int i = 0; i < npages; i++){
     acquire_page(i);

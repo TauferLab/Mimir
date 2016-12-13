@@ -70,7 +70,7 @@ MapReduce::MapReduce(MPI_Comm _caller)
    @return return new MapReduce Object.
 */
 MapReduce::MapReduce(const MapReduce &_mr){
-
+    
     comm=_mr.comm;
     me=_mr.me;
     nprocs=_mr.nprocs;
@@ -129,8 +129,8 @@ uint64_t MapReduce::map_text_file( \
         LOG_ERROR("%s", "Error: the separator should not be empty!\n");
 
     LOG_PRINT(DBG_GEN, me, nprocs, "MapReduce: map_text_file start. \
-(filepath=%s, shared=%d, recursed=%d, seperator=%s)\n", \
-        _filepath, _shared, _recurse, _seperator);
+(filepath=%s, shared=%d, recursed=%d, comm=%d)\n", \
+        _filepath, _shared, _recurse, _comm);
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
@@ -159,7 +159,7 @@ uint64_t MapReduce::map_text_file( \
     }
 
     // Compute input buffer size
-    int fcount = ifiles.size();
+    int fcount = (int)ifiles.size();
     int64_t max_fsize=0;
     for(int i=0; i<fcount; i++){
         if(ifiles[i].second>max_fsize)
@@ -173,7 +173,7 @@ uint64_t MapReduce::map_text_file( \
     char *text = (char*)mem_aligned_malloc(\
         MEMPAGE_SIZE, input_buffer_size+MAX_STR_SIZE+1);
 
-    PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, input_buffer_size, OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t)input_buffer_size, OPMAX);
    
     for(int i = 0; i < fcount; i++){
         int64_t input_char_size=0, fsize=0;
@@ -212,7 +212,7 @@ uint64_t MapReduce::map_text_file( \
 
             readsize = fread(text+boff, 1, input_buffer_size, fp);
 
-            PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, readsize, OPSUM);
+            PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, (uint64_t)readsize, OPSUM);
 
             TRACKER_RECORD_EVENT(EVENT_PFS_READ);
 
@@ -303,16 +303,10 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
     KeyValue *inputkv = _mr->kv;
 
-    //printf("inputkv=%p, npages=%d, comm=%d\n", \
-        inputkv, inputkv->get_npages(), _comm);
-
     // create new data object
     //LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: new data KV. (KV as input)\n");
 
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
-
-    //printf("inputkv=%p, npages=%d, kv=%p, comm=%d\n", \
-        inputkv, inputkv->get_npages(), kv, _comm);
 
     kv->set_kv_size(ksize, vsize);
     kv->set_combiner(this, mycombiner);
@@ -501,11 +495,16 @@ void MapReduce::update_key_value(
     int keybytes, 
     const char *value, 
     int valuebytes){
-    if(phase == MapPhase || phase == LocalMapPhase){
-        newkey = key;
-        newkeysize = keybytes;
-        newval = value;
-        newvalsize = valuebytes;
+    if(phase == MapPhase){
+        memcpy(c->newkey, (void*)key, keybytes);
+        c->newkeysize = keybytes;
+        memcpy(c->newval, (void*)value, valuebytes);
+        c->newvalsize = valuebytes; 
+    }else if(phase == CombinePhase || phase == LocalMapPhase){
+        memcpy(kv->newkey, (void*)key, keybytes);
+        kv->newkeysize = keybytes;
+        memcpy(kv->newval, (void*)value, valuebytes);
+        kv->newvalsize = valuebytes;
     }else{
         LOG_ERROR("%s", \
           "Error: update_key_value function can be invoked in \
@@ -585,7 +584,7 @@ uint64_t MapReduce::bcast(int _rank){
             buffer=kv->get_page_buffer(newpage);
         }
         MPI_Bcast(&count, 1, MPI_INT64_T, _rank, comm);
-        MPI_Bcast(buffer, count, MPI_BYTE, _rank, comm);
+        MPI_Bcast(buffer, (int)count, MPI_BYTE, _rank, comm);
         if(me!=_rank) kv->set_page_size(newpage, count);
     }
 
@@ -614,7 +613,7 @@ uint64_t MapReduce::collect(int _rank){
         int count=0;
         while(recv_count<npages){
             MPI_Status st;
-            MPI_Recv(recv_buf, DATA_PAGE_SIZE, MPI_BYTE, MPI_ANY_SOURCE, 0x0, comm, &st);
+            MPI_Recv(recv_buf, (int)DATA_PAGE_SIZE, MPI_BYTE, MPI_ANY_SOURCE, 0x0, comm, &st);
             MPI_Get_count(&st, MPI_BYTE, &count);
             int src_off=0;
             char *src_buf=(char*)recv_buf;
@@ -641,6 +640,8 @@ uint64_t MapReduce::collect(int _rank){
     }
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: collect end.\n");
+
+    return 0;
 }
 
 const void *MapReduce::get_first_value(){
@@ -661,13 +662,13 @@ void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
 
     LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce start.\n");
 
-    PROFILER_RECORD_COUNT(COUNTER_UNIQUE_KEY, h->get_nunique(), OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_UNIQUE_KEY, (uint64_t)(h->get_nunique()), OPMAX);
 
 #if 1
     // Apply user-defined reduce one-by-one
     ReducerUnique *u = h->BeginUnique();
     while(u!=NULL){
-        ReducerSet *set = u->firstset;
+        //ReducerSet *set = u->firstset;
         iter=new MultiValueIterator(kv, u);
         _myreduce(this, u->key, u->keybytes, ptr);
         delete iter;
@@ -704,7 +705,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
             u.keybytes = keybytes;
             u.mvbytes = valuebytes;
 
-            ReducerUnique* ru = h->insertElem(&u);
+            h->insertElem(&u);
             
             offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
         }
@@ -727,9 +728,6 @@ void MapReduce::_convert(KeyValue *inputkv, \
 
             //printf("page_buf=%p\n", page_buf); 
         }
-
-        //printf("page_off=%ld, pid=%d, nvalue=%ld, mvbytes=%ld, page_off=%ld\n", \
-            page_off, pset->pid, pset->nvalue, pset->mvbytes, page_off);
 
         if(inputkv->vsize==KVGeneral){
             pset->soffset=(int*)(page_buf+page_off);
@@ -774,17 +772,6 @@ void MapReduce::_convert(KeyValue *inputkv, \
         while(offset != -1){
             ReducerUnique *punique = h->findElem(key, keybytes);
             ReducerSet *pset = punique->lastset;
-
-            //printf("%d[%d] key=%s, pset=%p, ivalue=%ld, nvalue=%ld\n", \
-                me, nprocs, key, pset, pset->ivalue, pset->nvalue); 
-            //fflush(stdout);
-
-            //printf("page_buf=%p %p %p, pset=%p, pset->soffset=%p, pset->curoff=%p, ivalue=%ld, valuebytes=%d\n", \
-                mv->get_page_buffer(0), \
-                mv->get_page_buffer(1), \
-                mv->get_page_buffer(2), \
-                pset, pset->soffset, pset->curoff,\
-                pset->ivalue, valuebytes); fflush(stdout);
 
             if(inputkv->vsize==KVGeneral){
                 pset->soffset[pset->ivalue]=valuebytes;
@@ -894,7 +881,7 @@ void MapReduce::_get_default_values(){
     env = NULL;
     env = getenv("MIMIR_COMM_UNIT_SIZE");
     if(env){
-        COMM_UNIT_SIZE=_convert_to_int64(env);
+        COMM_UNIT_SIZE=(int)_convert_to_int64(env);
         if(COMM_UNIT_SIZE<=0 || COMM_UNIT_SIZE>1024*1024*1024)
             LOG_ERROR("Error: COMM_UNIT_SIZE (%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
     }
@@ -904,7 +891,7 @@ void MapReduce::_get_default_values(){
     if(env){
         int flag = atoi(env);
         if(flag != 0){
-            DBG_LEVEL |= (DBG_GEN|DBG_COMM|DBG_IO|DBG_DATA); 
+            DBG_LEVEL |= (DBG_GEN|DBG_DATA|DBG_COMM|DBG_IO|DBG_MEM); 
         }
     }
     env = getenv("MIMIR_DBG_GEN");
@@ -935,7 +922,14 @@ void MapReduce::_get_default_values(){
             DBG_LEVEL |= (DBG_IO);
         }
     }
- 
+    env = getenv("MIMIR_DBG_MEM");
+    if(env){
+        int flag = atoi(env);
+        if(flag != 0){
+            DBG_LEVEL |= (DBG_MEM);
+        }
+    }
+
     env = getenv("MIMIR_RECORD_PEAKMEM");
     if(env){
         int flag = atoi(env);
@@ -952,10 +946,10 @@ data_page_size=%ld, input_buf_size=%ld, DBG_LEVEL=%x\n", \
     }
     fflush(stdout);
 
-    PROFILER_RECORD_COUNT(COUNTER_BUCKET_SIZE, BUCKET_COUNT, OPMAX);
-    PROFILER_RECORD_COUNT(COUNTER_INBUF_SIZE, INPUT_BUF_SIZE, OPMAX);
-    PROFILER_RECORD_COUNT(COUNTER_COMM_SIZE, COMM_BUF_SIZE, OPMAX);
-    PROFILER_RECORD_COUNT(COUNTER_PAGE_SIZE, DATA_PAGE_SIZE, OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_BUCKET_SIZE, (uint64_t)BUCKET_COUNT, OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_INBUF_SIZE, (uint64_t)INPUT_BUF_SIZE, OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_COMM_SIZE, (uint64_t)COMM_BUF_SIZE, OPMAX);
+    PROFILER_RECORD_COUNT(COUNTER_PAGE_SIZE, (uint64_t)DATA_PAGE_SIZE, OPMAX);
 }
 
 int64_t MapReduce::_convert_to_int64(const char *_str){
@@ -1099,7 +1093,7 @@ void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recur
             DIR *dp = opendir(filepath);
             if(!dp) LOG_ERROR("%s", "Error in get input files\n");
 
-            while(ep = readdir(dp)){
+            while( (ep = readdir(dp)) != NULL){
 
 #ifdef BGQ
                 if(ep->d_name[1] == '.') continue;

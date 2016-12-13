@@ -57,9 +57,11 @@ protected:
     char **send_buffers;
     int  **send_offsets;
 
-
+public:
     std::unordered_map<char*, int> slices;
     CombinerHashBucket *bucket;
+    char *newkey, *newval;
+    int newkeysize, newvalsize;
 
 public:
     static Communicator* Create(MPI_Comm, int);

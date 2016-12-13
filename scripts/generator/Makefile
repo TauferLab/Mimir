@@ -1,9 +1,9 @@
 CPP=mpicxx
 CPPLINK=mpicxx
-LCFLAGS = -g -O -Wall -std=c++11 -Wconversion -I../../src
-LFLAGS = -L ../../src
+LCFLAGS = -std=c++11 -g -O -Wall -std=c++11 -Wconversion -I../../src
+LFLAGS = -L../../src
 
-USERLIBS = -lmrmpi
+USERLIBS = -lmimir
 
 all: gen_uniform_words gen_3d_points
 

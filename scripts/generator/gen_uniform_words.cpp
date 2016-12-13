@@ -18,7 +18,7 @@ int rank, size;
 int generate_unique_words(int, std::vector<std::string>&);
 
 void insert_unique_words(MapReduce *,void *);
-void remove_dup_words(MapReduce *,char *,int, MultiValueIterator *iter,void*);
+void remove_dup_words(MapReduce *,char *,int, void*);
 void get_unique_words(MapReduce *, char *, int, char *, int, void *);
 
 const char *prefix = NULL;
@@ -136,8 +136,7 @@ void insert_unique_words(MapReduce *mr, void *ptr){
     }
 }
 // Reduce unique words
-void remove_dup_words(MapReduce *mr, char *key, int keybytes, \
-    MultiValueIterator *iter,void *ptr){
+void remove_dup_words(MapReduce *mr, char *key, int keybytes, void *ptr){
     mr->add_key_value(key, keybytes, NULL, 0);
 }
 // Insert unique words from MR to vector

@@ -33,6 +33,9 @@ class ReducerHashBucket;
 class ReducerUnique;
 class ReducerSet;
 
+enum OpPhase{NonePhase,MapPhase,LocalMapPhase,ReducePhase,ScanPhase,CombinePhase};
+
+
 /// hash callback
 typedef  int (*UserHash)(const char *, int);
 
@@ -171,8 +174,7 @@ public:
 
 private:
     friend class MultiValueIterator;
-
-    enum OpPhase{NonePhase,MapPhase,LocalMapPhase,ReducePhase,ScanPhase};
+    friend class Alltoall;
 
 private:
     MPI_Comm comm;                   ///< MPI communicator
@@ -190,8 +192,6 @@ private:
     int    ksize, vsize;             
 
 public:
-    const char *newkey, *newval;
-    int newkeysize, newvalsize;
     void *myptr;
     MultiValueIterator *iter;
 
@@ -242,19 +242,19 @@ public:
     int getSize(){
       return valuesize;
     }
-    int getCount(){
+    int64_t getCount(){
         return nvalue;
     }
 
 private:
 
-    int  nvalue;
+    int64_t  nvalue;
     int *valuebytes;
     char *values;
 
-    int ivalue;
-    int value_start;
-    int value_end;
+    int64_t ivalue;
+    int64_t value_start;
+    int64_t value_end;
 
     int isdone;
     char *value;

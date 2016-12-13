@@ -20,4 +20,7 @@ extern int COMM_UNIT_SIZE;
 
 extern int RECORD_PEAKMEM;
 
+extern int MAX_KEY_SIZE;
+extern int MAX_VALUE_SIZE;
+
 #endif

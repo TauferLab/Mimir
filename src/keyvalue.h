@@ -69,6 +69,9 @@ public:
 
     std::unordered_map<char*, int> slices;
     CombinerHashBucket* bucket;
+
+    char *newkey, *newval;
+    int newkeysize, newvalsize;
 };
 
 }

@@ -54,7 +54,11 @@ Communicator::~Communicator(){
     if(send_buffers != NULL) delete [] send_buffers;
     if(send_offsets != NULL) delete [] send_offsets;
 
-    if(bucket != NULL) delete bucket;
+    if(bucket != NULL){
+        delete bucket;
+        delete [] newkey;
+        delete [] newval; 
+    }
 }
 
 int Communicator::setup(int64_t _sbufsize, KeyValue *_kv, \
@@ -95,8 +99,11 @@ int Communicator::setup(int64_t _sbufsize, KeyValue *_kv, \
       for(int j = 0; j < size; j++) send_offsets[i][j] = 0;
     }
 
-    if(mycombiner != NULL)
+    if(mycombiner != NULL){
         bucket = new CombinerHashBucket(kv);
+        newkey = new char[MAX_KEY_SIZE];
+        newval = new char[MAX_VALUE_SIZE]; 
+    }
 
     return 0;
 }

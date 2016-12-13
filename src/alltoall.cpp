@@ -86,13 +86,13 @@ comm buffer size=%ld, type_log_bytes=%d)\n", send_buf_size, type_log_bytes);
 }
 
 int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize){
+    // compute target process
     int target = 0;
     if(myhash != NULL){
         target=myhash(key, keysize)%size;
     }else{
         uint32_t hid = 0;
         hid = hashlittle(key, keysize, 0);
-        //printf("hid=%u\n", hid);
         target = hid%(uint32_t)size;
     }
 
@@ -100,63 +100,77 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
         LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
     }
 
-    //printf("send: key=%s, target=%d\n", key, target); fflush(stdout);
-
+    // get size of the KV
     int kvsize = 0;
     GET_KV_SIZE(kv->ksize,kv->vsize, keysize, valsize, kvsize);
  
+    // check if the KV can be fit in one buffer
     if(kvsize>send_buf_size)
         LOG_ERROR("Error: KV size (%d) is larger than send_buf_size (%ld)\n", kvsize, send_buf_size);
 
+    // flag to check if inserted or not
     int inserted=0;
     while(1){
+        // get current buffer offset
         int goff=off[target];
-        //printf("target=%d, key=%s, goff=%d\n", target, key, goff);
 
-        /* without combiner */
+        // without combiner
         if(mycombiner==NULL){
+            // the KV can be inserted into the buffer
             if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
+                // insert the KV
                 int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                 char *gbuf=buf+global_buf_off;
                 PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,key,keysize,val,valsize,kvsize);
                 off[target]+=kvsize;
                 inserted=1;
             }
-        /* with combiner */
+        // with combiner
         }else{
-            /* find the unique */
+            // check the key
             CombinerUnique *u = bucket->findElem(key, keysize);
-
-            //printf("send: key=%s, target=%d, u=%p\n", key, target, u); 
-            //fflush(stdout);
-
+            //printf("key=%s, u=%p\n", key, u);
+            // the key is not in the bucket
             if(u==NULL){
                 CombinerUnique tmp;
-                tmp.next=NULL; 
+                tmp.next=NULL;
 
-                /* find a hole to save the KV */
+                // find a hole to store the KV
                 std::unordered_map<char*,int>::iterator iter;
                 for(iter=slices.begin(); iter!=slices.end(); iter++){
+
                     char *sbuf=iter->first;
                     int  ssize=iter->second;
+
+                    // the hole is big enough to store the KV
                     if(ssize >= kvsize){
+
                         tmp.kv = sbuf+(ssize-kvsize);
                         PUT_KV_VARS(kv->ksize, kv->vsize, tmp.kv, \
                             key, keysize, val, valsize, kvsize);
-                        iter->second-=kvsize; 
-                        inserted=1;
+
+                        if(iter->second == kvsize)
+                            slices.erase(iter);
+                        else
+                            slices[iter->first]-=kvsize;
+
                         bucket->insertElem(&tmp);
+                        inserted=1;
+
                         break;
                     }
                 }
-                /* no hole find */
+                // Add the KV at the tail
                 if(iter==slices.end()){
                     if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
+
                         int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                         tmp.kv=buf+global_buf_off;
-                        PUT_KV_VARS(kv->ksize,kv->vsize,tmp.kv,\
-                            key,keysize,val,valsize,kvsize);
+
+                        PUT_KV_VARS(kv->ksize, kv->vsize, tmp.kv,\
+                            key, keysize, val, valsize, kvsize);
                         off[target]+=kvsize;
+
                         bucket->insertElem(&tmp);
                         inserted=1;
                     }
@@ -168,36 +182,33 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
                 GET_KV_VARS(kv->ksize,kv->vsize,u->kv,\
                     ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
 
-                //printf("val1=%ld,val2=%ld\n", \
-                    *(int64_t*)uvalue,*(int64_t*)val);
-
                 // invoke KV information
                 mycombiner(mr,key,keysize,\
                     uvalue,uvaluebytes,val,valsize, mr->myptr);
 
                 // check if the key is same 
-                if(mr->newkeysize!=keysize || \
-                    memcmp(mr->newkey, ukey, keysize)!=0)
+                if(newkeysize!=keysize || \
+                    memcmp(newkey, ukey, keysize)!=0)
                     LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
 
                 // get key size
-                GET_KV_SIZE(kv->ksize,kv->vsize, mr->newkeysize, mr->newvalsize, kvsize);
+                GET_KV_SIZE(kv->ksize,kv->vsize, newkeysize, newvalsize, kvsize);
 
-                /* new KV is smaller than previous KV */
+                // new KV is smaller than previous KV */
                 if(kvsize<=ukvsize){
-                    PUT_KV_VARS(kv->ksize, kv->vsize, u->kv, \
-                        key, keysize, mr->newval, mr->newvalsize, kvsize);
+                     PUT_KV_VARS(kv->ksize, kv->vsize, u->kv, \
+                        key, keysize, newval, newvalsize, kvsize);
                     inserted=1;
                     /* record slice */
                     if(kvsize < ukvsize)
-                        slices.insert(std::make_pair(u->kv,ukvsize-kvsize));
+                        slices.insert(std::make_pair(u->kv+ukvsize-kvsize,ukvsize-kvsize));
                 }else{
                      if((int64_t)goff+(int64_t)kvsize<=send_buf_size){
                         slices.insert(std::make_pair(u->kv, ukvsize));
                         int64_t global_buf_off=target*(int64_t)send_buf_size+goff;
                         char *gbuf=buf+global_buf_off;
                         PUT_KV_VARS(kv->ksize,kv->vsize,gbuf,\
-                            key,keysize,val,valsize,kvsize);
+                            key,keysize,newval,newvalsize,kvsize);
                         off[target]+=kvsize;
                         inserted=1;
                     }                   
@@ -257,6 +268,7 @@ void Alltoall::wait(){
 }
 
 void Alltoall::save_data(int ibuf){
+    mr->phase=CombinePhase;
     char *src_buf=recv_buf[ibuf];
     int k=0;
     for(k=0; k<size; k++){
@@ -272,16 +284,18 @@ void Alltoall::save_data(int ibuf){
         int padding=recv_count[ibuf][k]&((0x1<<type_log_bytes)-0x1);
         src_buf+=padding;
     }
+    mr->phase=MapPhase;
 }
 
 
 void Alltoall::gc(){
-    //printf("")
     if(mycombiner!=NULL && slices.empty()==false){
+
+        LOG_PRINT(DBG_MEM, rank, size, "Alltoall: garbege collection (size=%ld)\n", slices.size());
+ 
         int dst_off=0, src_off=0;
         char *dst_buf=NULL, *src_buf=NULL;
 
-        int k=0;
         for(int k=0; k<size; k++){
             dst_off = src_off = 0;
             int64_t global_buf_off=k*(int64_t)send_buf_size;
@@ -298,6 +312,7 @@ void Alltoall::gc(){
                     char *key, *value;
                     int  keybytes, valuebytes, kvsize;
                     GET_KV_VARS(kv->ksize,kv->vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
+                    printf("key=%s, value=%s\n", key, value);
                     src_buf+=kvsize;
                     if(src_off!=dst_off) memcpy(dst_buf, src_buf-kvsize, kvsize);
                     dst_off+=kvsize;         
@@ -315,7 +330,7 @@ void Alltoall::exchange_kv(){
     int64_t sendcount=0;
     for(i=0; i<size; i++) sendcount += (int64_t)off[i];
 
-    PROFILER_RECORD_COUNT(COUNTER_SEND_BYTES, sendcount, OPSUM);
+    PROFILER_RECORD_COUNT(COUNTER_SEND_BYTES, (uint64_t)sendcount, OPSUM);
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
@@ -379,7 +394,7 @@ void Alltoall::exchange_kv(){
 
     LOG_PRINT(DBG_COMM, rank, size, "Comm: receive data. (count=%ld)\n", recvcount);
 
-    PROFILER_RECORD_COUNT(COUNTER_RECV_BYTES, recvcount, OPSUM);
+    PROFILER_RECORD_COUNT(COUNTER_RECV_BYTES, (uint64_t)recvcount, OPSUM);
     if(recvcount > 0) {
         save_data(ibuf);
     }
