@@ -254,8 +254,8 @@ extern char timestr[];
     int total_bytes=0, max_bytes=0;\
     std::vector<std::pair<std::string,double> >::iterator iter;\
     for(iter=tracker_event[0].begin(); iter!=tracker_event[0].end(); iter++){\
-        max_bytes+=strlen(iter->first.c_str())+1;\
-        max_bytes+=sizeof(iter->second);\
+        max_bytes+=(int)strlen(iter->first.c_str())+1;\
+        max_bytes+=(int)sizeof(iter->second);\
     }\
     MPI_Reduce(&max_bytes, &total_bytes, 1, MPI_INT, MPI_MAX, 0, stat_comm);\
     if(max_bytes>total_bytes) total_bytes=max_bytes;\
@@ -270,10 +270,10 @@ extern char timestr[];
             int off=0;\
             while(off<recv_count){\
                 char *type=tmp+off;\
-                off+=strlen(type)+1;\
+                off+=(int)strlen(type)+1;\
                 double value=*(double*)(tmp+off);\
                 tracker_event[recv_rank].push_back(std::make_pair(type, value));\
-                off+=sizeof(double);\
+                off+=(int)sizeof(double);\
             }\
         }\
     }else{\
@@ -281,9 +281,9 @@ extern char timestr[];
         std::vector<std::pair<std::string,double> >::iterator iter;\
         for(iter=tracker_event[0].begin(); iter!=tracker_event[0].end(); iter++){\
             memcpy(tmp+off, iter->first.c_str(), strlen(iter->first.c_str())+1);\
-            off+=strlen(iter->first.c_str())+1;\
+            off+=(int)strlen(iter->first.c_str())+1;\
             memcpy(tmp+off, &(iter->second), sizeof(double));\
-            off+=sizeof(iter->second);\
+            off+=(int)sizeof(iter->second);\
         }\
         MPI_Send(tmp, off, MPI_BYTE, 0, 0x33, stat_comm);\
     }\
