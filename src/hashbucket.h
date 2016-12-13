@@ -16,9 +16,10 @@ public:
     HashBucket(KeyValue *_kv){
         kv = _kv;
 
-        nbucket = pow(2,BUCKET_COUNT);
-        usize = nbucket*sizeof(ElemType);
+        nbucket = (int)pow(2,BUCKET_COUNT);
+        usize = nbucket*(int)sizeof(ElemType);
         maxbuf = MAX_PAGE_COUNT;
+
         buckets = (ElemType**)mem_aligned_malloc(\
             MEMPAGE_SIZE, sizeof(ElemType*)*nbucket);
         buffers = (char**)mem_aligned_malloc(\
@@ -44,7 +45,6 @@ public:
 
     // Comapre key with elem
     virtual int compare(const char *key, int keybytes, ElemType *)=0;
-    virtual int getkey(ElemType *, char **pkey, int *pkeybytes)=0;
     virtual ElemType* insertElem(ElemType *elem)=0;
 
     virtual void clear(){
@@ -62,7 +62,6 @@ public:
         while(ptr!=NULL){
             if(compare(key, keybytes, ptr) != 0)
                 break;
-            //printf("find: ibucket=%d, ptr=%p\n", ibucket, ptr);
             ptr=ptr->next;
         }
         return ptr;
@@ -86,12 +85,7 @@ protected:
 
     KeyValue *kv;
 
-//public:
-    //static int64_t mem_bytes;
 };
-
-//template<typename ElemType>
-//int64_t HashBucket<ElemType>::mem_bytes=0;
 
 struct CombinerUnique{
     char *kv;
@@ -116,8 +110,6 @@ public:
     CombinerUnique* insertElem(CombinerUnique *elem);
  
     int compare(const char *key, int keybytes, CombinerUnique *);
-
-    int getkey(CombinerUnique *, char **pkey, int *pkeybytes);
 
 public:
     static int64_t mem_bytes;
@@ -150,7 +142,7 @@ public:
         HashBucket<ReducerUnique>(_kv){
 
         maxset = MAX_PAGE_COUNT;
-        setsize = nbucket*sizeof(ReducerSet);
+        setsize = nbucket*(int)sizeof(ReducerSet);
 
         sets = (char**)mem_aligned_malloc(\
             MEMPAGE_SIZE, maxset*sizeof(char*));
@@ -168,7 +160,6 @@ public:
     }
 
     ~ReducerHashBucket(){
-        //printf("test1\n"); fflush(stdout);
         for(int i=0; i< maxbuf; i++){
             if(buffers[i] != NULL){
                 ReducerHashBucket::mem_bytes-=usize;
@@ -176,7 +167,6 @@ public:
             }
         } 
 
-        //printf("test2, maxset=%d, nsetbuf=%d, sets[0]=%p\n", maxset, nsetbuf, sets[0]); fflush(stdout);
         for(int i=0; i< maxset; i++){
             if(sets[i] != NULL){
                 ReducerHashBucket::mem_bytes-=setsize;
@@ -184,16 +174,12 @@ public:
             }
         }
 
-        //printf("test3\n"); fflush(stdout);
         mem_aligned_free(sets);
-        //printf("test4\n"); fflush(stdout);
     }
 
     ReducerUnique* insertElem(ReducerUnique *elem);
  
     int compare(const char *key, int keybytes, ReducerUnique *);
-
-    int getkey(ReducerUnique *, char **pkey, int *pkeybytes);
 
     ReducerUnique* BeginUnique(){
 
@@ -204,13 +190,10 @@ public:
             cur_buf=buffers[ibuf];
             cur_off=0;
             cur_unique=(ReducerUnique*)(cur_buf+cur_off);
-            cur_off+=sizeof(ReducerUnique);
+            cur_off+=(int)sizeof(ReducerUnique);
             cur_off+=cur_unique->keybytes;
             iunique++;
         }
-
-        //printf("iunique=%ld, nunique=%ld, cur_unique=%p\n", iunique, nunique, cur_unique);
-        //fflush(stdout);
 
         if(cur_unique==NULL)
              LOG_ERROR("%s", "Error: unique strcuture is NULL!\n");
@@ -222,15 +205,12 @@ public:
 
         if(iunique>=nunique) return NULL; 
         cur_unique=(ReducerUnique*)(cur_buf+cur_off);
-        //printf("usize=%d, cur_off=%d,ibuf=%d,nbuf=%d\n",\
-            usize,cur_off,ibuf,nbuf);fflush(stdout);
-        if((usize-cur_off)<sizeof(ReducerUnique) || \
+        if((usize-cur_off)<(int)sizeof(ReducerUnique) || \
             cur_unique->key==NULL){
             if(ibuf<nbuf){
                 ibuf+=1;
                 cur_buf=buffers[ibuf];
                 cur_off=0;
-                //printf("iunique=%d\n", iunique);
                 cur_unique=(ReducerUnique*)(cur_buf+cur_off);
                 iunique++;
             } 
@@ -238,9 +218,7 @@ public:
             cur_unique=(ReducerUnique*)(cur_buf+cur_off);
             iunique++;
         }
-        //printf("iunique=%ld, nunique=%ld, cur_unique=%p\n", iunique, nunique, cur_unique); 
-        //fflush(stdout);
-        cur_off+=sizeof(ReducerUnique);
+        cur_off+=(int)sizeof(ReducerUnique);
         cur_off+=cur_unique->keybytes;
 
         if(cur_unique==NULL)
@@ -254,7 +232,6 @@ public:
         if(nset<=0) return NULL;
         else{
             iset = 0;
-            //printf("iset=%ld\n", iset);
             pset=(ReducerSet*)sets[iset/nbucket]+iset%nbucket;
             return pset;
         }
@@ -266,10 +243,7 @@ public:
         iset += 1;
         if(iset>=nset) return NULL;
         else{
-            //printf("iset=%ld\n", iset); 
             pset=(ReducerSet*)sets[iset/nbucket]+iset%nbucket;
-            //printf("iset=%ld, nbucket=%d, pset=%p\n", iset, nbucket, pset); 
-            //fflush(stdout);
         }
         return pset;
     }

@@ -12,17 +12,19 @@ int64_t CombinerHashBucket::mem_bytes=0;
 int64_t ReducerHashBucket::mem_bytes=0;
 
 CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
-    char *key;
-    int  keybytes;
-
-    getkey(elem, &key, &keybytes);
-
+    char *key, *value;
+    int  keybytes, valuebytes, kvsize;
+   
+    GET_KV_VARS(kv->ksize,kv->vsize,elem->kv,
+        key,keybytes,value,valuebytes,kvsize);
+ 
     if(nbuf == (nunique/nbucket) && buffers[nbuf]==NULL){
+
         buffers[nbuf]=(char*)mem_aligned_malloc(\
             MEMPAGE_SIZE, usize);
-        CombinerHashBucket::mem_bytes+=usize;
 
-        PROFILER_RECORD_COUNT(COUNTER_COMBINE_BUCKET, CombinerHashBucket::mem_bytes, OPMAX);
+        CombinerHashBucket::mem_bytes+=usize;
+        PROFILER_RECORD_COUNT(COUNTER_COMBINE_BUCKET, (uint64_t)CombinerHashBucket::mem_bytes, OPMAX);
  
         nbuf+=1;
     }
@@ -30,36 +32,31 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     CombinerUnique *newelem=\
         (CombinerUnique*)buffers[nunique/nbucket]\
         +nunique%nbucket;
-    newelem->kv=elem->kv;
-    newelem->next=NULL;
-    //memcpy(newelem, elem, sizeof(CombinerUnique));
-   
-    int ibucket = hashlittle(key, keybytes, 0) % nbucket;
-
-    //printf("insert: ibucket=%d, ptr=%p\n", ibucket, newelem);
 
     nunique+=1;
     
+    newelem->kv=elem->kv;
+    newelem->next=NULL;
+   
+    int ibucket = hashlittle(key, keybytes, 0) % nbucket;
+
     CombinerUnique *ptr = buckets[ibucket];
 
     // New unique key
     if(ptr==NULL){
         buckets[ibucket] = newelem;
-        return NULL;
     }else{
         CombinerUnique *tmp = buckets[ibucket];
         buckets[ibucket] = newelem;
         newelem->next = tmp;
         return NULL;
     }
-    return ptr;
+    return newelem;
 }
 
 int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u){
     char *ukey, *uvalue;
     int  ukeybytes, uvaluebytes, kvsize;
-
-    //printf("compare: u=%p, kv=%p\n", u, u->kv);
 
     GET_KV_VARS(kv->ksize,kv->vsize,u->kv,\
         ukey,ukeybytes,uvalue,uvaluebytes,kvsize);
@@ -70,26 +67,10 @@ int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u
     return 0;
 }
 
-int CombinerHashBucket::getkey(CombinerUnique *u, char **pkey, int *pkeybytes){
-
-    char *ukey, *uvalue;
-    int  ukeybytes, uvaluebytes, kvsize;
-   
-    GET_KV_VARS(kv->ksize,kv->vsize,u->kv,
-        ukey,ukeybytes,uvalue,uvaluebytes,kvsize);
-
-    *pkey=ukey;
-    *pkeybytes=ukeybytes;
-
-    return 0; 
-}
 
 ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
-    char *key;
-    int  keybytes;
-
-    // Get key and keybytes from ReducerUnique structure
-    getkey(elem, &key, &keybytes);
+    char *key=elem->key;
+    int  keybytes=elem->keybytes;
 
     // Get the bucket index
     int ibucket = hashlittle(key, keybytes, 0) % nbucket;
@@ -122,12 +103,12 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         // Insert a new buffer
         if(cur_buf == NULL || \
-            (usize-cur_off)<sizeof(ReducerUnique)+elem->keybytes){
+            (usize-cur_off)<(int)sizeof(ReducerUnique)+elem->keybytes){
 
             buffers[nbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE,usize);
             ReducerHashBucket::mem_bytes+=usize;
 
-            PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
+            PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, (uint64_t)ReducerHashBucket::mem_bytes, OPMAX);
             
             if(cur_buf!=NULL)  memset(cur_buf+cur_off, 0, usize-cur_off);
 
@@ -139,7 +120,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
 
         // Get the ReducerUnique structure 
         ReducerUnique *newelem=(ReducerUnique*)(cur_buf+cur_off);
-        cur_off += sizeof(ReducerUnique);
+        cur_off += (int)sizeof(ReducerUnique);
 
         // Set the element information
         newelem->key=cur_buf+cur_off;
@@ -168,7 +149,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
             sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
            
             ReducerHashBucket::mem_bytes+=setsize;
-            PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
+            PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, (uint64_t)ReducerHashBucket::mem_bytes, OPMAX);
  
             nsetbuf+=1;
         }
@@ -202,7 +183,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
                 sets[nsetbuf]=(char*)mem_aligned_malloc(MEMPAGE_SIZE, setsize);
 
                 ReducerHashBucket::mem_bytes+=setsize;
-                PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, ReducerHashBucket::mem_bytes, OPMAX);
+                PROFILER_RECORD_COUNT(COUNTER_REDUCE_BUCKET, (uint64_t)ReducerHashBucket::mem_bytes, OPMAX);
 
                 nsetbuf+=1;
             }
@@ -237,14 +218,6 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
     
     }
 
-    //printf("key=%s,nvalue=%ld, mvbytes=%ld, mvbytes=%ld, pid=%d\n", \
-        key, set->nvalue, set->mvbytes, mvbytes, pid);
-
-    //if(nset==30905){
-    //    printf("mvbytes=%ld,pid=%d,pset=%p\n", mvbytes, pid, set);
-    //    fflush(stdout);
-    //}
-
     mvbytes+=onemvbytes;
 
     return ptr;
@@ -255,13 +228,6 @@ int ReducerHashBucket::compare(const char *key,int keybytes,ReducerUnique *u){
         return 1;
 
     return 0;
-}
-
-int ReducerHashBucket::getkey(ReducerUnique *u, char **pkey, int *pkeybytes){
-    *pkey=u->key;
-    *pkeybytes=u->keybytes;
-
-    return 0; 
 }
 
 
