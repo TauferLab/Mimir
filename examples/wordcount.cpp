@@ -7,6 +7,8 @@
 #include "mapreduce.h"
 #include "common.h"
 
+//#define VALUE_STRING
+
 using namespace MIMIR_NS;
 
 int rank, size;
@@ -59,9 +61,15 @@ int main(int argc, char *argv[])
 #endif
 #endif
 
-    mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
+    uint64_t nwords=mr->map_text_file(filedir, 1, 1, " \n", map, NULL); 
 
-    mr->reduce(countword, NULL);
+    //mr->output(stdout, StringType, Int64Type);
+
+    uint64_t nunique=mr->reduce(countword, NULL);
+
+    fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", nwords, nunique);
+
+    //mr->output(stdout, StringType, StringType);
 
     output(rank, size, prefix, outdir);
 
@@ -98,7 +106,7 @@ void countword(MapReduce *mr, char *key, int keysize, void* ptr){
     }
 
 #ifdef VALUE_STRING
-    char tmp[100];
+    char tmp[20]={0};
     sprintf(tmp, "%ld", count);
     mr->add_key_value(key, keysize, tmp, (int)strlen(tmp)+1);
 #else
@@ -112,7 +120,7 @@ void combiner(MapReduce *mr, const char *key, int keysize, \
 
 #ifdef VALUE_STRING
     int64_t count=strtoull(val1, NULL, 0)+strtoull(val2, NULL, 0);
-    char tmp[100];
+    char tmp[20]={0};
     sprintf(tmp, "%ld", count);
     mr->update_key_value(key, keysize, tmp, (int)strlen(tmp)+1);
 #else
