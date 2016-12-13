@@ -22,10 +22,11 @@ inline int64_t get_max_mmap(){
     char buffer[BUFSIZE]={'\0'};
     fflush(stderr);
     stderr_save = dup(STDERR_FILENO); 
-    freopen("/dev/null", "a", stderr);
+    FILE *fp=freopen("/dev/null", "a", stderr);
     setvbuf(stderr, buffer, _IOFBF, BUFSIZE);
     malloc_stats();
-    freopen("/dev/null", "a", stderr);
+    fp=freopen("/dev/null", "a", stderr);
+    if(fp==NULL) LOG_ERROR("%s", "Error: open dev null\n");
     dup2(stderr_save, STDERR_FILENO);
     setvbuf(stderr, NULL, _IONBF, BUFSIZE);
 
@@ -105,15 +106,15 @@ void *mem_aligned_malloc(size_t alignment, size_t size){
     void *ptr=NULL;
 
     size_t align_size = (size+alignment-1)/alignment*alignment;
-    posix_memalign(&ptr, alignment, align_size);
+    int err = posix_memalign(&ptr, alignment, align_size);
 
     //ptr=malloc(align_size);
 
-    if(ptr == NULL){
+    if(err != 0){
         int64_t memsize=get_mem_usage();
-        LOG_ERROR("Error: malloc memory error (align=%ld; size=%ld; \
+        LOG_ERROR("Error: malloc memory error %d (align=%ld; size=%ld; \
 aligned_size=%ld; memsize=%ld)\n", \
-         alignment, size, align_size, memsize);
+         err, alignment, size, align_size, memsize);
         return NULL;
     }
 
