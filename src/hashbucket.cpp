@@ -12,8 +12,8 @@ int64_t CombinerHashBucket::mem_bytes=0;
 int64_t ReducerHashBucket::mem_bytes=0;
 
 CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
-    char *key, *value;
-    int  keybytes, valuebytes, kvsize;
+    char *key=NULL, *value=NULL;
+    int  keybytes=0, valuebytes=0, kvsize=0;
    
     GET_KV_VARS(kv->ksize,kv->vsize,elem->kv,
         key,keybytes,value,valuebytes,kvsize);
@@ -55,8 +55,8 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
 }
 
 int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u){
-    char *ukey, *uvalue;
-    int  ukeybytes, uvaluebytes, kvsize;
+    char *ukey=NULL, *uvalue=NULL;
+    int  ukeybytes=0, uvaluebytes=0, kvsize=0;
 
     GET_KV_VARS(kv->ksize,kv->vsize,u->kv,\
         ukey,ukeybytes,uvalue,uvaluebytes,kvsize);

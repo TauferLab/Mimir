@@ -287,8 +287,8 @@ void Alltoall::save_data(int ibuf){
     for(k=0; k<size; k++){
         int count=0;
         while(count<recv_count[ibuf][k]){
-            char *key, *value;
-            int  keybytes, valuebytes, kvsize;
+            char *key=0, *value=0;
+            int  keybytes=0, valuebytes=0, kvsize=0;
             GET_KV_VARS(kv->ksize,kv->vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
             src_buf+=kvsize;
             kv->addKV(key,keybytes,value,valuebytes);
@@ -322,8 +322,8 @@ void Alltoall::gc(){
                 if(iter != slices.end()){
                     src_off+=iter->second;
                 }else{
-                    char *key, *value;
-                    int  keybytes, valuebytes, kvsize;
+                    char *key=NULL, *value=NULL;
+                    int  keybytes=0, valuebytes=0, kvsize=0;
                     GET_KV_VARS(kv->ksize,kv->vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
                     printf("key=%s, value=%s\n", key, value);
                     src_buf+=kvsize;

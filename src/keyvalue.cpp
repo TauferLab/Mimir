@@ -219,8 +219,8 @@ void KeyValue::gc(){
                     src_off+=iter->second;
                 }else{
                     // get the KV
-                    char *key, *value;
-                    int  keybytes, valuebytes, kvsize;
+                    char *key=NULL, *value=NULL;
+                    int  keybytes=0, valuebytes=0, kvsize=0;
                     GET_KV_VARS(ksize,vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
                     src_buf+=kvsize;
                     // copy the KV

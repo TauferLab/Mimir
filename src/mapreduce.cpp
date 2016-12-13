@@ -614,8 +614,8 @@ uint64_t MapReduce::collect(int _rank){
             int src_off=0;
             char *src_buf=(char*)recv_buf;
             while(src_off<count){
-                char *key, *value;
-                int  keybytes, valuebytes, kvsize;
+                char *key=NULL, *value=NULL;
+                int  keybytes=0, valuebytes=0, kvsize=0;
                 GET_KV_VARS(kv->ksize,kv->vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
                 src_buf+=kvsize;
                 kv->addKV(key,keybytes,value,valuebytes);
