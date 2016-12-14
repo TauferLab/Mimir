@@ -202,14 +202,19 @@ void KeyValue::gc(){
         char *dst_buf=NULL;
         char *src_buf=pages[0].buffer;
 
+        // scan all pages
         while(src_pid<npages){
             src_off=0;
+            // scan page src_pid
             while(src_off<pages[src_pid].datasize){
 
+                // get current input buffer
                 src_buf=pages[src_pid].buffer+src_off;
-                std::unordered_map<char*,int>::iterator iter=slices.find((char*)src_buf);
+                
+                // find the buffer
+                std::unordered_map<char*,int>::iterator iter=slices.find(src_buf);
 
-                // skip the memory slice
+                // find a slice
                 if(iter != slices.end()){
                     if(dst_buf==NULL){
                         dst_pid=src_pid;
@@ -222,7 +227,6 @@ void KeyValue::gc(){
                     char *key=NULL, *value=NULL;
                     int  keybytes=0, valuebytes=0, kvsize=0;
                     GET_KV_VARS(ksize,vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
-                    src_buf+=kvsize;
                     // copy the KV
                     if(dst_buf!=NULL && src_buf != dst_buf){
                         // jump to the next page
@@ -233,7 +237,7 @@ void KeyValue::gc(){
                             dst_buf=pages[dst_pid].buffer;
                         }
                         // copy the KV
-                        memcpy(dst_buf, src_buf-kvsize, kvsize);
+                        memcpy(dst_buf, src_buf, kvsize);
                         dst_off+=kvsize;
                         dst_buf+=kvsize;
                     }
@@ -248,8 +252,10 @@ void KeyValue::gc(){
            pages[i].buffer=NULL;
            pages[i].datasize=0;
         }
-        pages[dst_pid].datasize=dst_off;
-        npages=dst_pid+1;
+        if(dst_buf!=NULL){
+           pages[dst_pid].datasize=dst_off;
+           npages=dst_pid+1;
+        }
         slices.clear();
     } 
 }

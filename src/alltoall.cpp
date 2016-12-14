@@ -325,7 +325,6 @@ void Alltoall::gc(){
                     char *key=NULL, *value=NULL;
                     int  keybytes=0, valuebytes=0, kvsize=0;
                     GET_KV_VARS(kv->ksize,kv->vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
-                    printf("key=%s, value=%s\n", key, value);
                     src_buf+=kvsize;
                     if(src_off!=dst_off) memcpy(dst_buf, src_buf-kvsize, kvsize);
                     dst_off+=kvsize;         
