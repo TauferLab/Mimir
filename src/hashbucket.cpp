@@ -11,7 +11,7 @@ using namespace MIMIR_NS;
 int64_t CombinerHashBucket::mem_bytes=0;
 int64_t ReducerHashBucket::mem_bytes=0;
 
-CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
+inline CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     char *key=NULL, *value=NULL;
     int  keybytes=0, valuebytes=0, kvsize=0;
    
@@ -54,7 +54,7 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     return newelem;
 }
 
-int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u){
+inline int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u){
     char *ukey=NULL, *uvalue=NULL;
     int  ukeybytes=0, uvaluebytes=0, kvsize=0;
 
@@ -68,7 +68,7 @@ int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u
 }
 
 
-ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
+inline ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
     char *key=elem->key;
     int  keybytes=elem->keybytes;
 
@@ -223,7 +223,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
     return ptr;
 }
 
-int ReducerHashBucket::compare(const char *key,int keybytes,ReducerUnique *u){
+inline int ReducerHashBucket::compare(const char *key,int keybytes,ReducerUnique *u){
     if(keybytes==u->keybytes && memcmp(key, u->key, keybytes)==0)
         return 1;
 
