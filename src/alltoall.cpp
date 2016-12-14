@@ -93,7 +93,7 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
     }else{
         uint32_t hid = 0;
         hid = hashlittle(key, keysize, 0);
-        target = hid%(uint32_t)size;
+        target = (int)(hid%(uint32_t)size);
     }
 
     if(target < 0 || target >= size){

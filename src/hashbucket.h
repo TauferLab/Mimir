@@ -55,7 +55,7 @@ public:
 
     ElemType* findElem(const char *key, int keybytes){    
 
-        int ibucket = hashlittle(key, keybytes, 0) % nbucket;
+        uint32_t ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
         ElemType *ptr = buckets[ibucket];
 

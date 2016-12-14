@@ -38,7 +38,7 @@ inline CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem){
     newelem->kv=elem->kv;
     newelem->next=NULL;
    
-    int ibucket = hashlittle(key, keybytes, 0) % nbucket;
+    uint32_t ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
     CombinerUnique *ptr = buckets[ibucket];
 
@@ -73,7 +73,7 @@ inline ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem){
     int  keybytes=elem->keybytes;
 
     // Get the bucket index
-    int ibucket = hashlittle(key, keybytes, 0) % nbucket;
+    uint32_t ibucket = hashlittle(key, keybytes, 0) % nbucket;
 
     // Get the bucket header
     ReducerSet *set=NULL;
