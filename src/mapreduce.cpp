@@ -465,7 +465,7 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
    @param[in] _valubytes value size
    @return nothing
 */
-inline void MapReduce::add_key_value(const char *key, int keybytes, const char *value, int valuebytes){
+void MapReduce::add_key_value(const char *key, int keybytes, const char *value, int valuebytes){
 
     // Map Phase
     if(phase == MapPhase){
@@ -490,7 +490,7 @@ reduce callbacks\n");
     return;
 }
 
-inline void MapReduce::update_key_value(
+void MapReduce::update_key_value(
     const char *key, 
     int keybytes, 
     const char *value, 
@@ -1120,7 +1120,7 @@ void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recur
     }
 }
 
-inline uint64_t MapReduce::_get_kv_count(){
+uint64_t MapReduce::_get_kv_count(){
 
     uint64_t local_count=0,global_count=0;
 

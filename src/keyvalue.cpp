@@ -57,7 +57,7 @@ void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner){
 }
 
 // add KVs one by one
-inline int KeyValue::addKV(const char *key,int keybytes,const char *value,int valuebytes){
+int KeyValue::addKV(const char *key,int keybytes,const char *value,int valuebytes){
  
     if(ipage==-1) add_page();
 
@@ -151,7 +151,7 @@ inline int KeyValue::addKV(const char *key,int keybytes,const char *value,int va
 }
 
 
-inline int KeyValue::updateKV(const char *newkey,int newkeysize,\
+int KeyValue::updateKV(const char *newkey,int newkeysize,\
     const char *newval,int newvalsize){
              
     // check if the key is same 
