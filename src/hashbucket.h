@@ -16,7 +16,7 @@ public:
     HashBucket(KeyValue *_kv){
         kv = _kv;
 
-        nbucket = (int)pow(2,BUCKET_COUNT);
+        nbucket = (uint32_t)pow(2,BUCKET_COUNT);
         usize = nbucket*(int)sizeof(ElemType);
         maxbuf = MAX_PAGE_COUNT;
 
