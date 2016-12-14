@@ -465,7 +465,7 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
    @param[in] _valubytes value size
    @return nothing
 */
-void MapReduce::add_key_value(const char *key, int keybytes, const char *value, int valuebytes){
+inline void MapReduce::add_key_value(const char *key, int keybytes, const char *value, int valuebytes){
 
     // Map Phase
     if(phase == MapPhase){
@@ -490,7 +490,7 @@ reduce callbacks\n");
     return;
 }
 
-void MapReduce::update_key_value(
+inline void MapReduce::update_key_value(
     const char *key, 
     int keybytes, 
     const char *value, 
