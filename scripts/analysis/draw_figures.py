@@ -48,14 +48,15 @@ def draw_memory_and_time(data, outdir, outfile, \
     """
     Ensure color, marker ... in the correct order.
     """
-    mapper = [None]*len(labellist)
+    mapper = [None]*len(settings)
     #print mapper
     mid=0
-    for label in labellist:
-        item_data=fig_data[fig_data['setting']==label]
+    for setting in settings:
+        item_data=fig_data[fig_data['setting']==setting]
         mapper[mid]=len(item_data['dataset'].unique())
         mid+=1
     mapper = np.array(mapper).argsort()
+    #print mapper
     rsettings=np.array(settings)[mapper].tolist()
     rtimecolors=np.array(timecolors)[mapper].tolist()
     markerlist=np.array(markerlist)[mapper].tolist()
@@ -64,6 +65,7 @@ def draw_memory_and_time(data, outdir, outfile, \
     rtimecolors.reverse()
     markerlist.reverse()
 
+    print rsettings
 
     """
     Draw execution time
@@ -93,18 +95,23 @@ def draw_memory_and_time(data, outdir, outfile, \
     ax_mem.tick_params(labelsize=26)
     print xticklist
     ax_mem.set_xticklabels(xticklist, rotation=45)
+    handles, labels = ax_mem.get_legend_handles_labels()
     legend_mem=ax_mem.legend(loc='upper left', \
         title='peak memory usage', prop={'size':18})
+    legend_mem=ax_mem.legend(handles, labellist, loc='upper left', \
+        title='peak memory usage', prop={'size':18})
+
     legend_mem.get_title().set_fontsize('18') 
     legend_mem.get_title().set_fontweight('bold')  
+    #legend_mem.set_text(labellist)
+
     ax_mem.set_xlabel(xlabelname, fontsize=26, fontweight="bold")
     ax_mem.set_ylabel("peak memory usage (GB)", \
         fontsize=26, fontweight="bold")
     ax_mem.set_ylim(memlim)
-    
    
     ax_time.tick_params(labelsize=26)
-    print xticklist
+    #print xticklist
     ax_time.set_xticklabels(xticklist, rotation=45)
     handles, labels = ax_time.get_legend_handles_labels()
     handles=np.array(handles)[mapper].tolist()
@@ -113,8 +120,12 @@ def draw_memory_and_time(data, outdir, outfile, \
     labels.reverse()
     legend_time=ax_time.legend(handles, labels, loc='upper right', \
         title='execution time', prop={'size':18}) 
+    legend_time=ax_time.legend(handles, labellist, loc='upper right', \
+        title='execution time', prop={'size':18})
+
     legend_time.get_title().set_fontsize('18') 
     legend_time.get_title().set_fontweight('bold')  
+
     ax_time.set_ylabel("execution time (second)", \
         fontsize=26, fontweight="bold")
     ax_time.set_ylim(timelim)

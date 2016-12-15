@@ -3,6 +3,7 @@
 *.output
 *.o
 *.a
+*.pyc
 .*
 core.*
 scripts/execute/slurm/*.txt

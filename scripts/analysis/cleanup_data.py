@@ -43,7 +43,7 @@ def get_results_of_one_setting(library, config, setting, \
     
     results=[]
     for datalabel in datalist:
-        print datalabel
+        #print datalabel
         item_data=get_results_of_one_dataset(library, config, setting, \
             benchmark, datatype, testtype, datalabel, indir)
         if item_data is not None:
@@ -60,7 +60,7 @@ def get_results_of_one_benchmark(library, config, settings, \
     
     results=[]
     for setting in settings:
-        print setting
+        #print setting
         item_data=get_results_of_one_setting(library, config, setting, \
             benchmark, datatype, testtype, datalist, indir)
         item_data['setting']=[setting]*len(item_data.index)
@@ -71,25 +71,85 @@ def get_results_of_one_benchmark(library, config, settings, \
     return result
 
 """
+Get results of one settings
+"""
+def get_mrmpi_results_of_one_setting(library, config, setting, \
+    benchmark, datatype, testtype, datalist, indir):
+    
+    filefilter=library+'-'+setting+'-'+benchmark+'-'+\
+        datatype+'-'+testtype+'_*'+config+'.ppn*_phases.txt'
+    print filefilter
+
+    dfs=[]
+    for filename in glob.glob(indir+'/'+filefilter):
+        print 'read file:'+filename
+        file_data=pd.read_csv(filename)
+        dfs.append(file_data)
+    
+    result=None
+    if len(dfs)!=0:
+        result=pd.concat(dfs)
+
+    final_result=[]
+    for dataset in datalist:
+       olddataset=dataset
+       if benchmark=='octree':
+           olddataset=octree_label_map[dataset]
+       item_data=result[result['dataset']==olddataset]
+       if benchmark=='octree':
+           item_data.replace(olddataset, dataset, inplace=True);
+       #print item_data
+       #print olddataset
+       #print 
+       final_result.append(item_data)
+    result=pd.concat(final_result)
+
+    return result
+
+
+bfs_label_map={}
+octree_label_map={}
+
+def init_label_map():
+    octree_label_map['p24']='16M';
+    octree_label_map['p25']='32M';
+    octree_label_map['p26']='64M';
+    octree_label_map['p27']='128M';
+    octree_label_map['p28']='256M';
+    octree_label_map['p29']='512M';
+    octree_label_map['p30']='1G';
+    octree_label_map['p31']='2G';
+    octree_label_map['p32']='4G';
+    
+"""
 Get results of ipdps data format ([benchmark])
 """
-#def get_ipdps_results_of_one_benchmark(library, config, settings, \
-#    benchmark, datatype, testtype, datalist, indir):
-    
-#    results=[]
-#    for setting in settings:
-#        print setting
-#        filename=library+'-'+setting+'-'+benchmark+'-'+datatype+'-'+testtype+'_'+'config'+'.ppn*_phases.txt'
-#        print filename
+def get_mrmpi_results_of_one_benchmark(library, config, settings, \
+    benchmark, datatype, testtype, datalist, indir):    
+
+    init_label_map()
+
+    results=[]
+    for setting in settings:
+        item_data=get_mrmpi_results_of_one_setting(\
+            library, config, setting,\
+            benchmark, datatype, testtype, \
+            datalist, indir)
+
+        item_data['setting']=[setting]*len(item_data.index)
+        if item_data is not None:
+            results.append(item_data)
+
+    result=pd.concat(results)
+    result.rename(columns={'total': 'total_time', \
+        'peakmem': 'peakmem_use'}, inplace=True)
+
+    return result
 
 """
 Debug code
 """
 if __name__ == "__main__":
-    pass
-    #get_ipdps_results_of_one_benchmark(mrmpi, 'a2a',\)
-    #data=get_results_of_one_benchmark(\
-    #    "mimir", "c64M-p64M-i512M", ["basic"], \
-    #    "bfs", "graph500s16", "singlenode", ["s20"], \
-    #    "../../data/comet/bfs_singlenode", 24)
-    #print data
+    get_mrmpi_results_of_one_benchmark('mrmpi',\
+        'a2a', ['p64'], 'bfs', 'graph500s16', \
+        'onenode', '1,2', '../../data/mrmpi/comet/')
