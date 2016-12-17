@@ -20,6 +20,7 @@ def get_results_of_one_dataset(library, config, setting, \
     prefix=library+'-'+setting+'-'+benchmark+'-'+datatype+'-'+testtype
     filefilter=prefix+'-'+datalabel+'-*_'+config+'_*_profile.txt'
 
+    print indir
     print filefilter
 
     datalist=[]
@@ -95,8 +96,11 @@ def get_mrmpi_results_of_one_setting(library, config, setting, \
        olddataset=dataset
        if benchmark=='octree':
            olddataset=octree_label_map[dataset]
+       elif benchmark=='bfs':
+           olddataset=bfs_label_map[dataset]
+       print olddataset
        item_data=result[result['dataset']==olddataset]
-       if benchmark=='octree':
+       if benchmark=='octree' or benchmark=='bfs':
            item_data.replace(olddataset, dataset, inplace=True);
        #print item_data
        #print olddataset
@@ -106,9 +110,8 @@ def get_mrmpi_results_of_one_setting(library, config, setting, \
 
     return result
 
-
-bfs_label_map={}
 octree_label_map={}
+bfs_label_map={}
 
 def init_label_map():
     octree_label_map['p24']='16M';
@@ -120,6 +123,15 @@ def init_label_map():
     octree_label_map['p30']='1G';
     octree_label_map['p31']='2G';
     octree_label_map['p32']='4G';
+    bfs_label_map['s19']='512K';
+    bfs_label_map['s20']='1M';
+    bfs_label_map['s21']='2M';
+    bfs_label_map['s22']='4M';
+    bfs_label_map['s23']='8M';
+    bfs_label_map['s24']='16M';
+    bfs_label_map['s25']='32M';
+    bfs_label_map['s26']='64M';
+    bfs_label_map['s27']='128M';
     
 """
 Get results of ipdps data format ([benchmark])

@@ -198,7 +198,7 @@ def draw_total_time(data, outdir, outfile, \
         mapper1[mapper[i]]=i
     handles=np.array(handles)[mapper1].tolist()
     labels=np.array(labels)[mapper1].tolist()
-    ax.legend(handles, labels,loc=2,prop={'size':23},ncol=1)
+    ax.legend(handles, labellist,loc=2,prop={'size':23},ncol=1)
     #if args.legend[0]=='false':
     #    ax.legend().set_visible(False)
     ax.set_xlabel(xlabelname, fontsize=26, fontweight="bold")
