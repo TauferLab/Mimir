@@ -3,7 +3,6 @@
 
 void check_envars(int rank, int size);
 
-void output(int rank, int size, \
-    const char*prefix, const char *common);
+void output(int rank, int size, const char *prefix, const char *common);
 
 #endif

@@ -1,31 +1,40 @@
-CC=mpicc
-CCLINK=mpicc
-CPP=mpicxx
-CPPLINK=mpicxx
-LCFLAGS = -g -O -Wall -Wconversion -std=c++11 -I../src
-LFLAGS = -L ../src -lm
+CC = mpicc CCLINK = mpicc CPP = mpicxx CPPLINK = mpicxx LCFLAGS =
+    -g - O - Wall - Wconversion - std =
+        c++ 11 - I../ src LFLAGS =
+            -L../ src - lm
 
-USERLIBS = -lmimir
+                            USERLIBS =
+                -lmimir
 
-all: wordcount bfs octree
+                        all : wordcount bfs octree
 
-wordcount: wordcount.o common.o
-	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) wordcount.o common.o $(USERLIBS) -o wordcount
+                                  wordcount
+                              : wordcount.o common
+                                    .o $(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS)
+                                        wordcount.o common.o $(USERLIBS) -
+                    o wordcount
 
-cwordcount: cwordcount.o ccommon.o
-	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) cwordcount.o ccommon.o $(USERLIBS) -o cwordcount
+                        cwordcount
+                    : cwordcount.o ccommon
+                          .o $(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS)
+                              cwordcount.o ccommon.o $(USERLIBS) -
+                    o cwordcount
 
-bfs: bfs.o common.o
-	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) bfs.o common.o $(USERLIBS) -o bfs 
+                        bfs
+                    : bfs.o common.o $(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS)
+                          bfs.o common.o $(USERLIBS) -
+                    o bfs
 
-octree: octree_move_lg.o common.o
-	$(CPP) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o common.o $(USERLIBS) -o octree
+                        octree : octree_move_lg.o common
+                                     .o $(CPP) $(CFLAGS) $(CFLAGS) $(LFLAGS)
+                                         octree_move_lg.o common.o $(USERLIBS) -
+                    o octree
 
-clean:
-	-rm *.o wordcount bfs octree
+                            clean : -rm *
+                                        .o wordcount bfs octree
 
-%.o:%.cpp
-	$(CPP) $(LCFLAGS) $(CFLAGS) -c $<
+                                    %.o : %
+                                        .cpp $(CPP) $(LCFLAGS) $(CFLAGS) -
+                    c $ <
 
-%.o:%.c
-	$(CC) $(LCFLAGS) $(CFLAGS) -c $<
+                %.o : %.c $(CC) $(LCFLAGS) $(CFLAGS) - c $ <
