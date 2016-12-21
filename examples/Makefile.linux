@@ -1,0 +1,31 @@
+CC=mpicc
+CCLINK=mpicc
+CPP=mpicxx
+CPPLINK=mpicxx
+LCFLAGS = -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
+LFLAGS = -L ../src -lm
+
+USERLIBS = -lmimir
+
+all: wordcount bfs octree
+
+wordcount: wordcount.o common.o
+	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) wordcount.o common.o $(USERLIBS) -o wordcount
+
+cwordcount: cwordcount.o ccommon.o
+	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) cwordcount.o ccommon.o $(USERLIBS) -o cwordcount
+
+bfs: bfs.o common.o
+	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) bfs.o common.o $(USERLIBS) -o bfs 
+
+octree: octree_move_lg.o common.o
+	$(CPP) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o common.o $(USERLIBS) -o octree
+
+clean:
+	@rm *.o wordcount bfs octree
+
+%.o:%.cpp
+	$(CPP) $(LCFLAGS) $(CFLAGS) -c $<
+
+%.o:%.c
+	$(CC) $(LCFLAGS) $(CFLAGS) -c $<
