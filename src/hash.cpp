@@ -5,7 +5,11 @@
 #include "stddef.h"
 #include "stdint.h"
 
+#ifdef BGQ
+#define HASH_LITTLE_ENDIAN 0       // PPC and BGQ are big endian
+#else
 #define HASH_LITTLE_ENDIAN 1       // Intel and AMD are little endian
+#endif
 
 #define rot(x,k) (((x)<<(k)) | ((x)>>(32-(k))))
 
