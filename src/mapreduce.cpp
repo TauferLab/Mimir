@@ -114,7 +114,7 @@ MapReduce::~MapReduce()
         if(CombinerHashBucket::mem_bytes != 0)
             LOG_ERROR("%s", "Error: hash bucket buffers memory leak!\n");
         if(ReducerHashBucket::mem_bytes != 0)
-            LOG_ERROR("%s", "Error: hash bucket buffers memory leak!\n") 
+            LOG_ERROR("%s", "Error: hash bucket buffers memory leak!\n");
     }
 #endif
 
