@@ -69,7 +69,7 @@ DataObject::DataObject(int _me, int _nprocs,
 
     id = DataObject::object_id++;
 
-    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d create. (maxpages=%d)\n", id, maxpages);
+    LOG_PRINT(DBG_DATA, "DATA: DataObject %d create. (maxpages=%d)\n", id, maxpages);
 
 }
 
@@ -82,7 +82,7 @@ DataObject::~DataObject(){
     mem_aligned_free(pages);
     DataObject::mem_bytes-=(npages*pagesize);
 
-    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d destory.\n", id);
+    LOG_PRINT(DBG_DATA, "DATA: DataObject %d destory.\n", id);
 }
 
 int DataObject::add_page(){
@@ -102,7 +102,7 @@ int DataObject::add_page(){
   
     ipage = pageid;
 
-    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: DataObject %d add one page %d.\n", id, pageid);
+    LOG_PRINT(DBG_DATA, "DATA: DataObject %d add one page %d.\n", id, pageid);
 
     return pageid;
 }

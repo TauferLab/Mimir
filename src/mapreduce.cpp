@@ -60,7 +60,8 @@ MapReduce::MapReduce(MPI_Comm _caller)
 
     MapReduce::ref++;
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: create.\n");
+    LOG_INIT(me, nprocs);
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: create.\n");
 }
 
 /**
@@ -91,7 +92,8 @@ MapReduce::MapReduce(const MapReduce &_mr){
 
     MapReduce::ref++;
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: copy\n");
+    LOG_INIT(me, nprocs);
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: copy\n");
 }
 
 /**
@@ -110,15 +112,15 @@ MapReduce::~MapReduce()
     if(MapReduce::ref == 0){
         //printf("DataObject=%ld, CombinerHashBucket=%ld, ReducerHashBucket=%ld\n", DataObject::mem_bytes, CombinerHashBucket::mem_bytes, ReducerHashBucket::mem_bytes);
         if(DataObject::mem_bytes != 0)
-            LOG_ERROR("%s", "Error: page buffers memory leak!\n");
+            LOG_ERROR("Error: page buffers memory leak!\n");
         if(CombinerHashBucket::mem_bytes != 0)
-            LOG_ERROR("%s", "Error: hash bucket buffers memory leak!\n");
+            LOG_ERROR("Error: hash bucket buffers memory leak!\n");
         if(ReducerHashBucket::mem_bytes != 0)
-            LOG_ERROR("%s", "Error: hash bucket buffers memory leak!\n");
+            LOG_ERROR("Error: hash bucket buffers memory leak!\n");
     }
 #endif
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: destroy.\n");
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: destroy.\n");
 }
 
 uint64_t MapReduce::map_text_file( \
@@ -126,9 +128,9 @@ uint64_t MapReduce::map_text_file( \
     UserMapFile _mymap, void *_ptr, int _comm){
 
     if(strlen(_seperator) == 0)
-        LOG_ERROR("%s", "Error: the separator should not be empty!\n");
+        LOG_ERROR("Error: the separator should not be empty!\n");
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "MapReduce: map_text_file start. \
+    LOG_PRINT(DBG_GEN, "MapReduce: map_text_file start. \
 (filepath=%s, shared=%d, recursed=%d, comm=%d)\n", \
         _filepath, _shared, _recurse, _comm);
 
@@ -191,7 +193,7 @@ uint64_t MapReduce::map_text_file( \
 
         PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
 
-        LOG_PRINT(DBG_IO, me, nprocs, "open file %s, fsize=%ld\n", \
+        LOG_PRINT(DBG_IO, "open file %s, fsize=%ld\n", \
             ifiles[i].first.c_str(), ifiles[i].second);
 
         TRACKER_RECORD_EVENT(EVENT_PFS_OPEN);
@@ -234,7 +236,7 @@ uint64_t MapReduce::map_text_file( \
                 LOG_ERROR("Error: string length is large than max size (%d)!\n", \
                     MAX_STR_SIZE);
 
-            LOG_PRINT(DBG_IO, me, nprocs, "read file %s, %ld->%ld, suffix=%ld\n", \
+            LOG_PRINT(DBG_IO, "read file %s, %ld->%ld, suffix=%ld\n", \
                 ifiles[i].first.c_str(), foff, foff+readsize, boff);
 
             // Pass words one by one to user-defined map function
@@ -260,7 +262,7 @@ uint64_t MapReduce::map_text_file( \
 
         TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
 
-        LOG_PRINT(DBG_IO, me, nprocs, "close file %s\n", ifiles[i].first.c_str());
+        LOG_PRINT(DBG_IO, "close file %s\n", ifiles[i].first.c_str());
     }
 
     // Free input buffer
@@ -281,7 +283,7 @@ uint64_t MapReduce::map_text_file( \
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map_text_file end.\n");
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: map_text_file end.\n");
 
     return _get_kv_count();
 }
@@ -293,8 +295,7 @@ uint64_t MapReduce::map_text_file( \
 uint64_t MapReduce::map_key_value(MapReduce *_mr,
     UserMapKV _mymap, void *_ptr, int _comm){
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", \
-        "MapReduce: map start. (KV as input)\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: map start. (KV as input)\n");
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
@@ -304,7 +305,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     KeyValue *inputkv = _mr->kv;
 
     // create new data object
-    //LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: new data KV. (KV as input)\n");
+    //LOG_PRINT(DBG_GEN, "MapReduce: new data KV. (KV as input)\n");
 
     kv = new KeyValue(me,nprocs,DATA_PAGE_SIZE, MAX_PAGE_COUNT);
 
@@ -312,7 +313,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
     kv->set_combiner(this, mycombiner);
 
 
-    //LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: alloc data KV. (KV as input)\n");
+    //LOG_PRINT(DBG_GEN, "MapReduce: alloc data KV. (KV as input)\n");
 
     if(_comm){
         c=Communicator::Create(comm, KV_EXCH_COMM);
@@ -363,8 +364,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", \
-        "MapReduce: map end. (KV as input)\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: map end. (KV as input)\n");
 
     return _get_kv_count();
 }
@@ -376,7 +376,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr,
 uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
   void *_ptr, int _comm){
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: map start. (no input)\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: map start. (no input)\n");
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
@@ -407,8 +407,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", \
-        "MapReduce: map end. (no input)\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: map end. (no input)\n");
 
     return _get_kv_count();
 }
@@ -423,7 +422,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, \
 */
 uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: reduce start.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: reduce start.\n");
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);  
 
@@ -450,7 +449,7 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void* ptr){
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_RDC);
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: reduce end.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: reduce end.\n");
 
     return _get_kv_count();
 }
@@ -482,8 +481,7 @@ void MapReduce::add_key_value(const char *key, int keybytes, const char *value, 
 
         return;
     }else{
-        LOG_ERROR("%s", \
-          "Error: add_key_value function can be invoked in map and \
+        LOG_ERROR("Error: add_key_value function can be invoked in map and \
 reduce callbacks\n");
     }
 
@@ -502,8 +500,7 @@ void MapReduce::update_key_value(
         // Update the KV
         kv->updateKV(key, keybytes, value, valuebytes);
     }else{
-        LOG_ERROR("%s", \
-          "Error: update_key_value function can be invoked in \
+        LOG_ERROR("Error: update_key_value function can be invoked in \
 combiner callbacks\n");
     }
 }
@@ -519,7 +516,7 @@ void MapReduce::scan(
   void (_myscan)(char *, int, char *, int ,void *),
   void * _ptr){
     
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan begin\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: scan begin\n");
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
@@ -550,11 +547,11 @@ void MapReduce::scan(
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_SCAN);
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: scan end.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: scan end.\n");
 }
 
 uint64_t MapReduce::bcast(int _rank){
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: bcast begin\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: bcast begin\n");
 
     // Bcast meta-information
     int npages=0;
@@ -590,13 +587,13 @@ uint64_t MapReduce::bcast(int _rank){
         DataObject::addRef(kv);
     }
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: bcast end.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: bcast end.\n");
 
     return _get_kv_count();
 }
 
 uint64_t MapReduce::collect(int _rank){
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: collect begin.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: collect begin.\n");
 
     int npages=kv->get_npages();
     int npages_sum=0;
@@ -635,7 +632,7 @@ uint64_t MapReduce::collect(int _rank){
         DataObject::addRef(kv);
     }
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: collect end.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: collect end.\n");
 
     return 0;
 }
@@ -656,7 +653,7 @@ const void *MapReduce::get_next_value(){
 
 void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce start.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: _reduce start.\n");
 
     PROFILER_RECORD_COUNT(COUNTER_UNIQUE_KEY, (uint64_t)(h->get_nunique()), OPMAX);
 
@@ -673,14 +670,14 @@ void MapReduce::_reduce(ReducerHashBucket *h, UserReduce _myreduce, void* ptr){
     }
 #endif
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _reduce end.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: _reduce end.\n");
 }
 
 void MapReduce::_convert(KeyValue *inputkv, \
     DataObject *mv, \
     ReducerHashBucket *h){
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _convert start.\n"); fflush(stdout);
+    LOG_PRINT(DBG_GEN, "MapReduce: _convert start.\n"); fflush(stdout);
 
     char *key, *value;
     int keybytes, valuebytes;
@@ -792,7 +789,7 @@ void MapReduce::_convert(KeyValue *inputkv, \
     }
 #endif
 
-    LOG_PRINT(DBG_GEN, me, nprocs, "%s", "MapReduce: _convert end.\n");
+    LOG_PRINT(DBG_GEN, "MapReduce: _convert end.\n");
 }
 
 void MapReduce::set_key_length(int _ksize){
@@ -923,6 +920,13 @@ void MapReduce::_get_default_values(){
         int flag = atoi(env);
         if(flag != 0){
             DBG_LEVEL |= (DBG_MEM);
+        }
+    }
+    env = getenv("MIMIR_DBG_VERBOSE");
+    if(env){
+        int flag = atoi(env);
+        if(flag != 0){
+            DBG_LEVEL |= (DBG_VERBOSE);
         }
     }
 
@@ -1087,7 +1091,7 @@ void MapReduce::_get_input_files(const char *filepath, int sharedflag, int recur
 
             struct dirent *ep;
             DIR *dp = opendir(filepath);
-            if(!dp) LOG_ERROR("%s", "Error in get input files\n");
+            if(!dp) LOG_ERROR("Error in get input files\n");
 
             while( (ep = readdir(dp)) != NULL){
 

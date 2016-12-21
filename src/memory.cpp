@@ -26,7 +26,7 @@ inline int64_t get_max_mmap(){
     setvbuf(stderr, buffer, _IOFBF, BUFSIZE);
     malloc_stats();
     fp=freopen("/dev/null", "a", stderr);
-    if(fp==NULL) LOG_ERROR("%s", "Error: open dev null\n");
+    if(fp==NULL) LOG_ERROR("Error: open dev null\n");
     dup2(stderr_save, STDERR_FILENO);
     setvbuf(stderr, NULL, _IONBF, BUFSIZE);
 

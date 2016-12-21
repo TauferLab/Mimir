@@ -40,3 +40,4 @@ scripts/execute/bgq/octree_prkvhint
 scripts/execute/bgq/octree_cbkvhint
 scripts/execute/bgq/octree_cpsprkvhint
 !.clang-format
+*/build/*

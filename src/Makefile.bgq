@@ -1,57 +1,123 @@
-CC = mpicc
-CPP = mpicxx
-CLINK = mpicc
-CPPLINK = mpicxx
+# skeleton of generic makefile
 
-DEBUG = -g
+OBJDIR	:= build
 
-SPI_CFLAGS=-DBGQ=1 -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
-SPI_LDFLAGS=-L/bgsys/drivers/ppcfloor/spi/lib -lSPI_cnk
+SRCDIRS	:=
+USRINCS	:=
+USRLIBS	:=
 
-local_CFLAGS = -std=c++11 $(DEBUG) -O3 -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER $(SPI_CFLAGS)
+# config binaries
+CPP		:=
+CC		:= mpicc
+CXX		:= mpicxx
+LD		:= mpicxx
+AR		:= powerpc64-bgq-linux-ar
 
-LFLAGS = $(SPI_LDFLAGS)
-ARCHIEVE = ar
-AFLAGS = -rcv
-OBJS = mapreduce.o dataobject.o keyvalue.o communicator.o alltoall.o hash.o hashbucket.o const.o memory.o stat.o config.o
+SHELL	:= /bin/sh
+RM		:= rm -f
 
-all: libmrmpi
+# DEPFLAGS:= -M
 
-libmrmpi: $(OBJS)
-	$(ARCHIEVE) $(AFLAGS) libmimir.a $(OBJS)
+CPPFLAGS:= -DENABLE_PROFILER
+CPPFLAGS+= -DENABLE_TRACKER
+CPPFLAGS+= -DBGQ=1
+CPPFLAGS+= -DNDEBUG
+# CPPFLAGS+= -DFT_REG
 
-mapreduce.o: mapreduce.cpp mapreduce.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c mapreduce.cpp
+# Using pkg-config for c/cxxflags
+# SHRFLAGS:= $(shell pkg-config --cflags gtk+-2.0)
+SHRFLAGS:= -g -Wno-write-strings -Wall -Wconversion -O3
+SHRFLAGS+= -I/bgsys/drivers/ppcfloor -I/bgsys/drivers/ppcfloor/spi/include/kernel/cnk
 
-dataobject.o: dataobject.cpp dataobject.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c dataobject.cpp
+# SHRFLAGS+= -I$(USRINCS)
+# SHRFLAGS:= -pg -I$(USRINCS) -fpermissive
+CFLAGS	:= $(SHRFLAGS) -std=c99
+CXXFLAGS:= $(SHRFLAGS) -std=c++11 -fpermissive
 
-keyvalue.o: keyvalue.cpp keyvalue.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c keyvalue.cpp
+# Using pkg-config for libs 
+LDFLAGS:= -L/bgsys/drivers/ppcfloor/spi/lib -lSPI_cnk
+# LDFLAGS	:= $(shell pkg-config --libs gtk+-2.0)
+# LDFLAGS	:= -lmpl -lpthread
+# LDFLAGS	+= -lboost_system -lboost_filesystem -lboost_regex
+# LDFLAGS	+= $(shell pkg-config --libs mpich)
+# LDFLAGS	+= -L$(HOME)/.local/usr/lib -Wl,-rpath -Wl,$(HOME)/.local/usr/lib -lmpi -lrt
+# LDFLAGS	+= $(USRLIBS)
+# LDFLAGS	+= -rdynamic
 
-communicator.o: communicator.cpp communicator.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c communicator.cpp
+ARFLAGS	:= -rcv
 
-alltoall.o: alltoall.cpp alltoall.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c alltoall.cpp
+HEADERS	:= $(wildcard *.h)
+HEADERS	+= $(wildcard *.hpp)
+HEADERS	+= $(wildcard $(USRINCS)/*.h)
 
-hash.o: hash.cpp hash.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c hash.cpp
+SRCS	:= $(wildcard *.c)
+SRCS	+= $(wildcard *.cpp)
+SRCS	+= $(wildcard *.cc)
 
-hashbucket.o: hashbucket.cpp hashbucket.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c hashbucket.cpp
+OBJS	:= $(patsubst %.c, $(OBJDIR)/%.o, $(wildcard *.c))
+OBJS	+= $(patsubst %.cpp, $(OBJDIR)/%.o, $(wildcard *.cpp))
 
-const.o: const.cpp const.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c const.cpp
+DEPS	:= $(patsubst %.o, %.d, $(OBJS))
 
-memory.o: memory.cpp memory.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c memory.cpp
+SHTARGET:= libmimir.so
+STTARGET:= libmimir.a
 
-stat.o: stat.cpp stat.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c stat.cpp
+#============================================
+# real things
 
-config.o: config.cpp config.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c config.cpp
+.PHONY : all objs clean lib shlib
 
-clean:
-	-rm *.o libmimir.a
+.DEFAULT :
+	@test -f build_config/$@.mk
+	@if [ ! -d build.$@ ]; then mkdir build.$@; fi
+	@cat Makefile build_config/$@.mk > makefile.$@
+	$(MAKE) "OBJDIR=build.$@" "STTARGET=$(patsubst %.a, %_$@.a, $(STTARGET))" \
+	    -f makefile.$@ lib
+	@$(RM) makefile.$@
+
+all : lib
+
+lib : $(OBJS)
+	$(AR) $(ARFLAGS) $(STTARGET) $(OBJS)
+
+shlib : $(OBJS)
+	$(LD) $(CXXFLAGS) $(SHRFLAGS) $(LDFLAGS) -shared -o $(SHTARGET) $(OBJS)
+
+# basic rules
+objs : $(OBJS)
+
+$(DEPS) : $(SRCS) $(HEADERS)
+
+-include $(DEPS)
+
+# automation rules
+$(OBJDIR)/%.d : %.c
+	@if [ ! -d $(OBJDIR) ]; then mkdir $(OBJDIR); fi
+	@$(CC) -MM $(CFLAGS) $< -o $@
+	@sed -i '1 s/^/$(OBJDIR)\//' $@
+	@cp -f $@ $@.tmp
+	@sed -e 's/.*://' -e 's/\\$$//' < $@.tmp | fmt -1 | \
+		sed -e 's/^ *//' -e 's/$$/:/' >> $@
+	@rm -f $@.tmp
+$(OBJDIR)/%.d : %.cpp
+	@if [ ! -d $(OBJDIR) ]; then mkdir $(OBJDIR); fi
+	@$(CC) -MM $(CXXFLAGS) $< -o $@
+	@sed -i '1 s/^/$(OBJDIR)\//' $@
+	@cp -f $@ $@.tmp
+	@sed -e 's/.*://' -e 's/\\$$//' < $@.tmp | fmt -1 | \
+		sed -e 's/^ *//' -e 's/$$/:/' >> $@
+	@rm -f $@.tmp
+
+$(OBJDIR)/%.o : %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(OBJDIR)/%.o : %.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+
+
+clean : 
+	@$(RM) $(DEPS) $(OBJS) $(STTARGET) $(SHTARGET)
+
+clean-% :
+	@$(RM) -r build.$(@:clean-%=%) *$(@:clean-%=%).a
+

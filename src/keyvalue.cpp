@@ -20,7 +20,7 @@ KeyValue::KeyValue(
     mr = NULL;
     mycombiner = NULL; 
     bucket = NULL;
-    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: KV Create (id=%d).\n", id);
+    LOG_PRINT(DBG_DATA, "DATA: KV Create (id=%d).\n", id);
 }
 
 KeyValue::~KeyValue()
@@ -29,7 +29,7 @@ KeyValue::~KeyValue()
         delete bucket;
     }
 
-    LOG_PRINT(DBG_DATA, me, nprocs, "DATA: KV Destroy (id=%d).\n", id);
+    LOG_PRINT(DBG_DATA, "DATA: KV Destroy (id=%d).\n", id);
 }
 
 int KeyValue::getNextKV(char **pkey, int &keybytes, \
@@ -157,7 +157,7 @@ int KeyValue::updateKV(const char *newkey,int newkeysize,\
     // check if the key is same 
     if(newkeysize!=ukeybytes || \
         memcmp(newkey, ukey, ukeybytes)!=0)
-        LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
+        LOG_ERROR("Error: the result key of combiner is different!\n");
     
     int kvsize;        
     // get combined KV size
@@ -194,7 +194,7 @@ void KeyValue::gc(){
 
     if(mycombiner!=NULL && npages>0 && slices.empty()==false){
 
-        LOG_PRINT(DBG_MEM, me, nprocs, "Key Value: garbege collection (size=%ld)\n", slices.size());
+        LOG_PRINT(DBG_MEM, "Key Value: garbege collection (size=%ld)\n", slices.size());
 
         int dst_pid=0,src_pid=0;
         int64_t dst_off=0,src_off=0;

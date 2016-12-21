@@ -26,7 +26,7 @@ Alltoall::Alltoall(MPI_Comm _comm):Communicator(_comm, 0){
 
     reqs=NULL;
 
-    LOG_PRINT(DBG_COMM, rank, size, "%s", "Comm: alltoall create.\n");
+    LOG_PRINT(DBG_COMM, "Comm: alltoall create.\n");
 }
 
 Alltoall::~Alltoall(){
@@ -41,7 +41,7 @@ Alltoall::~Alltoall(){
     if(recvcounts != NULL) delete [] recvcounts;
     if(reqs != NULL) delete [] reqs;
 
-    LOG_PRINT(DBG_COMM, rank, size, "%s", "Comm: alltoall destroy.\n");
+    LOG_PRINT(DBG_COMM, "Comm: alltoall destroy.\n");
 }
 
 int Alltoall::setup(int64_t _sbufsize, KeyValue *_data, \
@@ -79,7 +79,7 @@ int Alltoall::setup(int64_t _sbufsize, KeyValue *_data, \
 
     for(int i=0; i<size; i++) off[i] = 0;
 
-    LOG_PRINT(DBG_COMM, rank, size, "Comm: alltoall setup. (\
+    LOG_PRINT(DBG_COMM, "Comm: alltoall setup. (\
 comm buffer size=%ld, type_log_bytes=%d)\n", send_buf_size, type_log_bytes);
 
     return 0;
@@ -202,7 +202,7 @@ int Alltoall::updateKV(const char *newkey, int newkeysize, const char *newval, i
     // check if the key is same 
     if(newkeysize!=ukeysize || \
         memcmp(newkey, ukey, ukeysize)!=0)
-        LOG_ERROR("%s", "Error: the result key of combiner is different!\n");
+        LOG_ERROR("Error: the result key of combiner is different!\n");
 
     int kvsize;
     // get key size
@@ -241,7 +241,7 @@ int Alltoall::updateKV(const char *newkey, int newkeysize, const char *newval, i
 
 // wait all procsses done
 void Alltoall::wait(){
-    //LOG_PRINT(DBG_COMM, "%d[%d] Comm: start wait.\n", rank, size);
+    //LOG_PRINT(DBG_COMM, "start wait.\n");
 
     medone = 1;
 
@@ -268,7 +268,7 @@ void Alltoall::wait(){
 
            //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
-           //LOG_PRINT(DBG_COMM, "%d[%d] Comm: receive data. (count=%ld)\n", rank, size, recvcount);
+           //LOG_PRINT(DBG_COMM, "Comm: receive data. (count=%ld)\n", recvcount);
 
            if(recvcount > 0) {
                save_data(i);
@@ -277,7 +277,7 @@ void Alltoall::wait(){
    }
 #endif
 
-   LOG_PRINT(DBG_COMM, rank, size, "%s", "Comm: finish wait.\n");
+   LOG_PRINT(DBG_COMM, "Comm: finish wait.\n");
 }
 
 void Alltoall::save_data(int ibuf){
@@ -304,7 +304,7 @@ void Alltoall::save_data(int ibuf){
 void Alltoall::gc(){
     if(mycombiner!=NULL && slices.empty()==false){
 
-        LOG_PRINT(DBG_MEM, rank, size, "Alltoall: garbege collection (size=%ld)\n", slices.size());
+        LOG_PRINT(DBG_MEM, "Alltoall: garbege collection (size=%ld)\n", slices.size());
  
         int dst_off=0, src_off=0;
         char *dst_buf=NULL, *src_buf=NULL;
@@ -404,7 +404,7 @@ void Alltoall::exchange_kv(){
     int64_t recvcount = recvcounts[ibuf];
     //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
-    LOG_PRINT(DBG_COMM, rank, size, "Comm: receive data. (count=%ld)\n", recvcount);
+    LOG_PRINT(DBG_COMM, "Comm: receive data. (count=%ld)\n", recvcount);
 
     PROFILER_RECORD_COUNT(COUNTER_RECV_BYTES, (uint64_t)recvcount, OPSUM);
     if(recvcount > 0) {
@@ -433,7 +433,7 @@ void Alltoall::exchange_kv(){
         //TRACKER_RECORD_EVENT(0, EVENT_COMM_WAIT);
         //PROFILER_RECORD_COUNT(0, COUNTER_COMM_RECV_SIZE, recvcount);
 
-        LOG_PRINT(DBG_COMM, rank, size, "Comm: receive data. (count=%ld)\n", recvcount);
+        LOG_PRINT(DBG_COMM, "Comm: receive data. (count=%ld)\n", recvcount);
 
         if(recvcount > 0) {
             save_data(ibuf);
@@ -462,5 +462,6 @@ void Alltoall::exchange_kv(){
 
     TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
 
-    LOG_PRINT(DBG_COMM, rank, size, "Comm: exchange KV. (send count=%ld, done count=%d)\n", sendcount, pdone);
+    LOG_PRINT(DBG_COMM, "Comm: exchange KV. (send count=%ld, done count=%d)\n", sendcount, pdone);
 }
+

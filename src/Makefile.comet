@@ -1,60 +1,119 @@
+# skeleton of generic makefile
 
-CC = mpicc
-CPP = mpicxx
-CLINK = mpicc
-CPPLINK = mpicxx
+OBJDIR	:= build
 
-DEBUG = -g
-#local_CFLAGS = $(DEBUG) -O3  -Wall -Wconversion -DENABLE_PROFILER -DENABLE_TRACKER
+SRCDIRS	:=
+USRINCS	:=
+USRLIBS	:=
 
-local_CFLAGS = $(DEBUG) -O3 -Wall -Wconversion -std=c++11 -DENABLE_PROFILER -DENABLE_TRACKER
-#local_CFLAGS = $(DEBUG) -O3 -std=c++11
+# config binaries
+CPP		:=
+CC		:= mpicc
+CXX		:= mpic++
+LD		:= mpic++
+AR		:= ar
 
-LFLAGS =
-ARCHIEVE = ar
-AFLAGS =  -rcv
-OBJS = mapreduce.o cmapreduce.o dataobject.o keyvalue.o communicator.o alltoall.o hash.o hashbucket.o const.o memory.o stat.o config.o
+SHELL	:= /bin/sh
+RM		:= rm -f
 
-all: libmrmpi
+# DEPFLAGS:= -M
 
-libmrmpi: $(OBJS)
-	$(ARCHIEVE) $(AFLAGS) libmimir.a $(OBJS)
+CPPFLAGS:= -DENABLE_PROFILER
+CPPFLAGS+= -DENABLE_TRACKER
+CPPFLAGS+= -DNDEBUG
+# CPPFLAGS+= -DFT_REG
 
-cmapreduce.o: cmapreduce.cpp cmapreduce.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c cmapreduce.cpp
+# Using pkg-config for c/cxxflags
+# SHRFLAGS:= $(shell pkg-config --cflags gtk+-2.0)
+SHRFLAGS:= -g -Wno-write-strings -Wall -Wconversion -O3
+# SHRFLAGS+= -I$(USRINCS)
+# SHRFLAGS:= -pg -I$(USRINCS) -fpermissive
+CFLAGS	:= $(SHRFLAGS) -std=c99
+CXXFLAGS:= $(SHRFLAGS) -std=c++11 -fpermissive
 
-mapreduce.o: mapreduce.cpp mapreduce.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c mapreduce.cpp
+# Using pkg-config for libs 
+# LDFLAGS	:= $(shell pkg-config --libs gtk+-2.0)
+# LDFLAGS	:= -lmpl -lpthread
+# LDFLAGS	+= -lboost_system -lboost_filesystem -lboost_regex
+# LDFLAGS	+= $(shell pkg-config --libs mpich)
+# LDFLAGS	+= -L$(HOME)/.local/usr/lib -Wl,-rpath -Wl,$(HOME)/.local/usr/lib -lmpi -lrt
+# LDFLAGS	+= $(USRLIBS)
+# LDFLAGS	+= -rdynamic
 
-dataobject.o: dataobject.cpp dataobject.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c dataobject.cpp
+ARFLAGS	:= -rcv
 
-keyvalue.o: keyvalue.cpp keyvalue.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c keyvalue.cpp
+HEADERS	:= $(wildcard *.h)
+HEADERS	+= $(wildcard *.hpp)
+HEADERS	+= $(wildcard $(USRINCS)/*.h)
 
-communicator.o: communicator.cpp communicator.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c communicator.cpp
+SRCS	:= $(wildcard *.c)
+SRCS	+= $(wildcard *.cpp)
+SRCS	+= $(wildcard *.cc)
 
-alltoall.o: alltoall.cpp alltoall.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c alltoall.cpp
+OBJS	:= $(patsubst %.c, $(OBJDIR)/%.o, $(wildcard *.c))
+OBJS	+= $(patsubst %.cpp, $(OBJDIR)/%.o, $(wildcard *.cpp))
 
-hash.o: hash.cpp hash.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c hash.cpp
+DEPS	:= $(patsubst %.o, %.d, $(OBJS))
 
-hashbucket.o: hashbucket.cpp hashbucket.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c hashbucket.cpp
+SHTARGET:= libmimir.so
+STTARGET:= libmimir.a
 
-const.o: const.cpp const.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c const.cpp
+#============================================
+# real things
 
-memory.o: memory.cpp memory.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c memory.cpp
+.PHONY : all objs clean lib shlib
 
-stat.o: stat.cpp stat.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c stat.cpp
+.DEFAULT :
+	@test -f build_config/$@.mk
+	@if [ ! -d build.$@ ]; then mkdir build.$@; fi
+	@cat Makefile build_config/$@.mk > makefile.$@
+	$(MAKE) "OBJDIR=build.$@" "STTARGET=$(patsubst %.a, %_$@.a, $(STTARGET))" \
+	    -f makefile.$@ lib
+	@$(RM) makefile.$@
 
-config.o: config.cpp config.h
-	$(CPP) $(local_CFLAGS) $(CFLAGS) -c config.cpp
+all : lib
 
-clean:
-	-rm *.o libmimir.a
+lib : $(OBJS)
+	$(AR) $(ARFLAGS) $(STTARGET) $(OBJS)
+
+shlib : $(OBJS)
+	$(LD) $(CXXFLAGS) $(SHRFLAGS) $(LDFLAGS) -shared -o $(SHTARGET) $(OBJS)
+
+# basic rules
+objs : $(OBJS)
+
+$(DEPS) : $(SRCS) $(HEADERS)
+
+-include $(DEPS)
+
+# automation rules
+$(OBJDIR)/%.d : %.c
+	@if [ ! -d $(OBJDIR) ]; then mkdir $(OBJDIR); fi
+	@$(CC) -MM $(CFLAGS) $< -o $@
+	@sed -i '1 s/^/$(OBJDIR)\//' $@
+	@cp -f $@ $@.tmp
+	@sed -e 's/.*://' -e 's/\\$$//' < $@.tmp | fmt -1 | \
+		sed -e 's/^ *//' -e 's/$$/:/' >> $@
+	@rm -f $@.tmp
+$(OBJDIR)/%.d : %.cpp
+	@if [ ! -d $(OBJDIR) ]; then mkdir $(OBJDIR); fi
+	@$(CC) -MM $(CXXFLAGS) $< -o $@
+	@sed -i '1 s/^/$(OBJDIR)\//' $@
+	@cp -f $@ $@.tmp
+	@sed -e 's/.*://' -e 's/\\$$//' < $@.tmp | fmt -1 | \
+		sed -e 's/^ *//' -e 's/$$/:/' >> $@
+	@rm -f $@.tmp
+
+$(OBJDIR)/%.o : %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(OBJDIR)/%.o : %.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+
+
+clean : 
+	@$(RM) $(DEPS) $(OBJS) $(STTARGET) $(SHTARGET)
+
+clean-% :
+	@$(RM) -r build.$(@:clean-%=%) *$(@:clean-%=%).a
+

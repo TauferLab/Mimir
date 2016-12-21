@@ -196,7 +196,7 @@ public:
         }
 
         if(cur_unique==NULL)
-             LOG_ERROR("%s", "Error: unique strcuture is NULL!\n");
+             LOG_ERROR("Error: unique strcuture is NULL!\n");
 
         return cur_unique;
     }
@@ -222,7 +222,7 @@ public:
         cur_off+=cur_unique->keybytes;
 
         if(cur_unique==NULL)
-             LOG_ERROR("%s", "Error: unique strcuture is NULL!\n");
+             LOG_ERROR("Error: unique strcuture is NULL!\n");
 
         return cur_unique;
     }
