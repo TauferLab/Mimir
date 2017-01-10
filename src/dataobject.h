@@ -21,104 +21,102 @@
 
 namespace MIMIR_NS {
 
-#define CHECK_PAGEID(pageid) {\
-  if(pageid<0 || pageid>=npages)\
-    LOG_ERROR("Error: page id (%d) is out of the range.", pageid);}
+#define CHECK_PAGEID(pageid)                                           \
+    do {                                                               \
+        if (pageid < 0 || pageid >= npages)                            \
+        LOG_ERROR("Error: page id (%d) is out of the range.", pageid); \
+    } while (0)
 
 /// Datatype
-enum DataType{ByteType, KVType};
+enum DataType { ByteType, KVType };
 
-class DataObject{
+class DataObject {
 public:
     DataObject(int me, int nprocs,
-        DataType type=ByteType,
-        int64_t pagesize=1,
-        int maxpages=4);
+               DataType type = ByteType, int64_t pagesize = 1, int maxpages = 4);
 
     virtual ~DataObject();
 
-    int acquire_page(int pageid){
+    int acquire_page(int pageid) {
         CHECK_PAGEID(pageid);
-        ipage=pageid;
-        off=0;
-        ptr=pages[pageid].buffer;
+        ipage = pageid;
+        off = 0;
+        ptr = pages[pageid].buffer;
         return 0;
     }
-
-    void release_page(int pageid){
+    void release_page(int pageid) {
         CHECK_PAGEID(pageid);
         return;
     }
-
-    void delete_page(int pageid){
+    void delete_page(int pageid) {
         CHECK_PAGEID(pageid);
-        if(ref==1){        
+        if (ref == 1) {
             mem_aligned_free(pages[pageid].buffer);
-            pages[pageid].buffer=NULL;
-            pages[pageid].datasize=0;
+            pages[pageid].buffer = NULL;
+            pages[pageid].datasize = 0;
         }
     }
 
     int add_page();
 
-    int get_npages(){
+    int get_npages() {
         return npages;
     }
 
-    int64_t get_page_size(int pageid){
+    int64_t get_page_size(int pageid) {
         CHECK_PAGEID(pageid);
         return pages[pageid].datasize;
     }
 
-    void set_page_size(int pageid, int64_t datasize){
+    void set_page_size(int pageid, int64_t datasize) {
         CHECK_PAGEID(pageid);
         //totalsize+=datasize;
-        pages[pageid].datasize=datasize;
+        pages[pageid].datasize = datasize;
     }
 
-    char *get_page_buffer(int pageid){
+    char *get_page_buffer(int pageid) {
         CHECK_PAGEID(pageid);
         return pages[pageid].buffer;
     }
 
-    int64_t get_total_size(){
-        totalsize=0;
-        for(int i=0; i<npages; i++)
-            totalsize+=pages[i].datasize;
+    int64_t get_total_size() {
+        totalsize = 0;
+        for (int i = 0; i < npages; i++)
+            totalsize += pages[i].datasize;
         return totalsize;
     }
 
-    virtual void print(int type = 0, FILE *fp=stdout, int format=0);
+    virtual void print(int type = 0, FILE *fp = stdout, int format = 0);
 
 public:
-    int64_t pagesize;      ///< page size
+    int64_t pagesize;       ///< page size
 
 protected:
     int me, nprocs;
 
     int id, ref;
 
-    int64_t totalsize;     ///< datasize
+    int64_t totalsize;      ///< datasize
 
-    DataType datatype;     ///< data type
-    int npages ,maxpages;  ///< number of page
+    DataType datatype;      ///< data type
+    int npages, maxpages;   ///< number of page
 
-    int      ipage;        ///< index of current page
-    char    *ptr;
-    int64_t  off;          ///< current offset
+    int ipage;              ///< index of current page
+    char *ptr;
+    int64_t off;            ///< current offset
 
-    struct Page{
-        int64_t   datasize;
-        char     *buffer;
-    }*pages;
+    struct Page {
+        int64_t datasize;
+        char *buffer;
+    } *pages;
 
 public:
     static int object_id;
     static int64_t mem_bytes;
 
     //static int max_page_count;
-    static void addRef(DataObject *);
-    static void subRef(DataObject *);
+    static void addRef(DataObject*);
+    static void subRef(DataObject*);
 };
 
 }

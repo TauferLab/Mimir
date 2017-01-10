@@ -6,125 +6,124 @@
 
 using namespace MIMIR_NS;
 
-KeyValue::KeyValue(
-    int me,
-    int nprocs,
-    int64_t pagesize,
-    int maxpages):
-    DataObject(me, nprocs, KVType, pagesize, maxpages)
+KeyValue::KeyValue(int me, int nprocs, int64_t pagesize, int maxpages)
+    : DataObject(me, nprocs, KVType, pagesize, maxpages)
 {
     //kvtype = GeneralKV;
     ksize = vsize = KVGeneral;
     local_kvs_count = 0;
     global_kvs_count = 0;
     mr = NULL;
-    mycombiner = NULL; 
+    mycombiner = NULL;
     bucket = NULL;
     LOG_PRINT(DBG_DATA, "DATA: KV Create (id=%d).\n", id);
 }
 
 KeyValue::~KeyValue()
 {
-    if(bucket != NULL){
+    if (bucket != NULL) {
         delete bucket;
     }
 
     LOG_PRINT(DBG_DATA, "DATA: KV Destroy (id=%d).\n", id);
 }
 
-int KeyValue::getNextKV(char **pkey, int &keybytes, \
-    char **pvalue, int &valuebytes)
+int KeyValue::getNextKV(char**pkey, int &keybytes, char **pvalue, int &valuebytes)
 {
-    if(off>=pages[ipage].datasize)
+    if (off >= pages[ipage].datasize)
         return -1;
 
     int kvsize;
-    GET_KV_VARS(ksize, vsize, ptr, *pkey, keybytes, \
-        *pvalue, valuebytes, kvsize);
-    ptr+=kvsize;
-    off+=kvsize;
+    GET_KV_VARS(ksize, vsize, ptr, *pkey, keybytes, *pvalue, valuebytes, kvsize);
+    ptr += kvsize;
+    off += kvsize;
 
     return kvsize;
 }
 
-void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner){
+void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner)
+{
     mr = _mr;
     mycombiner = _combiner;
 
-    if(mycombiner != NULL){
+    if (mycombiner != NULL) {
         bucket = new CombinerHashBucket(this);
     }
 }
 
 // add KVs one by one
-int KeyValue::addKV(const char *key,int keybytes,const char *value,int valuebytes){
- 
-    if(ipage==-1) add_page();
+int KeyValue::addKV(const char *key, int keybytes,
+                    const char *value, int valuebytes)
+{
+
+    if (ipage == -1)
+        add_page();
 
     // get the size of the KV
-    int kvsize=0;
+    int kvsize = 0;
     GET_KV_SIZE(ksize, vsize, keybytes, valuebytes, kvsize);
 
     // KV size should be smaller than page size.
-    if(kvsize > pagesize)
+    if (kvsize > pagesize)
         LOG_ERROR("Error: KV size (%d) is larger \
-            than one page (%ld)\n", kvsize, pagesize);
- 
+                  than one page (%ld)\n", kvsize, pagesize);
+
     // without combiner
-    if(mycombiner == NULL){
+    if (mycombiner == NULL) {
 
         // add another page
-        if( kvsize > (pagesize-pages[ipage].datasize) )
+        if (kvsize > (pagesize - pages[ipage].datasize))
             add_page();
 
         // put KV data in
-        char *ptr=pages[ipage].buffer+pages[ipage].datasize;
- 
-        PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
-        pages[ipage].datasize+=kvsize;
+        char *ptr = pages[ipage].buffer + pages[ipage].datasize;
 
-    // with combiner
-    }else{
+        PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
+        pages[ipage].datasize += kvsize;
+
+        // with combiner
+    }
+    else {
         // check the bucket
         u = bucket->findElem(key, keybytes);
-        // the key is not in the bucket 
-        if(u == NULL){
+        // the key is not in the bucket
+        if (u == NULL) {
             CombinerUnique tmp;
-            tmp.next=NULL; 
+            tmp.next = NULL;
 
             // find a hole to store the KV
-            std::unordered_map<char*,int>::iterator iter;
-            for(iter=slices.begin(); iter!=slices.end(); iter++){
-                
-                char *sbuf=iter->first;
-                int  ssize=iter->second;
+            std::unordered_map < char *, int >::iterator iter;
+            for (iter = slices.begin(); iter != slices.end(); iter++) {
+
+                char *sbuf = iter->first;
+                int ssize = iter->second;
 
                 // the hole is big enough to store the KV
-                if(ssize >= kvsize){
+                if (ssize >= kvsize) {
 
-                    tmp.kv = sbuf+(ssize-kvsize);
-                    PUT_KV_VARS(ksize, vsize, tmp.kv, \
-                        key, keybytes, value, valuebytes, kvsize);
+                    tmp.kv = sbuf + (ssize - kvsize);
+                    PUT_KV_VARS(ksize, vsize, tmp.kv, key, keybytes,
+                                value, valuebytes, kvsize);
 
-                    if(iter->second == kvsize)
+                    if (iter->second == kvsize)
                         slices.erase(iter);
                     else
-                        slices[iter->first]-=kvsize;
+                        slices[iter->first] -= kvsize;
 
                     break;
                 }
             }
             // Add the KV at the tail of KV Container
-            if(iter==slices.end()){
+            if (iter == slices.end()) {
 
-                if(kvsize > (pagesize-pages[ipage].datasize))
+                if (kvsize > (pagesize - pages[ipage].datasize))
                     add_page();
-                
-                tmp.kv=pages[ipage].buffer+pages[ipage].datasize;
 
-                PUT_KV_VARS(ksize,vsize,tmp.kv,\
-                    key,keybytes,value,valuebytes,kvsize);
-                pages[ipage].datasize+=kvsize;
+                tmp.kv = pages[ipage].buffer + pages[ipage].datasize;
+
+                PUT_KV_VARS(ksize, vsize, tmp.kv, key, keybytes,
+                            value, valuebytes, kvsize);
+                pages[ipage].datasize += kvsize;
 
                 //slices.insert(std::make_pair(tmp.kv, kvsize));
 
@@ -132,162 +131,159 @@ int KeyValue::addKV(const char *key,int keybytes,const char *value,int valuebyte
 
             bucket->insertElem(&tmp);
 
-        // the key is in the bucket
-        }else{
+            // the key is in the bucket
+        }
+        else {
 
-            GET_KV_VARS(ksize,vsize,u->kv,\
-                ukey,ukeybytes,uvalue,uvaluebytes,ukvsize);
+            GET_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes,
+                        uvalue, uvaluebytes, ukvsize);
 
             // invoke user-defined combine function
-            mycombiner(mr,key,keybytes,\
-                uvalue,uvaluebytes,value,valuebytes, mr->myptr);
+            mycombiner(mr, key, keybytes, uvalue, uvaluebytes,
+                       value, valuebytes, mr->myptr);
 
         }
     }
 
-    local_kvs_count+=1;
+    local_kvs_count += 1;
 
     return 0;
 }
 
 
-int KeyValue::updateKV(const char *newkey,int newkeysize,\
-    const char *newval,int newvalsize){
-             
-    // check if the key is same 
-    if(newkeysize!=ukeybytes || \
-        memcmp(newkey, ukey, ukeybytes)!=0)
+int KeyValue::updateKV(const char *newkey, int newkeysize,
+                       const char *newval, int newvalsize)
+{
+    // check if the key is same
+    if (newkeysize != ukeybytes || memcmp(newkey, ukey, ukeybytes) != 0)
         LOG_ERROR("Error: the result key of combiner is different!\n");
-    
-    int kvsize;        
+
+    int kvsize;
     // get combined KV size
     GET_KV_SIZE(ksize, vsize, newkeysize, newvalsize, kvsize);
 
     // replace the exsiting KV
-    if(kvsize<=ukvsize){
-
+    if (kvsize <= ukvsize) {
         PUT_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes, newval, newvalsize, kvsize);
-
-        if(kvsize < ukvsize){
-            slices.insert(std::make_pair((u->kv+ukvsize-kvsize), ukvsize-kvsize));
+        if (kvsize < ukvsize) {
+            slices.insert(std::make_pair((u->kv + ukvsize - kvsize), ukvsize - kvsize));
         }
 
-    // add at the tail
-    }else{
-
+        // add at the tail
+    }
+    else {
         slices.insert(std::make_pair(u->kv, ukvsize));
-
         // add at the end of buffers
-        if( kvsize > (pagesize-pages[ipage].datasize) ) add_page();
+        if (kvsize > (pagesize - pages[ipage].datasize))
+            add_page();
 
-        u->kv=pages[ipage].buffer+pages[ipage].datasize;
+        u->kv = pages[ipage].buffer + pages[ipage].datasize;
 
         PUT_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes, newval, newvalsize, kvsize);
-        pages[ipage].datasize+=kvsize;
+        pages[ipage].datasize += kvsize;
     }
-
     return 0;
 }
 
 
-void KeyValue::gc(){
-
-    if(mycombiner!=NULL && npages>0 && slices.empty()==false){
-
+void KeyValue::gc()
+{
+    if (mycombiner != NULL && npages > 0 && slices.empty() == false) {
         LOG_PRINT(DBG_MEM, "Key Value: garbege collection (size=%ld)\n", slices.size());
 
-        int dst_pid=0,src_pid=0;
-        int64_t dst_off=0,src_off=0;
+        int dst_pid = 0, src_pid = 0;
+        int64_t dst_off = 0, src_off = 0;
 
-        char *dst_buf=NULL;
-        char *src_buf=pages[0].buffer;
+        char *dst_buf = NULL;
+        char *src_buf = pages[0].buffer;
 
         // scan all pages
-        while(src_pid<npages){
-            src_off=0;
+        while (src_pid < npages) {
+            src_off = 0;
             // scan page src_pid
-            while(src_off<pages[src_pid].datasize){
-
+            while (src_off < pages[src_pid].datasize) {
                 // get current input buffer
-                src_buf=pages[src_pid].buffer+src_off;
-                
+                src_buf = pages[src_pid].buffer + src_off;
+
                 // find the buffer
-                std::unordered_map<char*,int>::iterator iter=slices.find(src_buf);
+                std::unordered_map < char *, int >::iterator iter = slices.find(src_buf);
 
                 // find a slice
-                if(iter != slices.end()){
-                    if(dst_buf==NULL){
-                        dst_pid=src_pid;
-                        dst_off=src_off;
-                        dst_buf=src_buf;
+                if (iter != slices.end()) {
+                    if (dst_buf == NULL) {
+                        dst_pid = src_pid;
+                        dst_off = src_off;
+                        dst_buf = src_buf;
                     }
-                    src_off+=iter->second;
-                }else{
+                    src_off += iter->second;
+                }
+                else {
                     // get the KV
-                    char *key=NULL, *value=NULL;
-                    int  keybytes=0, valuebytes=0, kvsize=0;
-                    GET_KV_VARS(ksize,vsize,src_buf,key,keybytes,value,valuebytes,kvsize);
+                    char *key = NULL, *value = NULL;
+                    int keybytes = 0, valuebytes = 0, kvsize = 0;
+                    GET_KV_VARS(ksize, vsize, src_buf, key, keybytes, value, valuebytes, kvsize);
                     // copy the KV
-                    if(dst_buf!=NULL && src_buf != dst_buf){
+                    if (dst_buf != NULL && src_buf != dst_buf) {
                         // jump to the next page
-                        if(pagesize-dst_off<kvsize){
-                            pages[dst_pid].datasize=dst_off;
-                            dst_pid+=1;
-                            dst_off=0;
-                            dst_buf=pages[dst_pid].buffer;
+                        if (pagesize - dst_off < kvsize) {
+                            pages[dst_pid].datasize = dst_off;
+                            dst_pid += 1;
+                            dst_off = 0;
+                            dst_buf = pages[dst_pid].buffer;
                         }
                         // copy the KV
                         memcpy(dst_buf, src_buf, kvsize);
-                        dst_off+=kvsize;
-                        dst_buf+=kvsize;
+                        dst_off += kvsize;
+                        dst_buf += kvsize;
                     }
-                    src_off+=kvsize;
+                    src_off += kvsize;
                 }
             }
-            src_pid+=1;
+            src_pid += 1;
         }
         // free extra space
-        for(int i=dst_pid+1; i<npages; i++){
-           mem_aligned_free(pages[i].buffer); 
-           pages[i].buffer=NULL;
-           pages[i].datasize=0;
+        for (int i = dst_pid + 1; i < npages; i++) {
+            mem_aligned_free(pages[i].buffer);
+            pages[i].buffer = NULL;
+            pages[i].datasize = 0;
         }
-        if(dst_buf!=NULL){
-           pages[dst_pid].datasize=dst_off;
-           npages=dst_pid+1;
+        if (dst_buf != NULL) {
+            pages[dst_pid].datasize = dst_off;
+            npages = dst_pid + 1;
         }
         slices.clear();
-    } 
+    }
 }
 
-void KeyValue::print(FILE *fp, ElemType ktype, ElemType vtype){
+void KeyValue::print(FILE *fp, ElemType ktype, ElemType vtype)
+{
+    char *key, *value;
+    int keybytes, valuebytes;
 
-  char *key, *value;
-  int keybytes, valuebytes;
+    printf("key\tvalue\n");
 
-  printf("key\tvalue\n");
+    for (int i = 0; i < npages; i++) {
+        acquire_page(i);
+        int offset = getNextKV(&key, keybytes, &value, valuebytes);
+        while (offset != -1) {
+            if (ktype == StringType)
+                fprintf(fp, "%s", key);
+            else if (ktype == Int32Type)
+                fprintf(fp, "%d", *(int*) key);
+            else if (ktype == Int64Type)
+                fprintf(fp, "%ld", *(int64_t*) key);
 
-  for(int i = 0; i < npages; i++){
-    acquire_page(i);
+            if (vtype == StringType)
+                fprintf(fp, "\t%s", value);
+            else if (vtype == Int32Type)
+                fprintf(fp, "\t%d", *(int*) value);
+            else if (vtype == Int64Type)
+                fprintf(fp, "\t%ld", *(int64_t*) value);
 
-    int offset = getNextKV(&key, keybytes, &value, valuebytes);
+            fprintf(fp, "\n");
+            offset = getNextKV(&key, keybytes, &value, valuebytes);
+        }
 
-    while(offset != -1){
-
-      if(ktype==StringType) fprintf(fp, "%s", key);
-      else if(ktype==Int32Type) fprintf(fp, "%d", *(int*)key);
-      else if(ktype==Int64Type) fprintf(fp, "%ld", *(int64_t*)key);
-
-      if(vtype==StringType) fprintf(fp, "\t%s", value);
-      else if(vtype==Int32Type) fprintf(fp, "\t%d", *(int*)value);
-      else if(vtype==Int64Type) fprintf(fp, "\t%ld", *(int64_t*)value);
-       
-      fprintf(fp, "\n");
-
-      offset = getNextKV(&key, keybytes, &value, valuebytes);
+        release_page(i);
     }
-
-    release_page(i);
-
-  }
 }

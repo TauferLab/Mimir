@@ -24,38 +24,32 @@ namespace MIMIR_NS {
 class CombinerHashBucket;
 struct CombinerUnique;
 
-class KeyValue : public DataObject{
+class KeyValue:public DataObject {
 public:
-    KeyValue(int, int,
-        int64_t pagesize=1,
-        int maxpages=4);
+    KeyValue(int, int, int64_t pagesize = 1, int maxpages = 4);
 
     ~KeyValue();
 
-    void set_kv_size(int _ksize, int _vsize){
+    void set_kv_size(int _ksize, int _vsize) {
         ksize = _ksize;
         vsize = _vsize;
     }
+    // Scan KVs one by one int getNextKV(char**, int&, char**, int&);// Add KVs one by one
+    int addKV(const char*, int, const char*, int);
 
-    // Scan KVs one by one
-    int getNextKV(char **, int &, char **, int &);
-
-    // Add KVs one by one
-    int addKV(const char *, int, const char *, int);
-
-    int updateKV(const char *, int, const char *, int);
+    int updateKV(const char*, int, const char*, int);
 
     void gc();
 
     void set_combiner(MapReduce *_mr, UserCombiner _combiner);
 
-    uint64_t get_local_count(){
+    uint64_t get_local_count() {
         return local_kvs_count;
     }
-    uint64_t get_global_count(){
+    uint64_t get_global_count() {
         return global_kvs_count;
     }
-    void set_global_count(uint64_t _count){
+    void set_global_count(uint64_t _count) {
         global_kvs_count = _count;
     }
 
@@ -64,18 +58,18 @@ public:
 
 public:
     //enum KVType kvtype;
-    int    ksize, vsize;
-    uint64_t local_kvs_count, global_kvs_count; 
+    int ksize, vsize;
+    uint64_t local_kvs_count, global_kvs_count;
 
     MapReduce *mr;
     UserCombiner mycombiner;
 
-    std::unordered_map<char*, int> slices;
-    CombinerHashBucket* bucket;
+    std::unordered_map < char *, int >slices;
+    CombinerHashBucket *bucket;
 
-    CombinerUnique *u=NULL;
+    CombinerUnique *u = NULL;
     char *ukey, *uvalue;
-    int  ukeybytes, uvaluebytes, ukvsize;
+    int ukeybytes, uvaluebytes, ukvsize;
 };
 
 }

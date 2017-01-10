@@ -30,7 +30,7 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
     do {                                                                       \
         log_world_rank = rank;                                                 \
         log_world_size = size;                                                 \
-    } while(0)
+    } while (0)
 
 #ifdef _DEBUG
 #define LOG_PRINT(type, ...)                                                   \
@@ -42,7 +42,7 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
                     log_world_rank, log_world_size, __FILE__, __LINE__, _s);   \
             fflush(stdout);                                                    \
         }                                                                      \
-    } while(0)
+    } while (0)
 #else
 #define LOG_PRINT(type, ...)
 #endif
@@ -53,7 +53,7 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
         sprintf(_s, __VA_ARGS__);                                              \
         fprintf(stderr, "%d[%d] %s:%d %s",                                     \
                 log_world_rank, log_world_size, __FILE__, __LINE__, _s);       \
-    } while(0)
+    } while (0)
 
 #define LOG_ERROR(...)                                                         \
     do {                                                                       \
@@ -62,7 +62,7 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
         fprintf(stderr, "%d[%d] %s:%d %s",                                     \
                 log_world_rank, log_world_size, __FILE__, __LINE__, _s);       \
         MPI_Abort(MPI_COMM_WORLD, 1);                                          \
-    } while(0)
+    } while (0)
 
 #endif
 
@@ -74,7 +74,7 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
             sprintf(&dump_buffer[2*i], "%02hhX", ((const unsigned char*)(addr))[i]); \
         }                                                                      \
         dump_buffer[2*(length)] = '\0';                                        \
-    } while(0)
+    } while (0)
 
 #define LOG_DUMP_MEMORY_BUF(addr, length, buf)                                 \
     do {                                                                       \
@@ -84,5 +84,4 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
             sprintf((buf) + 2 * i, "%02hhX", ((const unsigned char*)(addr))[i]); \
         }                                                                      \
         (buf)[2*(length)] = '\0';                                              \
-    } while(0)
-
+    } while (0)

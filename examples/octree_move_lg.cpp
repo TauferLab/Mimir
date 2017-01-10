@@ -26,8 +26,7 @@ int rank, size;
 
 void generate_octkey(MapReduce *, char *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void *);
-void combiner(MapReduce *, const char *, int, const char *, int, const char *,
-              int, void *);
+void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void *);
 void sum(MapReduce *, char *, int, void *);
 double slope(double[], double[], int);
 
@@ -68,7 +67,7 @@ int main(int argc, char **argv)
     int min_limit, max_limit;
     min_limit = 0;
     max_limit = digits + 1;
-    level = (int)floor((max_limit + min_limit) / 2);
+    level = (int) floor((max_limit + min_limit) / 2);
 
     MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
 
@@ -83,7 +82,7 @@ int main(int argc, char **argv)
     uint64_t nwords = mr_convert->map_text_file(indir, 1, 1, whitespace,
                                                 generate_octkey, NULL, 0);
 
-    thresh = (int64_t)((float)nwords * density);
+    thresh = (int64_t) ((float) nwords * density);
     if (rank == 0) {
         printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
     }
@@ -106,10 +105,11 @@ int main(int argc, char **argv)
 
         if (nkv > 0) {
             min_limit = level;
-            level = (int)floor((max_limit + min_limit) / 2);
-        } else {
+            level = (int) floor((max_limit + min_limit) / 2);
+        }
+        else {
             max_limit = level;
-            level = (int)floor((max_limit + min_limit) / 2);
+            level = (int) floor((max_limit + min_limit) / 2);
         }
     }
 
@@ -127,38 +127,37 @@ int main(int argc, char **argv)
     MPI_Finalize();
 }
 
-void combiner(MapReduce *mr, const char *key, int keysize, const char *val1,
+void combiner(MapReduce * mr, const char *key, int keysize, const char *val1,
               int val1size, const char *val2, int val2size, void *ptr)
 {
-    int64_t count = *(int64_t *)(val1) + *(int64_t *)(val2);
+    int64_t count = *(int64_t *) (val1) + *(int64_t *) (val2);
 
-    mr->update_key_value(key, keysize, (char *)&count, sizeof(count));
+    mr->update_key_value(key, keysize, (char *) &count, sizeof(count));
 }
 
-void sum(MapReduce *mr, char *key, int keysize, void *ptr)
+void sum(MapReduce * mr, char *key, int keysize, void *ptr)
 {
 
     int64_t sum = 0;
 
     const void *val = mr->get_first_value();
     while (val != NULL) {
-        sum += *(int64_t *)val;
+        sum += *(int64_t *) val;
         val = mr->get_next_value();
     }
 
     if (sum > thresh) {
-        mr->add_key_value(key, keysize, (char *)&sum, sizeof(int64_t));
+        mr->add_key_value(key, keysize, (char *) &sum, sizeof(int64_t));
     }
 }
 
-void gen_leveled_octkey(MapReduce *mr, char *key, int keysize, char *val,
-                        int valsize, void *ptr)
+void gen_leveled_octkey(MapReduce * mr, char *key, int keysize, char *val, int valsize, void *ptr)
 {
     int64_t count = 1;
-    mr->add_key_value(key, level, (char *)&count, sizeof(int64_t));
+    mr->add_key_value(key, level, (char *) &count, sizeof(int64_t));
 }
 
-void generate_octkey(MapReduce *mr, char *word, void *ptr)
+void generate_octkey(MapReduce * mr, char *word, void *ptr)
 {
     double range_up = 4.0, range_down = -4.0;
     char octkey[digits];
@@ -172,8 +171,8 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
     token = strtok_r(word, " ", &saveptr);
     b2 = atof(token);
 
-    /*compute octkey, "digit" many digits*/
-    int count = 0; // count how many digits are in the octkey
+    /*compute octkey, "digit" many digits */
+    int count = 0;              // count how many digits are in the octkey
     double minx = range_down, miny = range_down, minz = range_down;
     double maxx = range_up, maxy = range_up, maxz = range_up;
     while (count < digits) {
@@ -182,7 +181,8 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
         if (b0 > rankdx) {
             m0 = 1;
             minx = rankdx;
-        } else {
+        }
+        else {
             maxx = rankdx;
         }
 
@@ -190,18 +190,20 @@ void generate_octkey(MapReduce *mr, char *word, void *ptr)
         if (b1 > rankdy) {
             m1 = 1;
             miny = rankdy;
-        } else {
+        }
+        else {
             maxy = rankdy;
         }
         double rankdz = minz + ((maxz - minz) / 2);
         if (b2 > rankdz) {
             m2 = 1;
             minz = rankdz;
-        } else {
+        }
+        else {
             maxz = rankdz;
         }
 
-        /*calculate the octant using the formula m0*2^0+m1*2^1+m2*2^2*/
+        /*calculate the octant using the formula m0*2^0+m1*2^1+m2*2^2 */
         int bit = m0 + (m1 * 2) + (m2 * 4);
         // char bitc=(char)(((int)'0') + bit); //int 8 => char '8'
         octkey[count] = bit & 0x7f;

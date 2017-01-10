@@ -11,8 +11,7 @@ int rank, size;
 
 void map(void *mr, char *word, void *ptr);
 void countword(void *, char *, int, void *);
-void combiner(void *, const char *, int, const char *, int, const char *, int,
-              void *);
+void combiner(void *, const char *, int, const char *, int, const char *, int, void *);
 
 int main(int argc, char *argv[])
 {
@@ -74,10 +73,10 @@ void map(void *mr, char *word, void *ptr)
 {
     // printf("word=%s\n", word);
 
-    int len = (int)strlen(word) + 1;
+    int len = (int) strlen(word) + 1;
     int64_t one = 1;
     if (len <= 1024)
-        add_key_value(mr, word, len, (char *)&one, sizeof(one));
+        add_key_value(mr, word, len, (char *) &one, sizeof(one));
 }
 
 void countword(void *mr, char *key, int keysize, void *ptr)
@@ -86,7 +85,7 @@ void countword(void *mr, char *key, int keysize, void *ptr)
 
     const void *val = get_first_value(mr);
     while (val != NULL) {
-        count += *(int64_t *)val;
+        count += *(int64_t *) val;
         val = get_next_value(mr);
     }
     // for(iter->Begin(); !iter->Done(); iter->Next()){
@@ -96,14 +95,14 @@ void countword(void *mr, char *key, int keysize, void *ptr)
 
     // printf("sum: key=%s, count=%ld\n", key, count);
 
-    add_key_value(mr, key, keysize, (char *)&count, sizeof(count));
+    add_key_value(mr, key, keysize, (char *) &count, sizeof(count));
 }
 
 void combiner(void *mr, const char *key, int keysize, const char *val1,
               int val1size, const char *val2, int val2size, void *ptr)
 {
 
-    int64_t count = *(int64_t *)(val1) + *(int64_t *)(val2);
+    int64_t count = *(int64_t *) (val1) + *(int64_t *) (val2);
 
-    update_key_value(mr, key, keysize, (char *)&count, sizeof(count));
+    update_key_value(mr, key, keysize, (char *) &count, sizeof(count));
 }

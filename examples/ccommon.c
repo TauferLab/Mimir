@@ -14,12 +14,10 @@ void check_envars(int rank, int size)
 {
     if (getenv("MIMIR_BUCKET_SIZE") == NULL ||
         getenv("MIMIR_COMM_SIZE") == NULL ||
-        getenv("MIMIR_PAGE_SIZE") == NULL ||
-        getenv("MIMIR_IBUF_SIZE") == NULL) {
+        getenv("MIMIR_PAGE_SIZE") == NULL || getenv("MIMIR_IBUF_SIZE") == NULL) {
         if (rank == 0)
             printf("Please set MIMIR_BUCKET_SIZE, MIMIR_COMM_SIZE, "
-                   "MIMIR_PAGE_SIZE "
-                   "and MIMIR_IBUF_SIZE environments!\n");
+                   "MIMIR_PAGE_SIZE " "and MIMIR_IBUF_SIZE environments!\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 }

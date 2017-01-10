@@ -142,7 +142,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
 
   u.ptr = key;
   if (HASH_LITTLE_ENDIAN && ((u.i & 0x3) == 0)) {
-    const uint32_t *k = (const uint32_t *)key;         /* read 32-bit chunks */
+    const uint32_t *k = (const uint32_t*)key;         /* read 32-bit chunks */
     //const uint8_t  *k8;
 
     /*------ all but last block: aligned reads and affect 32 bits of (a,b,c) */
@@ -187,7 +187,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
 
 #else /* make valgrind happy */
 
-    k8 = (const uint8_t *)k;
+    k8 = (const uint8_t*)k;
     switch(length)
     {
     case 12: c+=k[2]; b+=k[1]; a+=k[0]; break;
@@ -208,7 +208,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
 #endif /* !valgrind */
 
   } else if (HASH_LITTLE_ENDIAN && ((u.i & 0x1) == 0)) {
-    const uint16_t *k = (const uint16_t *)key;         /* read 16-bit chunks */
+    const uint16_t *k = (const uint16_t*)key;         /* read 16-bit chunks */
     const uint8_t  *k8;
 
     /*--------------- all but last block: aligned reads and different mixing */
@@ -223,7 +223,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
     }
 
     /*----------------------------- handle the last (probably partial) block */
-    k8 = (const uint8_t *)k;
+    k8 = (const uint8_t*)k;
     switch(length)
     {
     case 12: c+=k[4]+(((uint32_t)k[5])<<16);
@@ -255,7 +255,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
     }
 
   } else {                        /* need to read the key one byte at a time */
-    const uint8_t *k = (const uint8_t *)key;
+    const uint8_t *k = (const uint8_t*)key;
 
     /*--------------- all but the last block: affect some 32 bits of (a,b,c) */
     while (length > 12)
@@ -316,7 +316,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
 
   /* First hash the uint32_t-sized portions of the key */
   h = 0;
-  for (p = (uint32_t *)key, bytes=num_bytes;
+  for (p = (uint32_t*)key, bytes=num_bytes;
        bytes >= (uint32_t) sizeof(uint32_t);
        bytes-=sizeof(uint32_t), p++){
     h = (h^(*p))*MAXINT_DIV_PHI;
@@ -324,7 +324,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
 
   /* Then take care of the remaining bytes, if any */
   rest = 0;
-  for (byteptr = (char *)p; bytes > 0; bytes--, byteptr++){
+  for (byteptr = (char*)p; bytes > 0; bytes--, byteptr++){
     rest = (rest<<8) | (*byteptr);
   }
 

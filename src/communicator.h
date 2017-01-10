@@ -18,19 +18,18 @@
 
 namespace MIMIR_NS {
 
-template<class ElemType>
-class HashBucket;
+template <class ElemType> class HashBucket;
 
-class Communicator{
+class Communicator {
 public:
     Communicator(MPI_Comm _comm, int _commtype);
     virtual ~Communicator();
 
-    virtual int setup(int64_t, KeyValue *kv, MapReduce *mr, \
-        UserCombiner combiner, UserHash myhash);
+    virtual int setup(int64_t, KeyValue *kv, MapReduce *mr,
+                      UserCombiner combiner, UserHash myhash);
 
-    virtual int sendKV(const char *, int, const char *, int) = 0;
-    virtual int updateKV(const char *, int, const char *, int) = 0;
+    virtual int sendKV(const char*, int, const char*, int) = 0;
+    virtual int updateKV(const char*, int, const char*, int) = 0;
     virtual void wait() = 0;
     virtual void gc() = 0;
 
@@ -44,30 +43,29 @@ protected:
     int medone, pdone;
 
     /// data object
-    MapReduce    *mr;
+    MapReduce *mr;
     UserCombiner mycombiner;
-    UserHash     myhash;
-    KeyValue    *kv;
+    UserHash myhash;
+    KeyValue *kv;
     //int blockid;
 
     /// buffer information
     int nbuf;
     int64_t send_buf_size;
     char **send_buffers;
-    int  **send_offsets;
+    int **send_offsets;
 
 public:
     std::unordered_map<char*, int> slices;
     CombinerHashBucket *bucket;
-    CombinerUnique *u=NULL;
+    CombinerUnique *u = NULL;
     int target;
     char *ukey, *uvalue;
-    int  ukeysize, uvaluesize, ukvsize;
+    int ukeysize, uvaluesize, ukvsize;
 
 public:
     static Communicator* Create(MPI_Comm, int);
 };
 
 }
-
 #endif

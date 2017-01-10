@@ -13,10 +13,9 @@ using namespace MIMIR_NS;
 
 int rank, size;
 
-void map(MapReduce *mr, char *word, void *ptr);
+void map(MapReduce * mr, char *word, void *ptr);
 void countword(MapReduce *, char *, int, void *);
-void combiner(MapReduce *, const char *, int, const char *, int, const char *,
-              int, void *);
+void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void *);
 
 int main(int argc, char *argv[])
 {
@@ -68,8 +67,7 @@ int main(int argc, char *argv[])
     uint64_t nunique = mr->reduce(countword, NULL);
 
     if (rank == 0)
-        fprintf(stdout, "number of words=%ld, number of unique words=%ld\n",
-                nwords, nunique);
+        fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", nwords, nunique);
 
     // mr->output(stdout, StringType, StringType);
 
@@ -80,54 +78,54 @@ int main(int argc, char *argv[])
     MPI_Finalize();
 }
 
-void map(MapReduce *mr, char *word, void *ptr)
+void map(MapReduce * mr, char *word, void *ptr)
 {
-    int len = (int)strlen(word) + 1;
+    int len = (int) strlen(word) + 1;
     if (len <= 1024) {
 #ifdef VALUE_STRING
-        char tmp[10] = {"1"};
+        char tmp[10] = { "1" };
         mr->add_key_value(word, len, tmp, 2);
 #else
         int64_t one = 1;
-        mr->add_key_value(word, len, (char *)&one, sizeof(one));
+        mr->add_key_value(word, len, (char *) &one, sizeof(one));
 #endif
     }
 }
 
-void countword(MapReduce *mr, char *key, int keysize, void *ptr)
+void countword(MapReduce * mr, char *key, int keysize, void *ptr)
 {
     int64_t count = 0;
 
     const void *val = mr->get_first_value();
     while (val != NULL) {
 #ifdef VALUE_STRING
-        count += strtoull((const char *)val, NULL, 0);
+        count += strtoull((const char *) val, NULL, 0);
 #else
-        count += *(int64_t *)val;
+        count += *(int64_t *) val;
 #endif
         val = mr->get_next_value();
     }
 
 #ifdef VALUE_STRING
-    char tmp[20] = {0};
+    char tmp[20] = { 0 };
     sprintf(tmp, "%ld", count);
-    mr->add_key_value(key, keysize, tmp, (int)strlen(tmp) + 1);
+    mr->add_key_value(key, keysize, tmp, (int) strlen(tmp) + 1);
 #else
-    mr->add_key_value(key, keysize, (char *)&count, sizeof(count));
+    mr->add_key_value(key, keysize, (char *) &count, sizeof(count));
 #endif
 }
 
-void combiner(MapReduce *mr, const char *key, int keysize, const char *val1,
+void combiner(MapReduce * mr, const char *key, int keysize, const char *val1,
               int val1size, const char *val2, int val2size, void *ptr)
 {
 
 #ifdef VALUE_STRING
     int64_t count = strtoull(val1, NULL, 0) + strtoull(val2, NULL, 0);
-    char tmp[20] = {0};
+    char tmp[20] = { 0 };
     sprintf(tmp, "%ld", count);
-    mr->update_key_value(key, keysize, tmp, (int)strlen(tmp) + 1);
+    mr->update_key_value(key, keysize, tmp, (int) strlen(tmp) + 1);
 #else
-    int64_t count = *(int64_t *)(val1) + *(int64_t *)(val2);
-    mr->update_key_value(key, keysize, (char *)&count, sizeof(count));
+    int64_t count = *(int64_t *) (val1) + *(int64_t *) (val2);
+    mr->update_key_value(key, keysize, (char *) &count, sizeof(count));
 #endif
 }

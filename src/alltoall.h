@@ -15,14 +15,14 @@
 
 namespace MIMIR_NS {
 
-class Alltoall : public Communicator{
+class Alltoall : public Communicator {
 public:
     Alltoall(MPI_Comm);
     ~Alltoall();
 
-    int setup(int64_t, KeyValue *, MapReduce *, UserCombiner, UserHash);
-    int sendKV(const char *, int, const char *, int);
-    int updateKV(const char *, int, const char *, int);
+    int setup(int64_t, KeyValue*, MapReduce*, UserCombiner, UserHash);
+    int sendKV(const char*, int, const char*, int);
+    int updateKV(const char*, int, const char*, int);
 
     void wait();
 
@@ -32,14 +32,14 @@ private:
     void exchange_kv();
     void save_data(int);
 
-    int   switchflag;
-    int   ibuf;
+    int switchflag;
+    int ibuf;
     char *buf;
-    int  *off;
+    int *off;
 
     int **recv_count;
     char **recv_buf;
-    int64_t  *recvcounts;
+    int64_t *recvcounts;
     int type_log_bytes;
 
     MPI_Request *reqs;

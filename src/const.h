@@ -14,40 +14,42 @@
 #define MAX_COMM_SIZE        0x40000000
 
 /// KV Type
-enum KVType{
-    KVGeneral=-2, // variable length bytes
-    KVString,     // string
-    KVFixed};     // fixed-size KV
+enum KVType {
+    KVGeneral = -2,             // variable length bytes
+    KVString,   // string
+    KVFixed
+};      // fixed-size KV
 
-enum ElemType{
+enum ElemType {
     StringType,
     Int32Type,
-    Int64Type};
+    Int64Type
+};
 
 // Get KV information
 #define GET_KV_VARS(ksize,vsize,buf,key,keybytes,value,valuebytes,kvsize) \
 {\
     char *kvbuf_start=buf;\
     char *kvbuf=buf;\
-    if(ksize==KVGeneral){\
+    if (ksize==KVGeneral){\
         keybytes = *(int*)(kvbuf);\
         kvbuf += oneintlen;\
     }\
-    if(vsize==KVGeneral){\
+    if (vsize==KVGeneral){\
         valuebytes = *(int*)(kvbuf);\
         kvbuf += oneintlen;\
     }\
     key=kvbuf;\
-    if(ksize==KVString){\
+    if (ksize==KVString){\
         keybytes = (int)strlen(key)+1;\
-    }else if(ksize!=KVGeneral){\
+    }else if (ksize!=KVGeneral){\
         keybytes = ksize;\
     }\
     kvbuf+=keybytes;\
     value=kvbuf;\
-    if(vsize==KVString){\
+    if (vsize==KVString){\
         valuebytes = (int)strlen(value)+1;\
-    }else if(vsize!=KVGeneral){\
+    }else if (vsize!=KVGeneral){\
         valuebytes = vsize;\
     }\
     kvbuf+=valuebytes;\
@@ -58,8 +60,8 @@ enum ElemType{
 {\
     int end=0;\
     int start=0;\
-    if(ksize==KVGeneral) end+=oneintlen;\
-    if(vsize==KVGeneral) end+=oneintlen;\
+    if (ksize==KVGeneral) end+=oneintlen;\
+    if (vsize==KVGeneral) end+=oneintlen;\
     end+=keybytes;\
     end+=valuebytes;\
     kvsize=end-start;\
@@ -69,11 +71,11 @@ enum ElemType{
 {\
     char *kvbuf_start=buf;\
     char *kvbuf=buf;\
-    if(ksize==KVGeneral){\
+    if (ksize==KVGeneral){\
         *(int*)kvbuf=keybytes;\
         kvbuf+=oneintlen;\
     }\
-    if(vsize==KVGeneral){\
+    if (vsize==KVGeneral){\
         *(int*)kvbuf=valuebytes;\
         kvbuf+=oneintlen;\
     }\

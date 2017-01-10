@@ -33,30 +33,30 @@ class ReducerHashBucket;
 class ReducerUnique;
 class ReducerSet;
 
-enum OpPhase{NonePhase,MapPhase,LocalMapPhase,ReducePhase,ScanPhase,CombinePhase};
+enum OpPhase { NonePhase, MapPhase, LocalMapPhase, ReducePhase, ScanPhase, CombinePhase };
 
 
 /// hash callback
-typedef  int (*UserHash)(const char *, int);
+typedef int (*UserHash) (const char*, int);
 
 /// map callback to init KVs
-typedef void (*UserInitKV)(MapReduce *, void *);
+typedef void (*UserInitKV) (MapReduce*, void*);
 
 /// map callback to map files
-typedef void (*UserMapFile) (MapReduce *, char *, void *);
+typedef void (*UserMapFile) (MapReduce*, char*, void*);
 
 /// map callback to map KVs
-typedef void (*UserMapKV) (MapReduce *, char *, int, char *, int, void *);
+typedef void (*UserMapKV) (MapReduce*, char*, int, char*, int, void*);
 
 /// reduce callback
-typedef void (*UserReduce)(MapReduce *, char *, int, void*);
+typedef void (*UserReduce) (MapReduce*, char*, int, void*);
 
 /// combiner callback
-typedef void (*UserCombiner)(MapReduce *, 
-  const char *, int, const char *, int, const char *, int, void*);
+typedef void (*UserCombiner) (MapReduce*,
+                              const char*, int, const char*, int, const char*, int, void*);
 
 /// User-defined scan function
-typedef void (*UserScan)(char *, int, char *, int ,void *);
+typedef void (*UserScan) (char*, int, char*, int, void*);
 
 /// MapReduce
 class MapReduce {
@@ -66,7 +66,7 @@ public:
 
       @param[in]  comm MPI communicator
       @return MapReduce object pointer
-    */
+      */
     MapReduce(MPI_Comm comm);
 
     /**
@@ -74,12 +74,12 @@ public:
 
       @param[in]  mr MapReduce object
       @return MapReduce object pointer
-    */
+      */
     MapReduce(const MapReduce &mr);
 
     /**
       Destructor function.
-    */
+      */
     ~MapReduce();
 
     /**
@@ -89,9 +89,8 @@ public:
       @param[in]  ptr    user-defined pointer (default: NULL)
       @param[in]  comm   with communication or not (default: 1)
       @return output <key,value> count
-    */
-    uint64_t init_key_value(
-        UserInitKV myinit, void *ptr=NULL, int comm=1);
+      */
+    uint64_t init_key_value(UserInitKV myinit, void *ptr = NULL, int comm = 1);
 
     /**
       Map function with text files.
@@ -104,9 +103,10 @@ public:
       @param[in]  ptr        user-defined pointer (default: NULL)
       @param[in]  comm       with communication or not (default: 1)
       @return output <key,value> count
-    */
+      */
     uint64_t map_text_file(char *filename, int shared, int recurse,
-      const char *seperator, UserMapFile mymap, void *ptr=NULL, int comm=1);
+                           const char *seperator, UserMapFile mymap, void *ptr =
+                           NULL, int comm = 1);
 
     /**
       Map function with MapReduce object as input.
@@ -116,9 +116,8 @@ public:
       @param[in]  ptr   user-defined pointer (default: NULL)
       @param[in]  comm  communication or not (default: 1)
       @return output <key,value> count
-    */
-    uint64_t map_key_value(MapReduce *mr,
-      UserMapKV mymap,  void *ptr=NULL, int comm=1);
+      */
+    uint64_t map_key_value(MapReduce *mr, UserMapKV mymap, void *ptr = NULL, int comm = 1);
 
     /**
       Reduce function.
@@ -126,19 +125,19 @@ public:
       @param[in]  myreduce user-defined reduce function
       @param[in]  ptr user-defined pointer (default: NULL)
       @return output <key,value> count
-    */
-    uint64_t reduce(UserReduce _myreduce, void* ptr=NULL);
+      */
+    uint64_t reduce(UserReduce _myreduce, void *ptr = NULL);
 
     /**
       Scan function.
 
       @param[in]  myscan user-defined scan function
       @param[in]  ptr user-defined pointer (default: NULL)
-    */
-    void scan(UserScan myscan, void * ptr=NULL);
+      */
+    void scan(UserScan myscan, void *ptr = NULL);
 
-    uint64_t bcast(int rank=0);
-    uint64_t collect(int rank=0);
+    uint64_t bcast(int rank = 0);
+    uint64_t collect(int rank = 0);
 
     /**
       Add <key,value>. This function only can be invoked in callbacks.
@@ -148,27 +147,22 @@ public:
       @param[in]  value value pointer
       @param[in]  valubytes value size
       @return nothing
-    */
-    void add_key_value(const char *key, int keybytes,
-        const char *value, int valuebytes);
+      */
+    void add_key_value(const char *key, int keybytes, const char *value, int valuebytes);
 
-    void update_key_value(const char *key, int keybytes,
-        const char *value, int valuebytes);
+    void update_key_value(const char *key, int keybytes, const char *value, int valuebytes);
 
     void output(FILE *fp, ElemType key, ElemType val);
 
     void set_key_length(int);
     void set_value_length(int);
 
-    void set_combiner(UserCombiner combiner){
+    void set_combiner(UserCombiner combiner) {
         mycombiner = combiner;
-    }
-    void set_hash(UserHash _myhash){
+    } void set_hash(UserHash _myhash) {
         myhash = _myhash;
-    }
-
-    const void *get_first_value();
-    const void *get_next_value(); 
+    } const void *get_first_value();
+    const void *get_next_value();
 
     static void output_stat(const char *filename);
 
@@ -177,19 +171,19 @@ private:
     friend class Alltoall;
 
 private:
-    MPI_Comm comm;                   ///< MPI communicator
-    int me,nprocs;                   ///< MPI communicator information
+    MPI_Comm comm;  ///< MPI communicator
+    int me, nprocs;         ///< MPI communicator information
 
-    OpPhase phase;                   ///< operation mode
-    KeyValue  *kv;                   ///< KV container
-    Communicator *c;                 ///< communicator
-    std::vector<std::pair<std::string,int64_t> > ifiles;
+    OpPhase phase;          ///< operation mode
+    KeyValue *kv;           ///< KV container
+    Communicator *c;        ///< communicator
+    std::vector < std::pair < std::string, int64_t > >ifiles;
 
-    UserHash     myhash;             ///< user-define hash function
-    UserCombiner mycombiner;         ///< user-defined combiner function
+    UserHash myhash;        ///< user-define hash function
+    UserCombiner mycombiner;        ///< user-defined combiner function
 
     //enum KVType kvtype;              ///< KV types
-    int    ksize, vsize;             
+    int ksize, vsize;
 
 public:
     void *myptr;
@@ -204,7 +198,7 @@ private:
     uint64_t _get_kv_count();
 
     // Convert string to int64_t
-    int64_t _convert_to_int64(const char *);
+    int64_t _convert_to_int64(const char*);
 
     // Get input file list
     void _get_input_files(const char *, int, int);
@@ -213,17 +207,17 @@ private:
     void _dist_input_files(const char *, int, int);
 
     // reduce phase
-    void _reduce(ReducerHashBucket *u, UserReduce _myreduce, void* ptr);
-    
+    void _reduce(ReducerHashBucket * u, UserReduce _myreduce, void *ptr);
+
     // convert phase
-    void _convert(KeyValue *inkv, DataObject *mv, ReducerHashBucket *u);
+    void _convert(KeyValue *inkv, DataObject *mv, ReducerHashBucket * u);
 
 public:
     static int ref;
 
-};//class MapReduce
+};  //class MapReduce
 
-class MultiValueIterator{
+class MultiValueIterator {
 public:
 
     MultiValueIterator(KeyValue *kv, ReducerUnique *ukey);
@@ -233,22 +227,22 @@ public:
     void Begin();
     void Next();
 
-    int Done(){
+    int Done() {
         return isdone;
     }
-    const char *getValue(){
+    const char *getValue() {
         return value;
     }
-    int getSize(){
-      return valuesize;
+    int getSize() {
+        return valuesize;
     }
-    int64_t getCount(){
+    int64_t getCount() {
         return nvalue;
     }
 
 private:
 
-    int64_t  nvalue;
+    int64_t nvalue;
     int *valuebytes;
     char *values;
 
@@ -265,6 +259,6 @@ private:
     ReducerSet *pset;
 };
 
-}//namespace
+}       //namespace
 
 #endif

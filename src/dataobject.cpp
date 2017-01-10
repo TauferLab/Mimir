@@ -23,83 +23,87 @@ using namespace MIMIR_NS;
 
 int DataObject::object_id = 0;
 
-int64_t DataObject::mem_bytes=0;
+int64_t DataObject::mem_bytes = 0;
 
 //int DataObject::max_page_count=0;
 
-void DataObject::addRef(DataObject *data){
-  if(data)
-    data->ref++;
+void DataObject::addRef(DataObject *data)
+{
+    if (data)
+        data->ref++;
 }
 
-void DataObject::subRef(DataObject *data){
-  if(data){
-    data->ref--;
-    if(data->ref==0){
-      delete data;
-      data = NULL;
+void DataObject::subRef(DataObject *data)
+{
+    if (data) {
+        data->ref--;
+        if (data->ref == 0) {
+            delete data;
+            data = NULL;
+        }
     }
-  }
 }
 
-DataObject::DataObject(int _me, int _nprocs, 
-    DataType _datatype,
-    int64_t _pagesize,
-    int _maxpages){
-    me=_me;
-    nprocs=_nprocs;
-    datatype=_datatype;
-    pagesize=_pagesize;
-    maxpages=_maxpages;
+DataObject::DataObject(int _me, int _nprocs, DataType _datatype,
+                       int64_t _pagesize, int _maxpages)
+{
+    me = _me;
+    nprocs = _nprocs;
+    datatype = _datatype;
+    pagesize = _pagesize;
+    maxpages = _maxpages;
 
-    id=ref=0; 
+    id = ref = 0;
 
-    npages=0;
+    npages = 0;
 
-    totalsize=0; 
+    totalsize = 0;
 
-    pages = (Page*)mem_aligned_malloc(MEMPAGE_SIZE,maxpages*sizeof(Page));
+    pages = (Page*) mem_aligned_malloc(MEMPAGE_SIZE, maxpages * sizeof(Page));
 
-    for(int i = 0; i < maxpages; i++){
+    for (int i = 0; i < maxpages; i++) {
         pages[i].datasize = 0;
         pages[i].buffer = NULL;
     }
 
-    ipage=-1;
+    ipage = -1;
 
     id = DataObject::object_id++;
 
-    LOG_PRINT(DBG_DATA, "DATA: DataObject %d create. (maxpages=%d)\n", id, maxpages);
+    LOG_PRINT(DBG_DATA, "DATA: DataObject %d create. (maxpages=%d)\n",
+              id, maxpages);
 
 }
 
-DataObject::~DataObject(){
-    for(int i = 0; i < npages; i++){
-        if(pages[i].buffer != NULL) {
+DataObject::~DataObject()
+{
+    for (int i = 0; i < npages; i++) {
+        if (pages[i].buffer != NULL) {
             mem_aligned_free(pages[i].buffer);
         }
     }
     mem_aligned_free(pages);
-    DataObject::mem_bytes-=(npages*pagesize);
+    DataObject::mem_bytes -= (npages * pagesize);
 
     LOG_PRINT(DBG_DATA, "DATA: DataObject %d destory.\n", id);
 }
 
-int DataObject::add_page(){
-    int pageid=npages;
+int DataObject::add_page()
+{
+    int pageid = npages;
     npages++;
 
-    if(npages>=maxpages) 
-       LOG_ERROR("Error: page count (%d) is larger than than maximum (%d).", npages, maxpages);
+    if (npages >= maxpages)
+        LOG_ERROR("Error: page count (%d) is larger than than maximum (%d).",
+                  npages, maxpages);
 
-    pages[pageid].datasize=0;
-    pages[pageid].buffer=(char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
+    pages[pageid].datasize = 0;
+    pages[pageid].buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
 
-    DataObject::mem_bytes+=pagesize;
+    DataObject::mem_bytes += pagesize;
 
-    PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, \
-        (uint64_t)DataObject::mem_bytes, OPMAX);
-  
+    PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, (uint64_t) DataObject::mem_bytes, OPMAX);
+
     ipage = pageid;
 
     LOG_PRINT(DBG_DATA, "DATA: DataObject %d add one page %d.\n", id, pageid);
@@ -110,20 +114,22 @@ int DataObject::add_page(){
 /*
  * print the bytes data in this object
  */
-void DataObject::print(int type, FILE *fp, int format){
-  //int line = 10;
-  printf("nblock=%d\n", npages);
-  for(int i = 0; i < npages; i++){
-    acquire_page(i);
+void DataObject::print(int type, FILE *fp, int format)
+{
+    //int line = 10;
+    printf("nblock=%d\n", npages);
+    for (int i = 0; i < npages; i++) {
+        acquire_page(i);
 #if 0
-    fprintf(fp, "block %d, datasize=%ld:", i, blocks[i].datasize);
-    for(int j=0; j < blocks[i].datasize; j++){
-      if(j % line == 0) fprintf(fp, "\n");
-      int bufferid = blocks[i].bufferid;
-      fprintf(fp, "  %02X", buffers[bufferid].buf[j]);
-    }
+        fprintf(fp, "block %d, datasize=%ld:", i, blocks[i].datasize);
+        for (int j = 0; j < blocks[i].datasize; j++) {
+            if (j % line == 0)
+                fprintf(fp, "\n");
+            int bufferid = blocks[i].bufferid;
+            fprintf(fp, "  %02X", buffers[bufferid].buf[j]);
+        }
 #endif
-    fprintf(fp, "\n");
-    release_page(i);
-  }
+        fprintf(fp, "\n");
+        release_page(i);
+    }
 }

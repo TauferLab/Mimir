@@ -7,7 +7,7 @@
 #include <malloc.h>
 
 void *mem_aligned_malloc(size_t, size_t);
-void *mem_aligned_free(void *);
+void *mem_aligned_free(void*);
 extern int64_t peakmem;
 
 #endif
