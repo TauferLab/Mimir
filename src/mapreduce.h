@@ -20,6 +20,8 @@
 #include "config.h"
 #include "const.h"
 
+#include "callbacks.h"
+
 namespace MIMIR_NS {
 
 class MapReduce;

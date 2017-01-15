@@ -12,7 +12,7 @@ namespace MIMIR_NS {
 
 class InputStream;
 
-typedef void (*UserSplit)(InputStream&);
+typedef bool (*UserSplit)(InputStream&, void *ptr);
 
 class InputStream {
   public:
@@ -20,7 +20,9 @@ class InputStream {
                 const char *filepath, 
                 int sharedflag,
                 int recurse,
-                MPI_Comm comm) {
+                MPI_Comm comm,
+                UserSplit splitcb,
+                void *splitptr) {
 
         splitter = new FileSplitter(blocksize, 
                                     filepath, 
@@ -37,9 +39,20 @@ class InputStream {
         inbuf = NULL;
         inbufsize = 0;
 
+        this->splitcb = splitcb;
+        this->splitptr = splitptr;
+
+        global_comm = comm;
+
+        MPI_Comm_rank(global_comm, &me);
+        MPI_Comm_size(global_comm, &nprocs);
+
+        iscb = false;
+
         open_stream();
     }
     virtual ~InputStream(){
+
         close_stream();
 
         delete splitter;
@@ -52,6 +65,8 @@ class InputStream {
     virtual void read_files();
     virtual bool open_stream();
     virtual void close_stream();
+    virtual void send_tail();
+    virtual int recv_tail(char &);
 
     void _file_open(const char*);
     void _read_at(char*, int64_t, int64_t);
@@ -74,11 +89,22 @@ class InputStream {
         int64_t file_count;
         int64_t total_size;
         int64_t block_size;
+        int     tail_left_off;
+        int     tail_right_off;
     };
 
     FileSplitter   *splitter;
     char           *inbuf;
     int64_t         inbufsize;
+    char           *tailbuf;
+    int             tailbufsize;
+    UserSplit       splitcb;
+    void           *splitptr;
+    bool            iscb;
+    MPI_Request     tailreq;
+
+    int      me, nprocs;
+    MPI_Comm global_comm;
 
     FileWindows     win;        // slide window of the files
 
@@ -98,21 +124,22 @@ class CollectiveInputStream : public InputStream {
   public:
     CollectiveInputStream(
                           int64_t blocksize,
-                          const char* filepath, 
+                          const char* filepath,
                           int sharedflag,
-                          int recurse, 
-                          MPI_Comm comm) : 
-        InputStream(blocksize, filepath, sharedflag, recurse, comm){
-        mpi_fp = MPI_FILE_NULL;
-        global_comm = comm;
+                          int recurse,
+                          MPI_Comm comm,
+                          UserSplit splitcb,
+                          void *splitptr) :
+        InputStream(blocksize, filepath, 
+                    sharedflag, recurse, 
+                    comm, splitcb, splitptr){
 
-        MPI_Comm_rank(global_comm, &me);
-        MPI_Comm_size(global_comm, &nprocs);
+            mpi_fp = MPI_FILE_NULL;
 
-        splitter->print();
+            splitter->print();
 
-        _create_comm();
-    }
+            _create_comm();
+        }
     virtual ~CollectiveInputStream(){
         _destroy_comm();
     }
@@ -131,8 +158,6 @@ class CollectiveInputStream : public InputStream {
     bool _read_group_files();
 
 #define GROUP_SIZE  2
-    int      me, nprocs;
-    MPI_Comm global_comm;
     MPI_Comm local_comms[GROUP_SIZE];
     int      max_comm_count[GROUP_SIZE];
     int      cur_comm_count[GROUP_SIZE];

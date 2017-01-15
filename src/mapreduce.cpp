@@ -169,7 +169,14 @@ uint64_t MapReduce::map_text_file(char *_filepath, int _shared, int _recurse,
         phase = LocalMapPhase;
     }
 
-    CollectiveInputStream in(1, _filepath, _shared, _recurse, comm);
+    CollectiveInputStream in(1,
+                             _filepath,
+                             _shared,
+                             _recurse,
+                             comm,
+                             wordsplitcb,
+                             (void*)_seperator);
+
     std::string whitespaces=_seperator;
     std::string str;
     char ch;

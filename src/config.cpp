@@ -13,6 +13,9 @@ int64_t DATA_PAGE_SIZE = 64 * 1024 * 1024;
 /// Input buffer size
 int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024;
 
+/// Tail buffer size
+int TAIL_BUF_SIZE = 1024 * 1024;
+
 /// KV exchange communication mode
 /// (0: collective; 1: point to point)
 int KV_EXCH_COMM = 0;

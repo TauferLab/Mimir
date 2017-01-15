@@ -10,14 +10,13 @@
 
 namespace MIMIR_NS {
 
-#define GROUP_SIZE          2
-
 // use to schedule the collective communication
 // file in GROUP1 and GROUP2 can be read together 
 // by collective communication;
 // file in GROUPANY do not depond on other processes
 // Note that each process at most has one file of GROUP1
 // and one file of GROUP2
+#define GROUP_SIZE          2
 enum CommGroup{GROUP1, GROUP2, GROUPNON};
 
 class FileSplitter {
@@ -53,6 +52,8 @@ class FileSplitter {
     int64_t     get_total_size();
     int64_t     get_block_size();
     int         get_file_groupid(int64_t i);
+    bool        is_left_sharefile(int64_t i);
+    bool        is_right_sharefile(int64_t i);
 
     const char* get_group_filename(int group_id);
     void        get_group_ranks(int group_id, int &low, int &high);

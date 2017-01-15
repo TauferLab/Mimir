@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <string.h>
+
 #include "config.h"
 #include "memory.h"
 #include "const.h"
@@ -5,6 +8,7 @@
 #include "inputstream.h"
 
 using namespace MIMIR_NS;
+
 
 void InputStream::_file_open(const char *filename){
     if(iotype == CLIBIO){
@@ -109,6 +113,7 @@ bool InputStream::open_stream(){
         inbufsize = INPUT_BUF_SIZE;
 
     inbuf =  (char*)mem_aligned_malloc(MEMPAGE_SIZE, inbufsize);
+    tailbuf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, TAIL_BUF_SIZE);
 
     // set file pointers
     win.left_file_idx = 0;
@@ -117,13 +122,78 @@ bool InputStream::open_stream(){
     win.right_file_off = win.left_file_off;
     win.left_buf_off = 0;
     win.right_buf_off = 0;
+    win.tail_left_off = 0;
+    win.tail_right_off = 0;
 
     return true;
 }
 
 void InputStream::close_stream(){
+    mem_aligned_free(tailbuf);
     mem_aligned_free(inbuf);
 }
+
+void InputStream::send_tail(){
+    MPI_Status st;
+    tailreq = MPI_REQUEST_NULL;
+
+    while(!splitcb((*this), splitptr)){
+
+        // wait buffer ready
+        if(tailreq != MPI_REQUEST_NULL){
+            MPI_Wait(&tailreq, &st);
+            tailreq = MPI_REQUEST_NULL;
+        }
+        // as the pointer moved to next, we need get the previous character
+        tailbuf[win.tail_right_off] = *(inbuf + win.left_buf_off - 1);
+        win.tail_right_off++;
+
+        // fflush the buffer
+        if(win.tail_right_off == TAIL_BUF_SIZE){
+            MPI_Isend(tailbuf, win.tail_right_off, 
+                      MPI_BYTE, me-1, 0xaa, global_comm, &tailreq);
+            win.tail_right_off = 0;
+        }
+    }
+
+    // the buffer is not empty
+    if(win.tail_right_off > 0){
+        MPI_Isend(tailbuf, win.tail_right_off, 
+                  MPI_BYTE, me-1, 0xaa, global_comm, &tailreq);
+        win.tail_right_off = 0;
+    }
+
+    // send end flag
+    MPI_Request tmp;
+    MPI_Isend(NULL, 0, MPI_BYTE, me-1, 0xaa, global_comm, &tmp);
+}
+
+int InputStream::recv_tail(char &ch){
+    MPI_Status st;
+    int count;
+
+    if(win.tail_left_off < win.tail_right_off){
+        ch = tailbuf[win.tail_left_off];
+        win.tail_left_off++;
+        return 1;
+    }else{
+        MPI_Irecv(tailbuf, TAIL_BUF_SIZE, 
+                  MPI_BYTE, me+1, 0xaa, global_comm, &tailreq);
+        MPI_Wait(&tailreq, &st);
+
+        MPI_Get_count(&st, MPI_BYTE, &count);
+
+        win.tail_left_off = 0;
+        win.tail_right_off = count;
+        if(count == 0)
+            return 0;
+        ch = tailbuf[win.tail_left_off];
+        win.tail_left_off++;
+    }
+
+    return 1;
+}
+
 
 int InputStream::get_char(char& c){
     int ret = 0;
@@ -133,31 +203,56 @@ int InputStream::get_char(char& c){
         // has data in memory
         if(win.left_buf_off < win.right_buf_off){
 
-            // skip to another file
+            // file tail
             if(win.left_file_off == 
                splitter->get_end_offset(win.left_file_idx)){
 
-                // end of the file
-                if(win.left_file_off == 
-                   splitter->get_end_offset(win.left_file_idx)){
+                // the file is shared by other processes on the right side
+                if(splitter->is_right_sharefile(win.left_file_idx)){
+                    if(splitter->is_left_sharefile(win.left_file_idx))
+                        LOG_ERROR("Error: the midlle file segement of %s is \
+                                  the tail of previous segement, please \
+                                  resplit your file\n",
+                                  splitter->get_file_name(win.left_file_idx));
+                    /// Receive data from other processes
+                    ret = recv_tail(c);
+                    if(ret == 0){
+                        ret = EOF;
+                        win.left_file_idx += 1;
+                        win.left_file_off = 
+                            splitter->get_start_offset(win.left_file_idx);
+                    }
+                }else{
                     ret = EOF;
                     win.left_file_idx += 1;
                     win.left_file_off = 
                         splitter->get_start_offset(win.left_file_idx);
-                // return data of next file
+                }
+            // return data
+            }else{
+
+                int64_t fidx = win.left_file_idx;
+                bool isleft = splitter->is_left_sharefile(fidx);
+                int64_t startoff = splitter->get_start_offset(fidx);
+
+                // the file is shared by other processes on the left side
+                if(iscb==false && isleft && win.left_file_off == startoff){
+                    int64_t my_file_idx = win.left_file_idx;
+                    // skip tail
+                    iscb = true;
+                    send_tail();
+                    if(win.left_file_idx > my_file_idx){
+                        ret = EOF;
+                    }else{
+                        ret = 1;
+                        c = *(inbuf + win.left_buf_off - 1);
+                    }
                 }else{
                     ret = 1;
-                    c = *(inbuf + win.left_buf_off);
+                    c = *(inbuf+win.left_buf_off);
                     win.left_buf_off += 1;
-                    win.left_file_idx += 1;
-                    win.left_file_off = 
-                        splitter->get_start_offset(win.left_file_idx) + 1;
+                    win.left_file_off += 1;
                 }
-            }else{
-                ret = 1;
-                c = *(inbuf+win.left_buf_off);
-                win.left_buf_off += 1;
-                win.left_file_off += 1;
             }
             break;
         }else{
@@ -165,8 +260,8 @@ int InputStream::get_char(char& c){
         }
     }
 
-    //printf("%ld->%ld, c=%x, ret=%d\n", 
-    //       win.left_buf_off, win.right_buf_off, c, ret);
+    //printf("%d[%d] %ld->%ld, c=%x, ret=%d\n", 
+    //       me, nprocs, win.left_buf_off, win.right_buf_off, c, ret);
 
     //_print_win();
     return ret;

@@ -55,6 +55,20 @@ int64_t FileSplitter::get_block_size(){
     return blocksize;
 }
 
+bool FileSplitter::is_left_sharefile(int64_t i){
+    if(filesegs[i].start_rank < me)
+        return true;
+
+    return false;
+}
+
+bool FileSplitter::is_right_sharefile(int64_t i){
+    if(filesegs[i].end_rank > me)
+        return true;
+
+    return false;
+}
+
 const char* FileSplitter::get_group_filename(int group_id){
     int i = group_to_idx[group_id];
 
