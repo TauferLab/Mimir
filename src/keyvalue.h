@@ -34,7 +34,8 @@ public:
         ksize = _ksize;
         vsize = _vsize;
     }
-    // Scan KVs one by one int getNextKV(char**, int&, char**, int&);// Add KVs one by one
+    // Scan KVs one by one 
+    int getNextKV(char**, int&, char**, int&);// Add KVs one by one
     int addKV(const char*, int, const char*, int);
 
     int updateKV(const char*, int, const char*, int);

@@ -92,7 +92,7 @@ int Alltoall::setup(int64_t _sbufsize, KeyValue *_data,
         off[i] = 0;
 
     LOG_PRINT(DBG_COMM, "Comm: alltoall setup. (\
-        comm buffer size=%ld, type_log_bytes=%d)\n", send_buf_size, type_log_bytes);
+comm buffer size=%ld, type_log_bytes=%d)\n", send_buf_size, type_log_bytes);
 
     return 0;
 }

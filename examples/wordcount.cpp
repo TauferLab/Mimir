@@ -13,7 +13,7 @@ using namespace MIMIR_NS;
 
 int rank, size;
 
-void map(MapReduce * mr, char *word, void *ptr);
+void map(MapReduce * mr, const char *word, void *ptr);
 void countword(MapReduce *, char *, int, void *);
 void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void *);
 
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     MPI_Finalize();
 }
 
-void map(MapReduce * mr, char *word, void *ptr)
+void map(MapReduce * mr, const char *word, void *ptr)
 {
     int len = (int) strlen(word) + 1;
     if (len <= 1024) {

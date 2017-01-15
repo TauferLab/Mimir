@@ -8,6 +8,8 @@
 #define NIN(A,B) ((A) < (B)) ? (A) : (B)
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)
 
+#define ROUNDUP(val,unit) (((val)+(unit)-1)/(unit))
+
 #define MEMPAGE_SIZE               4096
 
 #define MAXLINE                    2048
