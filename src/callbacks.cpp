@@ -4,11 +4,11 @@
 
 using namespace MIMIR_NS;
 
-bool wordsplitcb(InputStream& in, void *ptr){
+bool wordsplitcb(InputStream* in, void *ptr){
     const char *str = (const char*)ptr;
     char c;
 
-    int ret = in.get_char(c);
+    int ret = in->get_char(c);
     if(!ret || ret == EOF) return true;
 
     int len = (int)strlen(str)+1;

@@ -8,6 +8,6 @@
 
 using namespace MIMIR_NS;
 
-bool wordsplitcb(InputStream&, void *ptr);
+bool wordsplitcb(InputStream*, void *ptr);
 
 #endif

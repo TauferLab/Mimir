@@ -137,7 +137,7 @@ void InputStream::send_tail(){
     MPI_Status st;
     tailreq = MPI_REQUEST_NULL;
 
-    while(!splitcb((*this), splitptr)){
+    while(splitcb && !splitcb(this, splitptr)){
 
         // wait buffer ready
         if(tailreq != MPI_REQUEST_NULL){

@@ -12,7 +12,7 @@ namespace MIMIR_NS {
 
 class InputStream;
 
-typedef bool (*UserSplit)(InputStream&, void *ptr);
+typedef bool (*UserSplit)(InputStream*, void *ptr);
 
 class InputStream {
   public:

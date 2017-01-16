@@ -15,18 +15,6 @@
 #define MAXLINE                    2048
 #define MAX_COMM_SIZE        0x40000000
 
-/// KV Type
-enum KVType {
-    KVGeneral = -2,             // variable length bytes
-    KVString,   // string
-    KVFixed
-};      // fixed-size KV
-
-enum ElemType {
-    StringType,
-    Int32Type,
-    Int64Type
-};
 
 // Get KV information
 #define GET_KV_VARS(ksize,vsize,buf,key,keybytes,value,valuebytes,kvsize) \

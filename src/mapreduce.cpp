@@ -125,15 +125,70 @@ MapReduce::~MapReduce()
     LOG_PRINT(DBG_GEN, "%s", "MapReduce: destroy.\n");
 }
 
-uint64_t MapReduce::process_binary_file(char *_filepath,
-                                        int _shared,
-                                        int _recurse, 
-                                        void*_ptr, 
-                                        int _comm){
-    return 0;
+uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
+                                        int recurse,
+                                        ProcessBinaryFile myfunc,
+                                        UserSplit mysplit,
+                                        void* ptr, 
+                                        int _comm)
+{
+    //LOG_PRINT(DBG_GEN, "MapReduce: map_text_file start. (filepath=%s, shared=%d, recursed=%d, comm=%d)\n", _filepath, _shared, _recurse, _comm);
+
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
+
+    myptr = ptr;
+
+    DataObject::subRef(kv);
+
+    // Create KV Container
+    kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    kv->set_kv_size(ksize, vsize);
+    kv->set_combiner(this, mycombiner);
+
+    // Create communicator
+    if (_comm) {
+        c = Communicator::Create(comm, KV_EXCH_COMM);
+        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
+        phase = MapPhase;
+    }
+    else {
+        phase = LocalMapPhase;
+    }
+
+    // Create input stream
+    CollectiveInputStream in(1,
+                             filepath,
+                             shared,
+                             recurse,
+                             comm,
+                             mysplit,
+                             (void*)ptr);
+
+    // Process file
+    myfunc(this, &in, ptr);
+
+    // Delete communicator
+    if (comm) {
+        c->wait();
+        delete c;
+        c = NULL;
+    }
+
+    // Garbage collection
+    kv->gc();
+
+    DataObject::addRef(kv);
+    phase = NonePhase;
+
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: map_text_file end.\n");
+
+    return _get_kv_count();
 }
 
-uint64_t MapReduce::map_text_file(char *_filepath, int _shared, int _recurse,
+
+uint64_t MapReduce::map_text_file(const char *_filepath, int _shared, int _recurse,
                                   const char *_seperator, UserMapFile _mymap,
                                   void *_ptr, int _comm)
 {
@@ -145,12 +200,6 @@ uint64_t MapReduce::map_text_file(char *_filepath, int _shared, int _recurse,
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
     myptr = _ptr;
-
-    // Distribute file list
-    //ifiles.clear();
-    //_dist_input_files(_filepath, _shared, _recurse);
-
-    //TRACKER_RECORD_EVENT(EVENT_INIT_GETFILES);
 
     DataObject::subRef(kv);
 
@@ -199,117 +248,6 @@ uint64_t MapReduce::map_text_file(char *_filepath, int _shared, int _recurse,
         _mymap(this, str.c_str(), _ptr);
         str.clear();
     }
-
-    //printf("ref=%d\n", ret);
-
-    // Compute input buffer size
-    //int fcount = (int) ifiles.size();
-    //int64_t max_fsize = 0;
-    //for (int i = 0; i < fcount; i++) {
-    //    if (ifiles[i].second > max_fsize)
-    //        max_fsize = ifiles[i].second;
-    //}
-    //int64_t input_buffer_size = 0;
-    //if (max_fsize <= INPUT_BUF_SIZE)
-    //    input_buffer_size = max_fsize;
-    //else
-    //    input_buffer_size = INPUT_BUF_SIZE;
-
-    // Allocate input buffer
-    //char *text = (char*) mem_aligned_malloc(MEMPAGE_SIZE, input_buffer_size + MAX_STR_SIZE + 1);
-
-    //PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t) input_buffer_size, OPMAX);
-
-    //for (int i = 0; i < fcount; i++) {
-    //    int64_t input_char_size = 0, fsize = 0;
-
-    //    fsize = ifiles[i].second;
-
-    //    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-
-    //  PROFILER_RECORD_TIME_START;
-    //    FILE *fp = fopen(ifiles[i].first.c_str(), "r");
-    //    if (fp == NULL) {
-    //        LOG_ERROR("Error: open file %s error!", ifiles[i].first.c_str());
-    //    }
-    //    PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
-
-    //    PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
-
-    //    LOG_PRINT(DBG_IO, "open file %s, fsize=%ld\n", ifiles[i].first.c_str(), ifiles[i].second);
-
-    //    TRACKER_RECORD_EVENT(EVENT_PFS_OPEN);
-
-        // Process the file
-    //    int64_t foff = 0, boff = 0;
-    //    int64_t readsize = 0;
-
-    //    do {
-    //        PROFILER_RECORD_TIME_START;
-
-    //        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-
-            // Read file
-    //        fseek(fp, foff, SEEK_SET);
-
-    //        TRACKER_RECORD_EVENT(EVENT_PFS_SEEK);
-
-    //        readsize = fread(text + boff, 1, input_buffer_size, fp);
-
-    //        PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, (uint64_t) readsize, OPSUM);
-
-    //        TRACKER_RECORD_EVENT(EVENT_PFS_READ);
-
-    //        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
-
-            // read a block
-    //        text[boff + readsize] = '\0';
-    //        input_char_size = boff + readsize;
-
-    //        int64_t tend = input_char_size;
-    //        boff = 0;
-    //        if (readsize >= input_buffer_size && foff + readsize < fsize) {
-    //            while (strchr(_seperator, text[input_char_size - boff - 1]) == NULL)
-    //                boff++;
-    //            tend -= (boff + 1);
-    //            text[tend] = '\0';
-    //        }
-
-    //        if (boff > MAX_STR_SIZE)
-    //            LOG_ERROR("Error: string length is large than max size (%d)!\n", MAX_STR_SIZE);
-
-    //        LOG_PRINT(DBG_IO, "read file %s, %ld->%ld, suffix=%ld\n",
-    //                  ifiles[i].first.c_str(), foff, foff + readsize, boff);
-
-            // Pass words one by one to user-defined map function
-    //        char *saveptr = NULL;
-    //        char *word = strtok_r(text, _seperator, &saveptr);
-    //        while (word) {
-    //            _mymap(this, word, _ptr);
-    //            word = strtok_r(NULL, _seperator, &saveptr);
-    //        }
-
-            // Prepare for next buffer
-    //        foff += readsize;
-
-    //        for (int j = 0; j < boff; j++)
-    //            text[j] = text[input_char_size - boff + j];
-
-    //    } while (foff < fsize);
-
-    //    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-
-    //    PROFILER_RECORD_TIME_START;
-    //    fclose(fp);
-    //    PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
-
-    //    TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
-
-    //    LOG_PRINT(DBG_IO, "close file %s\n", ifiles[i].first.c_str());
-    //}
-
-    // Free input buffer
-    //mem_aligned_free(text);
 
     // Delete communicator
     if (_comm) {

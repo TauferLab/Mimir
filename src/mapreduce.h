@@ -11,16 +11,32 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <math.h>
 #include <string.h>
 #include <mpi.h>
 #include <string>
 #include <vector>
 
-#include "config.h"
-#include "const.h"
+#include "inputstream.h"
+
+//#include "config.h"
+//#include "const.h"
 
 #include "callbacks.h"
+
+/// KV Type
+enum KVType {
+    KVGeneral = -2,             // variable length bytes
+    KVString,   // string
+    KVFixed
+};      // fixed-size KV
+
+enum ElemType {
+    StringType,
+    Int32Type,
+    Int64Type
+};
 
 namespace MIMIR_NS {
 
@@ -37,6 +53,8 @@ class ReducerSet;
 
 enum OpPhase { NonePhase, MapPhase, LocalMapPhase, ReducePhase, ScanPhase, CombinePhase };
 
+/// map callback to map files
+typedef void (*ProcessBinaryFile)(MapReduce*, InputStream*, void*);
 
 /// hash callback
 typedef int (*UserHash) (const char*, int);
@@ -106,11 +124,12 @@ public:
       @param[in]  comm       with communication or not (default: 1)
       @return output <key,value> count
       */
-    uint64_t map_text_file(char *filename, int shared, int recurse,
+    uint64_t map_text_file(const char *filename, int shared, int recurse,
                            const char *seperator, UserMapFile mymap, void *ptr =
                            NULL, int comm = 1);
-    uint64_t process_binary_file(char *_filepath, int _shared, int _recurse, 
-                                        void*_ptr=NULL, int _comm=1);
+    uint64_t process_binary_file(const char *filepath, int shared, int recurse, 
+                                 ProcessBinaryFile myfunc, UserSplit mysplit, 
+                                 void* ptr=NULL, int comm=1);
 
     /**
       Map function with MapReduce object as input.
