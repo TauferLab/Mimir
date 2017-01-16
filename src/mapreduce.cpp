@@ -168,7 +168,7 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
     myfunc(this, &in, ptr);
 
     // Delete communicator
-    if (comm) {
+    if (_comm) {
         c->wait();
         delete c;
         c = NULL;
@@ -188,18 +188,21 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
 }
 
 
-uint64_t MapReduce::map_text_file(const char *_filepath, int _shared, int _recurse,
-                                  const char *_seperator, UserMapFile _mymap,
-                                  void *_ptr, int _comm)
+uint64_t MapReduce::map_text_file(const char *filepath,
+                                  int shared,
+                                  int recurse,
+                                  const char *seperator, 
+                                  UserMapFile mymap,
+                                  void *ptr, int repartition)
 {
     //if (strlen(_seperator) == 0)
     //    LOG_ERROR("Error: the separator should not be empty!\n");
 
-    LOG_PRINT(DBG_GEN, "MapReduce: map_text_file start. (filepath=%s, shared=%d, recursed=%d, comm=%d)\n", _filepath, _shared, _recurse, _comm);
+    LOG_PRINT(DBG_GEN, "MapReduce: map_text_file start. (filepath=%s, shared=%d, recursed=%d, comm=%d)\n", filepath, shared, recurse, repartition);
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
-    myptr = _ptr;
+    myptr = ptr;
 
     DataObject::subRef(kv);
 
@@ -208,7 +211,7 @@ uint64_t MapReduce::map_text_file(const char *_filepath, int _shared, int _recur
     kv->set_kv_size(ksize, vsize);
     kv->set_combiner(this, mycombiner);
 
-    if (_comm) {
+    if (repartition) {
         c = Communicator::Create(comm, KV_EXCH_COMM);
         c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
         phase = MapPhase;
@@ -219,38 +222,38 @@ uint64_t MapReduce::map_text_file(const char *_filepath, int _shared, int _recur
     }
 
     CollectiveInputStream in(1,
-                             _filepath,
-                             _shared,
-                             _recurse,
+                             filepath,
+                             shared,
+                             recurse,
                              comm,
                              wordsplitcb,
-                             (void*)_seperator);
+                             (void*)seperator);
 
-    std::string whitespaces=_seperator;
+    std::string whitespaces=seperator;
     std::string str;
     char ch;
     int ret;
     while((ret = (in>>ch)) ){
         //printf("ref=%d, ch=%c\n", ret, ch);
         if(ret == EOF && str.size() != 0){
-            _mymap(this, str.c_str(), _ptr);
+            mymap(this, str.c_str(), ptr);
             str.clear();
         }else if(whitespaces.find(ch) == std::string::npos){
             str += ch;
         }else{
             if(str.size() != 0){
-                _mymap(this, str.c_str(), _ptr);
+                mymap(this, str.c_str(), ptr);
                 str.clear();
             }
         }
     }
     if(str.size() != 0){
-        _mymap(this, str.c_str(), _ptr);
+        mymap(this, str.c_str(), ptr);
         str.clear();
     }
 
     // Delete communicator
-    if (_comm) {
+    if (repartition) {
         c->wait();
         delete c;
         c = NULL;
@@ -273,16 +276,19 @@ uint64_t MapReduce::map_text_file(const char *_filepath, int _shared, int _recur
   Map function KV input
 
 */
-uint64_t MapReduce::map_key_value(MapReduce *_mr, UserMapKV _mymap, void *_ptr, int _comm)
+uint64_t MapReduce::map_key_value(MapReduce *mr,
+                                  UserMapKV mymap,
+                                  void *ptr,
+                                  int repartition)
 {
     LOG_PRINT(DBG_GEN, "MapReduce: map start. (KV as input)\n");
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
-    DataObject::addRef(_mr->kv);
+    DataObject::addRef(mr->kv);
     DataObject::subRef(kv);
 
-    KeyValue *inputkv = _mr->kv;
+    KeyValue *inputkv = mr->kv;
 
     // create new data object
     //LOG_PRINT(DBG_GEN, "MapReduce: new data KV. (KV as input)\n");
@@ -295,7 +301,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr, UserMapKV _mymap, void *_ptr, 
 
     //LOG_PRINT(DBG_GEN, "MapReduce: alloc data KV. (KV as input)\n");
 
-    if (_comm) {
+    if (repartition) {
         c = Communicator::Create(comm, KV_EXCH_COMM);
         c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
         phase = MapPhase;
@@ -322,7 +328,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr, UserMapKV _mymap, void *_ptr, 
 
             //printf("map_key_value: v0=%ld\n", *(int64_t*)key);
 
-            _mymap(this, key, keybytes, value, valuebytes, _ptr);
+            mymap(this, key, keybytes, value, valuebytes, ptr);
 
             offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
         }
@@ -333,7 +339,7 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr, UserMapKV _mymap, void *_ptr, 
 
     DataObject::subRef(inputkv);
 
-    if (_comm) {
+    if (repartition) {
         c->wait();
         delete c;
         c = NULL;
@@ -354,7 +360,9 @@ uint64_t MapReduce::map_key_value(MapReduce *_mr, UserMapKV _mymap, void *_ptr, 
 /**
   Map function without input
   */
-uint64_t MapReduce::init_key_value(UserInitKV _myinit, void *_ptr, int _comm)
+uint64_t MapReduce::init_key_value(UserInitKV myinit,
+                                   void *ptr,
+                                   int repartition)
 {
 
     LOG_PRINT(DBG_GEN, "MapReduce: map start. (no input)\n");
@@ -366,7 +374,7 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, void *_ptr, int _comm)
     kv->set_kv_size(ksize, vsize);
     kv->set_combiner(this, mycombiner);
 
-    if (_comm) {
+    if (repartition) {
         c = Communicator::Create(comm, KV_EXCH_COMM);
         c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
         phase = MapPhase;
@@ -375,10 +383,10 @@ uint64_t MapReduce::init_key_value(UserInitKV _myinit, void *_ptr, int _comm)
         phase = LocalMapPhase;
     }
 
-    _myinit(this, _ptr);
+    myinit(this, ptr);
 
     // wait all processes done
-    if (_comm) {
+    if (repartition) {
         c->wait();
         delete c;
         c = NULL;

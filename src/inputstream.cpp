@@ -196,72 +196,72 @@ int InputStream::recv_tail(char &ch){
 
 
 int InputStream::get_char(char& c){
+
     int ret = 0;
 
     while(win.right_file_idx < win.file_count){
 
-        // has data in memory
-        if(win.left_buf_off < win.right_buf_off){
+        // end of file
+        if(win.left_file_off == 
+           splitter->get_end_offset(win.left_file_idx)){
 
-            // file tail
-            if(win.left_file_off == 
-               splitter->get_end_offset(win.left_file_idx)){
+            // receive data from right process
+            if(splitter->is_right_sharefile(win.left_file_idx)){
 
-                // the file is shared by other processes on the right side
-                if(splitter->is_right_sharefile(win.left_file_idx)){
-                    if(splitter->is_left_sharefile(win.left_file_idx))
-                        LOG_ERROR("Error: the midlle file segement of %s is \
-                                  the tail of previous segement, please \
-                                  resplit your file\n",
-                                  splitter->get_file_name(win.left_file_idx));
-                    /// Receive data from other processes
-                    ret = recv_tail(c);
-                    if(ret == 0){
-                        ret = EOF;
-                        win.left_file_idx += 1;
-                        win.left_file_off = 
-                            splitter->get_start_offset(win.left_file_idx);
-                    }
-                }else{
-                    ret = EOF;
-                    win.left_file_idx += 1;
-                    win.left_file_off = 
+                //printf("%d[%d] left_file_idx=%ld, %d, %d,\n", me, nprocs, 
+                //      win.left_file_idx,
+                //       splitter->is_right_sharefile(win.left_file_idx),
+                //       splitter->is_left_sharefile(win.left_file_idx));
+
+                if(iscb)
+                    LOG_ERROR("Error: the midlle file segement of %s is \
+                              the tail of previous segement, please \
+                              resplit your file\n",
+                              splitter->get_file_name(win.left_file_idx));
+
+                ret = recv_tail(c);
+                if(ret) break;
+            }
+            // jump to next file
+            if(win.left_file_idx < win.file_count - 1){
+                ret = EOF;
+                win.left_file_idx += 1;
+                win.left_file_off = 
                         splitter->get_start_offset(win.left_file_idx);
-                }
-            // return data
-            }else{
-
-                int64_t fidx = win.left_file_idx;
-                bool isleft = splitter->is_left_sharefile(fidx);
-                int64_t startoff = splitter->get_start_offset(fidx);
-
-                // the file is shared by other processes on the left side
-                if(iscb==false && isleft && win.left_file_off == startoff){
-                    int64_t my_file_idx = win.left_file_idx;
-                    // skip tail
-                    iscb = true;
-                    send_tail();
-                    if(win.left_file_idx > my_file_idx){
-                        ret = EOF;
-                    }else{
-                        ret = 1;
-                        c = *(inbuf + win.left_buf_off - 1);
-                    }
-                }else{
-                    ret = 1;
-                    c = *(inbuf+win.left_buf_off);
-                    win.left_buf_off += 1;
-                    win.left_file_off += 1;
-                }
             }
             break;
-        }else{
-            read_files();
-        }
+        // has data in-mmeory
+        }else if(win.left_buf_off < win.right_buf_off){
+            int64_t fidx = win.left_file_idx;
+            bool isleft = splitter->is_left_sharefile(fidx);
+            int64_t startoff = splitter->get_start_offset(fidx);
+
+            // the file is shared by other processes on the left side
+            if(iscb==false && isleft && win.left_file_off == startoff){
+                int64_t my_file_idx = win.left_file_idx;
+                // skip tail
+                iscb = true;
+                // get_char may be invoked in send_tail recursely
+                send_tail();
+                iscb = false;
+                if(win.left_file_idx > my_file_idx){
+                    ret = EOF;
+                }else{
+                    ret = 1;
+                    c = *(inbuf + win.left_buf_off - 1);
+                }
+            }else{
+                ret = 1;
+                c = *(inbuf+win.left_buf_off);
+                win.left_buf_off += 1;
+                win.left_file_off += 1;
+            }
+            break;
+        }else read_files();
     }
 
-    //printf("%d[%d] %ld->%ld, c=%x, ret=%d\n", 
-    //       me, nprocs, win.left_buf_off, win.right_buf_off, c, ret);
+    printf("%d[%d] %ld->%ld, c=%x, ret=%d\n", 
+           me, nprocs, win.left_buf_off, win.right_buf_off, c, ret);
 
     //_print_win();
     return ret;

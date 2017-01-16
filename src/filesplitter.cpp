@@ -116,13 +116,15 @@ void FileSplitter::print(){
     if(shared){
         std::vector<FileSegment>::iterator iter = filesegs.begin();
         for(; iter != filesegs.end(); iter++){
-            printf("%d[%d] %s:%ld[%ld->%ld],group_id=%d,max_blocks=%ld\n", 
+            printf("%d[%d] %s:%ld[%ld->%ld],group_id=%d,ranks=[%d,%d],max_blocks=%ld\n", 
                    me, nprocs, 
                    iter->filename.c_str(),
                    iter->filesize, 
                    iter->startoff, 
                    iter->endoff,
                    iter->group_id,
+                   iter->start_rank,
+                   iter->end_rank,
                    iter->max_blocks);
         }
     }
@@ -218,11 +220,9 @@ void FileSplitter::_get_recv_data(char *recv_buf, int recv_count){
     for(int i = 0; i < (int)filesegs.size(); i++){
         if(filesegs[i].group_id == GROUP1){
             group_to_idx[GROUP1] = i;
-            printf("%d[%d] GROUP1=%d\n", me, nprocs, i);
         }
         else if(filesegs[i].group_id == GROUP2){
             group_to_idx[GROUP2] = i;
-            printf("%d[%d] GROUP2=%d\n", me, nprocs, i);
         }
     }
 }

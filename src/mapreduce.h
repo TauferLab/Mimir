@@ -110,7 +110,7 @@ public:
       @param[in]  comm   with communication or not (default: 1)
       @return output <key,value> count
       */
-    uint64_t init_key_value(UserInitKV myinit, void *ptr=NULL, int comm=1);
+    uint64_t init_key_value(UserInitKV myinit, void *ptr=NULL, int repartition=1);
 
     /**
       Map function with text files.
@@ -126,10 +126,10 @@ public:
       */
     uint64_t map_text_file(const char *filename, int shared, int recurse,
                            const char *seperator, UserMapFile mymap, void *ptr =
-                           NULL, int comm = 1);
+                           NULL, int repartition = 1);
     uint64_t process_binary_file(const char *filepath, int shared, int recurse, 
                                  ProcessBinaryFile myfunc, UserSplit mysplit, 
-                                 void* ptr=NULL, int comm=1);
+                                 void* ptr=NULL, int repartition=1);
 
     /**
       Map function with MapReduce object as input.
@@ -140,7 +140,7 @@ public:
       @param[in]  comm  communication or not (default: 1)
       @return output <key,value> count
       */
-    uint64_t map_key_value(MapReduce *mr, UserMapKV mymap, void *ptr = NULL, int comm = 1);
+    uint64_t map_key_value(MapReduce *mr, UserMapKV mymap, void *ptr = NULL, int repartition = 1);
 
     /**
       Reduce function.
