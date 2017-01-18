@@ -130,9 +130,9 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
                                         ProcessBinaryFile myfunc,
                                         UserSplit mysplit,
                                         void* ptr, 
-                                        int _comm)
+                                        int repartition)
 {
-    //LOG_PRINT(DBG_GEN, "MapReduce: map_text_file start. (filepath=%s, shared=%d, recursed=%d, comm=%d)\n", _filepath, _shared, _recurse, _comm);
+    LOG_PRINT(DBG_GEN, "MapReduce: process_binary_file start. (filepath=%s, shared=%d, recursed=%d, comm=%d)\n", filepath, shared, recurse, repartition);
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
@@ -146,7 +146,7 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
     kv->set_combiner(this, mycombiner);
 
     // Create communicator
-    if (_comm) {
+    if (repartition) {
         c = Communicator::Create(comm, KV_EXCH_COMM);
         c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
         phase = MapPhase;
@@ -164,11 +164,13 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
                              mysplit,
                              (void*)ptr);
 
+    in.open_stream();
     // Process file
     myfunc(this, &in, ptr);
+    in.close_stream();
 
     // Delete communicator
-    if (_comm) {
+    if (repartition) {
         c->wait();
         delete c;
         c = NULL;
@@ -232,10 +234,11 @@ uint64_t MapReduce::map_text_file(const char *filepath,
     std::string whitespaces=seperator;
     std::string str;
     char ch;
-    int ret;
-    while((ret = (in>>ch)) ){
-        //printf("ref=%d, ch=%c\n", ret, ch);
-        if(ret == EOF && str.size() != 0){
+
+    in.open_stream();
+    while(in.is_empty() == false){
+        ch = in.get_byte();
+        if(in.is_eof() && str.size() != 0){
             mymap(this, str.c_str(), ptr);
             str.clear();
         }else if(whitespaces.find(ch) == std::string::npos){
@@ -246,11 +249,13 @@ uint64_t MapReduce::map_text_file(const char *filepath,
                 str.clear();
             }
         }
+        in.next();
     }
     if(str.size() != 0){
         mymap(this, str.c_str(), ptr);
         str.clear();
     }
+    in.close_stream();
 
     // Delete communicator
     if (repartition) {

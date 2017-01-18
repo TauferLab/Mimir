@@ -14,6 +14,10 @@ class InputStream;
 
 typedef bool (*UserSplit)(InputStream*, void *ptr);
 
+// the stream contains bytes from one or multiple files
+// there is a current byte pointer ( the byte is etheir 
+// a byte from file or EOF in the case with multiple files)
+// when the pointer comes to end, the stream becomes empty
 class InputStream {
   public:
     InputStream(int64_t blocksize,
@@ -49,34 +53,47 @@ class InputStream {
 
         iscb = false;
 
-        open_stream();
     }
     virtual ~InputStream(){
-
-        close_stream();
 
         delete splitter;
     }
 
-    virtual int operator>>(char& c);
-    virtual int   get_char(char&);
+
+    // get current byte
+    virtual unsigned char get_byte();
+    virtual unsigned char operator*();
+    // move to next byte
+    virtual void next();
+    virtual void operator++();
+    // if EOF
+    virtual bool is_eof();
+    // if empty
+    virtual bool is_empty();
+
+    virtual bool open_stream();
+    virtual void close_stream();
+
+    //virtual int get_char(char& c);
 
   protected:
     virtual void read_files();
-    virtual bool open_stream();
-    virtual void close_stream();
     virtual void send_tail();
-    virtual int recv_tail(char &);
+    virtual bool recv_tail();
 
     void _file_open(const char*);
     void _read_at(char*, int64_t, int64_t);
     void _close();
 
-    void _print_win(){
-        printf("Buffer window: %ld->%ld, file window: [%ld %ld]->[%ld %ld]\n", 
+    void _print_win(std::string prefix="somewhere"){
+
+        printf("%d[%d] %s buffer window: %ld->%ld, file window: [%ld %ld]->[%ld %ld], filecount=%ld, totalsize=%ld, tail=[%d %d]\n",
+               me, nprocs, prefix.c_str(),
                win.left_buf_off, win.right_buf_off, 
                win.left_file_idx, win.left_file_off,
-               win.right_file_idx, win.right_file_off);
+               win.right_file_idx, win.right_file_off,
+               win.file_count, win.total_size, 
+               win.tail_left_off, win.tail_right_off);
     };
 
     struct FileWindows{
@@ -91,6 +108,7 @@ class InputStream {
         int64_t block_size;
         int     tail_left_off;
         int     tail_right_off;
+        bool    tail_done;
     };
 
     FileSplitter   *splitter;
@@ -144,14 +162,15 @@ class CollectiveInputStream : public InputStream {
         _destroy_comm();
     }
 
-  protected:
-    virtual void read_files();
-    virtual bool open_stream(){
+   virtual bool open_stream(){
         return InputStream::open_stream();
     }
     virtual void close_stream(){
         InputStream::close_stream();
     }
+
+  protected:
+    virtual void read_files();
 
     void _create_comm();
     void _destroy_comm();

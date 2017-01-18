@@ -124,6 +124,9 @@ bool InputStream::open_stream(){
     win.right_buf_off = 0;
     win.tail_left_off = 0;
     win.tail_right_off = 0;
+    win.tail_done = false;
+
+    read_files();
 
     return true;
 }
@@ -145,7 +148,7 @@ void InputStream::send_tail(){
             tailreq = MPI_REQUEST_NULL;
         }
         // as the pointer moved to next, we need get the previous character
-        tailbuf[win.tail_right_off] = *(inbuf + win.left_buf_off - 1);
+        tailbuf[win.tail_right_off] = *(inbuf + win.left_buf_off);
         win.tail_right_off++;
 
         // fflush the buffer
@@ -154,6 +157,8 @@ void InputStream::send_tail(){
                       MPI_BYTE, me-1, 0xaa, global_comm, &tailreq);
             win.tail_right_off = 0;
         }
+
+        next();
     }
 
     // the buffer is not empty
@@ -168,33 +173,132 @@ void InputStream::send_tail(){
     MPI_Isend(NULL, 0, MPI_BYTE, me-1, 0xaa, global_comm, &tmp);
 }
 
-int InputStream::recv_tail(char &ch){
+bool InputStream::recv_tail(){
+    bool done=false;
+
     MPI_Status st;
     int count;
 
-    if(win.tail_left_off < win.tail_right_off){
-        ch = tailbuf[win.tail_left_off];
-        win.tail_left_off++;
-        return 1;
-    }else{
-        MPI_Irecv(tailbuf, TAIL_BUF_SIZE, 
-                  MPI_BYTE, me+1, 0xaa, global_comm, &tailreq);
-        MPI_Wait(&tailreq, &st);
+    MPI_Irecv(tailbuf, TAIL_BUF_SIZE, 
+              MPI_BYTE, me+1, 0xaa, global_comm, &tailreq);
+    MPI_Wait(&tailreq, &st);
 
-        MPI_Get_count(&st, MPI_BYTE, &count);
+    MPI_Get_count(&st, MPI_BYTE, &count);
 
-        win.tail_left_off = 0;
-        win.tail_right_off = count;
-        if(count == 0)
-            return 0;
-        ch = tailbuf[win.tail_left_off];
-        win.tail_left_off++;
-    }
+    win.tail_left_off = 0;
+    win.tail_right_off = count;
+    if(count == 0) done = true;
 
-    return 1;
+    return done;
 }
 
+// if EOF
+bool InputStream::is_eof(){
 
+    // at the end of current file
+    if(win.left_file_off == splitter->get_end_offset(win.left_file_idx)){
+
+        // the file is shared by right process
+        if(splitter->is_right_sharefile(win.left_file_idx)){
+            // has tail data
+            if(win.tail_left_off < win.tail_right_off) 
+                return false;
+            // no tail
+            else if(win.tail_done) 
+                return true;
+            // try to get tail
+            else{
+                win.tail_done = recv_tail();
+                return win.tail_done;
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+// if empty
+bool InputStream::is_empty(){
+    if(win.left_file_idx >= win.file_count)
+        return true;
+
+    if(win.left_file_idx == win.file_count - 1 && is_eof())
+        return true;
+
+    return false;
+}
+
+unsigned char InputStream::operator*(){
+    return get_byte();
+}
+
+// get current byte
+// make sure the byte is in memory
+unsigned char InputStream::get_byte(){
+    if(is_eof()) return 0;
+
+    int64_t start_off = splitter->get_start_offset(win.left_file_idx);
+    int64_t end_off = splitter->get_end_offset(win.left_file_idx);
+    int64_t fidx = win.left_file_idx;
+    bool isleft = splitter->is_left_sharefile(fidx);
+
+    if(iscb == false && isleft && 
+       win.left_file_off == start_off ){
+        iscb = true;
+        send_tail();
+        iscb = false;
+        if(is_eof()) return 0;
+    }
+
+    char ch;
+    if(win.left_file_off < end_off)
+        ch = *(inbuf + win.left_buf_off);
+    else
+        ch = *(tailbuf + win.tail_left_off);
+
+     return ch;
+}
+
+void InputStream::operator++(){
+    next();
+}
+
+void InputStream::next(){
+    int64_t end_offset = splitter->get_end_offset(win.left_file_idx);
+
+    if(iscb && win.left_file_off == end_offset){
+        LOG_ERROR("Error: the midlle file segement of %s is \
+                  the tail of previous segement, please \
+                  resplit your file\n",
+                  splitter->get_file_name(win.left_file_idx));
+    }
+
+    if(is_empty()) return;
+
+    if(is_eof()){
+        win.left_file_idx += 1;
+        win.left_file_off = 
+            splitter->get_start_offset(win.left_file_idx);
+    }else{
+        if(win.left_file_off < end_offset){
+            win.left_buf_off++;
+            win.left_file_off++;
+        }else{
+            win.tail_left_off++;
+        }
+    }
+
+    if(win.left_buf_off >= win.right_buf_off)
+        read_files();
+
+    //_print_win();
+
+    return;
+}
+
+#if 0
 int InputStream::get_char(char& c){
 
     int ret = 0;
@@ -219,8 +323,19 @@ int InputStream::get_char(char& c){
                               resplit your file\n",
                               splitter->get_file_name(win.left_file_idx));
 
+                do
+                if(win.tail_left_off < win.tail_right_off){
+                    ch = 
+                    win.tail_left_off++;
+                    break;
+                }
+                }while(ret = recv_tail());
+
                 ret = recv_tail(c);
-                if(ret) break;
+                if(ret) {
+                    win.tail_left_off++;
+                    break;
+                }
             }
             // jump to next file
             if(win.left_file_idx < win.file_count - 1){
@@ -263,14 +378,12 @@ int InputStream::get_char(char& c){
     printf("%d[%d] %ld->%ld, c=%x, ret=%d\n", 
            me, nprocs, win.left_buf_off, win.right_buf_off, c, ret);
 
-    //_print_win();
+    _print_win();
+
     return ret;
 }
 
-int InputStream::operator>>(char& c){
-    return get_char(c);
-}
-
+#endif
 
 void CollectiveInputStream::_create_comm(){
 
