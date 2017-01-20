@@ -7,6 +7,29 @@
 
 using namespace MIMIR_NS;
 
+FileSplitter::FileSplitter(int64_t blocksize,
+                           const char* filepath, 
+                           int shared,
+                           int recurse, 
+                           MPI_Comm comm) {
+
+    this->comm = comm;
+    this->blocksize = blocksize;
+    this->filepath = filepath;
+    this->shared = shared;
+    this->recurse = recurse;
+
+    MPI_Comm_rank(comm, &me);
+    MPI_Comm_size(comm, &nprocs);
+    totalblocks = 0;
+    totalsize = 0;
+
+    for(int i = 0; i< GROUP_SIZE; i++) group_to_idx[i] = -1;
+}
+
+FileSplitter::~FileSplitter() {
+}
+
 int64_t FileSplitter::get_file_count() {
 
     if(shared)

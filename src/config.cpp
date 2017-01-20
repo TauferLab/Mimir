@@ -13,6 +13,13 @@ int64_t DATA_PAGE_SIZE = 64 * 1024 * 1024;
 /// Input buffer size
 int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024;
 
+/// IO split unit
+int64_t FILE_SPLIT_UNIT = 1;
+
+/// Disk IO type
+/// (0: c library io; 1: mpi io; 2; mpi collective io)
+int DISK_IO_TYPE = 2;
+
 /// Tail buffer size
 int TAIL_BUF_SIZE = 1024 * 1024;
 

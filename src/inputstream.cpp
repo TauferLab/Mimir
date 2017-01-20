@@ -9,39 +9,149 @@
 
 using namespace MIMIR_NS;
 
+IStream *IStream::createStream(IOMethod iotype,
+                               int64_t blocksize,
+                               const char *filepath,
+                               int shared,
+                               int recurse,
+                               MPI_Comm comm,
+                               UserSplit splitcb,
+                               void *splitptr){
 
-void InputStream::_file_open(const char *filename){
+    IStream *in = NULL;
+    if(iotype == CLIBIO || iotype == MPIIO){
+        in = new IStream(iotype, blocksize, filepath, shared,
+                         recurse, comm, splitcb, splitptr);
+    }else if(iotype == CMPIIO){
+        in = new CIStream(blocksize, filepath, shared,
+                          recurse, comm, splitcb, splitptr);
+    }
+    return in;
+}
+
+void IStream::destroyStream(IStream *in){
+    if(in != NULL){
+        delete in;
+    }
+}
+
+IStream::IStream(IOMethod iotype, int64_t blocksize, 
+                 const char *filepath, int sharedflag, 
+                 int recurse, MPI_Comm comm,
+                 UserSplit splitcb, void * splitptr) {
+
+    splitter = new FileSplitter(blocksize, 
+                                filepath, 
+                                sharedflag, 
+                                recurse, 
+                                comm);
+    splitter->split();
+
+    win.file_count = splitter->get_file_count();
+    win.total_size = splitter->get_total_size();
+    win.block_size = blocksize;
+
+    this->iotype = iotype;
+    if(iotype == CLIBIO){
+        union_fp.c_fp = NULL;
+    }else if(iotype == MPIIO){
+        union_fp.mpi_fp = MPI_FILE_NULL;
+    }
+
+    //fp = NULL;
+    inbuf = NULL;
+    inbufsize = 0;
+
+    this->splitcb = splitcb;
+    this->splitptr = splitptr;
+
+    global_comm = comm;
+
+    MPI_Comm_rank(global_comm, &me);
+    MPI_Comm_size(global_comm, &nprocs);
+
+    iscb = false;
+
+}
+
+IStream::~IStream(){
+
+    delete splitter;
+}
+
+// Compute the maximum size which can read to the input buffer
+int64_t IStream::_get_max_rsize(){
+
+    if(win.right_buf_off < win.left_buf_off || 
+       win.right_buf_off > win.left_buf_off + inbufsize){
+        LOG_ERROR("Error window state: %ld->%ld\n", 
+                  win.left_buf_off, win.right_buf_off);
+    }
+
+    if(win.right_buf_off == win.left_buf_off + inbufsize)
+        return 0;
+
+    int64_t right_pointer = win.right_buf_off % inbufsize;
+    int64_t left_pointer = win.left_buf_off % inbufsize;
+    if(right_pointer >= left_pointer)
+        return inbufsize - right_pointer;
+
+    return left_pointer - right_pointer;
+}
+
+bool IStream::_file_open(const char *filename){
     if(iotype == CLIBIO){
         union_fp.c_fp = fopen(filename, "r");
-        if(union_fp.c_fp == NULL)
-            LOG_ERROR("Error: open input file %s\n", filename);
+        if(union_fp.c_fp == NULL) return false;
     }else if(iotype == MPIIO){
         MPI_File_open(MPI_COMM_SELF, (char*)filename, MPI_MODE_RDONLY,
                       MPI_INFO_NULL, &(union_fp.mpi_fp));
+        if(union_fp.mpi_fp == MPI_FILE_NULL) return false;
     }
+
+    return true;
 }
 
-void InputStream::_read_at(char *buf, int64_t offset, int64_t size){
+void IStream::_file_read_at(char *buf, int64_t offset, int64_t size){
     if(iotype == CLIBIO){
-        // set the pointer
         fseek(union_fp.c_fp, offset, SEEK_SET);
         size = fread(buf, 1, size, union_fp.c_fp);
     }else if(iotype == MPIIO){
-        MPI_File_read_at(union_fp.mpi_fp, offset, buf, (int)size, MPI_BYTE, NULL);
+        MPI_File_read_at(union_fp.mpi_fp, offset, buf, 
+                         (int)size, MPI_BYTE, NULL);
     }
 }
 
-void InputStream::_close(){
+void IStream::_file_close(){
     if(iotype == CLIBIO){
-        fclose(union_fp.c_fp);
+        if(union_fp.c_fp != NULL){
+            fclose(union_fp.c_fp);
+            union_fp.c_fp = NULL;
+        }
     }else if(iotype == MPIIO){
-        MPI_File_close(&(union_fp.mpi_fp));
+        if(union_fp.mpi_fp != MPI_FILE_NULL){
+            MPI_File_close(&(union_fp.mpi_fp));
+            union_fp.mpi_fp = MPI_FILE_NULL;
+        }
     }
 }
+
+void IStream::_print_win(std::string prefix){
+
+    printf("%d[%d] %s buffer window: %ld->%ld, \
+file window: [%ld %ld]->[%ld %ld], \
+filecount=%ld, totalsize=%ld, tail=[%d %d]\n",
+        me, nprocs, prefix.c_str(),
+        win.left_buf_off, win.right_buf_off, 
+        win.left_file_idx, win.left_file_off,
+        win.right_file_idx, win.right_file_off,
+        win.file_count, win.total_size, 
+        win.tail_left_off, win.tail_right_off);
+};
 
 // read files to fullfill the input buffer
 // files are read by multiple blocks
-void InputStream::read_files(){
+void IStream::read_files(){
 
     // read files
     for(int64_t i = win.right_file_idx; i < win.file_count; i++){
@@ -59,9 +169,9 @@ void InputStream::read_files(){
         }
 
         // open the file
-        if(fp != NULL) fclose(fp);
-        fp = fopen(splitter->get_file_name(i), "r");
-        if(!fp){
+        //fclose(fp);
+        _file_close();
+        if(!_file_open(splitter->get_file_name(i))){
             LOG_ERROR("Error: open input file %s\n",
                       splitter->get_file_name(i));
         }
@@ -69,16 +179,14 @@ void InputStream::read_files(){
         // read file
         int64_t rsize;
         // read until end of the file
-        if(end_off - start_off <= inbufsize - win.right_buf_off)
+        if(end_off - start_off <= _get_max_rsize())
             rsize = end_off - start_off;
         // read multiple blocks from the file
         else
-            rsize = (inbufsize - win.right_buf_off) 
-                / win.block_size * win.block_size;
-        // set the pointer
-        fseek(fp, start_off, SEEK_SET);
-        rsize = fread(inbuf+win.right_buf_off, 1, rsize, fp);
+            rsize = _get_max_rsize() / win.block_size * win.block_size;
 
+        _file_read_at(inbuf + win.right_buf_off % inbufsize,
+                      start_off, rsize);
         LOG_PRINT(DBG_IO, "Read input file %s:%ld+%ld\n", 
                   splitter->get_file_name(i), start_off, rsize);
 
@@ -89,19 +197,19 @@ void InputStream::read_files(){
 
         if(win.right_file_idx == win.file_count - 1 && \
            win.right_file_off == end_off){
-            fclose(fp);
+            _file_close();
         }
 
         // the window
-        if(win.right_buf_off >= inbufsize || \
-           ((inbufsize - win.right_buf_off) < win.block_size && \
+        if(_get_max_rsize() == 0 || 
+           (_get_max_rsize() < win.block_size && \
             (end_off - win.right_file_off) > win.block_size))
-           break;
+            break;
     }
 }
 
 // Please make sure the file count is not zero
-bool InputStream::open_stream(){
+bool IStream::open_stream(){
 
     if(win.file_count <= 0)
         return false;
@@ -131,12 +239,12 @@ bool InputStream::open_stream(){
     return true;
 }
 
-void InputStream::close_stream(){
+void IStream::close_stream(){
     mem_aligned_free(tailbuf);
     mem_aligned_free(inbuf);
 }
 
-void InputStream::send_tail(){
+void IStream::send_tail(){
     MPI_Status st;
     tailreq = MPI_REQUEST_NULL;
 
@@ -147,8 +255,7 @@ void InputStream::send_tail(){
             MPI_Wait(&tailreq, &st);
             tailreq = MPI_REQUEST_NULL;
         }
-        // as the pointer moved to next, we need get the previous character
-        tailbuf[win.tail_right_off] = *(inbuf + win.left_buf_off);
+        tailbuf[win.tail_right_off] = *(inbuf + win.left_buf_off % inbufsize);
         win.tail_right_off++;
 
         // fflush the buffer
@@ -173,7 +280,7 @@ void InputStream::send_tail(){
     MPI_Isend(NULL, 0, MPI_BYTE, me-1, 0xaa, global_comm, &tmp);
 }
 
-bool InputStream::recv_tail(){
+bool IStream::recv_tail(){
     bool done=false;
 
     MPI_Status st;
@@ -193,7 +300,7 @@ bool InputStream::recv_tail(){
 }
 
 // if EOF
-bool InputStream::is_eof(){
+bool IStream::is_eof(){
 
     // at the end of current file
     if(win.left_file_off == splitter->get_end_offset(win.left_file_idx)){
@@ -220,7 +327,7 @@ bool InputStream::is_eof(){
 }
 
 // if empty
-bool InputStream::is_empty(){
+bool IStream::is_empty(){
     if(win.left_file_idx >= win.file_count)
         return true;
 
@@ -230,13 +337,13 @@ bool InputStream::is_empty(){
     return false;
 }
 
-unsigned char InputStream::operator*(){
+unsigned char IStream::operator*(){
     return get_byte();
 }
 
 // get current byte
 // make sure the byte is in memory
-unsigned char InputStream::get_byte(){
+unsigned char IStream::get_byte(){
     if(is_eof()) return 0;
 
     int64_t start_off = splitter->get_start_offset(win.left_file_idx);
@@ -254,18 +361,18 @@ unsigned char InputStream::get_byte(){
 
     char ch;
     if(win.left_file_off < end_off)
-        ch = *(inbuf + win.left_buf_off);
+        ch = *(inbuf + win.left_buf_off % inbufsize);
     else
         ch = *(tailbuf + win.tail_left_off);
 
      return ch;
 }
 
-void InputStream::operator++(){
+void IStream::operator++(){
     next();
 }
 
-void InputStream::next(){
+void IStream::next(){
     int64_t end_offset = splitter->get_end_offset(win.left_file_idx);
 
     if(iscb && win.left_file_off == end_offset){
@@ -298,94 +405,41 @@ void InputStream::next(){
     return;
 }
 
-#if 0
-int InputStream::get_char(char& c){
+CIStream::CIStream(
+         int64_t blocksize,
+         const char* filepath,
+         int sharedflag,
+         int recurse,
+         MPI_Comm comm,
+         UserSplit splitcb,
+         void *splitptr) :
+IStream(CMPIIO, blocksize, filepath, 
+        sharedflag, recurse, 
+        comm, splitcb, splitptr){
 
-    int ret = 0;
+    mpi_fp = MPI_FILE_NULL;
 
-    while(win.right_file_idx < win.file_count){
+    splitter->print();
 
-        // end of file
-        if(win.left_file_off == 
-           splitter->get_end_offset(win.left_file_idx)){
+    iotype = CMPIIO;
 
-            // receive data from right process
-            if(splitter->is_right_sharefile(win.left_file_idx)){
-
-                //printf("%d[%d] left_file_idx=%ld, %d, %d,\n", me, nprocs, 
-                //      win.left_file_idx,
-                //       splitter->is_right_sharefile(win.left_file_idx),
-                //       splitter->is_left_sharefile(win.left_file_idx));
-
-                if(iscb)
-                    LOG_ERROR("Error: the midlle file segement of %s is \
-                              the tail of previous segement, please \
-                              resplit your file\n",
-                              splitter->get_file_name(win.left_file_idx));
-
-                do
-                if(win.tail_left_off < win.tail_right_off){
-                    ch = 
-                    win.tail_left_off++;
-                    break;
-                }
-                }while(ret = recv_tail());
-
-                ret = recv_tail(c);
-                if(ret) {
-                    win.tail_left_off++;
-                    break;
-                }
-            }
-            // jump to next file
-            if(win.left_file_idx < win.file_count - 1){
-                ret = EOF;
-                win.left_file_idx += 1;
-                win.left_file_off = 
-                        splitter->get_start_offset(win.left_file_idx);
-            }
-            break;
-        // has data in-mmeory
-        }else if(win.left_buf_off < win.right_buf_off){
-            int64_t fidx = win.left_file_idx;
-            bool isleft = splitter->is_left_sharefile(fidx);
-            int64_t startoff = splitter->get_start_offset(fidx);
-
-            // the file is shared by other processes on the left side
-            if(iscb==false && isleft && win.left_file_off == startoff){
-                int64_t my_file_idx = win.left_file_idx;
-                // skip tail
-                iscb = true;
-                // get_char may be invoked in send_tail recursely
-                send_tail();
-                iscb = false;
-                if(win.left_file_idx > my_file_idx){
-                    ret = EOF;
-                }else{
-                    ret = 1;
-                    c = *(inbuf + win.left_buf_off - 1);
-                }
-            }else{
-                ret = 1;
-                c = *(inbuf+win.left_buf_off);
-                win.left_buf_off += 1;
-                win.left_file_off += 1;
-            }
-            break;
-        }else read_files();
-    }
-
-    printf("%d[%d] %ld->%ld, c=%x, ret=%d\n", 
-           me, nprocs, win.left_buf_off, win.right_buf_off, c, ret);
-
-    _print_win();
-
-    return ret;
+    _create_comm();
 }
 
-#endif
+CIStream::~CIStream(){
+    _destroy_comm();
+}
 
-void CollectiveInputStream::_create_comm(){
+bool CIStream::open_stream(){
+    return IStream::open_stream();
+}
+
+void CIStream::close_stream(){
+    IStream::close_stream();
+}
+
+
+void CIStream::_create_comm(){
 
     MPI_Group global_group, local_groups[GROUP_SIZE];
 
@@ -430,12 +484,12 @@ void CollectiveInputStream::_create_comm(){
     MPI_Group_free(&global_group);
 }
 
-void CollectiveInputStream::_destroy_comm(){
+void CIStream::_destroy_comm(){
     for(int i = 0; i < GROUP_SIZE; i++)
         MPI_Comm_free(&local_comms[i]);
 }
 
-bool CollectiveInputStream::_read_group_files(){
+bool CIStream::_read_group_files(){
 
     MPI_Status st;
 
@@ -464,15 +518,15 @@ bool CollectiveInputStream::_read_group_files(){
 
             // get read size
             int64_t rsize;
-            if(end_off - start_off <= inbufsize - win.right_buf_off)
+            if(end_off - start_off <= _get_max_rsize())
                 rsize = end_off - start_off;
             else
-                rsize = (inbufsize - win.right_buf_off) 
-                    / win.block_size * win.block_size;
+                rsize = _get_max_rsize() / win.block_size * win.block_size;
 
             LOG_PRINT(DBG_IO, "Read input file %s:%ld+%ld\n", 
                   splitter->get_file_name(fidx), start_off, rsize);
-            MPI_File_read_at_all(mpi_fp, start_off, inbuf + win.right_buf_off,
+            MPI_File_read_at_all(mpi_fp, start_off, 
+                                 inbuf + win.right_buf_off % inbufsize,
                                  (int)rsize, MPI_BYTE, &st);
 
             // reset the window
@@ -501,7 +555,7 @@ bool CollectiveInputStream::_read_group_files(){
     return false;
 }
 
-void CollectiveInputStream::read_files(){
+void CIStream::read_files(){
 
     if(_read_group_files()) return;
     // read files
@@ -530,17 +584,17 @@ void CollectiveInputStream::read_files(){
         // read file
         int64_t rsize;
         // read until end of the file
-        if(end_off - start_off <= inbufsize - win.right_buf_off)
+        if(end_off - start_off <= _get_max_rsize())
             rsize = end_off - start_off;
         // read multiple blocks from the file
         else
-            rsize = (inbufsize - win.right_buf_off) 
-                / win.block_size * win.block_size;
+            rsize = _get_max_rsize() / win.block_size * win.block_size;
         // set the pointer
         //fseek(fp, start_off, SEEK_SET);
         //rsize = fread(inbuf, 1, rsize, fp);
         MPI_Status st;
-        MPI_File_read_at(mpi_fp, start_off, inbuf + win.right_buf_off, 
+        MPI_File_read_at(mpi_fp, start_off, 
+                         inbuf + win.right_buf_off % inbufsize, 
                          (int)rsize, MPI_BYTE, &st);
 
         LOG_PRINT(DBG_IO, "Read input file %s:%ld+%ld\n", 
@@ -557,8 +611,8 @@ void CollectiveInputStream::read_files(){
         }
 
         // the window
-        if(win.right_buf_off >= inbufsize || \
-           ((inbufsize - win.right_buf_off) < win.block_size && \
+        if((_get_max_rsize()==0) || \
+           (_get_max_rsize() < win.block_size && \
             (end_off - win.right_file_off) > win.block_size))
            break;
     }

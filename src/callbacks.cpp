@@ -4,7 +4,7 @@
 
 using namespace MIMIR_NS;
 
-bool wordsplitcb(InputStream *in, void *ptr){
+bool wordsplitcb(IStream *in, void *ptr){
     const char *str = (const char*)ptr;
     int len = (int)strlen(str)+1;
 

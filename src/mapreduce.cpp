@@ -155,19 +155,16 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
         phase = LocalMapPhase;
     }
 
-    // Create input stream
-    CollectiveInputStream in(1,
-                             filepath,
-                             shared,
-                             recurse,
-                             comm,
-                             mysplit,
-                             (void*)ptr);
+    IStream *in = IStream::createStream((IOMethod)DISK_IO_TYPE,
+                                        FILE_SPLIT_UNIT, filepath, shared, 
+                                        recurse, comm, mysplit, ptr);
 
-    in.open_stream();
+    in->open_stream();
     // Process file
-    myfunc(this, &in, ptr);
-    in.close_stream();
+    myfunc(this, in, ptr);
+    in->close_stream();
+
+    IStream::destroyStream(in);
 
     // Delete communicator
     if (repartition) {
@@ -223,22 +220,18 @@ uint64_t MapReduce::map_text_file(const char *filepath,
         phase = LocalMapPhase;
     }
 
-    CollectiveInputStream in(1,
-                             filepath,
-                             shared,
-                             recurse,
-                             comm,
-                             wordsplitcb,
-                             (void*)seperator);
+    IStream *in = IStream::createStream((IOMethod)DISK_IO_TYPE, 
+                                        FILE_SPLIT_UNIT, filepath, shared, 
+                                        recurse, comm, wordsplitcb, seperator);
 
     std::string whitespaces=seperator;
     std::string str;
     char ch;
 
-    in.open_stream();
-    while(in.is_empty() == false){
-        ch = in.get_byte();
-        if(in.is_eof() && str.size() != 0){
+    in->open_stream();
+    while(in->is_empty() == false){
+        ch = in->get_byte();
+        if(in->is_eof() && str.size() != 0){
             mymap(this, str.c_str(), ptr);
             str.clear();
         }else if(whitespaces.find(ch) == std::string::npos){
@@ -249,13 +242,14 @@ uint64_t MapReduce::map_text_file(const char *filepath,
                 str.clear();
             }
         }
-        in.next();
+        in->next();
     }
     if(str.size() != 0){
         mymap(this, str.c_str(), ptr);
         str.clear();
     }
-    in.close_stream();
+    in->close_stream();
+    IStream::destroyStream(in);
 
     // Delete communicator
     if (repartition) {

@@ -54,7 +54,7 @@ class ReducerSet;
 enum OpPhase { NonePhase, MapPhase, LocalMapPhase, ReducePhase, ScanPhase, CombinePhase };
 
 /// map callback to map files
-typedef void (*ProcessBinaryFile)(MapReduce*, InputStream*, void*);
+typedef void (*ProcessBinaryFile)(MapReduce*, IStream*, void*);
 
 /// hash callback
 typedef int (*UserHash) (const char*, int);
