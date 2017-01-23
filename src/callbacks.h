@@ -4,10 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "inputstream.h"
+#include "filereader.h"
 
 using namespace MIMIR_NS;
 
-bool wordsplitcb(IStream*, const void *ptr);
+bool wordsplitcb(FileReader *, void *ptr);
 
 #endif

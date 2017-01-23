@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <stdint.h>
 
 #include "common.h"
 #include "mapreduce.h"
@@ -13,7 +14,7 @@ using namespace MIMIR_NS;
 
 int rank, size;
 
-void map(MapReduce * mr, const char *word, void *ptr);
+void map(MapReduce * mr, char *word, void *ptr);
 void countword(MapReduce *, char *, int, void *);
 void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void *);
 
@@ -78,9 +79,11 @@ int main(int argc, char *argv[])
     MPI_Finalize();
 }
 
-void map(MapReduce * mr, const char *word, void *ptr)
+void map(MapReduce * mr, char *word, void *ptr)
 {
     int len = (int) strlen(word) + 1;
+    //printf("word=%s\n", word);
+
     if (len <= 1024) {
 #ifdef VALUE_STRING
         char tmp[10] = { "1" };

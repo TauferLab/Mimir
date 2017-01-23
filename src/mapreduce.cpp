@@ -34,7 +34,8 @@
 #include "memory.h"
 #include "stat.h"
 #include "hashbucket.h"
-#include "inputstream.h"
+#include "filereader.h"
+#include "inputiterator.h"
 
 using namespace MIMIR_NS;
 
@@ -155,7 +156,7 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
         phase = LocalMapPhase;
     }
 
-    IStream *in = IStream::createStream((IOMethod)DISK_IO_TYPE,
+    FileReader *in = FileReader::createStream((IOMethod)DISK_IO_TYPE,
                                         FILE_SPLIT_UNIT, filepath, shared, 
                                         recurse, comm, mysplit, ptr);
 
@@ -164,7 +165,7 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
     myfunc(this, in, ptr);
     in->close_stream();
 
-    IStream::destroyStream(in);
+    FileReader::destroyStream(in);
 
     // Delete communicator
     if (repartition) {
@@ -220,36 +221,45 @@ uint64_t MapReduce::map_text_file(const char *filepath,
         phase = LocalMapPhase;
     }
 
-    IStream *in = IStream::createStream((IOMethod)DISK_IO_TYPE, 
-                                        FILE_SPLIT_UNIT, filepath, shared, 
-                                        recurse, comm, wordsplitcb, seperator);
+    FileReader *in = FileReader::createStream((IOMethod)DISK_IO_TYPE, 
+                                              FILE_SPLIT_UNIT, filepath, shared, 
+                                              recurse, comm, wordsplitcb, 
+                                              (void*)seperator);
 
-    std::string whitespaces=seperator;
-    std::string str;
-    char ch;
+    StringIterator *iter = new StringIterator(in, seperator);
+    char *string;
+    while((string = iter->getNextRecord()) != NULL){
+        mymap(this, string, ptr);
+    }
+    //std::string whitespaces=seperator;
+    //std::string str;
+    //char *ch_ptr;
 
-    in->open_stream();
-    while(in->is_empty() == false){
-        ch = in->get_byte();
-        if(in->is_eof() && str.size() != 0){
-            mymap(this, str.c_str(), ptr);
-            str.clear();
-        }else if(whitespaces.find(ch) == std::string::npos){
-            str += ch;
-        }else{
-            if(str.size() != 0){
-                mymap(this, str.c_str(), ptr);
-                str.clear();
-            }
-        }
-        in->next();
-    }
-    if(str.size() != 0){
-        mymap(this, str.c_str(), ptr);
-        str.clear();
-    }
-    in->close_stream();
-    IStream::destroyStream(in);
+    //in->open_stream();
+    //while(in->is_empty() == false){
+    //    ch_ptr = in->get_byte();
+    //    if(in->is_eof()){
+    //        if(str.size() != 0){
+    //            mymap(this, str.c_str(), ptr);
+    //            str.clear();
+    //        }
+    //    }else if(whitespaces.find(*ch_ptr) == std::string::npos){
+    //        str += *ch_ptr;
+    //    }else{
+    //        if(str.size() != 0){
+    //            mymap(this, str.c_str(), ptr);
+    //            str.clear();
+    //        }
+    //    }
+    //    in->next();
+    //}
+    //if(str.size() != 0){
+    //    mymap(this, str.c_str(), ptr);
+    //    str.clear();
+    //}
+    //in->close_stream();
+    delete iter;
+    FileReader::destroyStream(in);
 
     // Delete communicator
     if (repartition) {

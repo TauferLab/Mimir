@@ -110,8 +110,8 @@ void FileSplitter::get_group_ranks(
     if(i != -1){
         low = filesegs[i].start_rank;
         high = filesegs[i].end_rank;
-        printf("%d[%d] i=%d, group_id=%d, filesegs.group_id=%d, ranks%d->%d\n", 
-               me, nprocs, i, group_id, filesegs[i].group_id, low, high);
+        //printf("%d[%d] i=%d, group_id=%d, filesegs.group_id=%d, ranks%d->%d\n", 
+        //       me, nprocs, i, group_id, filesegs[i].group_id, low, high);
     }else{
         low = high = me;
     }

@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#include "inputstream.h"
+#include "filereader.h"
 
 //#include "config.h"
 //#include "const.h"
@@ -54,7 +54,7 @@ class ReducerSet;
 enum OpPhase { NonePhase, MapPhase, LocalMapPhase, ReducePhase, ScanPhase, CombinePhase };
 
 /// map callback to map files
-typedef void (*ProcessBinaryFile)(MapReduce*, IStream*, void*);
+typedef void (*ProcessBinaryFile)(MapReduce*, FileReader*, void*);
 
 /// hash callback
 typedef int (*UserHash) (const char*, int);
@@ -63,7 +63,7 @@ typedef int (*UserHash) (const char*, int);
 typedef void (*UserInitKV) (MapReduce*, void*);
 
 /// map callback to map files
-typedef void (*UserMapFile) (MapReduce*, const char*, void*);
+typedef void (*UserMapFile) (MapReduce*, char*, void*);
 
 /// map callback to map KVs
 typedef void (*UserMapKV) (MapReduce*, char*, int, char*, int, void*);

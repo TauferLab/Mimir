@@ -3,7 +3,7 @@ CCLINK=mpicc
 CPP=mpicxx
 CPPLINK=mpicxx
 LCFLAGS = -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
-LFLAGS = -L ../src -lm
+LFLAGS = -L../src -lm
 
 USERLIBS = -lmimir
 
