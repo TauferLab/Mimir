@@ -1,13 +1,4 @@
-<<<<<<< HEAD
-CC=mpicc
-CCLINK=mpicc
-CPP=mpicxx
-CPPLINK=mpicxx
-LCFLAGS = -std=c++11 -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
-LFLAGS = -L../src -lm
-=======
 # skeleton of generic makefile
->>>>>>> master
 
 OBJDIR	:= build
 
