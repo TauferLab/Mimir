@@ -24,6 +24,7 @@ namespace MIMIR_NS {
 class CombinerHashBucket;
 struct CombinerUnique;
 
+
 class KeyValue:public DataObject {
 public:
     KeyValue(int, int, int64_t pagesize = 1, int maxpages = 4);

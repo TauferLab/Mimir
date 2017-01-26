@@ -1,5 +1,9 @@
 #include "log.h"
+#include <mpi.h>
 
-int log_world_rank = -1;
-int log_world_size = 0;
+MPI_Comm  mimir_world_comm;
+int mimir_world_rank = -1;
+int mimir_world_size = 0;
+
 char dump_buffer[MIMIR_MAX_LOG_LEN] = "";
+

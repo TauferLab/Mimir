@@ -20,16 +20,16 @@
 
 #define MIMIR_MAX_LOG_LEN 256
 
-extern int log_world_rank;
-extern int log_world_size;
+extern int mimir_world_rank;
+extern int mimir_world_size;
 extern char dump_buffer[MIMIR_MAX_LOG_LEN];
 
 #define LOG_DUMP_BUFFER dump_buffer
 
 #define LOG_INIT(rank, size)                                                   \
     do {                                                                       \
-        log_world_rank = rank;                                                 \
-        log_world_size = size;                                                 \
+        mimir_world_rank = rank;                                                 \
+        mimir_world_size = size;                                                 \
     } while (0)
 
 #ifdef _DEBUG
@@ -39,7 +39,7 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
         if (DBG_LEVEL & (type)) {                                              \
             sprintf(_s, __VA_ARGS__);                                          \
             fprintf(stdout, "%d[%d] %s:%d %s",                                 \
-                    log_world_rank, log_world_size, __FILE__, __LINE__, _s);   \
+                    mimir_world_rank, mimir_world_size, __FILE__, __LINE__, _s);   \
             fflush(stdout);                                                    \
         }                                                                      \
     } while (0)
@@ -52,7 +52,7 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
         char _s[MIMIR_MAX_LOG_LEN] = "";                                       \
         sprintf(_s, __VA_ARGS__);                                              \
         fprintf(stderr, "%d[%d] %s:%d %s",                                     \
-                log_world_rank, log_world_size, __FILE__, __LINE__, _s);       \
+                mimir_world_rank, mimir_world_size, __FILE__, __LINE__, _s);       \
     } while (0)
 
 #define LOG_ERROR(...)                                                         \
@@ -60,7 +60,7 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
         char _s[MIMIR_MAX_LOG_LEN] = "";                                       \
         sprintf(_s, __VA_ARGS__);                                              \
         fprintf(stderr, "%d[%d] %s:%d %s",                                     \
-                log_world_rank, log_world_size, __FILE__, __LINE__, _s);       \
+                mimir_world_rank, mimir_world_size, __FILE__, __LINE__, _s);       \
         MPI_Abort(MPI_COMM_WORLD, 1);                                          \
     } while (0)
 

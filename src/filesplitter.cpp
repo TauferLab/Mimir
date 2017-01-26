@@ -1,419 +1,167 @@
-#include <sys/stat.h>
-#include <dirent.h>
-#include "log.h"
+#include "globals.h"
+#include "config.h"
 #include "const.h"
+#include "log.h"
 #include "filesplitter.h"
-
 
 using namespace MIMIR_NS;
 
-FileSplitter::FileSplitter(int64_t blocksize,
-                           const char* filepath, 
-                           int shared,
-                           int recurse, 
-                           MPI_Comm comm) {
+FileSplitter* FileSplitter::splitter = NULL;
 
-    this->comm = comm;
-    this->blocksize = blocksize;
-    this->filepath = filepath;
-    this->shared = shared;
-    this->recurse = recurse;
+void FileSplitter::_bcast_file_list(InputSplit *input){
+    int   total_count = 0;
+    char *tmp_buf = NULL;
+    FileSeg *fileseg = NULL;
 
-    MPI_Comm_rank(comm, &me);
-    MPI_Comm_size(comm, &nprocs);
-    totalblocks = 0;
-    totalsize = 0;
+    MPI_Barrier(mimir_world_comm);
 
-    for(int i = 0; i< GROUP_SIZE; i++) group_to_idx[i] = -1;
-}
-
-FileSplitter::~FileSplitter() {
-}
-
-int64_t FileSplitter::get_file_count() {
-
-    if(shared)
-        return (int64_t)filesegs.size();
-
-    return (int64_t)infiles.size();
-}
-
-const char* FileSplitter::get_file_name(int64_t i) {
-
-    if(shared)
-        return filesegs[i].filename.c_str();
-
-    return infiles[i].filename.c_str();
-}
-
-int64_t FileSplitter::get_start_offset(int64_t i) {
-
-    if(shared)
-        return filesegs[i].startoff;
-
-    return 0;
-}
-
-int64_t FileSplitter::get_end_offset(int64_t i) {
-
-    if(shared)
-        return filesegs[i].endoff;
-
-    return infiles[i].filesize;
-}
-
-int64_t FileSplitter::get_file_size(int64_t i) {
-
-    if(shared)
-        return filesegs[i].filesize;
-
-    return infiles[i].filesize;
-}
-
-int64_t FileSplitter::get_total_size(){
-    return totalsize;
-}
-
-int64_t FileSplitter::get_block_size(){
-    return blocksize;
-}
-
-bool FileSplitter::is_left_sharefile(int64_t i){
-    if(filesegs[i].start_rank < me)
-        return true;
-
-    return false;
-}
-
-bool FileSplitter::is_right_sharefile(int64_t i){
-    if(filesegs[i].end_rank > me)
-        return true;
-
-    return false;
-}
-
-const char* FileSplitter::get_group_filename(int group_id){
-    int i = group_to_idx[group_id];
-
-    if(i != -1)
-        return filesegs[i].filename.c_str();
-
-    return NULL;
-}
-
-void FileSplitter::get_group_ranks(
-                                    int group_id,
-                                    int &low, 
-                                    int &high){
-
-    int i = group_to_idx[group_id];
-    if(i != -1){
-        low = filesegs[i].start_rank;
-        high = filesegs[i].end_rank;
-        //printf("%d[%d] i=%d, group_id=%d, filesegs.group_id=%d, ranks%d->%d\n", 
-        //       me, nprocs, i, group_id, filesegs[i].group_id, low, high);
+    if(mimir_world_rank == 0){
+        while((fileseg = input->get_next_file()) != NULL){
+            total_count += (int)(fileseg->filename.size() + 1);
+            total_count += (int)sizeof(uint64_t);
+        }
     }else{
-        low = high = me;
+        input->clear();
+    }
+
+    MPI_Bcast( &total_count, 1, MPI_INT, 0, mimir_world_comm);
+
+    tmp_buf = new char[total_count];
+
+    int off = 0;
+    if(mimir_world_rank == 0){
+        while((fileseg = input->get_next_file()) != NULL){
+            memcpy(tmp_buf + off, fileseg->filename.c_str(),
+                   (int)(fileseg->filename.size() + 1));
+            off += (int)(fileseg->filename.size() + 1);
+            memcpy(tmp_buf + off, &(fileseg->filesize), sizeof(uint64_t));
+            off += (int)sizeof(uint64_t);
+        }
+        if(off != total_count) LOG_ERROR("Error: broadcast file list!\n");
+        MPI_Bcast( tmp_buf, total_count, MPI_BYTE, 0, mimir_world_comm );
+    }else{
+        MPI_Bcast( tmp_buf, total_count, MPI_BYTE, 0, mimir_world_comm );
+        while (off < total_count){
+            FileSeg tmp;
+
+            tmp.filename = tmp_buf + off;
+            off += (int)strlen(tmp_buf + off) + 1;
+            tmp.filesize = *(uint64_t*)(tmp_buf + off);
+            off += (int)sizeof(uint64_t);
+
+            tmp.startpos = 0;
+            tmp.segsize = tmp.filesize;
+
+            input->add_seg_file(&tmp);
+        }
+        if(off != total_count) LOG_ERROR("Error: broadcast file list!\n");
+    }
+
+    delete [] tmp_buf;
+
+    LOG_PRINT(DBG_IO, "Broadcast file list (count=%d)\n", total_count);
+}
+
+void FileSplitter::_split(InputSplit *input, SplitPolicy policy){
+    switch(policy){
+    case BYSIZE: _split_by_size(input); break;
+    case BYNAME: _split_by_name(input); break;
     }
 }
 
-int64_t FileSplitter::get_group_maxblocks(int64_t group_id){
-    int64_t ret = 0;
+void FileSplitter::_split_by_size(InputSplit *input){
+    FileSeg *fileseg = NULL;
+    uint64_t totalblocks = 0;
 
-    int i = group_to_idx[group_id];
-    if(i != -1)
-        ret = filesegs[i].max_blocks;
+    while((fileseg = input->get_next_file()) != NULL)
+        totalblocks += ROUNDUP(fileseg->filesize, FILE_SPLIT_UNIT);
 
-    return ret;
-}
+    InputSplit tmpsplit;
+    FileSeg tmpseg;
 
-int FileSplitter::get_file_groupid(int64_t i){
-    return filesegs[i].group_id;
-}
+    int proc_rank = 0;
+    uint64_t block_off = 0;
+     while((fileseg = input->get_next_file()) != NULL){
 
-int64_t FileSplitter::get_group_fileid(int group_id){
-    return group_to_idx[group_id];
-}
+        uint64_t proc_blocks = _get_proc_count(proc_rank, totalblocks);
+        uint64_t file_off = 0;
+        uint64_t file_blocks = ROUNDUP(fileseg->filesize, FILE_SPLIT_UNIT);
 
-void FileSplitter::print(){
-    if(shared){
-        std::vector<FileSegment>::iterator iter = filesegs.begin();
-        for(; iter != filesegs.end(); iter++){
-            printf("%d[%d] %s:%ld[%ld->%ld],group_id=%d,ranks=[%d,%d],max_blocks=%ld\n", 
-                   me, nprocs, 
-                   iter->filename.c_str(),
-                   iter->filesize, 
-                   iter->startoff, 
-                   iter->endoff,
-                   iter->group_id,
-                   iter->start_rank,
-                   iter->end_rank,
-                   iter->max_blocks);
-        }
-    }
-}
-
-void FileSplitter::split(){
-
-    _get_input_files(filepath.c_str(), shared, recurse);
-
-    if (shared) {
-        int *send_count = new int[nprocs];
-        int *send_displs = new int[nprocs];
-        char *send_buf = NULL;
-        char *recv_buf = NULL;
-        int total_count = 0;
-
-        if(me == 0) {
-            _partition_files();
-            for(int i = 0; i < nprocs; i++) send_count[i] = 0;
-            total_count=_get_send_counts(send_count);
-        }
-
-        int recv_count;
-        MPI_Scatter(send_count, 1, MPI_INT, &recv_count, 1, MPI_INT, 0, comm);
-
-        if (me == 0) {
-            send_displs[0] = 0;
-            for (int i = 1; i < nprocs; i++) {
-                send_displs[i] = send_displs[i - 1] + send_count[i - 1];
-            }
-        }
-
-        send_buf = new char[total_count];
-        recv_buf = new char[recv_count];
-
-        if (me == 0) _get_send_data(send_buf);
-
-        MPI_Scatterv(send_buf, send_count, send_displs, MPI_BYTE,
-                     recv_buf, recv_count, MPI_BYTE, 0, comm);
-
-        _get_recv_data(recv_buf, recv_count);
-
-        delete [] send_count;
-        delete [] send_displs;
-        delete [] send_buf;
-        delete [] recv_buf;
-    }
-}
-
-void FileSplitter::_get_recv_data(char *recv_buf, int recv_count){
-    char *ptr = recv_buf;
-    char *ptr_end = recv_buf + recv_count;
-    totalsize = 0;
-    //int i=0;
-    while(ptr < ptr_end){
-        FileSegment seg;
-        seg.filename = ptr;
-        ptr += strlen(ptr) + 1;
-        seg.filesize = *(int64_t*)ptr;
-        ptr += sizeof(int64_t);
-        seg.startoff = *(int64_t*)ptr;
-        ptr += sizeof(int64_t);
-        seg.endoff = *(int64_t*)ptr;
-        ptr += sizeof(int64_t);
-        seg.max_blocks = *(int64_t*)ptr;
-        ptr += sizeof(int64_t);
-        seg.start_rank = *(int*)ptr;
-        ptr += sizeof(int);
-        seg.end_rank = *(int*)ptr;
-        ptr += sizeof(int);
-        seg.group_id = *(int*)ptr;
-        ptr += sizeof(int);
-
-        std::vector<FileSegment>::iterator iter = filesegs.begin();
-        for(; iter != filesegs.end(); iter++){
-            if( seg.group_id < iter->group_id ){
-                filesegs.insert(iter, seg);
-                break;
-            }
-        }
-        if(iter == filesegs.end())
-            filesegs.push_back(seg);
-
-        LOG_PRINT(DBG_IO, "File=%s, size=%ld, offset=[%ld, %ld], ranks=[%d, %d], group_id=%d\n", 
-                  seg.filename.c_str(), seg.filesize, 
-                  seg.startoff, seg.endoff, 
-                  seg.start_rank, seg.end_rank, 
-                  seg.group_id);
-
-        totalsize += seg.endoff - seg.startoff;
-    }
-
-    for(int i = 0; i < (int)filesegs.size(); i++){
-        if(filesegs[i].group_id == GROUP1){
-            group_to_idx[GROUP1] = i;
-        }
-        else if(filesegs[i].group_id == GROUP2){
-            group_to_idx[GROUP2] = i;
-        }
-    }
-}
-
-void FileSplitter::_get_send_data(char *send_buf){
-    int offset = 0;
-    std::vector<FileInfo>::iterator iter = infiles.begin();
-    for( ; iter != infiles.end(); iter++ ) {
-        if(iter->filesize == 0) continue;
-        for(int i = iter->start_rank; i < iter->end_rank + 1; i++){
-            memcpy(send_buf + offset, iter->filename.c_str(),
-                   iter->filename.size() + 1);
-            offset += (int) (iter->filename.size()) + 1;
-            *(int64_t*)(send_buf + offset) = iter->filesize;
-            offset += (int)sizeof(int64_t);
-            *(int64_t*)(send_buf + offset) = 
-                iter->offstarts[i - iter->start_rank];
-            offset += (int)sizeof(int64_t);
-            *(int64_t*)(send_buf + offset) = 
-                iter->offstarts[i - iter->start_rank + 1];
-            offset += (int)sizeof(int64_t);
-            *(int64_t*)(send_buf + offset) = iter->max_blocks;
-            offset += (int)sizeof(int64_t); 
-            *(int*)(send_buf + offset) = iter->start_rank;
-            offset += (int)sizeof(int);
-            *(int*)(send_buf + offset) = iter->end_rank;
-            offset += (int)sizeof(int);
-            *(int*)(send_buf + offset) = iter->group_id;
-            offset += (int)sizeof(int);
-        }
-    }
-}
-
-int FileSplitter::_get_send_counts(int *send_count){
-
-    std::vector<FileInfo>::iterator iter = infiles.begin();
-    for( ; iter != infiles.end(); iter++ ) {
-
-        if(iter->filesize == 0) continue;
-
-        for(int i = iter->start_rank; i < iter->end_rank+1; i++){
-            send_count[i] += (int)(iter->filename.size()+1);
-            send_count[i] += (int)sizeof(int64_t)*4;
-            send_count[i] += (int)sizeof(int)*3;
-        }
-    }
-
-    int total_count=0;
-    for(int i = 0; i < nprocs; i++) total_count += send_count[i];
-
-    return total_count;
-}
-
-
-
-void FileSplitter::_partition_files(){
-
-    int64_t *block_count = new int64_t[nprocs];
-
-    // partition blocks
-    for(int i = 0; i < nprocs; i++){
-        block_count[i] = totalblocks / nprocs;
-        if(i < totalblocks % nprocs) block_count[i] += 1;
-    }
-
-    // partition files
-    int     pidx = 0;
-    int64_t boff = 0;
-    std::vector<FileInfo>::iterator iter = infiles.begin();
-    for( ; iter != infiles.end(); iter++ ) {
-        // skip empty file
-        if(iter->filesize == 0) continue;
-        // first offset is always zero
-        iter->offstarts.push_back(0);
-        int64_t foff = 0;
-        int64_t fblocks = ROUNDUP(iter->filesize, blocksize);
-        iter->start_rank = pidx;
-        iter->max_blocks = 0;
-        while(fblocks > 0){
+        while(file_blocks > 0){
             // partition whole file to pidx
-            if(boff + fblocks <= block_count[pidx]){
-                iter->offstarts.push_back(iter->filesize);
-                iter->end_rank = pidx;
-                boff += fblocks;
-                if(fblocks > iter->max_blocks)
-                    iter->max_blocks = fblocks;
-                fblocks = 0;
+            if(block_off + file_blocks <= proc_blocks){
+                tmpseg.filename = fileseg->filename;
+                tmpseg.filesize = fileseg->filesize;
+                tmpseg.startpos = file_off;
+                tmpseg.segsize  = fileseg->filesize - file_off;
+                tmpsplit.add_seg_file(&tmpseg);
+                //printf("%d %s:%ld+%ld\n", proc_rank, 
+                //       tmpseg.filename.c_str(),
+                //       tmpseg.startpos, tmpseg.segsize);
+                block_off += file_blocks;
+                file_blocks = 0;
             }else{
-                foff += (block_count[pidx] - boff) * blocksize;
-                iter->offstarts.push_back(foff);
-                if((block_count[pidx] - boff) > iter->max_blocks)
-                    iter->max_blocks = block_count[pidx] - boff;
-                fblocks -= (block_count[pidx] - boff);
-                boff += (block_count[pidx] - boff);
+                tmpseg.filename = fileseg->filename;
+                tmpseg.filesize = fileseg->filesize;
+                tmpseg.startpos = file_off;
+                tmpseg.segsize  = (proc_blocks - block_off) * FILE_SPLIT_UNIT;
+                tmpsplit.add_seg_file(&tmpseg);
+                //printf("%d %s:%ld+%ld\n", proc_rank, 
+                //       tmpseg.filename.c_str(),
+                //       tmpseg.startpos, tmpseg.segsize);
+                file_blocks -= (proc_blocks - block_off);
+                file_off += (proc_blocks - block_off) * FILE_SPLIT_UNIT;
+                block_off = proc_blocks;
             }
-            if( boff == block_count[pidx]){
-                pidx+=1;
-                boff=0;
+            if( block_off == proc_blocks){
+                //printf("%d add split!\n", proc_rank);
+                files.push_back(tmpsplit);
+                tmpsplit.clear();
+                proc_rank += 1;
+                block_off = 0;
+                proc_blocks = _get_proc_count(proc_rank, totalblocks);
+
             }
         }
+
     }
 
-    delete [] block_count;
-
-    // schedule communication group
-    int max_rank = -1;
-    iter = infiles.begin();
-    for( ; iter != infiles.end(); iter++ ) {
-        if(iter->end_rank == iter->start_rank){
-            iter->group_id = GROUPNON;
-        }else{
-            if(iter->start_rank == max_rank){
-                iter->group_id = GROUP2;
-            }else{
-                iter->group_id = GROUP1;
-                max_rank = iter->end_rank;
-            }
-        }
-    }
-
+     if((int)files.size() != mimir_world_size)
+         LOG_ERROR("The split file count is error!\n");
 }
 
-void FileSplitter::_get_input_files(const char* filepath, 
-                                    int sharedflag, 
-                                    int recurse){
+void FileSplitter::_split_by_name(InputSplit *input){
 
-    if (!sharedflag || (sharedflag && me == 0)) {
-        struct stat inpath_stat;
-        int err = stat(filepath, &inpath_stat);
-        if (err) LOG_ERROR("Error in get input files, err=%d\n", err);
+    uint64_t totalcount = input->get_file_count();
 
-        if (S_ISREG(inpath_stat.st_mode)) {
-            int64_t fsize = inpath_stat.st_size;
-            totalsize += fsize;
-            totalblocks += (fsize + blocksize - 1) / blocksize;
-            FileInfo finfo(std::string(filepath), fsize);
-            infiles.push_back(finfo);
+    int proc_rank = 0;
+    uint64_t file_count = 0;
+
+    FileSeg *fileseg = NULL;
+    InputSplit tmpsplit;
+    while((fileseg = input->get_next_file()) != NULL){
+        if(file_count < _get_proc_count(proc_rank, totalcount)){
+            tmpsplit.add_seg_file(fileseg);
+            file_count++;
         }
-        else if (S_ISDIR(inpath_stat.st_mode)) {
-            struct dirent *ep;
-            DIR *dp = opendir(filepath);
-            if (!dp) LOG_ERROR("Error in get input files\n");
-
-            while ((ep = readdir(dp)) != NULL) {
-#ifdef BGQ
-                if (ep->d_name[1] == '.') continue;
-#else
-                if (ep->d_name[0] == '.') continue;
-#endif
-                char newstr[MAXLINE];
-#ifdef BGQ
-                sprintf(newstr, "%s/%s", filepath, &(ep->d_name[1]));
-#else
-                sprintf(newstr, "%s/%s", filepath, ep->d_name);
-#endif
-                err = stat(newstr, &inpath_stat);
-                if (err) LOG_ERROR("Error in get input files, err=%d\n", err);
-                if (S_ISREG(inpath_stat.st_mode)) {
-                    int64_t fsize = inpath_stat.st_size;
-                    totalsize+=fsize;
-                    totalblocks += (fsize + blocksize - 1) / blocksize;
-                    FileInfo finfo(std::string(newstr), fsize);
-                    infiles.push_back(finfo);
-                }
-                else if (S_ISDIR(inpath_stat.st_mode) && recurse) {
-                    _get_input_files(newstr, sharedflag, recurse);
-                }
-            }
+        if(file_count == _get_proc_count(proc_rank, totalcount)){
+            files.push_back(tmpsplit);
+            tmpsplit.clear();
+            proc_rank++;
+            file_count = 0;
         }
     }
 }
+
+InputSplit *FileSplitter::_get_my_split(){
+    return &files[mimir_world_rank];
+}
+
+uint64_t FileSplitter::_get_proc_count(int rank, uint64_t totalcount){
+    uint64_t localcount = totalcount / mimir_world_size;
+    if(rank < (int)(totalcount % mimir_world_size)) localcount += 1;
+
+    return localcount;
+}
+
+

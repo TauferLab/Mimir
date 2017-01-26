@@ -34,8 +34,9 @@
 #include "memory.h"
 #include "stat.h"
 #include "hashbucket.h"
-#include "filereader.h"
-#include "inputiterator.h"
+
+#include "basefilereader.h"
+#include "baserecordformat.h"
 
 using namespace MIMIR_NS;
 
@@ -126,6 +127,7 @@ MapReduce::~MapReduce()
     LOG_PRINT(DBG_GEN, "%s", "MapReduce: destroy.\n");
 }
 
+#if 0
 uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
                                         int recurse,
                                         ProcessBinaryFile myfunc,
@@ -186,7 +188,60 @@ uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
 
     return _get_kv_count();
 }
+#endif
 
+uint64_t MapReduce::map_files(BaseFileReader *reader, UserMapRecord mymap, 
+                              void *ptr, int repartition)
+{
+
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
+
+    myptr = ptr;
+
+    DataObject::subRef(kv);
+
+    // Create KV Container
+    kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+    kv->set_kv_size(ksize, vsize);
+    kv->set_combiner(this, mycombiner);
+
+    if (repartition) {
+        c = Communicator::Create(comm, KV_EXCH_COMM);
+        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
+        phase = MapPhase;
+        // local map
+    }
+    else {
+        phase = LocalMapPhase;
+    }
+
+    BaseRecordFormat *record = NULL;
+    reader->open();
+    while((record = reader->next()) != NULL){
+        mymap(this, record, ptr);
+    }
+    reader->close();
+
+     // Delete communicator
+    if (repartition) {
+        c->wait();
+        delete c;
+        c = NULL;
+    }
+
+
+    // Garbage collection
+    kv->gc();
+
+    DataObject::addRef(kv);
+    phase = NonePhase;
+
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+
+    LOG_PRINT(DBG_GEN, "%s", "MapReduce: map_text_file end.\n");
+
+    return _get_kv_count();
+}
 
 uint64_t MapReduce::map_text_file(const char *filepath,
                                   int shared,
@@ -221,6 +276,7 @@ uint64_t MapReduce::map_text_file(const char *filepath,
         phase = LocalMapPhase;
     }
 
+#if 0
     FileReader *in = FileReader::createStream((IOMethod)DISK_IO_TYPE, 
                                               FILE_SPLIT_UNIT, filepath, shared, 
                                               recurse, comm, wordsplitcb, 
@@ -260,6 +316,7 @@ uint64_t MapReduce::map_text_file(const char *filepath,
     //in->close_stream();
     delete iter;
     FileReader::destroyStream(in);
+#endif
 
     // Delete communicator
     if (repartition) {

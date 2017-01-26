@@ -18,7 +18,7 @@ int64_t FILE_SPLIT_UNIT = 1;
 
 /// Disk IO type
 /// (0: c library io; 1: mpi io; 2; mpi collective io)
-int DISK_IO_TYPE = 2;
+int DISK_IO_TYPE = 1;
 
 /// Tail buffer size
 int TAIL_BUF_SIZE = 1024 * 1024;
@@ -34,7 +34,7 @@ int MAX_PAGE_COUNT = 1024;
 int SET_COUNT = 1024 * 1024;
 
 /// Maximum string size pass to map_text_file
-int MAX_STR_SIZE = 8192;
+int MAX_RECORD_SIZE = 1024 * 1024;
 
 /// Unit size for comm buffer
 int COMM_UNIT_SIZE = 4096;

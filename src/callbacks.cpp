@@ -1,9 +1,10 @@
 #include "callbacks.h"
 
-#include "filereader.h"
+//#include "filereader.h"
 
-using namespace MIMIR_NS;
+//using namespace MIMIR_NS;
 
+#if 0
 bool wordsplitcb(FileReader *in, void *ptr){
 
     const char *str = (const char*)ptr;
@@ -16,4 +17,4 @@ bool wordsplitcb(FileReader *in, void *ptr){
 
     return false;
 }
-
+#endif

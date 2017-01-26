@@ -18,7 +18,8 @@
 #include <string>
 #include <vector>
 
-#include "filereader.h"
+#include "baserecordformat.h"
+#include "basefilereader.h"
 
 //#include "config.h"
 //#include "const.h"
@@ -54,7 +55,7 @@ class ReducerSet;
 enum OpPhase { NonePhase, MapPhase, LocalMapPhase, ReducePhase, ScanPhase, CombinePhase };
 
 /// map callback to map files
-typedef void (*ProcessBinaryFile)(MapReduce*, FileReader*, void*);
+//typedef void (*ProcessBinaryFile)(MapReduce*, FileReader*, void*);
 
 /// hash callback
 typedef int (*UserHash) (const char*, int);
@@ -64,6 +65,9 @@ typedef void (*UserInitKV) (MapReduce*, void*);
 
 /// map callback to map files
 typedef void (*UserMapFile) (MapReduce*, char*, void*);
+
+/// map callback to map files
+typedef void (*UserMapRecord) (MapReduce*, BaseRecordFormat*, void*);
 
 /// map callback to map KVs
 typedef void (*UserMapKV) (MapReduce*, char*, int, char*, int, void*);
@@ -127,9 +131,14 @@ public:
     uint64_t map_text_file(const char *filename, int shared, int recurse,
                            const char *seperator, UserMapFile mymap, void *ptr =
                            NULL, int repartition = 1);
-    uint64_t process_binary_file(const char *filepath, int shared, int recurse, 
-                                 ProcessBinaryFile myfunc, UserSplit mysplit, 
-                                 void* ptr=NULL, int repartition=1);
+
+
+    uint64_t map_files(BaseFileReader *reader, UserMapRecord mymap, 
+                       void *ptr, int repartition = 1);
+
+    //uint64_t process_binary_file(const char *filepath, int shared, int recurse, 
+    //                             ProcessBinaryFile myfunc, UserSplit mysplit, 
+    //                             void* ptr=NULL, int repartition=1);
 
     /**
       Map function with MapReduce object as input.
