@@ -1,31 +1,119 @@
+<<<<<<< HEAD
 CC=mpicc
 CCLINK=mpicc
 CPP=mpicxx
 CPPLINK=mpicxx
 LCFLAGS = -std=c++11 -g -O -Wall -Wconversion -DMPICH_IGNORE_CXX_SEEK -I../src
 LFLAGS = -L../src -lm
+=======
+# skeleton of generic makefile
+>>>>>>> master
 
-USERLIBS = -lmimir
+OBJDIR	:= build
 
-all: wordcount bfs octree
+SRCDIRS	:=
+USRINCS	:=
+USRLIBS	:=
 
-wordcount: wordcount.o common.o
-	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) wordcount.o common.o $(USERLIBS) -o wordcount
+# config binaries
+CPP		:=
+CC		:= mpicc
+CXX		:= mpic++
+LD		:= mpic++
+AR		:= ar
 
-cwordcount: cwordcount.o ccommon.o
-	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) cwordcount.o ccommon.o $(USERLIBS) -o cwordcount
+SHELL	:= /bin/sh
+RM		:= rm -f
 
-bfs: bfs.o common.o
-	$(CPP) $(LCFLAGS) $(CFLAGS) $(LFLAGS) bfs.o common.o $(USERLIBS) -o bfs 
+# DEPFLAGS:= -M
 
-octree: octree_move_lg.o common.o
-	$(CPP) $(CFLAGS) $(CFLAGS) $(LFLAGS) octree_move_lg.o common.o $(USERLIBS) -o octree
+CPPFLAGS:= -DENABLE_PROFILER
+CPPFLAGS+= -DENABLE_TRACKER
+CPPFLAGS+= -DNDEBUG
+# CPPFLAGS+= -DFT_REG
 
-clean:
-	@rm *.o wordcount bfs octree
+# Using pkg-config for c/cxxflags
+# SHRFLAGS:= $(shell pkg-config --cflags gtk+-2.0)
+SHRFLAGS:= -g -Wno-write-strings -Wall -Wconversion -O3 -I../src
+# SHRFLAGS+= -I$(USRINCS)
+# SHRFLAGS:= -pg -I$(USRINCS) -fpermissive
+CFLAGS	:= $(SHRFLAGS) -std=c99
+CXXFLAGS:= $(SHRFLAGS) -std=c++11 -fpermissive
 
-%.o:%.cpp
-	$(CPP) $(LCFLAGS) $(CFLAGS) -c $<
+# Using pkg-config for libs 
+LDFLAGS	:= -L../src -lmimir
+# LDFLAGS	:= -lmpl -lpthread
+# LDFLAGS	+= -lboost_system -lboost_filesystem -lboost_regex
+# LDFLAGS	+= $(shell pkg-config --libs mpich)
+# LDFLAGS	+= -L$(HOME)/.local/usr/lib -Wl,-rpath -Wl,$(HOME)/.local/usr/lib -lmpi -lrt
+# LDFLAGS	+= $(USRLIBS)
+# LDFLAGS	+= -rdynamic
 
-%.o:%.c
-	$(CC) $(LCFLAGS) $(CFLAGS) -c $<
+ARFLAGS	:= -rcv
+
+HEADERS	:= $(wildcard *.h)
+HEADERS	+= $(wildcard *.hpp)
+HEADERS	+= $(wildcard $(USRINCS)/*.h)
+
+SRCS	:= $(wildcard *.c)
+SRCS	+= $(wildcard *.cpp)
+SRCS	+= $(wildcard *.cc)
+
+OBJS	:= $(patsubst %.c, $(OBJDIR)/%.o, $(wildcard *.c))
+OBJS	+= $(patsubst %.cpp, $(OBJDIR)/%.o, $(wildcard *.cpp))
+
+DEPS	:= $(patsubst %.o, %.d, $(OBJS))
+
+#============================================
+# real things
+
+.PHONY : all objs clean
+
+.DEFAULT :
+	@test -f build_config/$@.mk
+	@if [ ! -d build.$@ ]; then mkdir build.$@; fi
+	@cat Makefile build_config/$@.mk > makefile.$@
+	$(MAKE) "OBJDIR=build.$@" "STTARGET=$(patsubst %.a, %_$@.a, $(STTARGET))" \
+	    -f makefile.$@ lib
+	@$(RM) makefile.$@
+
+all : objs
+
+# basic rules
+objs : $(OBJS)
+
+$(DEPS) : $(SRCS) $(HEADERS)
+
+-include $(DEPS)
+
+# automation rules
+$(OBJDIR)/%.d : %.c
+	@if [ ! -d $(OBJDIR) ]; then mkdir $(OBJDIR); fi
+	@$(CC) -MM $(CFLAGS) $< -o $@
+	@sed -i '1 s/^/$(OBJDIR)\//' $@
+	@cp -f $@ $@.tmp
+	@sed -e 's/.*://' -e 's/\\$$//' < $@.tmp | fmt -1 | \
+		sed -e 's/^ *//' -e 's/$$/:/' >> $@
+	@rm -f $@.tmp
+$(OBJDIR)/%.d : %.cpp
+	@if [ ! -d $(OBJDIR) ]; then mkdir $(OBJDIR); fi
+	@$(CC) -MM $(CXXFLAGS) $< -o $@
+	@sed -i '1 s/^/$(OBJDIR)\//' $@
+	@cp -f $@ $@.tmp
+	@sed -e 's/.*://' -e 's/\\$$//' < $@.tmp | fmt -1 | \
+		sed -e 's/^ *//' -e 's/$$/:/' >> $@
+	@rm -f $@.tmp
+
+$(OBJDIR)/%.o : %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(OBJDIR)/%.o : %.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+
+
+clean : 
+	@$(RM) $(DEPS) $(OBJS) $(STTARGET) $(SHTARGET)
+
+clean-% :
+	@$(RM) -r build.$(@:clean-%=%) *$(@:clean-%=%).a
+
