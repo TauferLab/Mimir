@@ -16,7 +16,7 @@ namespace MIMIR_NS {
 
 class InputSplit;
 
-enum IOTYPE{STDCIO, MPIIO, COLLECIO};
+enum IOTYPE{STDC_IO, MPI_IO, COLLEC_IO};
 
 class BaseFileReader;
 
@@ -26,11 +26,11 @@ template<typename RecordFormat, IOTYPE iotype>
 class FileReader;
 
 template <typename RecordFormat>
-using StdCFileReader = FileReader< RecordFormat, STDCIO >;
+using StdCFileReader = FileReader< RecordFormat, STDC_IO >;
+//template <typename RecordFormat>
+//using MPIFileReader = FileReader< RecordFormat, MPIIO >;
 template <typename RecordFormat>
-using MPIFileReader = FileReader< RecordFormat, MPIIO >;
-template <typename RecordFormat>
-using CollecFileReader = FileReader< RecordFormat, COLLECIO >;
+using CollecFileReader = FileReader< RecordFormat, COLLEC_IO >;
 
 template<typename RecordFormat, IOTYPE iotype>
 class FileReader : public BaseFileReader{
@@ -76,7 +76,7 @@ class FileReader : public BaseFileReader{
         bool is_empty = false;
         while(!is_empty){
 
-            _print_state();
+            //_print_state();
 
             // skip whitespace
             while(state.win_size > 0 &&
@@ -112,7 +112,7 @@ class FileReader : public BaseFileReader{
         return NULL;
     }
 
-  private:
+  protected:
 
     bool _is_last_block(){
         if(state.read_size == state.seg_file->segsize && !state.has_tail)
@@ -251,11 +251,11 @@ class FileReader : public BaseFileReader{
         return count;
     }
 
-    void _file_init(){
+    virtual void _file_init(){
         union_fp.c_fp = NULL;
     }
 
-    bool _file_open(const char *filename){
+    virtual bool _file_open(const char *filename){
         union_fp.c_fp = fopen(filename, "r");
         if(union_fp.c_fp == NULL) 
             return false;
@@ -266,7 +266,7 @@ class FileReader : public BaseFileReader{
         return true;
     }
 
-    void _file_read_at(char *buf, uint64_t offset, uint64_t size){
+    virtual void _file_read_at(char *buf, uint64_t offset, uint64_t size){
         fseek(union_fp.c_fp, offset, SEEK_SET);
         size = fread(buf, 1, size, union_fp.c_fp);
 
@@ -274,7 +274,7 @@ class FileReader : public BaseFileReader{
                   state.seg_file->filename.c_str(), offset, size);
     }
 
-    void _file_close(){
+    virtual void _file_close(){
         if(union_fp.c_fp != NULL){
             fclose(union_fp.c_fp);
             union_fp.c_fp = NULL;
@@ -309,51 +309,51 @@ class FileReader : public BaseFileReader{
     MPI_Request        req;
 };
 
-
-
-#if 0
-template<typename RecordFormat, IOTYPE iotype>
-void FileReader<RecordFormat, MPIIO>::_file_init(){
-    union_fp.mpi_fp = MPI_FILE_NULL;
-}
-
 template <typename RecordFormat>
-bool FileReader< RecordFormat, MPIIO >::_file_open(const char *filename){
+class MPIFileReader : public FileReader< RecordFormat, MPI_IO >{
+public:
+    MPIFileReader(InputSplit *input) : FileReader<RecordFormat, MPI_IO>(input){
+    }
 
-    MPI_File_open(MPI_COMM_SELF, (char*)filename, MPI_MODE_RDONLY,
-                  MPI_INFO_NULL, &(union_fp.mpi_fp));
-    if(union_fp.mpi_fp == MPI_FILE_NULL) return false;
+    ~MPIFileReader(){
+    }
 
-    LOG_PRINT(DBG_IO, "Open input file=%s\n", 
-              state.seg_file->filename.c_str());
+protected:
 
-    return true;
-}
+    virtual void _file_init(){
+        this->union_fp.mpi_fp = MPI_FILE_NULL;
+    }
 
-template <typename RecordFormat>
-void FileReader< RecordFormat, MPIIO >::_file_read_at(char *buf, uint64_t offset, uint64_t size){
+    virtual bool _file_open(const char *filename){
+        MPI_File_open(MPI_COMM_SELF, (char*)filename, MPI_MODE_RDONLY,
+                      MPI_INFO_NULL, &(this->union_fp.mpi_fp));
+        if(this->union_fp.mpi_fp == MPI_FILE_NULL) return false;
 
-    MPI_File_read_at(union_fp.mpi_fp, offset, buf, 
+        LOG_PRINT(DBG_IO, "MPI open input file=%s\n", 
+                  this->state.seg_file->filename.c_str());
+
+        return true;
+    }
+
+    virtual void _file_read_at(char *buf, uint64_t offset, uint64_t size){
+        MPI_File_read_at(this->union_fp.mpi_fp, offset, buf, 
                          (int)size, MPI_BYTE, NULL);
 
 
-    LOG_PRINT(DBG_IO, "Read input file=%s:%ld+%ld\n", 
-              state.seg_file->filename.c_str(), offset, size);
-}
-
-template <typename RecordFormat>
-void FileReader< RecordFormat, MPIIO >::_file_close(){
-    if(union_fp.c_fp != NULL){
-
-        MPI_File_close(&(union_fp.mpi_fp));
-        union_fp.mpi_fp = MPI_FILE_NULL;
-
-        LOG_PRINT(DBG_IO, "Close input file=%s\n", 
-                  state.seg_file->filename.c_str());
+        LOG_PRINT(DBG_IO, "MPI read input file=%s:%ld+%ld\n", 
+                  this->state.seg_file->filename.c_str(), offset, size);
     }
-}
 
-#endif
+    virtual void _file_close(){
+        if(this->union_fp.mpi_fp != MPI_FILE_NULL){
+            MPI_File_close(&(this->union_fp.mpi_fp));
+            this->union_fp.mpi_fp = MPI_FILE_NULL;
+
+            LOG_PRINT(DBG_IO, "MPI close input file=%s\n", 
+                      this->state.seg_file->filename.c_str());
+        }
+    }
+};
 
 }
 
