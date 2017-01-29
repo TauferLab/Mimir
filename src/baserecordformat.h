@@ -87,7 +87,7 @@ class StringRecordFormat : public BaseRecordFormat{
         }
 
         if(islast){
-            buffer[len+1] = '\0';
+            buffer[len] = '\0';
             return true;
         }
 

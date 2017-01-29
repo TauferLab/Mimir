@@ -13,10 +13,11 @@ using namespace MIMIR_NS;
 void InputSplit::print(){
     FileSeg *fileseg = NULL;
     while( (fileseg = get_next_file() ) != NULL){
-        fprintf(stdout, "%d[%d] File=%s, filesize=%ld, segment=%ld+%ld\n",
+        fprintf(stdout, "%d[%d] File=%s, filesize=%ld, segment=%ld+%ld(max:%ld), ranks=%d->%d, order=%d\n",
                 mimir_world_rank, mimir_world_size,
                 fileseg->filename.c_str(), fileseg->filesize, 
-                fileseg->startpos, fileseg->segsize);
+                fileseg->startpos, fileseg->segsize, fileseg->maxsegsize, 
+                fileseg->startrank, fileseg->endrank, fileseg->readorder);
     }
 }
 
@@ -33,6 +34,10 @@ void InputSplit::_get_file_list(const char* filepath, int recurse){
         seg.filesize = fsize;
         seg.startpos = 0;
         seg.segsize  = fsize;
+        seg.maxsegsize = fsize;
+        seg.startrank = mimir_world_rank;
+        seg.endrank = mimir_world_rank;
+        seg.readorder = -1;
         filesegs.push_back(seg);
     }else if (S_ISDIR(inpath_stat.st_mode)) {
         struct dirent *ep;
@@ -61,6 +66,10 @@ void InputSplit::_get_file_list(const char* filepath, int recurse){
                 seg.filesize = fsize;
                 seg.startpos = 0;
                 seg.segsize  = fsize;
+                seg.maxsegsize = fsize;
+                seg.startrank = mimir_world_rank;
+                seg.endrank = mimir_world_rank;
+                seg.readorder = -1;
                 filesegs.push_back(seg);
             }else if (S_ISDIR(inpath_stat.st_mode) && recurse) {
                 _get_file_list(newstr, recurse);

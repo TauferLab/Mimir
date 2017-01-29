@@ -29,8 +29,8 @@ template <typename RecordFormat>
 using StdCFileReader = FileReader< RecordFormat, STDC_IO >;
 //template <typename RecordFormat>
 //using MPIFileReader = FileReader< RecordFormat, MPIIO >;
-template <typename RecordFormat>
-using CollecFileReader = FileReader< RecordFormat, COLLEC_IO >;
+//template <typename RecordFormat>
+//using CollecFileReader = FileReader< RecordFormat, COLLEC_IO >;
 
 template<typename RecordFormat, IOTYPE iotype>
 class FileReader : public BaseFileReader{
@@ -75,8 +75,6 @@ class FileReader : public BaseFileReader{
 
         bool is_empty = false;
         while(!is_empty){
-
-            //_print_state();
 
             // skip whitespace
             while(state.win_size > 0 &&
@@ -336,8 +334,9 @@ protected:
     }
 
     virtual void _file_read_at(char *buf, uint64_t offset, uint64_t size){
+        MPI_Status st;
         MPI_File_read_at(this->union_fp.mpi_fp, offset, buf, 
-                         (int)size, MPI_BYTE, NULL);
+                         (int)size, MPI_BYTE, &st);
 
 
         LOG_PRINT(DBG_IO, "MPI read input file=%s:%ld+%ld\n", 
@@ -353,6 +352,113 @@ protected:
                       this->state.seg_file->filename.c_str());
         }
     }
+};
+
+template <typename RecordFormat>
+class CollecFileReader : public FileReader< RecordFormat, COLLEC_IO >{
+public:
+    CollecFileReader(InputSplit *input) : FileReader<RecordFormat, COLLEC_IO>(input){
+    }
+
+    ~CollecFileReader(){
+    }
+
+protected:
+
+    virtual void _file_init(){
+        this->union_fp.mpi_fp = MPI_FILE_NULL;
+        sfile_idx = 0;
+    }
+
+    virtual bool _file_open(const char *filename){
+        MPI_Comm file_comm = MPI_COMM_SELF;
+        if(sfile_idx < sfile_count) {
+            file_comm = sfile_comms[sfile_idx];
+        }
+
+        MPI_File_open(file_comm, (char*)filename, MPI_MODE_RDONLY,
+                      MPI_INFO_NULL, &(this->union_fp.mpi_fp));
+        if(this->union_fp.mpi_fp == MPI_FILE_NULL) return false;
+
+        LOG_PRINT(DBG_IO, "Collective MPI open input file=%s\n", 
+                  this->state.seg_file->filename.c_str());
+
+        return true;
+    }
+
+    virtual void _file_read_at(char *buf, uint64_t offset, uint64_t size){
+        MPI_Status st;
+        MPI_File_read_at_all(this->union_fp.mpi_fp, offset, buf, 
+                             (int)size, MPI_BYTE, &st);
+
+        LOG_PRINT(DBG_IO, "Collective MPI read input file=%s:%ld+%ld\n", 
+                  this->state.seg_file->filename.c_str(), offset, size);
+    }
+
+    virtual void _file_close(){
+        if(this->union_fp.mpi_fp != MPI_FILE_NULL){
+
+            if(sfile_idx < sfile_count) {
+                int remain_count = (int)ROUNDUP(this->state.seg_file->maxsegsize, this->bufsize) \
+                                   - (int)ROUNDUP(this->state.seg_file->segsize, this->bufsize);
+                for(int i = 0; i < remain_count; i++){
+                    MPI_Status st;
+                    MPI_File_read_at_all(this->union_fp.mpi_fp, 0, NULL, 
+                             0, MPI_BYTE, &st);
+                }
+                sfile_idx++;
+            }
+
+            MPI_File_close(&(this->union_fp.mpi_fp));
+            this->union_fp.mpi_fp = MPI_FILE_NULL;
+
+            LOG_PRINT(DBG_IO, "Collective MPI close input file=%s\n", 
+                      this->state.seg_file->filename.c_str());
+        }
+    }
+
+    void _create_comm(){
+        sfile_count = 0;
+
+        MPI_Group world_group, sfile_groups[MAX_GROUPS];
+        MPI_Comm_group(mimir_world_comm, &world_group);
+
+        FileSeg *fileseg = this->input->get_next_file();
+        for(int i = 0; i < MAX_GROUPS; i++){
+
+            int ranks[mimir_world_size], n = 1;
+            int low_rank, high_rank;
+            if(fileseg && fileseg->readorder == i){
+                low_rank = fileseg->startrank;
+                high_rank = fileseg->endrank + 1;
+                fileseg = this->input->get_next_file();
+                sfile_count++;
+            }else{
+                low_rank = mimir_world_rank;
+                high_rank = low_rank + 1;
+            }
+
+            for(int j = 0; j < n; j++) {
+                ranks[j] = low_rank + j;
+            }
+
+            MPI_Group_incl(world_group, n, ranks, &sfile_groups[i]);
+            MPI_Comm_create(mimir_world_comm, 
+                            sfile_groups[i], 
+                            &sfile_comms[sfile_count]);
+            MPI_Group_free(&sfile_groups[i]);
+        }
+
+        MPI_Group_free(&world_group);
+    }
+
+    void _destroy_comm(){
+        for(int i = 0; i < MAX_GROUPS; i++)
+            MPI_Comm_free(&sfile_comms[i]);
+    }
+
+    MPI_Comm sfile_comms[MAX_GROUPS];
+    int      sfile_count, sfile_idx;
 };
 
 }

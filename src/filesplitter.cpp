@@ -51,6 +51,10 @@ void FileSplitter::_bcast_file_list(InputSplit *input){
 
             tmp.startpos = 0;
             tmp.segsize = tmp.filesize;
+            tmp.maxsegsize = tmp.filesize;
+            tmp.startrank = mimir_world_rank;
+            tmp.endrank = mimir_world_rank;
+            tmp.readorder = -1;
 
             input->add_seg_file(&tmp);
         }
@@ -70,64 +74,97 @@ void FileSplitter::_split(InputSplit *input, SplitPolicy policy){
 }
 
 void FileSplitter::_split_by_size(InputSplit *input){
+
     FileSeg *fileseg = NULL;
     uint64_t totalblocks = 0;
-
+    // compute total number of blocks
     while((fileseg = input->get_next_file()) != NULL)
         totalblocks += ROUNDUP(fileseg->filesize, FILE_SPLIT_UNIT);
 
     InputSplit tmpsplit;
-    FileSeg tmpseg;
+    int max_rank = -1, proc_rank = 0;
+    uint64_t proc_off = 0;
+    uint64_t proc_blocks = _get_proc_count(proc_rank, totalblocks);
+    uint64_t offsets[mimir_world_size + 1];
 
-    int proc_rank = 0;
-    uint64_t block_off = 0;
-     while((fileseg = input->get_next_file()) != NULL){
+    while((fileseg = input->get_next_file()) != NULL){
 
-        uint64_t proc_blocks = _get_proc_count(proc_rank, totalblocks);
-        uint64_t file_off = 0;
-        uint64_t file_blocks = ROUNDUP(fileseg->filesize, FILE_SPLIT_UNIT);
+        uint64_t maxsegsize = 0;
+        uint64_t file_off = 0, file_blocks = 0;
+        int start_rank = proc_rank, end_rank = proc_rank;
 
+        file_blocks = ROUNDUP(fileseg->filesize, FILE_SPLIT_UNIT);
+
+        offsets[0] = 0;
         while(file_blocks > 0){
-            // partition whole file to pidx
-            if(block_off + file_blocks <= proc_blocks){
-                tmpseg.filename = fileseg->filename;
-                tmpseg.filesize = fileseg->filesize;
-                tmpseg.startpos = file_off;
-                tmpseg.segsize  = fileseg->filesize - file_off;
-                tmpsplit.add_seg_file(&tmpseg);
-                //printf("%d %s:%ld+%ld\n", proc_rank, 
-                //       tmpseg.filename.c_str(),
-                //       tmpseg.startpos, tmpseg.segsize);
-                block_off += file_blocks;
+            if(proc_off + file_blocks <= proc_blocks){
+                proc_off += file_blocks;
+                file_off = fileseg->filesize;
                 file_blocks = 0;
+                end_rank = proc_rank;
+                offsets[proc_rank - start_rank + 1] = file_off;
+                uint64_t segsize = file_off - offsets[proc_rank - start_rank];
+                if(segsize > maxsegsize) maxsegsize = segsize;
             }else{
+                file_blocks -= (proc_blocks - proc_off);
+                file_off += (proc_blocks - proc_off) * FILE_SPLIT_UNIT;
+                proc_off = proc_blocks;
+                offsets[proc_rank - start_rank + 1] = file_off;
+                uint64_t segsize = file_off - offsets[proc_rank - start_rank];
+                if(segsize > maxsegsize) maxsegsize = segsize;
+            }
+            if( proc_off == proc_blocks){
+                proc_rank += 1;
+                proc_off = 0;
+                proc_blocks = _get_proc_count(proc_rank, totalblocks);
+            }
+        }
+
+        // this is a share file
+        if(end_rank > start_rank){
+            for(int i = start_rank; i <= end_rank; i++){
+                FileSeg    tmpseg;
                 tmpseg.filename = fileseg->filename;
                 tmpseg.filesize = fileseg->filesize;
-                tmpseg.startpos = file_off;
-                tmpseg.segsize  = (proc_blocks - block_off) * FILE_SPLIT_UNIT;
+                tmpseg.startpos = offsets[i - start_rank];
+                tmpseg.segsize = offsets[i - start_rank + 1] 
+                                - offsets[i - start_rank];
+                tmpseg.maxsegsize = maxsegsize;
+                tmpseg.startrank = start_rank;
+                tmpseg.endrank = end_rank;
+                if(start_rank > max_rank) tmpseg.readorder = 0;
+                else tmpseg.readorder = 1;
                 tmpsplit.add_seg_file(&tmpseg);
-                //printf("%d %s:%ld+%ld\n", proc_rank, 
-                //       tmpseg.filename.c_str(),
-                //       tmpseg.startpos, tmpseg.segsize);
-                file_blocks -= (proc_blocks - block_off);
-                file_off += (proc_blocks - block_off) * FILE_SPLIT_UNIT;
-                block_off = proc_blocks;
+                if(i < proc_rank){
+                    files.push_back(tmpsplit);
+                    tmpsplit.clear();
+                }
             }
-            if( block_off == proc_blocks){
-                //printf("%d add split!\n", proc_rank);
+            if(start_rank > max_rank) max_rank = end_rank;
+        }else{
+            FileSeg    tmpseg;
+            tmpseg.filename = fileseg->filename;
+            tmpseg.filesize = fileseg->filesize;
+            tmpseg.startpos = 0;
+            tmpseg.segsize = fileseg->filesize;
+            tmpseg.maxsegsize = fileseg->filesize;
+            tmpseg.startrank = start_rank;
+            tmpseg.endrank = end_rank;
+            tmpseg.readorder = -1;
+            tmpsplit.add_seg_file(&tmpseg);
+            if(proc_rank > end_rank){
                 files.push_back(tmpsplit);
                 tmpsplit.clear();
-                proc_rank += 1;
-                block_off = 0;
-                proc_blocks = _get_proc_count(proc_rank, totalblocks);
-
             }
         }
 
     }
 
+    if(tmpsplit.get_file_count() > 0)
+        LOG_ERROR("Split state error!\n");
+
      if((int)files.size() != mimir_world_size)
-         LOG_ERROR("The split file count is error!\n");
+         LOG_ERROR("The split file count %ld is error!\n", files.size());
 }
 
 void FileSplitter::_split_by_name(InputSplit *input){

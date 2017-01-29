@@ -8,13 +8,17 @@
 
 namespace MIMIR_NS {
 
+#define MAX_GROUPS      2
+
 struct FileSeg{
     std::string filename;
     uint64_t    filesize;
     uint64_t    startpos;
     uint64_t    segsize;
-    int         start_rank;
-    int         end_rank;
+    uint64_t    maxsegsize;
+    int         startrank;
+    int         endrank;
+    int         readorder;   // if -1
 };
 
 class InputSplit{
@@ -56,7 +60,21 @@ class InputSplit{
     void add(const char*filepath) { _get_file_list(filepath, 1); }
 
     uint64_t get_file_count() { return filesegs.size(); }
-    void add_seg_file(FileSeg *seg) { filesegs.push_back(*seg); }
+    void add_seg_file(FileSeg *seg) { 
+        if(seg->readorder == -1)
+            filesegs.push_back(*seg);
+        else{
+            std::vector<FileSeg>::iterator iter = filesegs.begin();
+            for(; iter != filesegs.end(); iter++){
+                if( seg->readorder < iter->readorder || iter->readorder == -1 ){
+                    filesegs.insert(iter, *seg);
+                    break;
+                }
+            }
+            if(iter == filesegs.end())
+                filesegs.push_back(*seg);
+        }
+    }
     void clear() { filesegs.clear(); }
 
     void print();
