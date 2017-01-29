@@ -10,25 +10,25 @@
 
 using namespace MIMIR_NS;
 
-void InputSplit::print(){
+void InputSplit::print() {
+
     FileSeg *fileseg = NULL;
-    while( (fileseg = get_next_file() ) != NULL){
-        fprintf(stdout, "%d[%d] File=%s, filesize=%ld, segment=%ld+%ld(max:%ld), ranks=%d->%d, order=%d\n",
-                mimir_world_rank, mimir_world_size,
-                fileseg->filename.c_str(), fileseg->filesize, 
-                fileseg->startpos, fileseg->segsize, fileseg->maxsegsize, 
-                fileseg->startrank, fileseg->endrank, fileseg->readorder);
+    while ((fileseg = get_next_file()) != NULL) {
+        printf("%d[%d]File=%s,filesize=%ld,segment=%ld+%ld(max:%ld),ranks=%d->%d,order=%d\n",
+               mimir_world_rank, mimir_world_size,
+               fileseg->filename.c_str(), fileseg->filesize,
+               fileseg->startpos, fileseg->segsize, fileseg->maxsegsize,
+               fileseg->startrank, fileseg->endrank, fileseg->readorder);
     }
 }
 
-void InputSplit::_get_file_list(const char* filepath, int recurse){
+void InputSplit::get_file_list(const char* filepath, int recurse) {
     struct stat inpath_stat;
     int err = stat(filepath, &inpath_stat);
     if (err) LOG_ERROR("Error in get input files, err=%d\n", err);
 
     if (S_ISREG(inpath_stat.st_mode)) {
         int64_t fsize = inpath_stat.st_size;
-        // Find a file
         FileSeg seg;
         seg.filename = filepath;
         seg.filesize = fsize;
@@ -39,7 +39,8 @@ void InputSplit::_get_file_list(const char* filepath, int recurse){
         seg.endrank = mimir_world_rank;
         seg.readorder = -1;
         filesegs.push_back(seg);
-    }else if (S_ISDIR(inpath_stat.st_mode)) {
+    }
+    else if (S_ISDIR(inpath_stat.st_mode)) {
         struct dirent *ep;
         DIR *dp = opendir(filepath);
         if (!dp) LOG_ERROR("Error in get input files\n");
@@ -71,8 +72,9 @@ void InputSplit::_get_file_list(const char* filepath, int recurse){
                 seg.endrank = mimir_world_rank;
                 seg.readorder = -1;
                 filesegs.push_back(seg);
-            }else if (S_ISDIR(inpath_stat.st_mode) && recurse) {
-                _get_file_list(newstr, recurse);
+            }
+            else if (S_ISDIR(inpath_stat.st_mode) && recurse) {
+                get_file_list(newstr, recurse);
             }
         }
     }

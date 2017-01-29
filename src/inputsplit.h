@@ -10,7 +10,7 @@ namespace MIMIR_NS {
 
 #define MAX_GROUPS      2
 
-struct FileSeg{
+struct FileSeg {
     std::string filename;
     uint64_t    filesize;
     uint64_t    startpos;
@@ -21,22 +21,22 @@ struct FileSeg{
     int         readorder;   // if -1
 };
 
-class InputSplit{
+class InputSplit {
   public:
-    InputSplit(const char *filepath){
-        _get_file_list(filepath, 1);
+    InputSplit(const char *filepath) {
+        get_file_list(filepath, 1);
         fileidx = 0;
     }
 
-    InputSplit(){
+    InputSplit() {
         fileidx = 0;
     }
 
-    ~InputSplit(){
+    ~InputSplit() {
     }
 
     FileSeg *get_next_file() {
-        if( fileidx >= filesegs.size() ) {
+        if (fileidx >= filesegs.size()) {
             fileidx = 0;
             return NULL;
         }
@@ -45,28 +45,28 @@ class InputSplit{
     }
 
     uint64_t get_max_fsize() {
-
         uint64_t max_fsize = 0;
         FileSeg *fileseg = NULL;
 
-        while((fileseg = get_next_file()) != NULL){
-            if(fileseg->segsize > max_fsize)
+        while ((fileseg = get_next_file()) != NULL) {
+            if (fileseg->segsize > max_fsize)
                 max_fsize = fileseg->segsize;
         }
 
         return max_fsize;
     }
 
-    void add(const char*filepath) { _get_file_list(filepath, 1); }
+    void add(const char*filepath) { get_file_list(filepath, 1); }
 
     uint64_t get_file_count() { return filesegs.size(); }
-    void add_seg_file(FileSeg *seg) { 
-        if(seg->readorder == -1)
+
+    void add_seg_file(FileSeg *seg) {
+        if (seg->readorder == -1)
             filesegs.push_back(*seg);
-        else{
+        else {
             std::vector<FileSeg>::iterator iter = filesegs.begin();
-            for(; iter != filesegs.end(); iter++){
-                if( seg->readorder < iter->readorder || iter->readorder == -1 ){
+            for (; iter != filesegs.end(); iter++) {
+                if (seg->readorder < iter->readorder || iter->readorder == -1) {
                     filesegs.insert(iter, *seg);
                     break;
                 }
@@ -75,12 +75,13 @@ class InputSplit{
                 filesegs.push_back(*seg);
         }
     }
+
     void clear() { filesegs.clear(); }
 
     void print();
 
   private:
-    void _get_file_list(const char*, int);
+    void get_file_list(const char*, int);
 
     std::vector<FileSeg> filesegs;
     size_t               fileidx;

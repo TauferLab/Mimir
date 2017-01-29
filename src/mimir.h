@@ -3,9 +3,8 @@
 
 #include "inputsplit.h"
 #include "filesplitter.h"
-#include "basefilereader.h"
 #include "filereader.h"
-#include "baserecordformat.h"
+#include "recordformat.h"
 #include "mapreduce.h"
 
 void Mimir_Init(int*, char ***, MPI_Comm);

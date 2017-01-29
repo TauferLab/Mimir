@@ -14,15 +14,17 @@ using namespace MIMIR_NS;
 
 int rank, size;
 
-//void map(MapReduce * mr, char *word, void *ptr);
 void map(MapReduce * mr, BaseRecordFormat *record, void *ptr);
 void countword(MapReduce *, char *, int, void *);
-void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void *);
+void combiner(MapReduce *, const char *, int,
+              const char *, int,
+              const char *, int, void *);
 
 int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
     Mimir_Init(&argc, &argv, MPI_COMM_WORLD);
+
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -47,21 +49,20 @@ int main(int argc, char *argv[])
     check_envars(rank, size);
 
     InputSplit input(filedir);
-    //input.print();
-
     FileSplitter* spliter = FileSplitter::getFileSplitter();
     InputSplit* splitinput = spliter->split(&input);
     splitinput->print();
 
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#if 0
 #ifdef COMBINE
     mr->set_combiner(combiner);
 #endif
+
 #ifdef KHINT
     mr->set_key_length(-1);
 #endif
+
 #ifdef VHINT
 #ifdef VALUE_STRING
     mr->set_value_length(-1);
@@ -69,24 +70,17 @@ int main(int argc, char *argv[])
     mr->set_value_length(sizeof(int64_t));
 #endif
 #endif
-#endif
-
-    //uint64_t nwords = mr->map_text_file(filedir, 1, 1, " \n", NULL, NULL);
 
     StringRecordFormat::set_whitespace(" \n");
     StringRecordFormat::set_sepeators(" \n");
-    StdCFileReader<StringRecordFormat> reader(splitinput);
+    FileReader<StringRecordFormat> reader(splitinput);
 
     uint64_t nwords = mr->map_files(&reader, map, NULL);
+    uint64_t nunique = mr->reduce(countword, NULL);
 
-    // mr->output(stdout, StringType, Int64Type);
-
-    //uint64_t nunique = mr->reduce(countword, NULL);
-
-    //if (rank == 0)
-    //    fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", nwords, nunique);
-
-    // mr->output(stdout, StringType, StringType);
+    if (rank == 0)
+        fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", 
+                nwords, nunique);
 
     output(rank, size, prefix, outdir);
 
@@ -96,7 +90,8 @@ int main(int argc, char *argv[])
     MPI_Finalize();
 }
 
-void map(MapReduce * mr, BaseRecordFormat *record, void *ptr){
+void map(MapReduce * mr, BaseRecordFormat *record, void *ptr)
+{
     char *word = record->get_record();
     int len = (int) strlen(word) + 1;
 
@@ -111,29 +106,10 @@ void map(MapReduce * mr, BaseRecordFormat *record, void *ptr){
     }
 }
 
-#if 0
-void map(MapReduce * mr, char *word, void *ptr)
-{
-    int len = (int) strlen(word) + 1;
-    //printf("word=%s\n", word);
-
-    if (len <= 1024) {
-#ifdef VALUE_STRING
-        char tmp[10] = { "1" };
-        mr->add_key_value(word, len, tmp, 2);
-#else
-        int64_t one = 1;
-        mr->add_key_value(word, len, (char *) &one, sizeof(one));
-#endif
-    }
-}
-#endif
-
 void countword(MapReduce * mr, char *key, int keysize, void *ptr)
 {
     int64_t count = 0;
-
-    printf("key=%s\n", key);
+    //printf("key=%s\n", key);
     const void *val = mr->get_first_value();
     while (val != NULL) {
 #ifdef VALUE_STRING
@@ -153,8 +129,9 @@ void countword(MapReduce * mr, char *key, int keysize, void *ptr)
 #endif
 }
 
-void combiner(MapReduce * mr, const char *key, int keysize, const char *val1,
-              int val1size, const char *val2, int val2size, void *ptr)
+void combiner(MapReduce * mr, const char *key, int keysize,
+              const char *val1, int val1size,
+              const char *val2, int val2size, void *ptr)
 {
 
 #ifdef VALUE_STRING
