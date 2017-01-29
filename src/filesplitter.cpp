@@ -178,7 +178,9 @@ void FileSplitter::split_by_name(InputSplit *input){
     InputSplit tmpsplit;
     while((fileseg = input->get_next_file()) != NULL){
         if(file_count < get_proc_count(proc_rank, totalcount)){
-            tmpsplit.add_seg_file(fileseg);
+	    fileseg->startrank = proc_rank;
+	    fileseg->endrank = proc_rank;
+    	    tmpsplit.add_seg_file(fileseg);
             file_count++;
         }
         if(file_count == get_proc_count(proc_rank, totalcount)){

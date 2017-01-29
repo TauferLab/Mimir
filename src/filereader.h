@@ -15,12 +15,12 @@
 namespace MIMIR_NS {
 
 #define  DATA_TAG     0xaa
-enum IOTYPE{STDC_IO, MPI_IO, COLLEC_IO};
+enum IOTYPE{MIMIR_STDC_IO, MIMIR_MPI_IO, MIMIR_COLLEC_IO};
 
 class InputSplit;
 class BaseFileReader;
 
-template<typename RecordFormat, IOTYPE iotype = STDC_IO>
+template<typename RecordFormat, IOTYPE iotype = MIMIR_STDC_IO>
 class FileReader : public BaseFileReader {
   public:
     FileReader(InputSplit *input) {
@@ -33,7 +33,7 @@ class FileReader : public BaseFileReader {
 
     bool open() {
 
-        if (input->get_max_fsize() <= INPUT_BUF_SIZE)
+        if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
             bufsize = input->get_max_fsize();
         else
             bufsize = INPUT_BUF_SIZE;
@@ -78,7 +78,7 @@ class FileReader : public BaseFileReader {
             if(state.win_size > 0
                && record.has_full_record(ptr, state.win_size, islast)) {
                 int record_size = record.get_record_size();
-                if (record_size >= state.win_size) {
+                if ((uint64_t)record_size >= state.win_size) {
                     state.win_size = 0;
                     state.start_pos = 0;
                 }
@@ -163,7 +163,7 @@ class FileReader : public BaseFileReader {
             req = MPI_REQUEST_NULL;
         }
 
-        if (state.win_size > MAX_RECORD_SIZE)
+        if (state.win_size > (uint64_t)MAX_RECORD_SIZE)
             LOG_ERROR("Record size (%ld) is larger than max size (%d)\n", 
                       state.win_size, MAX_RECORD_SIZE);
 
@@ -207,12 +207,12 @@ class FileReader : public BaseFileReader {
 
         if (state.seg_file->startpos > 0) {
             while (!BaseRecordFormat::is_seperator(*(buffer+count))
-                  && count < bufsize) {
+                  && (uint64_t)count < bufsize) {
                 count++;
             }
             if (count < 0)
                 LOG_ERROR("Error: header size is larger than max value of int!\n");
-            if (count > bufsize)
+            if ((uint64_t)count > bufsize)
                 LOG_ERROR("Error: cannot find header at the first buffer!\n");
         }
 
@@ -311,10 +311,10 @@ class FileReader : public BaseFileReader {
 };
 
 template <typename RecordFormat>
-class MPIFileReader : public FileReader<RecordFormat, MPI_IO> {
+class MPIFileReader : public FileReader<RecordFormat, MIMIR_MPI_IO> {
 public:
     MPIFileReader(InputSplit *input)
-        : FileReader<RecordFormat, MPI_IO>(input) {
+        : FileReader<RecordFormat, MIMIR_MPI_IO>(input) {
     }
 
     ~MPIFileReader() {
@@ -357,10 +357,10 @@ protected:
 };
 
 template <typename RecordFormat>
-class CollecFileReader : public FileReader< RecordFormat, COLLEC_IO >{
+class CollecFileReader : public FileReader< RecordFormat, MIMIR_COLLEC_IO >{
 public:
     CollecFileReader(InputSplit *input) 
-        : FileReader<RecordFormat, COLLEC_IO>(input) {
+        : FileReader<RecordFormat, MIMIR_COLLEC_IO>(input) {
     }
 
     ~CollecFileReader(){

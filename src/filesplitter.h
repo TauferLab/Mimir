@@ -7,7 +7,7 @@ namespace MIMIR_NS{
 
 class InputSplit;
 
-enum SplitPolicy { BYSIZE, BYNAME };
+enum SplitPolicy { BYNAME, BYSIZE };
 
 class FileSplitter;
 
@@ -27,7 +27,7 @@ class FileSplitter{
     ~FileSplitter(){
     }
 
-    InputSplit* split(InputSplit *input, SplitPolicy policy = BYSIZE){
+    InputSplit* split(InputSplit *input, SplitPolicy policy = BYNAME){
 
         bcast_file_list(input);
         split_files(input, policy);
@@ -35,7 +35,7 @@ class FileSplitter{
         return get_my_split();
     }
 
-    InputSplit* split(const char *indir, SplitPolicy policy = BYSIZE){
+    InputSplit* split(const char *indir, SplitPolicy policy = BYNAME){
 
         InputSplit input(indir);
         bcast_file_list(&input);

@@ -18,7 +18,7 @@ RM		:= rm -f
 
 # DEPFLAGS:= -M
 
-CPPFLAGS:= -DENABLE_PROFILER
+CPPFLAGS+= -DENABLE_PROFILER
 CPPFLAGS+= -DENABLE_TRACKER
 CPPFLAGS+= -DNDEBUG
 # CPPFLAGS+= -DFT_REG
@@ -110,7 +110,7 @@ octree : octree_move_lg.cpp common.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< common.cpp $(LDFLAGS) -o $@
 
 clean : 
-	@$(RM) $(DEPS) $(OBJS) $(STTARGET) $(SHTARGET)
+	@$(RM) $(DEPS) $(OBJS) $(STTARGET) $(SHTARGET) wordcount bfs octree
 
 clean-% :
 	@$(RM) -r build.$(@:clean-%=%) *$(@:clean-%=%).a
