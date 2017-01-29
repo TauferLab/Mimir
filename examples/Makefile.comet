@@ -100,7 +100,14 @@ $(OBJDIR)/%.o : %.c
 $(OBJDIR)/%.o : %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
+wordcount : wordcount.cpp common.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< common.cpp $(LDFLAGS) -o $@
 
+bfs : bfs.cpp common.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< common.cpp $(LDFLAGS) -o $@
+
+octree : octree_move_lg.cpp common.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< common.cpp $(LDFLAGS) -o $@
 
 clean : 
 	@$(RM) $(DEPS) $(OBJS) $(STTARGET) $(SHTARGET)

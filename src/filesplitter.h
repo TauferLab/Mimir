@@ -29,19 +29,28 @@ class FileSplitter{
 
     InputSplit* split(InputSplit *input, SplitPolicy policy = BYSIZE){
 
-        _bcast_file_list(input);
-        _split(input, policy);
+        bcast_file_list(input);
+        split_files(input, policy);
 
-        return _get_my_split();
+        return get_my_split();
+    }
+
+    InputSplit* split(const char *indir, SplitPolicy policy = BYSIZE){
+
+        InputSplit input(indir);
+        bcast_file_list(&input);
+        split_files(&input, policy);
+
+        return get_my_split();
     }
 
   private:
-    void _bcast_file_list(InputSplit *input);
-    void _split(InputSplit *input, SplitPolicy policy);
-    void _split_by_size(InputSplit *input);
-    void _split_by_name(InputSplit *input);
-    InputSplit *_get_my_split();
-    uint64_t _get_proc_count(int, uint64_t);
+    void bcast_file_list(InputSplit *input);
+    void split_files(InputSplit *input, SplitPolicy policy);
+    void split_by_size(InputSplit *input);
+    void split_by_name(InputSplit *input);
+    InputSplit *get_my_split();
+    uint64_t get_proc_count(int, uint64_t);
 
     std::vector<InputSplit> files;
 };

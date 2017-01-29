@@ -1,11 +1,3 @@
-/**
- * @file   octree_move_lg.cpp
- * @Author Tao Gao (taogao@udel.edu)
- * @date   September 1st, 2016
- * @brief  This file provides interfaces to application programs.
- *
- * This file includes two classes: MapReduce and MultiValueIter.
- */
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
@@ -19,14 +11,15 @@
 #include <sys/stat.h>
 
 #include "common.h"
-#include "mapreduce.h"
+#include "mimir.h"
 
 using namespace MIMIR_NS;
 int rank, size;
 
-void generate_octkey(MapReduce *, char *, void *);
+void generate_octkey(MapReduce *, BaseRecordFormat *, void *);
 void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void *);
-void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void *);
+void combiner(MapReduce *, const char *, int, 
+              const char *, int, const char *, int, void *);
 void sum(MapReduce *, char *, int, void *);
 double slope(double[], double[], int);
 
@@ -38,6 +31,7 @@ int level;
 int main(int argc, char **argv)
 {
     MPI_Init(&argc, &argv);
+    Mimir_Init(&argc, &argv, MPI_COMM_WORLD);
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -78,9 +72,11 @@ int main(int argc, char **argv)
     mr_convert->set_value_length(0);
 #endif
 
-    char whitespace[10] = "\n";
-    uint64_t nwords = mr_convert->map_text_file(indir, 1, 1, whitespace,
-                                                generate_octkey, NULL, 0);
+    InputSplit* splitinput = FileSplitter::getFileSplitter()->split(indir);
+    splitinput->print();
+    StringRecordFormat::set_whitespace("\n");
+    FileReader<StringRecordFormat> reader(splitinput);
+    uint64_t nwords = mr_convert->map_files(&reader, generate_octkey, NULL);
 
     thresh = (int64_t) ((float) nwords * density);
     if (rank == 0) {
@@ -124,11 +120,13 @@ int main(int argc, char **argv)
     if (rank == 0)
         printf("level=%d\n", level);
 
+    Mimir_Finalize();
     MPI_Finalize();
 }
 
-void combiner(MapReduce * mr, const char *key, int keysize, const char *val1,
-              int val1size, const char *val2, int val2size, void *ptr)
+void combiner(MapReduce * mr, const char *key, int keysize, 
+              const char *val1, int val1size, 
+              const char *val2, int val2size, void *ptr)
 {
     int64_t count = *(int64_t *) (val1) + *(int64_t *) (val2);
 
@@ -151,14 +149,16 @@ void sum(MapReduce * mr, char *key, int keysize, void *ptr)
     }
 }
 
-void gen_leveled_octkey(MapReduce * mr, char *key, int keysize, char *val, int valsize, void *ptr)
+void gen_leveled_octkey(MapReduce * mr, char *key, int keysize, 
+                        char *val, int valsize, void *ptr)
 {
     int64_t count = 1;
     mr->add_key_value(key, level, (char *) &count, sizeof(int64_t));
 }
 
-void generate_octkey(MapReduce * mr, char *word, void *ptr)
+void generate_octkey(MapReduce * mr, BaseRecordFormat *record, void *ptr)
 {
+    char *word = record->get_record();
     double range_up = 4.0, range_down = -4.0;
     char octkey[digits];
 

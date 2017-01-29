@@ -58,6 +58,7 @@ class BaseRecordFormat {
 
     static void set_whitespace(const char *str) {
         whitespaces = str;
+        seperators = str;
     }
 
     static std::string seperators;

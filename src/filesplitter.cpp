@@ -8,7 +8,7 @@ using namespace MIMIR_NS;
 
 FileSplitter* FileSplitter::splitter = NULL;
 
-void FileSplitter::_bcast_file_list(InputSplit *input){
+void FileSplitter::bcast_file_list(InputSplit *input){
     int   total_count = 0;
     char *tmp_buf = NULL;
     FileSeg *fileseg = NULL;
@@ -66,14 +66,14 @@ void FileSplitter::_bcast_file_list(InputSplit *input){
     LOG_PRINT(DBG_IO, "Broadcast file list (count=%d)\n", total_count);
 }
 
-void FileSplitter::_split(InputSplit *input, SplitPolicy policy){
+void FileSplitter::split_files(InputSplit *input, SplitPolicy policy){
     switch(policy){
-    case BYSIZE: _split_by_size(input); break;
-    case BYNAME: _split_by_name(input); break;
+    case BYSIZE: split_by_size(input); break;
+    case BYNAME: split_by_name(input); break;
     }
 }
 
-void FileSplitter::_split_by_size(InputSplit *input){
+void FileSplitter::split_by_size(InputSplit *input){
 
     FileSeg *fileseg = NULL;
     uint64_t totalblocks = 0;
@@ -84,7 +84,7 @@ void FileSplitter::_split_by_size(InputSplit *input){
     InputSplit tmpsplit;
     int max_rank = -1, proc_rank = 0;
     uint64_t proc_off = 0;
-    uint64_t proc_blocks = _get_proc_count(proc_rank, totalblocks);
+    uint64_t proc_blocks = get_proc_count(proc_rank, totalblocks);
     uint64_t offsets[mimir_world_size + 1];
 
     while((fileseg = input->get_next_file()) != NULL){
@@ -116,7 +116,7 @@ void FileSplitter::_split_by_size(InputSplit *input){
             if( proc_off == proc_blocks){
                 proc_rank += 1;
                 proc_off = 0;
-                proc_blocks = _get_proc_count(proc_rank, totalblocks);
+                proc_blocks = get_proc_count(proc_rank, totalblocks);
             }
         }
 
@@ -167,7 +167,7 @@ void FileSplitter::_split_by_size(InputSplit *input){
          LOG_ERROR("The split file count %ld is error!\n", files.size());
 }
 
-void FileSplitter::_split_by_name(InputSplit *input){
+void FileSplitter::split_by_name(InputSplit *input){
 
     uint64_t totalcount = input->get_file_count();
 
@@ -177,11 +177,11 @@ void FileSplitter::_split_by_name(InputSplit *input){
     FileSeg *fileseg = NULL;
     InputSplit tmpsplit;
     while((fileseg = input->get_next_file()) != NULL){
-        if(file_count < _get_proc_count(proc_rank, totalcount)){
+        if(file_count < get_proc_count(proc_rank, totalcount)){
             tmpsplit.add_seg_file(fileseg);
             file_count++;
         }
-        if(file_count == _get_proc_count(proc_rank, totalcount)){
+        if(file_count == get_proc_count(proc_rank, totalcount)){
             files.push_back(tmpsplit);
             tmpsplit.clear();
             proc_rank++;
@@ -190,11 +190,11 @@ void FileSplitter::_split_by_name(InputSplit *input){
     }
 }
 
-InputSplit *FileSplitter::_get_my_split(){
+InputSplit *FileSplitter::get_my_split(){
     return &files[mimir_world_rank];
 }
 
-uint64_t FileSplitter::_get_proc_count(int rank, uint64_t totalcount){
+uint64_t FileSplitter::get_proc_count(int rank, uint64_t totalcount){
     uint64_t localcount = totalcount / mimir_world_size;
     if(rank < (int)(totalcount % mimir_world_size)) localcount += 1;
 

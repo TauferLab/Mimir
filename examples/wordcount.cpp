@@ -48,11 +48,6 @@ int main(int argc, char *argv[])
 
     check_envars(rank, size);
 
-    InputSplit input(filedir);
-    FileSplitter* spliter = FileSplitter::getFileSplitter();
-    InputSplit* splitinput = spliter->split(&input);
-    splitinput->print();
-
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
 #ifdef COMBINE
@@ -71,8 +66,9 @@ int main(int argc, char *argv[])
 #endif
 #endif
 
+    InputSplit* splitinput = FileSplitter::getFileSplitter()->split(filedir);
+    splitinput->print();
     StringRecordFormat::set_whitespace(" \n");
-    StringRecordFormat::set_sepeators(" \n");
     FileReader<StringRecordFormat> reader(splitinput);
 
     uint64_t nwords = mr->map_files(&reader, map, NULL);

@@ -12,8 +12,7 @@
 #include <sys/stat.h>
 
 #include "common.h"
-#include "mapreduce.h"
-#include "memory.h"
+#include "mimir.h"
 
 using namespace MIMIR_NS;
 
@@ -26,27 +25,18 @@ using namespace MIMIR_NS;
 #define SET_VISITED(v, vis)                                                    \
     ((vis[(v) / LONG_BITS]) |= (1UL << ((v) % LONG_BITS)))
 
-// graph partition
 int mypartition(const char *, int);
-// read edge lists from files
-void fileread(MapReduce *, char *, void *);
-// construct graph struct
-void makegraph(MapReduce * mr, char *key, int keybytes, char *value, int valuebytes, void *ptr);
-// count local edge number
+void fileread(MapReduce * mr, BaseRecordFormat *record, void *ptr);
+void makegraph(MapReduce * mr, char *key, int keybytes, 
+               char *value, int valuebytes, void *ptr);
 void countedge(char *, int, char *, int, void *);
 
-// get root vertex
 int64_t getrootvert();
-// expand root vertex
 void rootvisit(MapReduce *, void *);
-// expand vertex
 void expand(MapReduce *, char *, int, char *, int, void *);
-// shrink vertex
-// void shrink(MapReduce *, char *, int, char *, int, void *);
-// compress function
-void combiner(MapReduce *, const char *, int, const char *, int, const char *, int, void *);
+void combiner(MapReduce *, const char *, int,
+              const char *, int, const char *, int, void *);
 
-// CSR graph
 int rank, size;
 int64_t nglobalverts;           // global vertex count
 int64_t nglobaledges;           // global edge count
@@ -81,8 +71,8 @@ FILE *rf = NULL;
 
 int main(int argc, char **argv)
 {
-    // Initalize MPI
     MPI_Init(&argc, &argv);
+    Mimir_Init(&argc, &argv, MPI_COMM_WORLD);
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -132,7 +122,6 @@ int main(int argc, char **argv)
     }
 #endif
 
-    // Initialize MapReduce
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
     mr->set_hash(mypartition);
 
@@ -147,8 +136,11 @@ int main(int argc, char **argv)
 #endif
 
     // partition file
-    char whitespace[10] = "\n";
-    uint64_t nedges = mr->map_text_file(indir, 1, 1, whitespace, fileread);
+    InputSplit* splitinput = FileSplitter::getFileSplitter()->split(indir);
+    splitinput->print();
+    StringRecordFormat::set_whitespace("\n");
+    FileReader<StringRecordFormat> reader(splitinput);
+    uint64_t nedges = mr->map_files(&reader, fileread, NULL);
     nglobaledges = nedges;
 
     // mr->output(stdout, Int64Type, Int64Type);
@@ -243,7 +235,6 @@ int main(int argc, char **argv)
     do {
         nactives[level] = mr->map_key_value(mr, expand);
         // mr->output(stdout, Int64Type, Int64Type);
-
         level++;
     } while (nactives[level - 1]);
 
@@ -280,6 +271,7 @@ int main(int argc, char **argv)
     }
 #endif
 
+    Mimir_Finalize();
     MPI_Finalize();
 }
 
@@ -304,8 +296,9 @@ void countedge(char *key, int keybytes, char *value, int valbytes, void *ptr)
 }
 
 // read edge list from files
-void fileread(MapReduce * mr, char *word, void *ptr)
+void fileread(MapReduce * mr, BaseRecordFormat *record, void *ptr)
 {
+    char *word = record->get_record();
     char sep[10] = " ";
     char *v0, *v1;
     char *saveptr = NULL;
@@ -324,11 +317,13 @@ void fileread(MapReduce * mr, char *word, void *ptr)
                 int_v0, int_v1, nglobalverts);
         exit(1);
     }
-    mr->add_key_value((char *) &int_v0, sizeof(int64_t), (char *) &int_v1, sizeof(int64_t));
+    mr->add_key_value((char *) &int_v0, sizeof(int64_t), 
+                      (char *) &int_v1, sizeof(int64_t));
 }
 
 // make CSR graph based edge list
-void makegraph(MapReduce * mr, char *key, int keybytes, char *value, int valuebytes, void *ptr)
+void makegraph(MapReduce * mr, char *key, int keybytes, 
+               char *value, int valuebytes, void *ptr)
 {
     int64_t v0, v0_local, v1;
     v0 = *(int64_t *) key;
@@ -358,13 +353,15 @@ void rootvisit(MapReduce * mr, void *ptr)
 #else
             int64_t v1 = columns[p];
 #endif
-            mr->add_key_value((char *) &v1, sizeof(int64_t), (char *) &root, sizeof(int64_t));
+            mr->add_key_value((char *) &v1, sizeof(int64_t), 
+                              (char *) &root, sizeof(int64_t));
         }
     }
 }
 
 // Keep active vertexes in next level only
-void expand(MapReduce * mr, char *key, int keybytes, char *value, int valuebytes, void *ptr)
+void expand(MapReduce * mr, char *key, int keybytes, 
+            char *value, int valuebytes, void *ptr)
 {
     int64_t v = *(int64_t *) key;
     int64_t v_local = v - nvertoffset;
@@ -384,14 +381,16 @@ void expand(MapReduce * mr, char *key, int keybytes, char *value, int valuebytes
 #else
             int64_t v1 = columns[p];
 #endif
-            mr->add_key_value((char *) &v1, sizeof(int64_t), (char *) &v, sizeof(int64_t));
+            mr->add_key_value((char *) &v1, sizeof(int64_t), 
+                              (char *) &v, sizeof(int64_t));
         }
     }
 }
 
 // Compress KV with the sarank key
-void combiner(MapReduce * mr, const char *key, int keysize, const char *val1,
-              int val1size, const char *val2, int val2size, void *ptr)
+void combiner(MapReduce * mr, const char *key, int keysize, 
+              const char *val1, int val1size, 
+              const char *val2, int val2size, void *ptr)
 {
 
     mr->update_key_value(key, keysize, val1, val1size);
