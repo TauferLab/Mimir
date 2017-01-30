@@ -7,6 +7,12 @@ namespace MIMIR_NS {
 
 class StringRecordFormat : public BaseRecordFormat {
   public:
+    StringRecordFormat() {
+    }
+
+    virtual ~StringRecordFormat() {
+    }
+
     virtual int get_record_size() {
         return (int)strlen(buffer) + 1;
     }
@@ -36,8 +42,14 @@ class StringRecordFormat : public BaseRecordFormat {
     }
 };
 
-class ByteRecordFormat : public BaseRecordFormat{
+class ByteRecordFormat : public BaseRecordFormat {
   public:
+    ByteRecordFormat() {
+    }
+
+    virtual ~ByteRecordFormat() {
+    }
+
     virtual char *get_record() {
         return buffer;
     }
@@ -49,8 +61,20 @@ class ByteRecordFormat : public BaseRecordFormat{
     virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
         if (len == 0) return false;
 
+        if (len == 1 && islast == true)
+            iseof = true;
+        else
+            iseof = false;
+
         return true;
     }
+
+    bool is_eof() {
+        return iseof;
+    }
+
+  private:
+    bool iseof;
 };
 
 }

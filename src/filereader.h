@@ -28,7 +28,7 @@ class FileReader : public BaseFileReader {
         buffer = NULL;
     }
 
-    ~FileReader() {
+    virtual ~FileReader() {
     }
 
     bool open() {
@@ -60,6 +60,9 @@ class FileReader : public BaseFileReader {
     }
 
     RecordFormat* next() {
+
+      if (state.seg_file == NULL)
+            return NULL;
 
         bool is_empty = false;
         while(!is_empty) {

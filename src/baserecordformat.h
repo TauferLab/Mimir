@@ -12,6 +12,10 @@ namespace MIMIR_NS {
 
 class BaseRecordFormat {
   public:
+    BaseRecordFormat(){
+    }
+    virtual ~BaseRecordFormat(){
+    }
 
     char* buffer;
 
@@ -30,7 +34,7 @@ class BaseRecordFormat {
   public:
     static bool is_contain(std::string &str, char ch) {
 
-        if (str.size() == 0) return true;
+        if (str.size() == 0) return false;
 
         bool ret = false;
 
@@ -45,14 +49,20 @@ class BaseRecordFormat {
     }
 
     static bool is_whitespace(char ch) {
+        if (whitespaces.size() == 0)
+            return false;
+
         return is_contain(whitespaces, ch);
     }
 
     static bool is_seperator(char ch) {
+        if( seperators.size() == 0)
+            return true;
+
         return is_contain(seperators, ch);
     }
 
-    static void set_sepeators(const char *str) {
+    static void set_seperators(const char *str) {
         seperators = str;
     }
 
