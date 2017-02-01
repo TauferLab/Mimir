@@ -208,14 +208,17 @@ class FileReader : public BaseFileReader {
             req = MPI_REQUEST_NULL;
         }
 
-        if (state.seg_file->startpos > 0) {
+        FileSeg* seg_file = state.seg_file;
+
+        if (seg_file->startpos > 0) {
             while (!BaseRecordFormat::is_seperator(*(buffer+count))
                   && (uint64_t)count < bufsize) {
                 count++;
             }
             if (count < 0)
                 LOG_ERROR("Error: header size is larger than max value of int!\n");
-            if ((uint64_t)count >= bufsize)
+            if ((uint64_t)count >= bufsize
+                && seg_file->startpos + seg_file->segsize < seg_file->filesize)
                 LOG_ERROR("Error: cannot find header at the first buffer!\n");
         }
 
