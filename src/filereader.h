@@ -215,7 +215,7 @@ class FileReader : public BaseFileReader {
             }
             if (count < 0)
                 LOG_ERROR("Error: header size is larger than max value of int!\n");
-            if ((uint64_t)count > bufsize)
+            if ((uint64_t)count >= bufsize)
                 LOG_ERROR("Error: cannot find header at the first buffer!\n");
         }
 
