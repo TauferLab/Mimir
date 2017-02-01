@@ -190,6 +190,10 @@ void FileSplitter::split_by_name(InputSplit *input){
             file_count = 0;
         }
     }
+
+    tmpsplit.clear();
+    for (int i = (int)files.size(); i < mimir_world_size; i++)
+        files.push_back(tmpsplit);
 }
 
 InputSplit *FileSplitter::get_my_split(){
