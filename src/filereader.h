@@ -33,9 +33,9 @@ class FileReader : public BaseFileReader {
 
     bool open() {
 
-        if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
-            bufsize = input->get_max_fsize();
-        else
+        //if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
+        //    bufsize = input->get_max_fsize();
+        //else
             bufsize = INPUT_BUF_SIZE;
 
         buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE,
@@ -160,11 +160,11 @@ class FileReader : public BaseFileReader {
     }
 
     void handle_border() {
-        MPI_Status st;
-        if (req != MPI_REQUEST_NULL) {
-            MPI_Wait(&req, &st);
-            req = MPI_REQUEST_NULL;
-        }
+        //MPI_Status st;
+        //if (req != MPI_REQUEST_NULL) {
+        //    MPI_Wait(&req, &st);
+        //    req = MPI_REQUEST_NULL;
+        //}
 
         if (state.win_size > (uint64_t)MAX_RECORD_SIZE)
             LOG_ERROR("Record size (%ld) is larger than max size (%d)\n", 
@@ -203,28 +203,31 @@ class FileReader : public BaseFileReader {
         MPI_Status st;
         int count = 0;
 
-        if (req != MPI_REQUEST_NULL) {
-            MPI_Wait(&req, &st);
-            req = MPI_REQUEST_NULL;
-        }
+        //if (req != MPI_REQUEST_NULL) {
+        //    MPI_Wait(&req, &st);
+        //    req = MPI_REQUEST_NULL;
+        //}
 
         FileSeg* seg_file = state.seg_file;
 
         if (seg_file->startpos > 0) {
-            while (!BaseRecordFormat::is_seperator(*(buffer+count))
-                  && (uint64_t)count < bufsize) {
-                count++;
+            while ((uint64_t)count < bufsize 
+		   && !BaseRecordFormat::is_seperator(*(buffer + count))) {
+		  count++;
             }
             if (count < 0)
                 LOG_ERROR("Error: header size is larger than max value of int!\n");
             if ((uint64_t)count >= bufsize
-                && seg_file->startpos + seg_file->segsize < seg_file->filesize)
-                LOG_ERROR("Error: cannot find header at the first buffer!\n");
+                && seg_file->startpos + bufsize < seg_file->filesize)
+                LOG_ERROR("Error: cannot find header at the first buffer (bufsize=%ld)!\n", bufsize);
         }
 
         MPI_Isend(buffer, count, MPI_BYTE, mimir_world_rank - 1, 
                   DATA_TAG, mimir_world_comm, &req);
+        MPI_Wait(&req, &st);
+	req = MPI_REQUEST_NULL;
 
+ 
         LOG_PRINT(DBG_IO, "Send tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
                   state.seg_file->startpos, count);
@@ -239,6 +242,7 @@ class FileReader : public BaseFileReader {
         MPI_Irecv(buffer, (int)bufsize, MPI_BYTE, mimir_world_rank + 1,
                   DATA_TAG, mimir_world_comm, &req);
         MPI_Wait(&req, &st);
+	req = MPI_REQUEST_NULL;
 
         MPI_Get_count(&st, MPI_BYTE, &count);
 
