@@ -7,6 +7,7 @@
 #include "const.h"
 #include "memory.h"
 #include "config.h"
+#include "stat.h"
 #include "log.h"
 #include "inputsplit.h"
 #include "basefilereader.h"
@@ -115,15 +116,24 @@ class FileReader : public BaseFileReader {
 
     bool read_next_file() {
         // close possible previous file
-        file_close();
+    	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+    	PROFILER_RECORD_TIME_START;
+	file_close();
+	PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+	TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
 
         // open the next file
         state.seg_file = input->get_next_file();
         if (state.seg_file == NULL)
             return false;
 
+	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+    	PROFILER_RECORD_TIME_START;
         if (!file_open(state.seg_file->filename.c_str()))
             return false;
+	PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+	PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
+	TRACKER_RECORD_EVENT(EVENT_PFS_OPEN);
 
         state.start_pos = 0;
         state.win_size = 0;
@@ -140,7 +150,15 @@ class FileReader : public BaseFileReader {
             rsize = state.seg_file->segsize;
         else
             rsize = bufsize;
-        file_read_at(buffer, state.seg_file->startpos, rsize);
+	
+	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+    	PROFILER_RECORD_TIME_START;
+	file_read_at(buffer, state.seg_file->startpos, rsize);
+	PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+	PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, rsize, OPSUM);
+
+	TRACKER_RECORD_EVENT(EVENT_PFS_READ);
+
         state.win_size += rsize;
         state.read_size += rsize;
 
@@ -153,8 +171,12 @@ class FileReader : public BaseFileReader {
 
         // close file
         if (state.read_size == state.seg_file->segsize) {
-            file_close();
-        }
+ 	    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);	
+	    PROFILER_RECORD_TIME_START;
+	    file_close();
+	    PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+	    TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
+	}
 
         return true;
     }
@@ -165,7 +187,7 @@ class FileReader : public BaseFileReader {
         //    MPI_Wait(&req, &st);
         //    req = MPI_REQUEST_NULL;
         //}
-
+ 
         if (state.win_size > (uint64_t)MAX_RECORD_SIZE)
             LOG_ERROR("Record size (%ld) is larger than max size (%d)\n", 
                       state.win_size, MAX_RECORD_SIZE);
@@ -188,14 +210,22 @@ class FileReader : public BaseFileReader {
             else
                 rsize = bufsize;
 
+	    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+	    PROFILER_RECORD_TIME_START;
             file_read_at(buffer + state.win_size,
                          state.seg_file->startpos + state.read_size, rsize);
+	    PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+	    PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, rsize, OPSUM);
+   	    TRACKER_RECORD_EVENT(EVENT_PFS_READ);
 
             state.win_size += rsize;
             state.read_size += rsize;
 
-            if (state.read_size == state.seg_file->segsize)
+            if (state.read_size == state.seg_file->segsize) {
+ 	    	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 file_close();
+	        TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
+	    }
         }
     }
 
@@ -222,9 +252,12 @@ class FileReader : public BaseFileReader {
                 LOG_ERROR("Error: cannot find header at the first buffer (bufsize=%ld)!\n", bufsize);
         }
 
-        MPI_Isend(buffer, count, MPI_BYTE, mimir_world_rank - 1, 
+ 	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+	MPI_Isend(buffer, count, MPI_BYTE, mimir_world_rank - 1, 
                   DATA_TAG, mimir_world_comm, &req);
+ 	TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
         MPI_Wait(&req, &st);
+	TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
 	req = MPI_REQUEST_NULL;
 
  
@@ -239,9 +272,12 @@ class FileReader : public BaseFileReader {
         MPI_Status st;
         int count;
 
+  	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         MPI_Irecv(buffer, (int)bufsize, MPI_BYTE, mimir_world_rank + 1,
                   DATA_TAG, mimir_world_comm, &req);
+	TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
         MPI_Wait(&req, &st);
+	TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
 	req = MPI_REQUEST_NULL;
 
         MPI_Get_count(&st, MPI_BYTE, &count);
@@ -259,7 +295,8 @@ class FileReader : public BaseFileReader {
     }
 
     virtual bool file_open(const char *filename){
-        union_fp.c_fp = fopen(filename, "r");
+
+    	union_fp.c_fp = fopen(filename, "r");
         if (union_fp.c_fp == NULL)
             return false;
 
@@ -270,7 +307,7 @@ class FileReader : public BaseFileReader {
     }
 
     virtual void file_read_at(char *buf, uint64_t offset, uint64_t size){
-        fseek(union_fp.c_fp, offset, SEEK_SET);
+    	fseek(union_fp.c_fp, offset, SEEK_SET);
         size = fread(buf, 1, size, union_fp.c_fp);
 
         LOG_PRINT(DBG_IO, "Read input file=%s:%ld+%ld\n", 
@@ -279,8 +316,10 @@ class FileReader : public BaseFileReader {
 
     virtual void file_close(){
         if (union_fp.c_fp != NULL) {
-            fclose(union_fp.c_fp);
-            union_fp.c_fp = NULL;
+    
+	    fclose(union_fp.c_fp);
+  	    
+ 	    union_fp.c_fp = NULL;
 
             LOG_PRINT(DBG_IO, "Close input file=%s\n", 
                       state.seg_file->filename.c_str());
