@@ -88,6 +88,8 @@ extern char timestr[];
 #define EVENT_COMM_ALLTOALL        "event_comm_alltoall"        // MPI_Alltoall
 #define EVENT_COMM_ALLTOALLV       "event_comm_alltoallv"       // MPI_Alltoallv
 #define EVENT_COMM_ALLREDUCE       "event_comm_allreduce"       // MPI_Allreduce
+#define EVENT_COMM_SEND            "event_comm_send"            // MPI_Send
+#define EVENT_COMM_RECV            "event_comm_recv"            // MPI_Recv
 #define EVENT_COMM_ISEND           "event_comm_isend"           // MPI_Isend
 #define EVENT_COMM_IRECV           "event_comm_irecv"           // MPI_Irecv
 #define EVENT_COMM_WAIT            "envent_comm_wait"           // MPI_Wait

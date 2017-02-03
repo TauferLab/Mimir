@@ -15,7 +15,9 @@
 
 namespace MIMIR_NS {
 
-#define  DATA_TAG     0xaa
+#define COUNT_TAG     0xaa
+#define  DATA_TAG     0xbb
+
 enum IOTYPE{MIMIR_STDC_IO, MIMIR_MPI_IO, MIMIR_COLLEC_IO};
 
 class InputSplit;
@@ -27,6 +29,8 @@ class FileReader : public BaseFileReader {
     FileReader(InputSplit *input) {
         this->input = input;
         buffer = NULL;
+	sbuffer = NULL;
+	rbuffer = NULL;
     }
 
     virtual ~FileReader() {
@@ -48,7 +52,8 @@ class FileReader : public BaseFileReader {
         state.win_size = 0;
         state.has_tail = false;
 
-        req = MPI_REQUEST_NULL;
+        sreq = MPI_REQUEST_NULL;
+	rreq = MPI_REQUEST_NULL;
 
         file_init();
         read_next_file();
@@ -58,6 +63,13 @@ class FileReader : public BaseFileReader {
 
     void close() {
         mem_aligned_free(buffer);
+        MPI_Status st;
+        if (sreq != MPI_REQUEST_NULL) {
+            MPI_Wait(&sreq, &st);
+            sreq = MPI_REQUEST_NULL;
+        }
+	if (sbuffer != NULL)
+            mem_aligned_free(sbuffer);
     }
 
     RecordFormat* next() {
@@ -115,7 +127,13 @@ class FileReader : public BaseFileReader {
     }
 
     bool read_next_file() {
-        // close possible previous file
+        //MPI_Status st;
+        //if (sreq != MPI_REQUEST_NULL) {
+        //    MPI_Wait(&sreq, &st);
+        //    sreq = MPI_REQUEST_NULL;
+        //}
+
+    	// close possible previous file
     	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
     	PROFILER_RECORD_TIME_START;
 	file_close();
@@ -139,9 +157,11 @@ class FileReader : public BaseFileReader {
         state.win_size = 0;
         state.read_size = 0;
         FileSeg *segfile = state.seg_file;
-        if (segfile->startpos + segfile->segsize < segfile->filesize)
+        if (segfile->startpos + segfile->segsize < segfile->filesize) {
             state.has_tail = true;
-        else
+	    recv_start();
+	}
+	else
             state.has_tail = false;
 
         // read data
@@ -183,9 +203,9 @@ class FileReader : public BaseFileReader {
 
     void handle_border() {
         //MPI_Status st;
-        //if (req != MPI_REQUEST_NULL) {
-        //    MPI_Wait(&req, &st);
-        //    req = MPI_REQUEST_NULL;
+        //if (sreq != MPI_REQUEST_NULL) {
+        //    MPI_Wait(&sreq, &st);
+        //    sreq = MPI_REQUEST_NULL;
         //}
  
         if (state.win_size > (uint64_t)MAX_RECORD_SIZE)
@@ -230,13 +250,8 @@ class FileReader : public BaseFileReader {
     }
 
     int send_tail(char *buffer, uint64_t bufsize) {
-        MPI_Status st;
+        //MPI_Status st;
         int count = 0;
-
-        //if (req != MPI_REQUEST_NULL) {
-        //    MPI_Wait(&req, &st);
-        //    req = MPI_REQUEST_NULL;
-        //}
 
         FileSeg* seg_file = state.seg_file;
 
@@ -253,13 +268,19 @@ class FileReader : public BaseFileReader {
         }
 
  	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-	MPI_Isend(buffer, count, MPI_BYTE, mimir_world_rank - 1, 
-                  DATA_TAG, mimir_world_comm, &req);
- 	TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
-        MPI_Wait(&req, &st);
-	TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
-	req = MPI_REQUEST_NULL;
+	MPI_Send(&count, 1, MPI_INT, mimir_world_rank - 1, COUNT_TAG, mimir_world_comm);
+ 	TRACKER_RECORD_EVENT(EVENT_COMM_SEND);
 
+	if (count != 0) {
+	    sbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, count);
+	    memcpy(sbuffer, buffer, count);
+            MPI_Isend(sbuffer, count, MPI_BYTE, mimir_world_rank - 1, 
+                  DATA_TAG, mimir_world_comm, &sreq);
+ 	    TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
+            //MPI_Wait(&sreq, &st);
+	    //TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
+	    //sreq = MPI_REQUEST_NULL;
+	}
  
         LOG_PRINT(DBG_IO, "Send tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
@@ -268,26 +289,48 @@ class FileReader : public BaseFileReader {
         return count;
     }
 
+    void recv_start() {
+	MPI_Status st;
+
+ 	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+	MPI_Recv(&tailsize, 1, MPI_INT, mimir_world_rank + 1, 
+		 COUNT_TAG, mimir_world_comm, &st);
+ 	TRACKER_RECORD_EVENT(EVENT_COMM_RECV);
+
+	if (tailsize != 0) {
+	    rbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE,
+                                             tailsize);
+	    MPI_Irecv(rbuffer, tailsize, MPI_BYTE, mimir_world_rank + 1,
+		      DATA_TAG, mimir_world_comm, &rreq);
+ 	    TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
+	}
+    }
+
     int recv_tail(char *buffer, uint64_t bufsize){
         MPI_Status st;
-        int count;
+        //int count;
 
   	TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        MPI_Irecv(buffer, (int)bufsize, MPI_BYTE, mimir_world_rank + 1,
-                  DATA_TAG, mimir_world_comm, &req);
-	TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
-        MPI_Wait(&req, &st);
+        //MPI_Irecv(buffer, (int)bufsize, MPI_BYTE, mimir_world_rank + 1,
+        //          DATA_TAG, mimir_world_comm, &req);
+	//TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
+        MPI_Wait(&rreq, &st);
 	TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
-	req = MPI_REQUEST_NULL;
+	rreq = MPI_REQUEST_NULL;
 
-        MPI_Get_count(&st, MPI_BYTE, &count);
+        //MPI_Get_count(&st, MPI_BYTE, &count);
+
+	if(tailsize != 0) {
+            memcpy(buffer, rbuffer, tailsize);
+            mem_aligned_free(rbuffer);
+	}
 
         LOG_PRINT(DBG_IO, "Recv tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
                   state.seg_file->startpos + state.seg_file->segsize, 
-                  count);
+                  tailsize);
 
-        return count;
+        return tailsize;
     }
 
     virtual void file_init(){
@@ -353,10 +396,13 @@ class FileReader : public BaseFileReader {
 
     char             *buffer;
     uint64_t          bufsize;
+    char             *sbuffer;
+    char             *rbuffer;
+    int               tailsize;
     InputSplit       *input;
     RecordFormat      record;
 
-    MPI_Request        req;
+    MPI_Request       sreq, rreq;
 };
 
 template <typename RecordFormat>
