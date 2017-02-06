@@ -10,7 +10,7 @@
 
 #include <mpi.h>
 
-#include "dataobject.h"
+#include "container.h"
 #include "communicator.h"
 
 namespace MIMIR_NS {
@@ -20,8 +20,15 @@ public:
     Alltoall(MPI_Comm);
     ~Alltoall();
 
-    int setup(int64_t, KeyValue*, MapReduce*, UserCombiner, UserHash);
-    int sendKV(const char*, int, const char*, int);
+    int setup(int64_t, BaseOutput *, UserCombiner, HashCallback);
+    bool open(){
+        return true;
+    }
+    void close(){
+        wait();
+        return;
+    }
+    void add(const char*, int, const char*, int);
     int updateKV(const char*, int, const char*, int);
 
     void wait();

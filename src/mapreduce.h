@@ -18,34 +18,22 @@
 #include <string>
 #include <vector>
 
+#include "interface.h"
+
 #include "baserecordformat.h"
 #include "basefilereader.h"
 
 //#include "config.h"
-//#include "const.h"
+#include "const.h"
 
 #include "callbacks.h"
-
-/// KV Type
-enum KVType {
-    KVGeneral = -2,             // variable length bytes
-    KVString,   // string
-    KVFixed
-};      // fixed-size KV
-
-enum ElemType {
-    StringType,
-    Int32Type,
-    Int64Type
-};
 
 namespace MIMIR_NS {
 
 class MapReduce;
 class Communicator;
-class DataObject;
-class KeyValue;
-class Spool;
+class Container;
+class KVContainer;
 class MultiValueIterator;
 class ReducerHashBucket;
 
@@ -57,9 +45,9 @@ enum OpPhase { NonePhase, MapPhase, LocalMapPhase, ReducePhase, ScanPhase, Combi
 /// map callback to map files
 //typedef void (*ProcessBinaryFile)(MapReduce*, FileReader*, void*);
 
+
 /// hash callback
 typedef int (*UserHash) (const char*, int);
-
 /// map callback to init KVs
 typedef void (*UserInitKV) (MapReduce*, void*);
 
@@ -78,7 +66,6 @@ typedef void (*UserReduce) (MapReduce*, char*, int, void*);
 /// combiner callback
 typedef void (*UserCombiner) (MapReduce*,
                               const char*, int, const char*, int, const char*, int, void*);
-
 /// User-defined scan function
 typedef void (*UserScan) (char*, int, char*, int, void*);
 
@@ -105,6 +92,10 @@ public:
       Destructor function.
       */
     ~MapReduce();
+
+    //uint64_t mapreduce(BaseInput* input, BaseOutput* output,
+    //             MyMap mymap, MyReduce myreduce, MyCombine mycombine,
+    //             void *ptr, bool repartition = true);
 
     /**
       init_key_value  load KVs from memory (e.g. in-situ workload)
@@ -207,7 +198,7 @@ private:
     int me, nprocs;         ///< MPI communicator information
 
     OpPhase phase;          ///< operation mode
-    KeyValue *kv;           ///< KV container
+    KVContainer *kv;           ///< KV container
     Communicator *c;        ///< communicator
     std::vector < std::pair < std::string, int64_t > >ifiles;
 
@@ -215,8 +206,6 @@ private:
     UserCombiner mycombiner;        ///< user-defined combiner function
 
     //enum KVType kvtype;              ///< KV types
-    int ksize, vsize;
-
 public:
     void *myptr;
     MultiValueIterator *iter;
@@ -242,7 +231,7 @@ private:
     void _reduce(ReducerHashBucket * u, UserReduce _myreduce, void *ptr);
 
     // convert phase
-    void _convert(KeyValue *inkv, DataObject *mv, ReducerHashBucket * u);
+    void _convert(KVContainer *inkv, Container *mv, ReducerHashBucket * u);
 
 public:
     static int ref;
@@ -252,7 +241,7 @@ public:
 class MultiValueIterator {
 public:
 
-    MultiValueIterator(KeyValue *kv, ReducerUnique *ukey);
+    MultiValueIterator(KVContainer *kv, ReducerUnique *ukey);
 
     void set_kv_type(enum KVType, int, int);
 
@@ -286,7 +275,7 @@ private:
     char *value;
     int valuesize;
 
-    KeyValue *kv;
+    KVContainer *kv;
     ReducerUnique *ukey;
     ReducerSet *pset;
 };

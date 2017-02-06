@@ -15,7 +15,18 @@
 #define MAXLINE                    2048
 #define MAX_COMM_SIZE        0x40000000
 
+enum KVType {
+    KVGeneral = -2,
+    KVString
+};
 
+enum ElemType {
+    StringType,
+    Int32Type,
+    Int64Type
+};
+
+#if 0
 // Get KV information
 #define GET_KV_VARS(ksize,vsize,buf,key,keybytes,value,valuebytes,kvsize) \
 {\
@@ -75,7 +86,7 @@
     kvbuf+=valuebytes;\
     kvsize=(int)(kvbuf-kvbuf_start);\
 }
-
+#endif
 
 extern int oneintlen;
 extern int twointlen;

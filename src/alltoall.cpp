@@ -5,13 +5,15 @@
 #include "alltoall.h"
 #include "const.h"
 #include "memory.h"
-#include "keyvalue.h"
-
-using namespace MIMIR_NS;
+#include "kvcontainer.h"
 
 #include "hash.h"
 #include "stat.h"
 #include "log.h"
+
+#include "recordformat.h"
+
+using namespace MIMIR_NS;
 
 Alltoall::Alltoall(MPI_Comm _comm)
     :  Communicator(_comm, 0)
@@ -53,10 +55,9 @@ Alltoall::~Alltoall()
     LOG_PRINT(DBG_COMM, "Comm: alltoall destroy.\n");
 }
 
-int Alltoall::setup(int64_t _sbufsize, KeyValue *_data,
-                    MapReduce *_mr, UserCombiner _combiner, UserHash _hash)
+int Alltoall::setup(int64_t _sbufsize, BaseOutput *_data, UserCombiner _combiner, HashCallback _hash)
 {
-    Communicator::setup(_sbufsize, _data, _mr, _combiner, _hash);
+    Communicator::setup(_sbufsize, _data, _combiner, _hash);
 
     int64_t total_send_buf_size = (int64_t) send_buf_size * size;
 
@@ -97,7 +98,7 @@ comm buffer size=%ld, type_log_bytes=%d)\n", send_buf_size, type_log_bytes);
     return 0;
 }
 
-int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
+void Alltoall::add(const char *key, int keysize, const char *val, int valsize)
 {
     // compute target process
     target = 0;
@@ -114,9 +115,11 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
         LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
     }
 
+    KVRecord record(ksize, vsize);
+
     // get size of the KV
-    int kvsize = 0;
-    GET_KV_SIZE(kv->ksize, kv->vsize, keysize, valsize, kvsize);
+    int kvsize = record.get_head_size() + keysize + valsize;
+    //GET_KV_SIZE(kv->ksize, kv->vsize, keysize, valsize, kvsize);
 
     // check if the KV can be fit in one buffer
     if (kvsize > send_buf_size)
@@ -136,7 +139,9 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
                 // insert the KV
                 int64_t global_buf_off = target * (int64_t) send_buf_size + goff;
                 char *gbuf = buf + global_buf_off;
-                PUT_KV_VARS(kv->ksize, kv->vsize, gbuf, key, keysize, val, valsize, kvsize);
+                record.set_buffer(gbuf);
+                record.set_key_value(key, keysize, val, valsize);
+                //PUT_KV_VARS(kv->ksize, kv->vsize, gbuf, key, keysize, val, valsize, kvsize);
                 off[target] += kvsize;
                 inserted = 1;
             }
@@ -160,8 +165,10 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
                     if (ssize >= kvsize) {
 
                         tmp.kv = sbuf + (ssize - kvsize);
-                        PUT_KV_VARS(kv->ksize, kv->vsize, tmp.kv,
-                                    key, keysize, val, valsize, kvsize);
+                        record.set_buffer(tmp.kv);
+                        record.set_key_value(key, keysize, val, valsize);
+                        //PUT_KV_VARS(kv->ksize, kv->vsize, tmp.kv,
+                        //            key, keysize, val, valsize, kvsize);
 
                         if (iter->second == kvsize)
                             slices.erase(iter);
@@ -181,8 +188,10 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
                         int64_t global_buf_off = target * (int64_t) send_buf_size + goff;
                         tmp.kv = buf + global_buf_off;
 
-                        PUT_KV_VARS(kv->ksize, kv->vsize, tmp.kv,
-                                    key, keysize, val, valsize, kvsize);
+                        record.set_buffer(tmp.kv);
+                        record.set_key_value(key, keysize, val, valsize);
+                        //PUT_KV_VARS(kv->ksize, kv->vsize, tmp.kv,
+                        //            key, keysize, val, valsize, kvsize);
                         off[target] += kvsize;
 
                         bucket->insertElem(&tmp);
@@ -192,12 +201,18 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
             }
             else {
 
-                GET_KV_VARS(kv->ksize, kv->vsize, u->kv,
-                            ukey, ukeysize, uvalue, uvaluesize, ukvsize);
+                record.set_buffer(u->kv);
+                //GET_KV_VARS(kv->ksize, kv->vsize, u->kv,
+                //            ukey, ukeysize, uvalue, uvaluesize, ukvsize);
 
+                ukey = record.get_key();
+                ukeysize = record.get_key_size();
+                uvalue = record.get_val();
+                uvaluesize = record.get_val_size();
+                ukvsize = record.get_record_size();
                 // invoke KV information
                 mycombiner(mr, key, keysize, uvalue, uvaluesize,
-                           val, valsize, mr->myptr);
+                           val, valsize, NULL);
 
                 inserted = 1;
             }
@@ -211,7 +226,7 @@ int Alltoall::sendKV(const char *key, int keysize, const char *val, int valsize)
         exchange_kv();
     }
 
-    return 0;
+    return;
 }
 
 int Alltoall::updateKV(const char *newkey, int newkeysize, const char *newval, int newvalsize)
@@ -222,17 +237,21 @@ int Alltoall::updateKV(const char *newkey, int newkeysize, const char *newval, i
     if (newkeysize != ukeysize || memcmp(newkey, ukey, ukeysize) != 0)
         LOG_ERROR("Error: the result key of combiner is different!\n");
 
-    int kvsize;
+    KVRecord record(ksize, vsize);
+
+    int kvsize = record.get_head_size() + newkeysize + newvalsize;
     // get key size
-    GET_KV_SIZE(kv->ksize, kv->vsize, newkeysize, newvalsize, kvsize);
+    //GET_KV_SIZE(kv->ksize, kv->vsize, newkeysize, newvalsize, kvsize);
 
     while (1) {
         int goff = off[target];
 
         // new KV is smaller than previous KV */
         if (kvsize <= ukvsize) {
-            PUT_KV_VARS(kv->ksize, kv->vsize, u->kv, ukey, ukeysize,
-                        newval, newvalsize, kvsize);
+            record.set_buffer(u->kv);
+            record.set_key_value(ukey, ukeysize, newval, newvalsize);
+            //PUT_KV_VARS(kv->ksize, kv->vsize, u->kv, ukey, ukeysize,
+            //            newval, newvalsize, kvsize);
             inserted = 1;
             /* record slice */
             if (kvsize < ukvsize)
@@ -243,8 +262,10 @@ int Alltoall::updateKV(const char *newkey, int newkeysize, const char *newval, i
                 slices.insert(std::make_pair(u->kv, ukvsize));
                 int64_t global_buf_off = target * (int64_t) send_buf_size + goff;
                 char *gbuf = buf + global_buf_off;
-                PUT_KV_VARS(kv->ksize, kv->vsize, gbuf, ukey, ukeysize,
-                            newval, newvalsize, kvsize);
+                record.set_buffer(gbuf);
+                record.set_key_value(ukey, ukeysize, newval, newvalsize);
+                //PUT_KV_VARS(kv->ksize, kv->vsize, gbuf, ukey, ukeysize,
+                //            newval, newvalsize, kvsize);
                 off[target] += kvsize;
                 inserted = 1;
             }
@@ -304,24 +325,32 @@ void Alltoall::wait()
 
 void Alltoall::save_data(int ibuf)
 {
-    mr->phase = CombinePhase;
+    //mr->phase = CombinePhase;
+    KVRecord record(ksize, vsize);
     char *src_buf = recv_buf[ibuf];
     int k = 0;
     for (k = 0; k < size; k++) {
         int count = 0;
         while (count < recv_count[ibuf][k]) {
+            
             char *key = 0, *value = 0;
             int keybytes = 0, valuebytes = 0, kvsize = 0;
-            GET_KV_VARS(kv->ksize, kv->vsize, src_buf, key, keybytes,
-                        value, valuebytes, kvsize);
+            record.set_buffer(src_buf);
+            key = record.get_key();
+            keybytes = record.get_key_size();
+            value = record.get_val();
+            valuebytes = record.get_val_size();
+            kvsize = record.get_record_size();
+            //GET_KV_VARS(kv->ksize, kv->vsize, src_buf, key, keybytes,
+            //            value, valuebytes, kvsize);
             src_buf += kvsize;
-            kv->addKV(key, keybytes, value, valuebytes);
+            kv->add(key, keybytes, value, valuebytes);
             count += kvsize;
         }
         int padding = recv_count[ibuf][k] & ((0x1 << type_log_bytes) - 0x1);
         src_buf += padding;
     }
-    mr->phase = MapPhase;
+    //mr->phase = MapPhase;
 }
 
 
@@ -331,6 +360,7 @@ void Alltoall::gc()
 
         LOG_PRINT(DBG_MEM, "Alltoall: garbege collection (size=%ld)\n", slices.size());
 
+#if 0
         int dst_off = 0, src_off = 0;
         char *dst_buf = NULL, *src_buf = NULL;
 
@@ -362,6 +392,7 @@ void Alltoall::gc()
             off[k] = dst_off;
         }
         slices.clear();
+#endif
     }
 }
 

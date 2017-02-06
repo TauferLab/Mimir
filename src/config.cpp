@@ -44,3 +44,7 @@ int DBG_LEVEL = 0;
 
 /// Record peakmem
 int RECORD_PEAKMEM = 1;
+
+int ksize = -2, vsize = -2;
+
+

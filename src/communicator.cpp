@@ -66,8 +66,7 @@ Communicator::~Communicator()
     }
 }
 
-int Communicator::setup(int64_t _sbufsize, KeyValue *_kv,
-                        MapReduce *_mr, UserCombiner _combiner, UserHash _hash)
+int Communicator::setup(int64_t _sbufsize, BaseOutput *_kv, UserCombiner _combiner, UserHash _hash)
 {
     if (_sbufsize < (int64_t) COMM_UNIT_SIZE * (int64_t) size) {
         LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n",
@@ -75,7 +74,7 @@ int Communicator::setup(int64_t _sbufsize, KeyValue *_kv,
     }
 
     kv = _kv;
-    mr = _mr;
+    //mr = _mr;
     mycombiner = _combiner;
     myhash = _hash;
 
@@ -107,7 +106,7 @@ int Communicator::setup(int64_t _sbufsize, KeyValue *_kv,
     }
 
     if (mycombiner != NULL) {
-        bucket = new CombinerHashBucket(kv);
+        bucket = new CombinerHashBucket();
     }
 
     return 0;

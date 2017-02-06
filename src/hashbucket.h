@@ -6,15 +6,17 @@
 #include "const.h"
 #include "hash.h"
 #include "memory.h"
-#include "keyvalue.h"
+//#include "kvcontainer.h"
+#include "log.h"
+#include "config.h"
 
 namespace MIMIR_NS {
 
 template <typename ElemType>
 class HashBucket {
 public:
-    HashBucket(KeyValue *_kv) {
-        kv = _kv;
+    HashBucket() {
+        //kv = _kv;
 
         nbucket = (uint32_t) pow(2, BUCKET_COUNT);
         usize = nbucket * (int) sizeof(ElemType);
@@ -80,8 +82,6 @@ protected:
     int64_t iunique;
     int64_t nunique;
 
-    KeyValue *kv;
-
 };
 
 struct CombinerUnique {
@@ -91,8 +91,8 @@ struct CombinerUnique {
 
 class CombinerHashBucket:public HashBucket <CombinerUnique> {
 public:
-    CombinerHashBucket(KeyValue *_kv)
-        : HashBucket <CombinerUnique> (_kv) {}
+    CombinerHashBucket()
+        : HashBucket <CombinerUnique> () {}
     ~CombinerHashBucket() {
         for (int i = 0; i < maxbuf; i++) {
             if (buffers[i] != NULL) {
@@ -133,8 +133,8 @@ struct ReducerUnique {
 
 class ReducerHashBucket:public HashBucket <ReducerUnique> {
 public:
-    ReducerHashBucket(KeyValue *_kv)
-        : HashBucket <ReducerUnique> (_kv) {
+    ReducerHashBucket()
+        : HashBucket <ReducerUnique> () {
         maxset = MAX_PAGE_COUNT;
         setsize = nbucket * (int) sizeof(ReducerSet);
 

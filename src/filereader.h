@@ -10,7 +10,7 @@
 #include "stat.h"
 #include "log.h"
 #include "inputsplit.h"
-#include "basefilereader.h"
+#include "interface.h"
 #include "baserecordformat.h"
 
 namespace MIMIR_NS {
@@ -24,7 +24,7 @@ class InputSplit;
 class BaseFileReader;
 
 template<typename RecordFormat, IOTYPE iotype = MIMIR_STDC_IO>
-class FileReader : public BaseFileReader {
+class FileReader : public BaseInput {
   public:
     FileReader(InputSplit *input) {
         this->input = input;

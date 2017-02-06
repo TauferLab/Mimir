@@ -5,6 +5,7 @@
 #include "hash.h"
 #include "memory.h"
 #include "stat.h"
+#include "recordformat.h"
 
 using namespace MIMIR_NS;
 
@@ -16,8 +17,15 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem)
     char *key = NULL, *value = NULL;
     int keybytes = 0, valuebytes = 0, kvsize = 0;
 
-    GET_KV_VARS(kv->ksize, kv->vsize, elem->kv, key, keybytes,
-                value, valuebytes, kvsize);
+    KVRecord record(ksize, vsize);
+    record.set_buffer(elem->kv);
+    key = record.get_key();
+    keybytes = record.get_key_size();
+    value = record.get_val();
+    valuebytes = record.get_val_size();
+    kvsize = record.get_record_size();
+    //GET_KV_VARS(kv->ksize, kv->vsize, elem->kv, key, keybytes,
+    //            value, valuebytes, kvsize);
 
     if (nbuf == (nunique / nbucket) && buffers[nbuf] == NULL) {
         buffers[nbuf] = (char*) mem_aligned_malloc(MEMPAGE_SIZE, usize);
@@ -57,8 +65,15 @@ int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u
     char *ukey = NULL, *uvalue = NULL;
     int ukeybytes = 0, uvaluebytes = 0, kvsize = 0;
 
-    GET_KV_VARS(kv->ksize, kv->vsize, u->kv, ukey, ukeybytes,
-                uvalue, uvaluebytes, kvsize);
+    KVRecord record(ksize, vsize);
+    record.set_buffer(u->kv);
+    ukey = record.get_key();
+    ukeybytes = record.get_key_size();
+    uvalue = record.get_val();
+    uvaluebytes = record.get_val_size();
+    kvsize = record.get_record_size();
+    //GET_KV_VARS(kv->ksize, kv->vsize, u->kv, ukey, ukeybytes,
+    //            uvalue, uvaluebytes, kvsize);
 
     if (keybytes == ukeybytes && memcmp(key, ukey, keybytes) == 0)
         return 1;
@@ -87,11 +102,11 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem)
 
     // Get the MV size
     int64_t onemvbytes = elem->mvbytes;
-    if (kv->vsize == KVGeneral)
+    if (vsize == KVGeneral)
         onemvbytes += sizeof(int);
 
     // Add a new partition if nessary
-    if (mvbytes + onemvbytes > kv->pagesize) {
+    if (mvbytes + onemvbytes > DATA_PAGE_SIZE) {
         mvbytes = 0;
         pid++;
     }

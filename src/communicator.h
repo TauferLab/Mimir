@@ -11,7 +11,8 @@
 #include <mpi.h>
 #include <unordered_map>
 
-#include "dataobject.h"
+#include "interface.h"
+#include "container.h"
 #include "mapreduce.h"
 #include "hashbucket.h"
 #include "config.h"
@@ -20,15 +21,16 @@ namespace MIMIR_NS {
 
 template <class ElemType> class HashBucket;
 
-class Communicator {
+class Communicator : public BaseOutput {
 public:
     Communicator(MPI_Comm _comm, int _commtype);
     virtual ~Communicator();
 
-    virtual int setup(int64_t, KeyValue *kv, MapReduce *mr,
-                      UserCombiner combiner, UserHash myhash);
+    virtual int setup(int64_t, BaseOutput *kv, UserCombiner combiner, HashCallback myhash);
 
-    virtual int sendKV(const char*, int, const char*, int) = 0;
+    virtual bool open() = 0;
+    virtual void add(const char*, int, const char*, int) = 0;
+    virtual void close() = 0;
     virtual int updateKV(const char*, int, const char*, int) = 0;
     virtual void wait() = 0;
     virtual void gc() = 0;
@@ -45,8 +47,8 @@ protected:
     /// data object
     MapReduce *mr;
     UserCombiner mycombiner;
-    UserHash myhash;
-    KeyValue *kv;
+    HashCallback myhash;
+    BaseOutput *kv;
     //int blockid;
 
     /// buffer information

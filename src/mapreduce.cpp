@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "mapreduce.h"
-#include "keyvalue.h"
+#include "kvcontainer.h"
 #include "alltoall.h"
 #include "log.h"
 #include "config.h"
@@ -37,6 +37,8 @@
 
 #include "basefilereader.h"
 #include "baserecordformat.h"
+
+#include "recordformat.h"
 
 using namespace MIMIR_NS;
 
@@ -80,7 +82,7 @@ MapReduce::MapReduce(const MapReduce &_mr)
     nprocs = _mr.nprocs;
 
     kv = _mr.kv;
-    DataObject::addRef(kv);
+    Container::addRef(kv);
 
     myhash = _mr.myhash;
     mycombiner = _mr.mycombiner;
@@ -104,7 +106,7 @@ MapReduce::MapReduce(const MapReduce &_mr)
   */
 MapReduce::~MapReduce()
 {
-    DataObject::subRef(kv);
+    Container::subRef(kv);
     if (c)
         delete c;
 
@@ -115,17 +117,53 @@ MapReduce::~MapReduce()
 #if 1
     if (MapReduce::ref == 0) {
         //printf("DataObject=%ld, CombinerHashBucket=%ld, ReducerHashBucket=%ld\n", DataObject::mem_bytes, CombinerHashBucket::mem_bytes, ReducerHashBucket::mem_bytes);
-        if (DataObject::mem_bytes != 0)
-            LOG_ERROR("Error: page buffers memory leak!\n");
-        if (CombinerHashBucket::mem_bytes != 0)
-            LOG_ERROR("Error: hash bucket buffers memory leak!\n");
-        if (ReducerHashBucket::mem_bytes != 0)
-            LOG_ERROR("Error: hash bucket buffers memory leak!\n");
+        //if (DataObject::mem_bytes != 0)
+        //    LOG_ERROR("Error: page buffers memory leak!\n");
+        //if (CombinerHashBucket::mem_bytes != 0)
+        //    LOG_ERROR("Error: hash bucket buffers memory leak!\n");
+        //if (ReducerHashBucket::mem_bytes != 0)
+        //    LOG_ERROR("Error: hash bucket buffers memory leak!\n");
     }
 #endif
 
     LOG_PRINT(DBG_GEN, "%s", "MapReduce: destroy.\n");
 }
+
+#if 0
+uint64_t MapReduce::mapreduce(BaseInput* input,
+                              BaseOutput* output,
+                              MyMap mymap,
+                              MyReduce myreduce,
+                              MyCombine mycombine,
+                              void *ptr,
+                              bool repartition)
+{
+    // Create communicator
+    if (repartition) {
+        kv = new KVContainer(ksize, vsize);
+        c = Communicator::Create(comm, KV_EXCH_COMM);
+        c->setup(COMM_BUF_SIZE, output, this, mycombiner, myhash);
+        phase = MapPhase;
+        input->open();
+        output->open();
+        c->open();
+        mymap(input, c, ptr);
+        c->close();
+        delete c;
+        c = NULL;
+        output->close();
+        input->close();
+    }
+    else {
+        phase = LocalMapPhase;
+        input->open();
+        output->open();
+        mymap(input, output, ptr);
+        output->close();
+        input->close();
+    }
+}
+#endif
 
 #if 0
 uint64_t MapReduce::process_binary_file(const char *filepath, int shared,
@@ -198,16 +236,16 @@ uint64_t MapReduce::map_files(BaseFileReader *reader, UserMapRecord mymap,
 
     myptr = ptr;
 
-    DataObject::subRef(kv);
+    Container::subRef(kv);
 
     // Create KV Container
-    kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
-    kv->set_kv_size(ksize, vsize);
-    kv->set_combiner(this, mycombiner);
+    kv = new KVContainer(ksize, vsize);
+    //kv->set_kv_size(ksize, vsize);
+    //kv->set_combiner(this, mycombiner);
 
     if (repartition) {
         c = Communicator::Create(comm, KV_EXCH_COMM);
-        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
+        c->setup(COMM_BUF_SIZE, kv, mycombiner, myhash);
         phase = MapPhase;
         // local map
     }
@@ -231,9 +269,10 @@ uint64_t MapReduce::map_files(BaseFileReader *reader, UserMapRecord mymap,
 
 
     // Garbage collection
-    kv->gc();
+    //kv->gc();
+    kv->close();
 
-    DataObject::addRef(kv);
+    Container::addRef(kv);
     phase = NonePhase;
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -259,16 +298,16 @@ uint64_t MapReduce::map_text_file(const char *filepath,
 
     myptr = ptr;
 
-    DataObject::subRef(kv);
+    Container::subRef(kv);
 
     // Create KV Container
-    kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
-    kv->set_kv_size(ksize, vsize);
-    kv->set_combiner(this, mycombiner);
+    kv = new KVContainer(ksize, vsize);
+    //kv->set_kv_size(ksize, vsize);
+    //kv->set_combiner(this, mycombiner);
 
     if (repartition) {
         c = Communicator::Create(comm, KV_EXCH_COMM);
-        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
+        c->setup(COMM_BUF_SIZE, kv, mycombiner, myhash);
         phase = MapPhase;
         // local map
     }
@@ -326,9 +365,10 @@ uint64_t MapReduce::map_text_file(const char *filepath,
     }
 
     // Garbage collection
-    kv->gc();
+    //kv->gc();
+    kv->close();
 
-    DataObject::addRef(kv);
+    Container::addRef(kv);
     phase = NonePhase;
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -351,25 +391,24 @@ uint64_t MapReduce::map_key_value(MapReduce *mr,
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
-    DataObject::addRef(mr->kv);
-    DataObject::subRef(kv);
+    Container::addRef(mr->kv);
+    Container::subRef(kv);
 
-    KeyValue *inputkv = mr->kv;
+    KVContainer *inputkv = mr->kv;
 
     // create new data object
     //LOG_PRINT(DBG_GEN, "MapReduce: new data KV. (KV as input)\n");
 
-    kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
-
-    kv->set_kv_size(ksize, vsize);
-    kv->set_combiner(this, mycombiner);
+    kv = new KVContainer(ksize, vsize);
+    //kv->set_kv_size(ksize, vsize);
+    //kv->set_combiner(this, mycombiner);
 
 
     //LOG_PRINT(DBG_GEN, "MapReduce: alloc data KV. (KV as input)\n");
 
     if (repartition) {
         c = Communicator::Create(comm, KV_EXCH_COMM);
-        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
+        c->setup(COMM_BUF_SIZE, kv, mycombiner, myhash);
         phase = MapPhase;
     }
     else {
@@ -380,30 +419,37 @@ uint64_t MapReduce::map_key_value(MapReduce *mr,
     int keybytes, valuebytes;
 
     int i;
-    for (i = 0; i < inputkv->get_npages(); i++) {
+    //for (i = 0; i < inputkv->get_npages(); i++) {
 
         //printf("i=%d\n", i);
 
         int64_t offset = 0;
 
-        inputkv->acquire_page(i);
+        //inputkv->acquire_page(i);
 
-        offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
+        //offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
 
-        while (offset != -1) {
+        KVRecord *record = inputkv->next();
+
+        while (record != NULL) {
 
             //printf("map_key_value: v0=%ld\n", *(int64_t*)key);
 
+            key = record->get_key();
+            keybytes = record->get_key_size();
+            value = record->get_val();
+            valuebytes = record->get_val_size();
             mymap(this, key, keybytes, value, valuebytes, ptr);
 
-            offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
+            record = inputkv->next();
+            //offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
         }
 
-        inputkv->delete_page(i);
-        inputkv->release_page(i);
-    }
+        //inputkv->delete_page(i);
+        //inputkv->release_page(i);
+    //}
 
-    DataObject::subRef(inputkv);
+    Container::subRef(inputkv);
 
     if (repartition) {
         c->wait();
@@ -411,8 +457,9 @@ uint64_t MapReduce::map_key_value(MapReduce *mr,
         c = NULL;
     }
 
-    kv->gc();
-    DataObject::addRef(kv);
+    //kv->gc();
+    kv->close();
+    Container::addRef(kv);
     phase = NonePhase;
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -435,14 +482,14 @@ uint64_t MapReduce::init_key_value(UserInitKV myinit,
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
 
-    DataObject::subRef(kv);
-    kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
-    kv->set_kv_size(ksize, vsize);
-    kv->set_combiner(this, mycombiner);
+    Container::subRef(kv);
+    kv = new KVContainer(ksize, vsize);
+    //kv->set_kv_size(ksize, vsize);
+    //kv->set_combiner(this, mycombiner);
 
     if (repartition) {
         c = Communicator::Create(comm, KV_EXCH_COMM);
-        c->setup(COMM_BUF_SIZE, kv, this, mycombiner, myhash);
+        c->setup(COMM_BUF_SIZE, kv, mycombiner, myhash);
         phase = MapPhase;
     }
     else {
@@ -458,7 +505,7 @@ uint64_t MapReduce::init_key_value(UserInitKV myinit,
         c = NULL;
     }
 
-    DataObject::addRef(kv);
+    Container::addRef(kv);
     phase = NonePhase;
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -484,22 +531,21 @@ uint64_t MapReduce::reduce(UserReduce myreduce, void *ptr)
     phase = ReducePhase;
 
     // Create DataObject and HashBucket to hold KMVs
-    DataObject *mv = new DataObject(me, nprocs, ByteType,
-                                    DATA_PAGE_SIZE, MAX_PAGE_COUNT);
-    ReducerHashBucket *u = new ReducerHashBucket(kv);
+    Container *mv = new Container();
+    ReducerHashBucket *u = new ReducerHashBucket();
 
     // Convert input KVs to KMVs
     _convert(kv, mv, u);
-    DataObject::subRef(kv);
+    Container::subRef(kv);
 
     // Apply user-defined reduce
-    kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
-    kv->set_kv_size(ksize, vsize);
+    kv = new KVContainer(ksize, vsize);
+    //kv->set_kv_size(ksize, vsize);
     _reduce(u, myreduce, ptr);
     delete mv;
     delete u;
 
-    DataObject::addRef(kv);
+    Container::addRef(kv);
     phase = NonePhase;
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_RDC);
@@ -524,13 +570,13 @@ void MapReduce::add_key_value(const char *key, int keybytes, const char *value, 
     // Map Phase
     if (phase == MapPhase) {
         // Send KV
-        c->sendKV(key, keybytes, value, valuebytes);
+        c->add(key, keybytes, value, valuebytes);
         return;
         // Local Mode
     }
     else if (phase == LocalMapPhase || phase == ReducePhase) {
         // Add KV
-        kv->addKV(key, keybytes, value, valuebytes);
+        kv->add(key, keybytes, value, valuebytes);
         return;
     }
     else {
@@ -549,7 +595,7 @@ void MapReduce::update_key_value(const char *key, int keybytes, const char *valu
     }
     else if (phase == CombinePhase || phase == LocalMapPhase) {
         // Update the KV
-        kv->updateKV(key, keybytes, value, valuebytes);
+        //kv->updateKV(key, keybytes, value, valuebytes);
     }
     else {
         LOG_ERROR("Error: update_key_value function can be invoked in \
@@ -572,22 +618,28 @@ void MapReduce::scan(void (_myscan) (char*, int, char*, int, void*), void *_ptr)
     LOG_PRINT(DBG_GEN, "MapReduce: scan begin\n");
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_OTHER);
     phase = ScanPhase;
-    for (int i = 0; i < kv->get_npages(); i++) {
+    //for (int i = 0; i < kv->get_npages(); i++) {
         int64_t offset = 0;
 
-        kv->acquire_page(i);
+        //kv->acquire_page(i);
 
-        offset = kv->getNextKV(&key, keybytes, &value, valuebytes);
+        //offset = kv->getNextKV(&key, keybytes, &value, valuebytes);
 
-        while (offset != -1) {
+        KVRecord *record = kv->next();
+         while (record != NULL) {
+             key = record->get_key();
+             value = record->get_val();
+             keybytes = record->get_key_size();
+             valuebytes = record->get_val_size();
 
             _myscan(key, keybytes, value, valuebytes, _ptr);
 
-            offset = kv->getNextKV(&key, keybytes, &value, valuebytes);
+            //offset = kv->getNextKV(&key, keybytes, &value, valuebytes);
+            record = kv->next();
         }
 
-        kv->release_page(i);
-    }
+        //kv->release_page(i);
+    //}
 
     phase = NonePhase;
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_SCAN);
@@ -601,10 +653,10 @@ uint64_t MapReduce::bcast(int _rank)
     // Bcast meta-information
     int npages = 0;
     if (me == _rank)
-        npages = kv->get_npages();
+        npages = kv->get_page_count();
     else {
-        DataObject::subRef(kv);
-        kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
+        Container::subRef(kv);
+        kv = new KVContainer(ksize, vsize);
     }
     MPI_Bcast(&npages, 1, MPI_INT, _rank, comm);
     MPI_Bcast(&(kv->ksize), 1, MPI_INT, _rank, comm);
@@ -615,24 +667,31 @@ uint64_t MapReduce::bcast(int _rank)
         int newpage = 0;
         int64_t count = 0;
         void *buffer = NULL;
+        Page *page = NULL;
         if (me == _rank) {
-            buffer = kv->get_page_buffer(i);
-            count = kv->get_page_size(i);
+            page = kv->get_page(i);
+            buffer = page->buffer;
+            count = page->datasize;
+            //buffer = kv->get_page_buffer(i);
+            //count = kv->get_page_size(i);
         }
         else {
-            newpage = kv->add_page();
-            buffer = kv->get_page_buffer(newpage);
+            page = kv->add_page();
+            //buffer = kv->get_page_buffer(newpage);
+            buffer = page->buffer;
         }
         MPI_Bcast(&count, 1, MPI_INT64_T, _rank, comm);
         MPI_Bcast(buffer, (int) count, MPI_BYTE, _rank, comm);
-        if (me != _rank)
-            kv->set_page_size(newpage, count);
+        if (me != _rank) {
+            page->datasize = count;
+            //kv->set_page_size(newpage, count);
+        }
     }
 
-    MPI_Bcast(&(kv->local_kvs_count), 1, MPI_UINT64_T, _rank, comm);
+    MPI_Bcast(&(kv->kvcount), 1, MPI_UINT64_T, _rank, comm);
 
     if (me != _rank) {
-        DataObject::addRef(kv);
+        Container::addRef(kv);
     }
 
     LOG_PRINT(DBG_GEN, "MapReduce: bcast end.\n");
@@ -644,13 +703,15 @@ uint64_t MapReduce::collect(int _rank)
 {
     LOG_PRINT(DBG_GEN, "MapReduce: collect begin.\n");
 
-    int npages = kv->get_npages();
+    KVRecord record(kv->ksize, kv->vsize);
+
+    int npages = kv->get_page_count();
     int npages_sum = 0;
     MPI_Reduce(&npages, &npages_sum, 1, MPI_INT, MPI_SUM, _rank, comm);
 
     if (me == _rank) {
         npages = npages_sum;
-        int recv_count = kv->get_npages();
+        int recv_count = kv->get_page_count();
         void *recv_buf = mem_aligned_malloc(MEMPAGE_SIZE, DATA_PAGE_SIZE);
         int count = 0;
         while (recv_count < npages) {
@@ -662,10 +723,16 @@ uint64_t MapReduce::collect(int _rank)
             while (src_off < count) {
                 char *key = NULL, *value = NULL;
                 int keybytes = 0, valuebytes = 0, kvsize = 0;
-                GET_KV_VARS(kv->ksize, kv->vsize, src_buf, key, keybytes, value, valuebytes,
-                            kvsize);
+                record.set_buffer(src_buf);
+                key = record.get_key();
+                keybytes = record.get_key_size();
+                value = record.get_val();
+                valuebytes = record.get_val_size();
+                kvsize = record.get_record_size();
+                //GET_KV_VARS(kv->ksize, kv->vsize, src_buf, key, keybytes, value, valuebytes,
+                //            kvsize);
                 src_buf += kvsize;
-                kv->addKV(key, keybytes, value, valuebytes);
+                kv->add(key, keybytes, value, valuebytes);
                 src_off += kvsize;
             }
             recv_count++;
@@ -674,13 +741,14 @@ uint64_t MapReduce::collect(int _rank)
     }
     else {
         for (int i = 0; i < npages; i++) {
-            char *buffer = kv->get_page_buffer(i);
-            int count = (int) (kv->get_page_size(i));
-            MPI_Send(buffer, count, MPI_BYTE, _rank, 0x0, comm);
+            //char *buffer = kv->get_page_buffer(i);
+            //int count = (int) (kv->get_page_size(i));
+            Page *page = kv->get_page(i);
+            MPI_Send(page->buffer, (int)page->datasize, MPI_BYTE, _rank, 0x0, comm);
         }
-        DataObject::subRef(kv);
-        kv = new KeyValue(me, nprocs, DATA_PAGE_SIZE, MAX_PAGE_COUNT);
-        DataObject::addRef(kv);
+        Container::subRef(kv);
+        kv = new KVContainer(ksize, vsize);
+        Container::addRef(kv);
     }
 
     LOG_PRINT(DBG_GEN, "MapReduce: collect end.\n");
@@ -727,7 +795,7 @@ void MapReduce::_reduce(ReducerHashBucket * h, UserReduce _myreduce, void *ptr)
     LOG_PRINT(DBG_GEN, "MapReduce: _reduce end.\n");
 }
 
-void MapReduce::_convert(KeyValue *inputkv, DataObject *mv, ReducerHashBucket * h)
+void MapReduce::_convert(KVContainer *inputkv, Container *mv, ReducerHashBucket * h)
 {
     char *key, *value;
     int keybytes, valuebytes;
@@ -738,14 +806,19 @@ void MapReduce::_convert(KeyValue *inputkv, DataObject *mv, ReducerHashBucket * 
 
     // Construct Unique structure
     ReducerUnique u;
-    for (i = 0; i < inputkv->get_npages(); i++) {
-        int64_t offset = 0;
+    //for (i = 0; i < inputkv->get_npages(); i++) {
+        //int64_t offset = 0;
 
-        inputkv->acquire_page(i);
+        //inputkv->acquire_page(i);
 
-        offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
-
-        while (offset != -1) {
+        //offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
+        //
+        KVRecord *record = inputkv->next();
+        while (record != NULL) {
+            key = record->get_key();
+            keybytes = record->get_key_size();
+            value = record->get_val();
+            valuebytes = record->get_val_size();
 
             u.key = key;
             u.keybytes = keybytes;
@@ -753,23 +826,25 @@ void MapReduce::_convert(KeyValue *inputkv, DataObject *mv, ReducerHashBucket * 
 
             h->insertElem(&u);
 
-            offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
+            //offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
+            record = inputkv->next();
         }
 
-        inputkv->release_page(i);
-    }
+        //inputkv->release_page(i);
+    //}
 
     //printf("%d[%d] construct unique structure end\n", me, nprocs); fflush(stdout);
 
     // Set pointers to hold MVs
     char *page_buf = NULL;
     int64_t page_off = 0;
+    Page *page = NULL;
     int page_id = 0;
     ReducerSet *pset = h->BeginSet();
     while (pset != NULL) {
         if (page_buf == NULL || page_id != pset->pid) {
-            page_id = mv->add_page();
-            page_buf = mv->get_page_buffer(page_id);
+            page = mv->add_page();
+            page_buf = page->buffer;
             page_off = 0;
 
             //printf("page_buf=%p\n", page_buf);
@@ -787,7 +862,7 @@ void MapReduce::_convert(KeyValue *inputkv, DataObject *mv, ReducerHashBucket * 
         pset->curoff = pset->voffset;
         page_off += pset->mvbytes;
 
-        if (page_off > mv->pagesize)
+        if (page_off > mv->get_page_size())
             LOG_ERROR
                 ("Error: the pointer of page %d exceeds the range (page_off=%ld, iset=%ld),pset=%p!\n",
                  page_id, page_off, h->iset, pset);
@@ -810,14 +885,20 @@ void MapReduce::_convert(KeyValue *inputkv, DataObject *mv, ReducerHashBucket * 
 
 #if 1
     // Get the MVs
-    for (i = 0; i < inputkv->get_npages(); i++) {
-        int64_t offset = 0;
+    //for (i = 0; i < inputkv->get_npages(); i++) {
+        //offset = 0;
 
-        inputkv->acquire_page(i);
+   //     inputkv->acquire_page(i);
 
-        offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
+        //offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
 
-        while (offset != -1) {
+        record = inputkv->next();
+        while (record != NULL) {
+            key = record->get_key();
+            keybytes = record->get_key_size();
+            value = record->get_val();
+            valuebytes = record->get_val_size();
+
             ReducerUnique *punique = h->findElem(key, keybytes);
             ReducerSet *pset = punique->lastset;
 
@@ -836,12 +917,13 @@ void MapReduce::_convert(KeyValue *inputkv, DataObject *mv, ReducerHashBucket * 
             //if (punique->lastset==NULL)
             //    printf("lastset=%p\n", punique->lastset);
 
-            offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
+            record = inputkv->next();
+            //offset = inputkv->getNextKV(&key, keybytes, &value, valuebytes);
         }
 
-        inputkv->delete_page(i);
-        inputkv->release_page(i);
-    }
+   //     inputkv->delete_page(i);
+   //     inputkv->release_page(i);
+    //}
 #endif
 
     LOG_PRINT(DBG_GEN, "MapReduce: _convert end.\n");
@@ -880,7 +962,7 @@ void MapReduce::output_stat(const char *filename)
 void MapReduce::output(FILE *fp, ElemType ktype, ElemType vtype)
 {
     if (kv) {
-        kv->print(fp, ktype, vtype);
+        //kv->print(fp, ktype, vtype);
     }
 }
 
@@ -1210,7 +1292,7 @@ uint64_t MapReduce::_get_kv_count()
 
     uint64_t local_count = 0, global_count = 0;
 
-    local_count = kv->get_local_count();
+    local_count = kv->get_kv_count();
 
     PROFILER_RECORD_TIME_START;
 
@@ -1220,7 +1302,7 @@ uint64_t MapReduce::_get_kv_count()
 
     PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
-    kv->set_global_count(global_count);
+    //kv->set_global_count(global_count);
 
     TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
 
@@ -1228,7 +1310,7 @@ uint64_t MapReduce::_get_kv_count()
 }
 
 
-MultiValueIterator::MultiValueIterator(KeyValue *_kv, ReducerUnique *_ukey)
+MultiValueIterator::MultiValueIterator(KVContainer *_kv, ReducerUnique *_ukey)
 {
 
     kv = _kv;

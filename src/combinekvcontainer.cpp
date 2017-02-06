@@ -1,25 +1,25 @@
 #include <string.h>
 #include <string>
-#include "keyvalue.h"
+#include "combinekvcontainer.h"
 #include "log.h"
 #include "const.h"
+#include "recordformat.h"
 
 using namespace MIMIR_NS;
 
-KeyValue::KeyValue(int me, int nprocs, int64_t pagesize, int maxpages)
-    : DataObject(me, nprocs, KVType, pagesize, maxpages)
+CombineKVContainer::CombineKVContainer()
+    : KVContainer()
 {
-    //kvtype = GeneralKV;
     ksize = vsize = KVGeneral;
-    local_kvs_count = 0;
-    global_kvs_count = 0;
-    mr = NULL;
-    mycombiner = NULL;
+    kvcount = 0;
+    //mr = NULL;
+    //mycombiner = NULL;
     bucket = NULL;
+    page = NULL;
     LOG_PRINT(DBG_DATA, "DATA: KV Create (id=%d).\n", id);
 }
 
-KeyValue::~KeyValue()
+CombineKVContainer::~CombineKVContainer()
 {
     if (bucket != NULL) {
         delete bucket;
@@ -28,20 +28,33 @@ KeyValue::~KeyValue()
     LOG_PRINT(DBG_DATA, "DATA: KV Destroy (id=%d).\n", id);
 }
 
-int KeyValue::getNextKV(char**pkey, int &keybytes, char **pvalue, int &valuebytes)
+int CombineKVContainer::getNextKV(char**pkey, int &keybytes, char **pvalue, int &valuebytes)
 {
-    if (off >= pages[ipage].datasize)
-        return -1;
+    if (page == NULL || pageoff >= page->datasize) {
+        page = get_next_page();
+        pageoff = 0;
+        if (page == NULL)
+            return -1;
+    }
 
+    char *ptr = page->buffer + pageoff;
     int kvsize;
-    GET_KV_VARS(ksize, vsize, ptr, *pkey, keybytes, *pvalue, valuebytes, kvsize);
-    ptr += kvsize;
-    off += kvsize;
+    KVRecord record(ksize, vsize);
+    record.set_buffer(ptr);
+    *pkey = record.get_key();
+    keybytes = record.get_key_size();
+    *pvalue = record.get_val();
+    valuebytes = record.get_val_size();
+    kvsize = record.get_record_size();
+    //GET_KV_VARS(ksize, vsize, ptr, 
+    //            *pkey, keybytes, *pvalue, valuebytes, kvsize);
+    pageoff += kvsize;
 
     return kvsize;
 }
 
-void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner)
+#if 0
+void CombineKVContainer::set_combiner(MapReduce *_mr, UserCombiner _combiner)
 {
     mr = _mr;
     mycombiner = _combiner;
@@ -50,18 +63,19 @@ void KeyValue::set_combiner(MapReduce *_mr, UserCombiner _combiner)
         bucket = new CombinerHashBucket(this);
     }
 }
+#endif
 
-// add KVs one by one
-int KeyValue::addKV(const char *key, int keybytes,
+int CombineKVContainer::addKV(const char *key, int keybytes,
                     const char *value, int valuebytes)
 {
+    KVRecord record(ksize, vsize);
 
-    if (ipage == -1)
-        add_page();
+    if (page == NULL)
+        page = add_page();
 
     // get the size of the KV
-    int kvsize = 0;
-    GET_KV_SIZE(ksize, vsize, keybytes, valuebytes, kvsize);
+    int kvsize = record.get_head_size() + keybytes + valuebytes;
+    //GET_KV_SIZE(ksize, vsize, keybytes, valuebytes, kvsize);
 
     // KV size should be smaller than page size.
     if (kvsize > pagesize)
@@ -69,21 +83,22 @@ int KeyValue::addKV(const char *key, int keybytes,
                   than one page (%ld)\n", kvsize, pagesize);
 
     // without combiner
-    if (mycombiner == NULL) {
+    //if (mycombiner == NULL) {
 
         // add another page
-        if (kvsize > (pagesize - pages[ipage].datasize))
-            add_page();
+        if (kvsize > (pagesize - page->datasize))
+            page = add_page();
 
         // put KV data in
-        char *ptr = pages[ipage].buffer + pages[ipage].datasize;
-
-        PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
-        pages[ipage].datasize += kvsize;
+        char *ptr = page->buffer + page->datasize;
+        record.set_buffer(ptr);
+        record.set_key_value(key, keybytes, value, valuebytes);
+        //PUT_KV_VARS(ksize, vsize, ptr, key, keybytes, value, valuebytes, kvsize);
+        page->datasize += kvsize;
 
         // with combiner
-    }
-    else {
+    //}
+    //else {
         // check the bucket
         u = bucket->findElem(key, keybytes);
         // the key is not in the bucket
@@ -102,8 +117,10 @@ int KeyValue::addKV(const char *key, int keybytes,
                 if (ssize >= kvsize) {
 
                     tmp.kv = sbuf + (ssize - kvsize);
-                    PUT_KV_VARS(ksize, vsize, tmp.kv, key, keybytes,
-                                value, valuebytes, kvsize);
+                    record.set_buffer(tmp.kv);
+                    record.set_key_value(key, keybytes, value, valuebytes);
+                    //PUT_KV_VARS(ksize, vsize, tmp.kv, key, keybytes,
+                    //            value, valuebytes, kvsize);
 
                     if (iter->second == kvsize)
                         slices.erase(iter);
@@ -116,14 +133,16 @@ int KeyValue::addKV(const char *key, int keybytes,
             // Add the KV at the tail of KV Container
             if (iter == slices.end()) {
 
-                if (kvsize > (pagesize - pages[ipage].datasize))
-                    add_page();
+                if (kvsize > (pagesize - page->datasize))
+                    page = add_page();
 
-                tmp.kv = pages[ipage].buffer + pages[ipage].datasize;
-
-                PUT_KV_VARS(ksize, vsize, tmp.kv, key, keybytes,
-                            value, valuebytes, kvsize);
-                pages[ipage].datasize += kvsize;
+                tmp.kv = page->buffer + page->datasize;
+                record.set_buffer(tmp.kv);
+                record.set_key_value(key, keybytes, value, valuebytes);
+                kvsize = record.get_record_size();
+                //PUT_KV_VARS(ksize, vsize, tmp.kv, key, keybytes,
+                //            value, valuebytes, kvsize);
+                page->datasize += kvsize;
 
                 //slices.insert(std::make_pair(tmp.kv, kvsize));
 
@@ -135,36 +154,47 @@ int KeyValue::addKV(const char *key, int keybytes,
         }
         else {
 
-            GET_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes,
-                        uvalue, uvaluebytes, ukvsize);
+            record.set_buffer(u->kv);
+            ukey = record.get_key();
+            ukeybytes = record.get_key_size();
+            uvalue = record.get_val();
+            uvaluebytes = record.get_val_size();
+            ukvsize = record.get_record_size();
+            //GET_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes,
+            //            uvalue, uvaluebytes, ukvsize);
 
             // invoke user-defined combine function
-            mycombiner(mr, key, keybytes, uvalue, uvaluebytes,
-                       value, valuebytes, mr->myptr);
+            //mycombiner(mr, key, keybytes, uvalue, uvaluebytes,
+            //           value, valuebytes, mr->myptr);
 
         }
-    }
+    //}
 
-    local_kvs_count += 1;
+    kvcount += 1;
 
     return 0;
 }
 
 
-int KeyValue::updateKV(const char *newkey, int newkeysize,
+int CombineKVContainer::updateKV(const char *newkey, int newkeysize,
                        const char *newval, int newvalsize)
 {
+    KVRecord record(ksize, vsize);
     // check if the key is same
     if (newkeysize != ukeybytes || memcmp(newkey, ukey, ukeybytes) != 0)
         LOG_ERROR("Error: the result key of combiner is different!\n");
 
     int kvsize;
     // get combined KV size
-    GET_KV_SIZE(ksize, vsize, newkeysize, newvalsize, kvsize);
+    kvsize = record.get_head_size() + newkeysize + newvalsize;
+    //GET_KV_SIZE(ksize, vsize, newkeysize, newvalsize, kvsize);
 
     // replace the exsiting KV
     if (kvsize <= ukvsize) {
-        PUT_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes, newval, newvalsize, kvsize);
+        record.set_buffer(u->kv);
+        record.set_key_value(ukey, ukeybytes, newval, newvalsize);
+        kvsize = record.get_record_size();
+        //PUT_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes, newval, newvalsize, kvsize);
         if (kvsize < ukvsize) {
             slices.insert(std::make_pair((u->kv + ukvsize - kvsize), ukvsize - kvsize));
         }
@@ -174,23 +204,27 @@ int KeyValue::updateKV(const char *newkey, int newkeysize,
     else {
         slices.insert(std::make_pair(u->kv, ukvsize));
         // add at the end of buffers
-        if (kvsize > (pagesize - pages[ipage].datasize))
-            add_page();
+        if (kvsize > (pagesize - page->datasize))
+            page = add_page();
 
-        u->kv = pages[ipage].buffer + pages[ipage].datasize;
+        u->kv = page->buffer + page->datasize;
 
-        PUT_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes, newval, newvalsize, kvsize);
-        pages[ipage].datasize += kvsize;
+        record.set_buffer(u->kv);
+        record.set_key_value(ukey, ukeybytes, newval, newvalsize);
+        kvsize = record.get_record_size();
+        //PUT_KV_VARS(ksize, vsize, u->kv, ukey, ukeybytes, newval, newvalsize, kvsize);
+        page->datasize += kvsize;
     }
     return 0;
 }
 
 
-void KeyValue::gc()
+void CombineKVContainer::gc()
 {
-    if (mycombiner != NULL && npages > 0 && slices.empty() == false) {
-        LOG_PRINT(DBG_MEM, "Key Value: garbege collection (size=%ld)\n", slices.size());
+    //if (mycombiner != NULL && get_group_count() > 0 && slices.empty() == false) {
+    //    LOG_PRINT(DBG_MEM, "Key Value: garbege collection (size=%ld)\n", slices.size());
 
+#if 0
         int dst_pid = 0, src_pid = 0;
         int64_t dst_off = 0, src_off = 0;
 
@@ -198,7 +232,7 @@ void KeyValue::gc()
         char *src_buf = pages[0].buffer;
 
         // scan all pages
-        while (src_pid < npages) {
+        while (src_pid < (int)pages.size()) {
             src_off = 0;
             // scan page src_pid
             while (src_off < pages[src_pid].datasize) {
@@ -242,27 +276,29 @@ void KeyValue::gc()
             src_pid += 1;
         }
         // free extra space
-        for (int i = dst_pid + 1; i < npages; i++) {
+        for (int i = dst_pid + 1; i < (int)pages.size(); i++) {
             mem_aligned_free(pages[i].buffer);
             pages[i].buffer = NULL;
             pages[i].datasize = 0;
         }
         if (dst_buf != NULL) {
             pages[dst_pid].datasize = dst_off;
-            npages = dst_pid + 1;
+            //npages = dst_pid + 1;
         }
         slices.clear();
-    }
+#endif
+    //}
 }
 
-void KeyValue::print(FILE *fp, ElemType ktype, ElemType vtype)
+void CombineKVContainer::print(FILE *fp, ElemType ktype, ElemType vtype)
 {
     char *key, *value;
     int keybytes, valuebytes;
 
     printf("key\tvalue\n");
 
-    for (int i = 0; i < npages; i++) {
+#if 0
+    for (int i = 0; i < (int)pages.size(); i++) {
         acquire_page(i);
         int offset = getNextKV(&key, keybytes, &value, valuebytes);
         while (offset != -1) {
@@ -286,4 +322,5 @@ void KeyValue::print(FILE *fp, ElemType ktype, ElemType vtype)
 
         release_page(i);
     }
+#endif
 }

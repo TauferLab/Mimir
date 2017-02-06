@@ -14,11 +14,22 @@ using namespace MIMIR_NS;
 
 int rank, size;
 
-void map(MapReduce * mr, BaseRecordFormat *record, void *ptr);
-void countword(MapReduce *, char *, int, void *);
-void combiner(MapReduce *, const char *, int,
-              const char *, int,
-              const char *, int, void *);
+class MyContainer : public KVContainer {
+  public:
+   virtual void add(const char *key, int keysize, const char *val, int valsize) 
+   {
+       printf("key=%s, val=%ld\n", key, *(int64_t*)val);
+   }
+};
+
+void map (BaseInput *input, BaseOutput *output, void *ptr);
+void countword (BaseInput *input, BaseOutput *output, void *ptr);
+
+//void map(MapReduce * mr, BaseRecordFormat *record, void *ptr);
+//void countword(MapReduce *, char *, int, void *);
+//void combiner(MapReduce *, const char *, int,
+//              const char *, int,
+//              const char *, int, void *);
 
 int main(int argc, char *argv[])
 {
@@ -50,33 +61,31 @@ int main(int argc, char *argv[])
 
     MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
 
-#ifdef COMBINE
-    mr->set_combiner(combiner);
-#endif
-
-#ifdef KHINT
-    mr->set_key_length(-1);
-#endif
-
-#ifdef VHINT
-#ifdef VALUE_STRING
-    mr->set_value_length(-1);
-#else
-    mr->set_value_length(sizeof(int64_t));
-#endif
-#endif
-
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(filedir);
-    splitinput->print();
-    StringRecordFormat::set_whitespace(" \n");
-    FileReader<StringRecordFormat> reader(splitinput);
+    StringRecord::set_whitespace(" \n");
+    FileReader<StringRecord> reader(splitinput);
 
-    uint64_t nwords = mr->map_files(&reader, map, NULL);
-    uint64_t nunique = mr->reduce(countword, NULL);
+    KVContainer container;
+    MimirContext context;
+    context.set_map_callback(map);
+    context.set_reduce_callback(countword);
+    context.mapreduce(&reader, &container, NULL);
+    //uint64_t nwords = mr->map_files(&reader, map, NULL);
+    //uint64_t nwords = mr->map(&reader, &container, map, NULL);
+    //uint64_t nunique = mr->reduce(countword, NULL);
 
-    if (rank == 0)
-        fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", 
-                nwords, nunique);
+    //if (rank == 0)
+    //    fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", 
+    //            nwords, nunique);
+
+    printf("get kv count=%ld\n", container.get_kv_count());
+    container.open();
+    KVRecord *record = NULL;
+    while ((record = container.next()) != NULL) {
+        printf("%s, %ld\n", record->get_key(), 
+               *(int64_t*)record->get_val());
+    }
+    container.close();
 
     output(rank, size, prefix, outdir);
 
@@ -86,6 +95,45 @@ int main(int argc, char *argv[])
     MPI_Finalize();
 }
 
+void map (BaseInput *input, BaseOutput *output, void *ptr)
+{
+    char *word = NULL;
+    int64_t one = 1;
+    int len = 0;
+    BaseRecordFormat *record = NULL;
+    while ((record = input->next()) != NULL) {
+        word = record->get_record();
+        int len = (int) strlen(word) + 1;
+        if (len <= 1024) {
+            printf("word=%s\n", word);
+            output->add(word, len, (char *)&one, sizeof(one));
+        }
+    }
+}
+
+void countword (BaseInput *input, BaseOutput *output, void *ptr) {
+    int64_t count = 0;
+    KMVRecord *kmv = NULL;
+    char *val = NULL;
+
+    BaseRecordFormat *record = NULL;
+    while ((record = input->next()) != NULL) {
+        kmv = (KMVRecord*)record;
+        count = 0;
+        val = NULL;
+
+        while ((val = kmv->get_next_val()) != NULL) {
+            //count += strtoull((const char *) val, NULL, 0);
+            count += *(int64_t *) val;
+        }
+        printf("key=%s, count=%ld\n", kmv->get_key(), count);
+        output->add(kmv->get_key(), kmv->get_key_size(), 
+                    (const char*)&count, (int)sizeof(count));
+    }
+}
+
+
+#if 0
 void map(MapReduce * mr, BaseRecordFormat *record, void *ptr)
 {
     char *word = record->get_record();
@@ -140,3 +188,5 @@ void combiner(MapReduce * mr, const char *key, int keysize,
     mr->update_key_value(key, keysize, (char *) &count, sizeof(count));
 #endif
 }
+#endif
+
