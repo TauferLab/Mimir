@@ -6,7 +6,6 @@
 #include "config.h"
 #include "const.h"
 #include "memory.h"
-#include "mapreduce.h"
 #include "stat.h"
 
 using namespace MIMIR_NS;

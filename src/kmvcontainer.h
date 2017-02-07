@@ -7,7 +7,7 @@
 
 namespace MIMIR_NS {
 
-class KMVContainer : public Container, public BaseInput, public BaseOutput {
+class KMVContainer : public Container, public Readable {
   public:
     KMVContainer(int ksize = KVGeneral, int vsize = KVGeneral) {
         u = NULL;

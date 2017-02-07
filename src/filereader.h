@@ -24,7 +24,7 @@ class InputSplit;
 class BaseFileReader;
 
 template<typename RecordFormat, IOTYPE iotype = MIMIR_STDC_IO>
-class FileReader : public BaseInput {
+class FileReader : public Readable {
   public:
     FileReader(InputSplit *input) {
         this->input = input;

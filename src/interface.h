@@ -5,23 +5,30 @@
 
 namespace MIMIR_NS {
 
-class BaseInput {
+class Base {
   public:
     virtual bool open() = 0;
-    virtual BaseRecordFormat* next() = 0;
     virtual void close() = 0;
 };
 
-class BaseOutput {
+class Readable : public Base {
   public:
-    virtual bool open() = 0;
-    virtual void add(const char *, int, const char *, int) = 0;
-    virtual void close() = 0;
+    virtual BaseRecordFormat* read() = 0;
 };
 
-typedef void (*MapCallback) (BaseInput *input, BaseOutput *output, void *ptr);
-typedef void (*ReduceCallback) (BaseInput *input, BaseOutput *output, void *ptr);
-typedef void (*CombineCallback) (BaseOutput *output, KVRecord *kv1, KVRecord *kv2, void*);
+class Writable : public Base {
+  public:
+    virtual void write(BaseRecordFormat *) = 0;
+};
+
+class Combinable {
+  public:
+    virtual void update(BaseRecordFormat *) = 0;
+};
+
+typedef void (*MapCallback) (Readable *input, Writable *output, void *ptr);
+typedef void (*ReduceCallback) (Readable *input, Writable *output, void *ptr);
+typedef void (*CombineCallback) (Combinable *output, KVRecord *kv1, KVRecord *kv2, void*);
 typedef int (*HashCallback) (const char*, int);
 
 }

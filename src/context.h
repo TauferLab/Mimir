@@ -4,7 +4,7 @@
 #include "interface.h"
 #include "kvcontainer.h"
 #include "kmvcontainer.h"
-#include "communicator.h"
+#include "baseshuffler.h"
 
 namespace MIMIR_NS {
 
@@ -33,8 +33,8 @@ class MimirContext {
         this->user_combine = user_combine;
     }
 
-    uint64_t mapreduce(BaseInput *input, BaseOutput *output, void *ptr) {
-        Communicator *c = NULL;
+    uint64_t mapreduce(Readable *input, Writable *output, void *ptr) {
+        BaseShuffler *c = NULL;
         KVContainer *kv = NULL;
         KMVContainer *kmv = NULL;
         BaseOutput *map_output = output;
@@ -51,8 +51,8 @@ class MimirContext {
 
         // map phase
         if (do_shuffle) {
-            c = Communicator::Create(mimir_world_comm, KV_EXCH_COMM);
-            c->setup(COMM_BUF_SIZE, map_output, user_combine, user_hash);
+            //c = Shuffler::Create(KV_EXCH_COMM);
+            //c->setup(COMM_BUF_SIZE, map_output, user_combine, user_hash);
             c->open();
             input->open();
             user_map(input, c, ptr);

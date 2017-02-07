@@ -9,7 +9,7 @@
 
 namespace MIMIR_NS {
 
-class KVContainer : public Container, public BaseInput, public BaseOutput {
+class KVContainer : public Container, public Readable, public Writable {
 public:
     KVContainer(int ksize = KVGeneral, int vsize = KVGeneral) {
         this->ksize = ksize;
@@ -60,7 +60,6 @@ public:
             page = add_page();
         printf("add: key=%s\n", key);
         int kvsize = record.get_head_size() + keysize + valsize;
-        // KV size should be smaller than page size.
         if (kvsize > pagesize)
             LOG_ERROR("Error: KV size (%d) is larger \
                       than one page (%ld)\n", kvsize, pagesize);
@@ -68,7 +67,6 @@ public:
         if (kvsize > (pagesize - page->datasize))
             page = add_page();
 
-        // put KV data in
         char *ptr = page->buffer + page->datasize;
         record.set_buffer(ptr);
         record.set_key_value(key, keysize, val, valsize);
