@@ -16,10 +16,10 @@ public:
 
     virtual bool open();
     virtual void close();
-    virtual void add(const char*, int, const char*, int);
+    virtual void write(KVRecord *record);
 
-private:
-    virtual void wait();
+protected:
+    void wait();
     void exchange_kv();
     void save_data();
 
@@ -36,6 +36,8 @@ private:
     int  *send_offset;
     char *recv_buffer;
     int  *recv_count;
+
+    KVRecord kv;
 };
 
 }

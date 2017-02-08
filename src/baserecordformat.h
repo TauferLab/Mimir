@@ -13,6 +13,7 @@ namespace MIMIR_NS {
 class BaseRecordFormat {
   public:
     BaseRecordFormat(){
+        buffer = NULL;
     }
     virtual ~BaseRecordFormat(){
     }

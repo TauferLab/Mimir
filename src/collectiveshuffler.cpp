@@ -74,13 +74,13 @@ void CollectiveShuffler::close() {
     mem_aligned_free(recv_count);
 }
 
-void CollectiveShuffler::add(const char *key, int keysize, const char *val, int valsize)
+void CollectiveShuffler::write(KVRecord *record)
 {
 
-    int target = get_target_rank(key, keysize);
-    KVRecord record(ksize, vsize);
-    int kvsize = record.get_head_size() + keysize + valsize;
+    int target = get_target_rank(record->get_key(), 
+                                 record->get_key_size());
 
+    int kvsize = record->get_record_size();
     if (kvsize > buf_size)
         LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                   kvsize, buf_size);
@@ -89,8 +89,8 @@ void CollectiveShuffler::add(const char *key, int keysize, const char *val, int 
         exchange_kv();
 
     char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
-    record.set_buffer(buffer);
-    record.set_key_value(key, keysize, val, valsize);
+    kv.set_buffer(buffer);
+    kv = *record;
     send_offset[target] += kvsize;
 
     return;
@@ -115,7 +115,7 @@ void CollectiveShuffler::save_data()
     for (k = 0; k < mimir_world_size; k++) {
         int count = 0;
         while (count < recv_count[k]) {
-            char kvsize = 0;
+            int kvsize = 0;
             record.set_buffer(src_buf);
             kvsize = record.get_record_size();
             src_buf += kvsize;

@@ -26,12 +26,6 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
 
 #define LOG_DUMP_BUFFER dump_buffer
 
-#define LOG_INIT(rank, size)                                                   \
-    do {                                                                       \
-        mimir_world_rank = rank;                                                 \
-        mimir_world_size = size;                                                 \
-    } while (0)
-
 #ifdef _DEBUG
 #define LOG_PRINT(type, ...)                                                   \
     do {                                                                       \

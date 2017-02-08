@@ -102,12 +102,12 @@ extern char timestr[];
 
 
 // Define initialize and uninitialize
-#define INIT_STAT(rank, size, comm) \
+#define INIT_STAT() \
 {\
     if (stat_ref == 0){\
-        stat_rank=rank; \
-        stat_size=size; \
-        stat_comm=comm;\
+        stat_rank=mimir_world_rank; \
+        stat_size=mimir_world_size; \
+        stat_comm=mimir_world_comm;\
         PROFILER_START; \
         TRACKER_START; \
         init_wtime=MR_GET_WTIME();\

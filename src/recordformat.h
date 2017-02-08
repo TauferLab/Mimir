@@ -2,8 +2,8 @@
 #define RECORD_FORMAT_H
 
 #include "const.h"
-#include "baserecordformat.h"
 #include "hashbucket.h"
+#include "baserecordformat.h"
 
 namespace MIMIR_NS {
 
@@ -82,6 +82,10 @@ class ByteRecord : public BaseRecordFormat {
 class KVRecord : public BaseRecordFormat {
   public:
     KVRecord() {
+        ksize = KVGeneral;
+        vsize = KVGeneral;
+        key = val = NULL;
+        keysize = valsize = 0;
     }
 
     KVRecord(int ksize, int vsize) {
@@ -89,7 +93,28 @@ class KVRecord : public BaseRecordFormat {
         this->vsize = vsize;
     }
 
+    KVRecord(const char * key, int keysize,
+             const char *val, int valsize) {
+        this->key = key;
+        this->val = val;
+        this->keysize = keysize;
+        this->valsize = valsize;
+    }
+
     ~KVRecord() {
+    }
+
+    void convert(KVRecord *record) {
+        key = record->get_key();
+        val = record->get_val();
+        keysize = record->get_key_size();
+        valsize = record->get_val_size();
+        if (this->ksize == KVGeneral)
+            *(int*)buffer = keysize;
+        if (this->vsize == KVGeneral)
+            *(int*)(buffer + (int)sizeof(int)) = valsize;
+        memcpy(buffer + get_head_size(), key, ksize);
+        memcpy(buffer + get_head_size() + ksize, val, vsize);
     }
 
     void set_kv_size(int ksize, int vsize) {
@@ -105,43 +130,47 @@ class KVRecord : public BaseRecordFormat {
     }
 
     int get_key_size() {
-        if (ksize == KVGeneral)
-            return *(int*)buffer;
-        else if (ksize == KVString)
-            return (int)strlen(get_key()) + 1;
-        else
-            return ksize;
+        if (buffer != NULL) {
+            if (ksize == KVGeneral)
+                return *(int*)buffer;
+            else if (ksize == KVString)
+                return (int)strlen(get_key()) + 1;
+            else
+                return ksize;
+        } else {
+            return keysize;
+        }
     }
 
     int get_val_size() {
-        if (vsize == KVGeneral) {
-            if (ksize == KVGeneral)
-                return *(int*)(buffer + (int)sizeof(int));
+        if (buffer != NULL) {
+            if (vsize == KVGeneral) {
+                if (ksize == KVGeneral)
+                    return *(int*)(buffer + (int)sizeof(int));
+                else
+                    return *(int*)(buffer);
+            }
+            else if (vsize == KVString)
+                return (int)strlen(get_val()) + 1;
             else
-                return *(int*)(buffer);
+                return vsize;
+        } else {
+            return valsize;
         }
-        else if (vsize == KVString)
-            return (int)strlen(get_val()) + 1;
-        else
-            return vsize;
     }
 
-    char* get_key() {
-        return buffer + get_head_size();
+    const char* get_key() {
+        const char *key = this->key;
+        if (buffer != NULL)
+            key = buffer + get_head_size();
+        return key;
     }
 
-    char *get_val() {
-        return buffer + get_head_size() + get_key_size();
-    }
-
-    void set_key_value(const char * key, int ksize,
-                       const char *val, int vsize) {
-        if (this->ksize == KVGeneral)
-            *(int*)buffer = ksize;
-        if (this->vsize == KVGeneral)
-            *(int*)(buffer + (int)sizeof(int)) = vsize;
-        memcpy(buffer + get_head_size(), key, ksize);
-        memcpy(buffer + get_head_size() + ksize, val, vsize);
+    const char *get_val() {
+        const char *val = this->val;
+        if (buffer != NULL)
+            val = buffer + get_head_size() + get_key_size();
+        return val;
     }
 
     virtual int get_record_size() {
@@ -183,7 +212,11 @@ class KVRecord : public BaseRecordFormat {
         }
         return true;
     }
+
   protected:
+    const char *key, *val;
+    int         keysize;
+    int         valsize;
     int ksize, vsize;
 };
 
@@ -222,7 +255,7 @@ class KMVRecord : public KVRecord {
     }
 
     char *get_next_val() {
-        printf("mv: ivalue=%d, nvalue=%d\n", ivalue, nvalue);
+        //printf("mv: ivalue=%d, nvalue=%d\n", ivalue, nvalue);
 
         char *val = NULL;
 

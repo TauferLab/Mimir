@@ -3,13 +3,12 @@
 using namespace MIMIR_NS;
 
 void KMVContainer::convert(KVContainer *kv) {
-    char *key, *value;
+    const char *key, *value;
     int keybytes, valuebytes;
-    int i;
 
     kv->open();
     ReducerUnique u;
-    KVRecord *record = kv->next();
+    KVRecord *record = kv->read();
     while (record != NULL) {
         key = record->get_key();
         keybytes = record->get_key_size();
@@ -22,7 +21,7 @@ void KMVContainer::convert(KVContainer *kv) {
 
         h.insertElem(&u);
 
-        record = kv->next();
+        record = kv->read();
     }
     kv->close();
 
@@ -69,7 +68,7 @@ void KMVContainer::convert(KVContainer *kv) {
     }
 
     kv->open();
-    record = kv->next();
+    record = kv->read();
     while (record != NULL) {
         key = record->get_key();
         keybytes = record->get_key_size();
@@ -93,7 +92,7 @@ void KMVContainer::convert(KVContainer *kv) {
             punique->lastset = punique->lastset->next;
         }
 
-        record = kv->next();
+        record = kv->read();
     }
     kv->close();
 

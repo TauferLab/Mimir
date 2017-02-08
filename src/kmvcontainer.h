@@ -23,7 +23,7 @@ class KMVContainer : public Container, public Readable {
         return true;
     }
 
-    virtual KMVRecord* next() {
+    virtual KMVRecord* read() {
         if (u == NULL) {
             u = h.BeginUnique();
             if (u == NULL)

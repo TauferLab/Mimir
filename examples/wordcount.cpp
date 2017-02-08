@@ -14,22 +14,9 @@ using namespace MIMIR_NS;
 
 int rank, size;
 
-class MyContainer : public KVContainer {
-  public:
-   virtual void add(const char *key, int keysize, const char *val, int valsize) 
-   {
-       printf("key=%s, val=%ld\n", key, *(int64_t*)val);
-   }
-};
-
-void map (BaseInput *input, BaseOutput *output, void *ptr);
-void countword (BaseInput *input, BaseOutput *output, void *ptr);
-
-//void map(MapReduce * mr, BaseRecordFormat *record, void *ptr);
-//void countword(MapReduce *, char *, int, void *);
-//void combiner(MapReduce *, const char *, int,
-//              const char *, int,
-//              const char *, int, void *);
+void map (Readable *input, Writable *output, void *ptr);
+void countword (Readable *input, Writable *output, void *ptr);
+void combine (Combinable *combiner, KVRecord *kv1, KVRecord *kv2, void *ptr);
 
 int main(int argc, char *argv[])
 {
@@ -59,8 +46,6 @@ int main(int argc, char *argv[])
 
     check_envars(rank, size);
 
-    MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(filedir);
     StringRecord::set_whitespace(" \n");
     FileReader<StringRecord> reader(splitinput);
@@ -70,18 +55,10 @@ int main(int argc, char *argv[])
     context.set_map_callback(map);
     context.set_reduce_callback(countword);
     context.mapreduce(&reader, &container, NULL);
-    //uint64_t nwords = mr->map_files(&reader, map, NULL);
-    //uint64_t nwords = mr->map(&reader, &container, map, NULL);
-    //uint64_t nunique = mr->reduce(countword, NULL);
 
-    //if (rank == 0)
-    //    fprintf(stdout, "number of words=%ld, number of unique words=%ld\n", 
-    //            nwords, nunique);
-
-    printf("get kv count=%ld\n", container.get_kv_count());
     container.open();
     KVRecord *record = NULL;
-    while ((record = container.next()) != NULL) {
+    while ((record = container.read()) != NULL) {
         printf("%s, %ld\n", record->get_key(), 
                *(int64_t*)record->get_val());
     }
@@ -89,104 +66,78 @@ int main(int argc, char *argv[])
 
     output(rank, size, prefix, outdir);
 
-    delete mr;
-
-    Mimir_Finalize();
+     Mimir_Finalize();
     MPI_Finalize();
 }
 
-void map (BaseInput *input, BaseOutput *output, void *ptr)
+void map (Readable *input, Writable *output, void *ptr)
 {
     char *word = NULL;
-    int64_t one = 1;
     int len = 0;
-    BaseRecordFormat *record = NULL;
-    while ((record = input->next()) != NULL) {
-        word = record->get_record();
-        int len = (int) strlen(word) + 1;
+
+    BaseRecordFormat *input_record = NULL;
+    while ((input_record = input->read()) != NULL) {
+        word = input_record->get_record();
+        len = input_record->get_record_size();
         if (len <= 1024) {
-            printf("word=%s\n", word);
-            output->add(word, len, (char *)&one, sizeof(one));
+#ifdef VALUE_STRING
+            char tmp[10] = { "1" };
+            KVRecord output_record(word, len, tmp, 2);
+            output->write(&output_record);
+#else
+            int64_t one = 1;
+            KVRecord output_record(word, len, (char*)&one, sizeof(one));
+            output->write(&output_record);
+#endif
         }
     }
 }
 
-void countword (BaseInput *input, BaseOutput *output, void *ptr) {
+void countword (Readable *input, Writable *output, void *ptr) {
     int64_t count = 0;
     KMVRecord *kmv = NULL;
     char *val = NULL;
 
-    BaseRecordFormat *record = NULL;
-    while ((record = input->next()) != NULL) {
-        kmv = (KMVRecord*)record;
+    BaseRecordFormat *input_record = NULL;
+    while ((input_record = input->read()) != NULL) {
+        kmv = (KMVRecord*)input_record;
         count = 0;
         val = NULL;
 
         while ((val = kmv->get_next_val()) != NULL) {
-            //count += strtoull((const char *) val, NULL, 0);
+#ifdef VALUE_STRING
+            count += strtoull((const char *) val, NULL, 0);
+#else
             count += *(int64_t *) val;
+#endif
         }
-        printf("key=%s, count=%ld\n", kmv->get_key(), count);
-        output->add(kmv->get_key(), kmv->get_key_size(), 
-                    (const char*)&count, (int)sizeof(count));
+        KVRecord output_record(kmv->get_key(),
+                               kmv->get_key_size(),
+                               (const char*)&count,
+                               (int)sizeof(count));
+        output->write(&output_record);
     }
 }
 
-
-#if 0
-void map(MapReduce * mr, BaseRecordFormat *record, void *ptr)
+void combine(Combinable *combiner, KVRecord *kv1, KVRecord *kv2, void *ptr)
 {
-    char *word = record->get_record();
-    int len = (int) strlen(word) + 1;
-
-    if (len <= 1024) {
-#ifdef VALUE_STRING
-        char tmp[10] = { "1" };
-        mr->add_key_value(word, len, tmp, 2);
-#else
-        int64_t one = 1;
-        mr->add_key_value(word, len, (char *) &one, sizeof(one));
-#endif
-    }
-}
-
-void countword(MapReduce * mr, char *key, int keysize, void *ptr)
-{
-    int64_t count = 0;
-    //printf("key=%s\n", key);
-    const void *val = mr->get_first_value();
-    while (val != NULL) {
-#ifdef VALUE_STRING
-        count += strtoull((const char *) val, NULL, 0);
-#else
-        count += *(int64_t *) val;
-#endif
-        val = mr->get_next_value();
-    }
 
 #ifdef VALUE_STRING
+    int64_t count = strtoull(kv1->get_val(), NULL, 0) 
+        + strtoull(get_val(), NULL, 0);
     char tmp[20] = { 0 };
     sprintf(tmp, "%ld", count);
-    mr->add_key_value(key, keysize, tmp, (int) strlen(tmp) + 1);
+    KVRecord update_record(kv1->get_key(), 
+                           kv1->get_key_size(), 
+                           tmp, (int)strlen(tmp)+1);
+    combiner->update(&update_record);
 #else
-    mr->add_key_value(key, keysize, (char *) &count, sizeof(count));
+    int64_t count = *(int64_t *) (kv1->get_val()) 
+        + *(int64_t *) (kv2->get_val());
+    KVRecord update_record(kv1->get_key(), 
+                           kv1->get_key_size(), 
+                           (char *) &count, sizeof(count));
+    combiner->update(&update_record);
 #endif
 }
-
-void combiner(MapReduce * mr, const char *key, int keysize,
-              const char *val1, int val1size,
-              const char *val2, int val2size, void *ptr)
-{
-
-#ifdef VALUE_STRING
-    int64_t count = strtoull(val1, NULL, 0) + strtoull(val2, NULL, 0);
-    char tmp[20] = { 0 };
-    sprintf(tmp, "%ld", count);
-    mr->update_key_value(key, keysize, tmp, (int) strlen(tmp) + 1);
-#else
-    int64_t count = *(int64_t *) (val1) + *(int64_t *) (val2);
-    mr->update_key_value(key, keysize, (char *) &count, sizeof(count));
-#endif
-}
-#endif
 

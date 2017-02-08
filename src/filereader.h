@@ -72,7 +72,7 @@ class FileReader : public Readable {
             mem_aligned_free(sbuffer);
     }
 
-    RecordFormat* next() {
+    RecordFormat* read() {
 
       if (state.seg_file == NULL)
             return NULL;

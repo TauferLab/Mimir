@@ -37,7 +37,7 @@ class MimirContext {
         BaseShuffler *c = NULL;
         KVContainer *kv = NULL;
         KMVContainer *kmv = NULL;
-        BaseOutput *map_output = output;
+        Writable *map_output = output;
 
         if (user_map == NULL)
             LOG_ERROR("Please set map callback\n");
