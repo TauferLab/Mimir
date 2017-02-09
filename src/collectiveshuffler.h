@@ -16,7 +16,7 @@ public:
 
     virtual bool open();
     virtual void close();
-    virtual void write(KVRecord *record);
+    virtual void write(BaseRecordFormat *record);
 
 protected:
     void wait();

@@ -15,7 +15,7 @@ void KMVContainer::convert(KVContainer *kv) {
         value = record->get_val();
         valuebytes = record->get_val_size();
 
-        u.key = key;
+        u.key = (char*)key;
         u.keybytes = keybytes;
         u.mvbytes = valuebytes;
 
@@ -85,8 +85,6 @@ void KMVContainer::convert(KVContainer *kv) {
         memcpy(pset->curoff, value, valuebytes);
         pset->curoff += valuebytes;
         pset->ivalue += 1;
-
-        printf("copy: key=%s\n", key);
 
         if (pset->ivalue == pset->nvalue) {
             punique->lastset = punique->lastset->next;

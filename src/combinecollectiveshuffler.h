@@ -19,8 +19,8 @@ public:
     ~CombineCollectiveShuffler();
 
     virtual bool open();
-    virtual void write(KVRecord *);
-    virtual void update(KVRecord *);
+    virtual void write(BaseRecordFormat *);
+    virtual void update(BaseRecordFormat *);
     virtual void close();
 
 private:

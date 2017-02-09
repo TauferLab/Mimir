@@ -19,6 +19,9 @@ public:
         //kv = _kv;
 
         nbucket = (uint32_t) pow(2, BUCKET_COUNT);
+
+        //printf("nbucket=%d, BUCKET_COUNT=%d\n", nbucket, BUCKET_COUNT);
+
         usize = nbucket * (int) sizeof(ElemType);
         maxbuf = MAX_PAGE_COUNT;
 
@@ -36,10 +39,14 @@ public:
         cur_off = 0;
 
         nunique = 0;
+
+        LOG_PRINT(DBG_GEN, "HashBucket: create nbucket=%d\n", nbucket);
     }
     virtual ~ HashBucket() {
         mem_aligned_free(buffers);
         mem_aligned_free(buckets);
+
+        LOG_PRINT(DBG_GEN, "HashBucket: destroy.\n");
     }
 
     // Comapre key with elem
@@ -58,7 +65,7 @@ public:
 
         ElemType* ptr = buckets[ibucket];
 
-        while (ptr != NULL) {
+         while (ptr != NULL) {
             if (compare(key, keybytes, ptr) != 0)
                 break;
             ptr = ptr->next;

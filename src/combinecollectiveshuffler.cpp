@@ -33,27 +33,33 @@ CombineCollectiveShuffler::~CombineCollectiveShuffler() {
 bool CombineCollectiveShuffler::open() {
     CollectiveShuffler::open();
     bucket = new CombinerHashBucket();
+
+    LOG_PRINT(DBG_GEN, "CombineCollectiveShuffler open!\n");
+
     return true;
 }
 
 void CombineCollectiveShuffler::close() {
     garbage_collection();
-    CollectiveShuffler::close();
     delete bucket;
+    CollectiveShuffler::close();
+
+    LOG_PRINT(DBG_GEN, "CombineCollectiveShuffler close.\n");
 }
 
-void CombineCollectiveShuffler::write(KVRecord *record)
+void CombineCollectiveShuffler::write(BaseRecordFormat *record)
 {
-    int target = get_target_rank(record->get_key(),
-                                 record->get_key_size());
+    int target = get_target_rank(((KVRecord*)record)->get_key(),
+                                 ((KVRecord*)record)->get_key_size());
 
     int kvsize = record->get_record_size();
     if (kvsize > buf_size)
         LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                   kvsize, buf_size);
 
-    CombinerUnique *u = bucket->findElem(record->get_key(), 
-                                         record->get_key_size());
+    CombinerUnique *u = bucket->findElem(((KVRecord*)record)->get_key(), 
+                                         ((KVRecord*)record)->get_key_size());
+
     if (u == NULL) {
         CombinerUnique tmp;
         tmp.next = NULL;
@@ -66,7 +72,7 @@ void CombineCollectiveShuffler::write(KVRecord *record)
             if (ssize >= kvsize) {
                 tmp.kv = sbuf + (ssize - kvsize);
                 kv.set_buffer(tmp.kv);
-                kv = *record;
+                kv.convert((KVRecord*)record);
 
                 if (iter->second == kvsize)
                     slices.erase(iter);
@@ -86,38 +92,39 @@ void CombineCollectiveShuffler::write(KVRecord *record)
             }
             tmp.kv = send_buffer + target * (int64_t)buf_size + send_offset[target];
             kv.set_buffer(tmp.kv);
-            kv = *record;
+            kv.convert((KVRecord*)record);
             send_offset[target] += kvsize;
-
-            bucket->insertElem(&tmp);
         }
+
+        bucket->insertElem(&tmp);
     }
     else {
         kv.set_buffer(u->kv);
-        user_combine(this, &kv, record, user_ptr);
+        user_combine(this, &kv, (KVRecord*)record, user_ptr);
     }
 
     return;
 }
 
-void CombineCollectiveShuffler::update(KVRecord *record)
+void CombineCollectiveShuffler::update(BaseRecordFormat *record)
 {
-    int target = get_target_rank(record->get_key(),
-                                 record->get_key_size());
+    int target = get_target_rank(((KVRecord*)record)->get_key(),
+                                 ((KVRecord*)record)->get_key_size());
 
-    int kvsize = record->get_key_size();
-    int ukvsize = kv.get_key_size();
+    int kvsize = record->get_record_size();
+    int ukvsize = kv.get_record_size();
+    int ksize = kv.get_key_size();
 
     if (kvsize > buf_size)
         LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                   kvsize, buf_size);
 
-    if (kvsize != ukvsize 
-        || memcmp(record->get_key(), kv.get_key(), kvsize) != 0)
+    if (((KVRecord*)record)->get_key_size() != kv.get_key_size()
+        || memcmp(((KVRecord*)record)->get_key(), kv.get_key(), ksize) != 0)
         LOG_ERROR("Error: the result key of combiner is different!\n");
 
     if (kvsize <= ukvsize) {
-        kv = *record;
+        kv.convert((KVRecord*)record);
         if (kvsize < ukvsize)
             slices.insert(std::make_pair(kv.get_record() + ukvsize - kvsize, 
                                          ukvsize - kvsize));
@@ -128,10 +135,9 @@ void CombineCollectiveShuffler::update(KVRecord *record)
             exchange_kv();
         }
         slices.insert(std::make_pair(kv.get_record(), ukvsize));
-        int64_t global_buf_off = target * (int64_t) buf_size + send_offset[target];
-        char *gbuf = send_buffer + global_buf_off;
+        char *gbuf = send_buffer + target * (int64_t) buf_size + send_offset[target];
         kv.set_buffer(gbuf);
-        kv = *record;
+        kv.convert((KVRecord*)record);
         send_offset[target] += kvsize;
     }
 
@@ -141,33 +147,28 @@ void CombineCollectiveShuffler::update(KVRecord *record)
 void CombineCollectiveShuffler::garbage_collection()
 {
     if (!slices.empty()) {
-        LOG_PRINT(DBG_MEM, "Alltoall: garbege collection (size=%ld)\n", slices.size());
 
         int dst_off = 0, src_off = 0;
         char *dst_buf = NULL, *src_buf = NULL;
 
         for (int k = 0; k < mimir_world_size; k++) {
-            dst_off = src_off = 0;
-            int64_t global_buf_off = k * (int64_t) buf_size;
-            while (src_off < send_offset[k]) {
+            src_buf = send_buffer + k * (int64_t)buf_size;
+            dst_buf = send_buffer + k * (int64_t)buf_size;
 
-                src_buf = send_buffer + global_buf_off + src_off;
-                dst_buf = send_buffer + global_buf_off + dst_off;
+            dst_off = src_off = 0;
+            while (src_off < send_offset[k]) {
 
                 std::unordered_map < char *, int >::iterator iter = slices.find(src_buf);
                 if (iter != slices.end()) {
                     src_off += iter->second;
                 }
                 else {
-                    //char *key = NULL, *value = NULL;
-                    //int keybytes = 0, valuebytes = 0, kvsize = 0;
-                    //GET_KV_VARS(kv->ksize, kv->vsize, src_buf, key, keybytes,
-                    //            value, valuebytes, kvsize);
                     kv.set_buffer(src_buf);
                     int kvsize = kv.get_record_size();
-                    src_buf += kvsize;
-                    if (src_off != dst_off)
-                        memcpy(dst_buf, src_buf - kvsize, kvsize);
+                    if (src_off != dst_off) {
+                        for (int kk = 0; kk < kvsize; kk++)
+                            dst_buf[dst_off + kk] = src_buf[src_off + kk];
+                    }
                     dst_off += kvsize;
                     src_off += kvsize;
                 }
@@ -176,4 +177,5 @@ void CombineCollectiveShuffler::garbage_collection()
         }
         slices.clear();
     }
+    bucket->clear();
 }

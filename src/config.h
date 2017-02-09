@@ -22,6 +22,6 @@ extern int DBG_LEVEL;
 extern int COMM_UNIT_SIZE;
 extern int RECORD_PEAKMEM;
 
-extern int ksize, vsize;
+extern int KTYPE, VTYPE;
 
 #endif

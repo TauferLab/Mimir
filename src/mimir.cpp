@@ -78,7 +78,7 @@ int64_t convert_to_int64(const char *_str)
 void get_default_values()
 {
     //kvtype = GeneralKV;
-    ksize = vsize = KVGeneral;
+    KTYPE = VTYPE = KVGeneral;
 
     /// Configure main parameters
     char *env = NULL;
@@ -183,8 +183,9 @@ void get_default_values()
     }
 
     if (mimir_world_rank == 0) {
-        fprintf(stdout, "bucket size(2^x)=%d, comm_buf_size=%ld, \
-                data_page_size=%ld, input_buf_size=%ld, DBG_LEVEL=%x\n", BUCKET_COUNT, COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, DBG_LEVEL);
+        fprintf(stdout, "bucket size(2^x)=%d, comm_buf_size=%ld, data_page_size=%ld, input_buf_size=%ld, DBG_LEVEL=%x\n", 
+                BUCKET_COUNT, COMM_BUF_SIZE, 
+                DATA_PAGE_SIZE, INPUT_BUF_SIZE, DBG_LEVEL);
     }
     fflush(stdout);
 

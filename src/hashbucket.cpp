@@ -14,18 +14,13 @@ int64_t ReducerHashBucket::mem_bytes = 0;
 
 CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem)
 {
-    char *key = NULL, *value = NULL;
-    int keybytes = 0, valuebytes = 0, kvsize = 0;
+    char *key = NULL;
+    int keybytes = 0;
 
-    KVRecord record(ksize, vsize);
+    KVRecord record;
     record.set_buffer(elem->kv);
-    key = record.get_key();
+    key = (char*)record.get_key();
     keybytes = record.get_key_size();
-    value = record.get_val();
-    valuebytes = record.get_val_size();
-    kvsize = record.get_record_size();
-    //GET_KV_VARS(kv->ksize, kv->vsize, elem->kv, key, keybytes,
-    //            value, valuebytes, kvsize);
 
     if (nbuf == (nunique / nbucket) && buffers[nbuf] == NULL) {
         buffers[nbuf] = (char*) mem_aligned_malloc(MEMPAGE_SIZE, usize);
@@ -47,7 +42,6 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem)
 
     CombinerUnique *ptr = buckets[ibucket];
 
-    // New unique key
     if (ptr == NULL) {
         buckets[ibucket] = newelem;
     }
@@ -57,25 +51,17 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem)
         newelem->next = tmp;
         return NULL;
     }
+
     return newelem;
 }
 
 int CombinerHashBucket::compare(const char *key, int keybytes, CombinerUnique *u)
 {
-    char *ukey = NULL, *uvalue = NULL;
-    int ukeybytes = 0, uvaluebytes = 0, kvsize = 0;
-
-    KVRecord record(ksize, vsize);
+    KVRecord record;
     record.set_buffer(u->kv);
-    ukey = record.get_key();
-    ukeybytes = record.get_key_size();
-    uvalue = record.get_val();
-    uvaluebytes = record.get_val_size();
-    kvsize = record.get_record_size();
-    //GET_KV_VARS(kv->ksize, kv->vsize, u->kv, ukey, ukeybytes,
-    //            uvalue, uvaluebytes, kvsize);
 
-    if (keybytes == ukeybytes && memcmp(key, ukey, keybytes) == 0)
+    if (keybytes == record.get_key_size() 
+        && memcmp(key, record.get_key(), keybytes) == 0)
         return 1;
 
     return 0;
@@ -102,7 +88,7 @@ ReducerUnique* ReducerHashBucket::insertElem(ReducerUnique *elem)
 
     // Get the MV size
     int64_t onemvbytes = elem->mvbytes;
-    if (vsize == KVGeneral)
+    if (VTYPE == KVGeneral)
         onemvbytes += sizeof(int);
 
     // Add a new partition if nessary

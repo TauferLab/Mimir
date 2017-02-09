@@ -46,27 +46,32 @@ int main(int argc, char *argv[])
 
     check_envars(rank, size);
 
+    MimirContext context;
+//#ifndef KVHINT
+    context.set_key_length(-1);
+    context.set_val_length(sizeof(int64_t));
+//#endif
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(filedir);
     StringRecord::set_whitespace(" \n");
     FileReader<StringRecord> reader(splitinput);
 
     KVContainer container;
-    MimirContext context;
     context.set_map_callback(map);
     context.set_reduce_callback(countword);
+    context.set_combine_callback(combine);
     context.mapreduce(&reader, &container, NULL);
 
     container.open();
     KVRecord *record = NULL;
     while ((record = container.read()) != NULL) {
-        printf("%s, %ld\n", record->get_key(), 
+        printf("%s, %ld\n", record->get_key(),
                *(int64_t*)record->get_val());
     }
     container.close();
 
     output(rank, size, prefix, outdir);
 
-     Mimir_Finalize();
+    Mimir_Finalize();
     MPI_Finalize();
 }
 
@@ -126,7 +131,6 @@ void combine(Combinable *combiner, KVRecord *kv1, KVRecord *kv2, void *ptr)
     int64_t count = strtoull(kv1->get_val(), NULL, 0) 
         + strtoull(get_val(), NULL, 0);
     char tmp[20] = { 0 };
-    sprintf(tmp, "%ld", count);
     KVRecord update_record(kv1->get_key(), 
                            kv1->get_key_size(), 
                            tmp, (int)strlen(tmp)+1);

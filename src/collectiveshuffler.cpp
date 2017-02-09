@@ -56,6 +56,8 @@ bool CollectiveShuffler::open() {
     MPI_Type_contiguous((0x1 << type_log_bytes), MPI_BYTE, &comm_type);
     MPI_Type_commit(&comm_type);
 
+    LOG_PRINT(DBG_GEN, "CollectiveShuffler open: buf_size=%ld\n", buf_size);
+
     return true;
 }
 
@@ -72,13 +74,15 @@ void CollectiveShuffler::close() {
     mem_aligned_free(recv_buffer);
     mem_aligned_free(send_offset);
     mem_aligned_free(recv_count);
+
+    LOG_PRINT(DBG_GEN, "CollectiveShuffler close.\n");
+
 }
 
-void CollectiveShuffler::write(KVRecord *record)
+void CollectiveShuffler::write(BaseRecordFormat *record)
 {
-
-    int target = get_target_rank(record->get_key(), 
-                                 record->get_key_size());
+    int target = get_target_rank(((KVRecord*)record)->get_key(), 
+                                 ((KVRecord*)record)->get_key_size());
 
     int kvsize = record->get_record_size();
     if (kvsize > buf_size)
@@ -90,9 +94,8 @@ void CollectiveShuffler::write(KVRecord *record)
 
     char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
     kv.set_buffer(buffer);
-    kv = *record;
+    kv.convert((KVRecord*)record);
     send_offset[target] += kvsize;
-
     return;
 }
 
@@ -109,7 +112,7 @@ void CollectiveShuffler::wait()
 
 void CollectiveShuffler::save_data()
 {
-    KVRecord record(ksize, vsize);
+    KVRecord record;
     char *src_buf = recv_buffer;
     int k = 0;
     for (k = 0; k < mimir_world_size; k++) {
@@ -118,8 +121,8 @@ void CollectiveShuffler::save_data()
             int kvsize = 0;
             record.set_buffer(src_buf);
             kvsize = record.get_record_size();
-            src_buf += kvsize;
             out->write(&record);
+            src_buf += kvsize;
             count += kvsize;
         }
         int padding = recv_count[k] & ((0x1 << type_log_bytes) - 0x1);

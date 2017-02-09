@@ -23,10 +23,8 @@ public:
     Container(DataType datatype = ByteType) {
         this->datatype = datatype;
         pagesize = DATA_PAGE_SIZE;
-        id = ref = 0;
-        groupid = 0;
-        pageid = 0;
-        id = Container::object_id++;
+        //id = ref = 0;
+        //id = Container::object_id++;
     }
 
     virtual ~Container() {
@@ -55,6 +53,7 @@ public:
         return &groups[groupid].pages[pageid];
     }
 
+#if 0
     Page* get_next_page() {
         while (groupid < get_group_count()) {
             if (pageid >= get_page_count(groupid)) {
@@ -70,6 +69,7 @@ public:
         pageid = 0;
         return NULL;
     }
+#endif
 
     int get_group_count() {
         return (int)groups.size();
@@ -88,20 +88,19 @@ public:
 protected:
     int64_t  pagesize;
     DataType datatype;
-    int id, ref;
+    //int id, ref;
 
 private:
     struct Group {
         std::vector<Page> pages;
     };
     std::vector<Group> groups;
-    int groupid, pageid;
 
-public:
-    static int object_id;
-    static int64_t mem_bytes;
-    static void addRef(Container*);
-    static void subRef(Container*);
+//public:
+//    static int object_id;
+//    static int64_t mem_bytes;
+//    static void addRef(Container*);
+//    static void subRef(Container*);
 };
 
 }

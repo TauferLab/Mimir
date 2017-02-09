@@ -10,6 +10,7 @@
 
 using namespace MIMIR_NS;
 
+#if 0
 int Container::object_id = 0;
 int64_t Container::mem_bytes = 0;
 
@@ -29,3 +30,4 @@ void Container::subRef(Container *data)
         }
     }
 }
+#endif

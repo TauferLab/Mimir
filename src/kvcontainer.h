@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "container.h"
+#include "containeriter.h"
 #include "recordformat.h"
 #include "interface.h"
 
@@ -11,7 +12,7 @@ namespace MIMIR_NS {
 
 class KVContainer : public Container, public Readable, public Writable {
 public:
-    KVContainer(int ksize = KVGeneral, int vsize = KVGeneral);
+    KVContainer();
     virtual ~KVContainer();
 
     virtual bool open();
@@ -19,21 +20,15 @@ public:
     virtual KVRecord* read();
     virtual void write(BaseRecordFormat *record);
 
-    uint64_t get_kv_count(){
-        return kvcount;
-    }
-
-    void print(FILE *fp) {
-    }
+    uint64_t get_kv_count() { return kvcount; }
 
     int ksize, vsize;
-
 protected:
     Page *page;
     int64_t pageoff;
+    ContainerIter *iter;
 
     uint64_t kvcount;
-
     KVRecord kv;
 };
 

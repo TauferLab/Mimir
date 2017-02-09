@@ -7,9 +7,9 @@
 
 using namespace MIMIR_NS;
 
-KVContainer::KVContainer(int ksize, int vsize) {
-    this->ksize = ksize;
-    this->vsize = vsize;
+KVContainer::KVContainer() {
+    this->ksize = KTYPE;
+    this->vsize = VTYPE;
     kv.set_kv_size(ksize, vsize);
     kvcount = 0;
     page = NULL;
@@ -21,21 +21,24 @@ KVContainer::~KVContainer() {
 
 bool KVContainer::open() {
     page = NULL;
+    pageoff = 0;
+    iter = new ContainerIter(this);
     return true;
 }
 
 void KVContainer::close() {
+    delete iter;
     page = NULL;
+    pageoff = 0;
+    return;
 }
 
-KVRecord* KVContainer::read(){
+KVRecord* KVContainer::read() {
     char *ptr;
     int kvsize;
 
-    printf("page = %p\n", page);
-
     if (page == NULL || pageoff >= page->datasize) {
-        page = get_next_page();
+        page = iter->next();
         pageoff = 0;
         if (page == NULL)
             return NULL;
@@ -45,8 +48,6 @@ KVRecord* KVContainer::read(){
     kv.set_buffer(ptr);
     kvsize = kv.get_record_size();
 
-    //printf("getkv: kvsize=%d, pageoff=%d\n", kvsize, pageoff);
-
     pageoff += kvsize;
     return &kv;
 }
@@ -54,7 +55,6 @@ KVRecord* KVContainer::read(){
 void KVContainer::write(BaseRecordFormat *record) {
     if (page == NULL)
         page = add_page();
-    //printf("add: key=%s\n", key);
     int kvsize = record->get_record_size();
     if (kvsize > pagesize)
         LOG_ERROR("Error: KV size (%d) is larger \
@@ -65,7 +65,7 @@ void KVContainer::write(BaseRecordFormat *record) {
 
     char *ptr = page->buffer + page->datasize;
     kv.set_buffer(ptr);
-    kv.convert(record);
+    kv.convert((KVRecord*)record);
     page->datasize += kvsize;
 
     kvcount += 1;

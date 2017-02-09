@@ -20,10 +20,10 @@ public:
 
     virtual bool open();
     virtual void close();
-    virtual void write(KVRecord *record);
-    virtual void update(KVRecord *record);
+    virtual void write(BaseRecordFormat *record);
+    virtual void update(BaseRecordFormat *record);
 
-public:
+private:
     void garbage_collection();
 
     CombineCallback user_combine;

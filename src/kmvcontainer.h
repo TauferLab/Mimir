@@ -1,6 +1,7 @@
 #ifndef MIMIR_KMV_CONTAINER_H
 #define MIMIR_KMV_CONTAINER_H
 
+#include "config.h"
 #include "hashbucket.h"
 #include "recordformat.h"
 #include "kvcontainer.h"
@@ -9,10 +10,10 @@ namespace MIMIR_NS {
 
 class KMVContainer : public Container, public Readable {
   public:
-    KMVContainer(int ksize = KVGeneral, int vsize = KVGeneral) {
+    KMVContainer() {
         u = NULL;
-        this->ksize = ksize;
-        this->vsize = vsize;
+        this->ksize = KTYPE;
+        this->vsize = VTYPE;
         record.set_kv_size(ksize, vsize);
     }
 

@@ -20,7 +20,7 @@ public:
     }
 
     virtual bool open() = 0;
-    virtual void write(KVRecord *) = 0;
+    virtual void write(BaseRecordFormat *) = 0;
     virtual void close() = 0;
 
 protected:

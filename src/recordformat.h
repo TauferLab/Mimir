@@ -81,20 +81,27 @@ class ByteRecord : public BaseRecordFormat {
 
 class KVRecord : public BaseRecordFormat {
   public:
-    KVRecord() {
-        ksize = KVGeneral;
-        vsize = KVGeneral;
+    KVRecord() : BaseRecordFormat() 
+    {
+        ktype = KTYPE;
+        vtype = VTYPE;
         key = val = NULL;
         keysize = valsize = 0;
     }
 
-    KVRecord(int ksize, int vsize) {
-        this->ksize = ksize;
-        this->vsize = vsize;
-    }
+    //KVRecord(int ksize, int vsize) 
+    //    : BaseRecordFormat() 
+    //{
+    //    this->ktype = ksize;
+    //    this->vtype = vsize;
+    //}
 
     KVRecord(const char * key, int keysize,
-             const char *val, int valsize) {
+             const char *val, int valsize) 
+        : BaseRecordFormat() 
+    {
+        ktype = KTYPE;
+        vtype = VTYPE;
         this->key = key;
         this->val = val;
         this->keysize = keysize;
@@ -109,34 +116,34 @@ class KVRecord : public BaseRecordFormat {
         val = record->get_val();
         keysize = record->get_key_size();
         valsize = record->get_val_size();
-        if (this->ksize == KVGeneral)
+        if (this->ktype == KVGeneral)
             *(int*)buffer = keysize;
-        if (this->vsize == KVGeneral)
+        if (this->vtype == KVGeneral)
             *(int*)(buffer + (int)sizeof(int)) = valsize;
-        memcpy(buffer + get_head_size(), key, ksize);
-        memcpy(buffer + get_head_size() + ksize, val, vsize);
+        memcpy(buffer + get_head_size(), key, keysize);
+        memcpy(buffer + get_head_size() + keysize, val, valsize);
     }
 
     void set_kv_size(int ksize, int vsize) {
-        this->ksize = ksize;
-        this->vsize = vsize;
+        this->ktype = ksize;
+        this->vtype = vsize;
     }
 
     int get_head_size() {
         int headsize = 0;
-        if (ksize == KVGeneral) headsize += (int)sizeof(int);
-        if (vsize == KVGeneral) headsize += (int)sizeof(int);
+        if (ktype == KVGeneral) headsize += (int)sizeof(int);
+        if (vtype == KVGeneral) headsize += (int)sizeof(int);
         return headsize;
     }
 
     int get_key_size() {
         if (buffer != NULL) {
-            if (ksize == KVGeneral)
+            if (ktype == KVGeneral)
                 return *(int*)buffer;
-            else if (ksize == KVString)
+            else if (ktype == KVString)
                 return (int)strlen(get_key()) + 1;
             else
-                return ksize;
+                return keysize;
         } else {
             return keysize;
         }
@@ -144,16 +151,16 @@ class KVRecord : public BaseRecordFormat {
 
     int get_val_size() {
         if (buffer != NULL) {
-            if (vsize == KVGeneral) {
-                if (ksize == KVGeneral)
+            if (vtype == KVGeneral) {
+                if (ktype == KVGeneral)
                     return *(int*)(buffer + (int)sizeof(int));
                 else
                     return *(int*)(buffer);
             }
-            else if (vsize == KVString)
+            else if (vtype == KVString)
                 return (int)strlen(get_val()) + 1;
             else
-                return vsize;
+                return vtype;
         } else {
             return valsize;
         }
@@ -180,11 +187,11 @@ class KVRecord : public BaseRecordFormat {
     virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
         if (len < (uint64_t)get_head_size()) 
             return false;
-        if (ksize == KVGeneral) {
+        if (ktype == KVGeneral) {
             if (len < (uint64_t)(get_key_size() + get_head_size()))
                 return false;
         }
-        if (ksize == KVString) {
+        if (ktype == KVString) {
             uint64_t i = 0;
             for (i = (uint64_t)get_head_size(); i < len; i++) {
                 if (buffer[i] == '\0')
@@ -197,7 +204,7 @@ class KVRecord : public BaseRecordFormat {
             if (len < (uint64_t)(get_head_size() + get_head_size()))
                 return false;
         }
-        if (vsize == KVString) {
+        if (vtype == KVString) {
             uint64_t i = 0;
             for (i = (uint64_t)(get_head_size() + get_key_size()); i < len; i++) {
                 if (buffer[i] == '\0')
@@ -217,16 +224,12 @@ class KVRecord : public BaseRecordFormat {
     const char *key, *val;
     int         keysize;
     int         valsize;
-    int ksize, vsize;
+    int         ktype, vtype;
 };
 
 class KMVRecord : public KVRecord {
   public:
     KMVRecord() {
-    }
-
-    KMVRecord(int ksize, int vsize) 
-        : KVRecord(ksize, vsize) {
     }
 
     ~KMVRecord() {
@@ -274,16 +277,15 @@ class KMVRecord : public KVRecord {
             value_end += pset->nvalue;
         }
 
-        if (vsize == KVGeneral)
+        if (vtype == KVGeneral)
             valuesize = valuebytes[ivalue - value_start];
-        else if (vsize == KVString)
+        else if (vtype == KVString)
             valuesize = (int) strlen(value) + 1;
         else
-            valuesize = vsize;
+            valuesize = vtype;
 
         ivalue++;
         val = value;
-        printf("value=%ld\n", *(int64_t*)val);
         value += valuesize;
         return val;
     }
