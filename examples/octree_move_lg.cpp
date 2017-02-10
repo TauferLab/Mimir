@@ -16,11 +16,10 @@
 using namespace MIMIR_NS;
 int rank, size;
 
-void generate_octkey(MapReduce *, BaseRecordFormat *, void *);
-void gen_leveled_octkey(MapReduce *, char *, int, char *, int, void *);
-void combiner(MapReduce *, const char *, int, 
-              const char *, int, const char *, int, void *);
-void sum(MapReduce *, char *, int, void *);
+void generate_octkey(Readable *input, Writable *output, void *ptr);
+void gen_leveled_octkey(Readable *input, Writable *output, void *ptr);
+void combiner(Combinable *combiner, KVRecord *kv1, KVRecord *kv2, void *ptr);
+void sum(Readable *input, Writable *output, void *ptr);
 double slope(double[], double[], int);
 
 #define digits 15
@@ -63,41 +62,40 @@ int main(int argc, char **argv)
     max_limit = digits + 1;
     level = (int) floor((max_limit + min_limit) / 2);
 
-    MapReduce *mr_convert = new MapReduce(MPI_COMM_WORLD);
+    MimirContext mimir;
 
-#ifdef KHINT
-    mr_convert->set_key_length(digits);
-#endif
-#ifdef VHINT
-    mr_convert->set_value_length(0);
+#ifdef KVHINT
+    mimir.set_key_length(digits);
+    mimir.set_value_length(0);
 #endif
 
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(indir);
-    splitinput->print();
-    StringRecordFormat::set_whitespace("\n");
-    FileReader<StringRecordFormat> reader(splitinput);
-    uint64_t nwords = mr_convert->map_files(&reader, generate_octkey, NULL);
+    StringRecord::set_whitespace("\n");
+    FileReader<StringRecord> reader(splitinput);
+    KVContainer octkeys;
+    mimir.set_map_callback(generate_octkey);
+    mimir.set_shuffle_flag(false);
+    uint64_t nwords = mimir.mapreduce(&reader, &octkeys);
 
     thresh = (int64_t) ((float) nwords * density);
     if (rank == 0) {
         printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
     }
 
-    MapReduce *mr_level = new MapReduce(MPI_COMM_WORLD);
-
+    mimir.set_map_callback(gen_leveled_octkey);
+    mimir.set_reduce_callback(sum);
+    mimir.set_shuffle_flag(true);
 #ifdef COMBINE
-    mr_level->set_combiner(combiner);
+    mimir->set_combine_callback(combiner);
 #endif
 
     while ((min_limit + 1) != max_limit) {
-#ifdef KHINT
-        mr_level->set_key_length(level);
+#ifdef KVHINT
+        mimir.set_key_length(level);
+        mimir.set_value_length(sizeof(int64_t));
 #endif
-#ifdef VHINT
-        mr_level->set_value_length(sizeof(int64_t));
-#endif
-        mr_level->map_key_value(mr_convert, gen_leveled_octkey);
-        uint64_t nkv = mr_level->reduce(sum, NULL);
+        KVContainer loctkeys;
+        uint64_t nkv = mimir.mapreduce(&octkeys, &loctkeys);
 
         if (nkv > 0) {
             min_limit = level;
@@ -109,13 +107,9 @@ int main(int argc, char **argv)
         }
     }
 
-    delete mr_level;
-
     char newprefix[1000];
     sprintf(newprefix, "%s-d%.2f", prefix, density);
     output(rank, size, newprefix, outdir);
-
-    delete mr_convert;
 
     if (rank == 0)
         printf("level=%d\n", level);
@@ -124,93 +118,106 @@ int main(int argc, char **argv)
     MPI_Finalize();
 }
 
-void combiner(MapReduce * mr, const char *key, int keysize, 
-              const char *val1, int val1size, 
-              const char *val2, int val2size, void *ptr)
+void combiner(Combinable *combiner, KVRecord *kv1, KVRecord *kv2, void *ptr)
 {
-    int64_t count = *(int64_t *) (val1) + *(int64_t *) (val2);
-
-    mr->update_key_value(key, keysize, (char *) &count, sizeof(count));
+    int64_t count = *(int64_t *) (kv1->get_val()) 
+                  + *(int64_t *) (kv2->get_val());
+    KVRecord update_record(kv1->get_key(),
+                           kv1->get_key_size(),
+                           (char *) &count, sizeof(count));
+    combiner->update(&update_record);
 }
 
-void sum(MapReduce * mr, char *key, int keysize, void *ptr)
+void sum(Readable *input, Writable *output, void *ptr)
 {
-
     int64_t sum = 0;
+    KMVRecord *kmv = NULL;
+    char *val = NULL;
 
-    const void *val = mr->get_first_value();
-    while (val != NULL) {
-        sum += *(int64_t *) val;
-        val = mr->get_next_value();
-    }
-
-    if (sum > thresh) {
-        mr->add_key_value(key, keysize, (char *) &sum, sizeof(int64_t));
+    BaseRecordFormat *input_record = NULL;
+    while ((input_record = input->read()) != NULL) {
+        kmv = (KMVRecord*)input_record;
+        val = NULL;
+        sum = 0;
+        while ((val = kmv->get_next_val()) != NULL) {
+            sum += *(int64_t *)val;
+        }
+        if (sum > thresh) {
+            KVRecord output_record(kmv->get_key(), kmv->get_key_size(),
+                           (char *) &sum, sizeof(sum));
+            output->write(&output_record);
+        }
     }
 }
 
-void gen_leveled_octkey(MapReduce * mr, char *key, int keysize, 
-                        char *val, int valsize, void *ptr)
+void gen_leveled_octkey(Readable *input, Writable *output, void *ptr)
 {
     int64_t count = 1;
-    mr->add_key_value(key, level, (char *) &count, sizeof(int64_t));
+    BaseRecordFormat *input_record = NULL;
+    while ((input_record = input->read()) != NULL) {
+        KVRecord *kv = (KVRecord*)input_record;
+        KVRecord output_record(kv->get_key(), level, 
+                               (char*)&count, sizeof(int64_t));
+        output->write(&output_record);
+    }
 }
 
-void generate_octkey(MapReduce * mr, BaseRecordFormat *record, void *ptr)
+void generate_octkey(Readable *input, Writable *output, void *ptr)
 {
-    char *word = record->get_record();
-    double range_up = 4.0, range_down = -4.0;
-    char octkey[digits];
+    BaseRecordFormat *record = NULL;
+    while ((record = input->read()) != NULL) {
+        char *word = record->get_record();
+        double range_up = 4.0, range_down = -4.0;
+        char octkey[digits];
 
-    double b0, b1, b2;
-    char *saveptr;
-    char *token = strtok_r(word, " ", &saveptr);
-    b0 = atof(token);
-    token = strtok_r(word, " ", &saveptr);
-    b1 = atof(token);
-    token = strtok_r(word, " ", &saveptr);
-    b2 = atof(token);
+        double b0, b1, b2;
+        char *saveptr;
+        char *token = strtok_r(word, " ", &saveptr);
+        b0 = atof(token);
+        token = strtok_r(word, " ", &saveptr);
+        b1 = atof(token);
+        token = strtok_r(word, " ", &saveptr);
+        b2 = atof(token);
 
-    /*compute octkey, "digit" many digits */
-    int count = 0;              // count how many digits are in the octkey
-    double minx = range_down, miny = range_down, minz = range_down;
-    double maxx = range_up, maxy = range_up, maxz = range_up;
-    while (count < digits) {
-        int m0 = 0, m1 = 0, m2 = 0;
-        double rankdx = minx + ((maxx - minx) / 2);
-        if (b0 > rankdx) {
-            m0 = 1;
-            minx = rankdx;
-        }
-        else {
-            maxx = rankdx;
+        int count = 0;              // count how many digits are in the octkey
+        double minx = range_down, miny = range_down, minz = range_down;
+        double maxx = range_up, maxy = range_up, maxz = range_up;
+        while (count < digits) {
+            int m0 = 0, m1 = 0, m2 = 0;
+            double rankdx = minx + ((maxx - minx) / 2);
+            if (b0 > rankdx) {
+                m0 = 1;
+                minx = rankdx;
+            }
+            else {
+                maxx = rankdx;
+            }
+
+            double rankdy = miny + ((maxy - miny) / 2);
+            if (b1 > rankdy) {
+                m1 = 1;
+                miny = rankdy;
+            }
+            else {
+                maxy = rankdy;
+            }
+            double rankdz = minz + ((maxz - minz) / 2);
+            if (b2 > rankdz) {
+                m2 = 1;
+                minz = rankdz;
+            }
+            else {
+                maxz = rankdz;
+            }
+
+            int bit = m0 + (m1 * 2) + (m2 * 4);
+            octkey[count] = bit & 0x7f;
+            ++count;
         }
 
-        double rankdy = miny + ((maxy - miny) / 2);
-        if (b1 > rankdy) {
-            m1 = 1;
-            miny = rankdy;
-        }
-        else {
-            maxy = rankdy;
-        }
-        double rankdz = minz + ((maxz - minz) / 2);
-        if (b2 > rankdz) {
-            m2 = 1;
-            minz = rankdz;
-        }
-        else {
-            maxz = rankdz;
-        }
-
-        /*calculate the octant using the formula m0*2^0+m1*2^1+m2*2^2 */
-        int bit = m0 + (m1 * 2) + (m2 * 4);
-        // char bitc=(char)(((int)'0') + bit); //int 8 => char '8'
-        octkey[count] = bit & 0x7f;
-        ++count;
+        KVRecord output_record(octkey, digits, NULL, 0);
+        output->write(&output_record);
     }
-
-    mr->add_key_value(octkey, digits, NULL, 0);
 }
 
 double slope(double x[], double y[], int num_atoms)

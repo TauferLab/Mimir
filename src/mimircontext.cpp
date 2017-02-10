@@ -52,7 +52,11 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
         kmv = new KMVContainer();
         kmv->convert(kv);
         delete kv;
+        kmv->open();
+        output->open();
         user_reduce(kmv, output, ptr);
+        output->close();
+        kmv->close();
         delete kmv;
     }
 

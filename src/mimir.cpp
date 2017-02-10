@@ -18,6 +18,13 @@ void Mimir_Finalize()
     UNINIT_STAT;
 }
 
+void Mimir_stat(const char* filename)
+{
+    GET_CUR_TIME;
+    PROFILER_PRINT(filename);
+    TRACKER_PRINT(filename);
+}
+
 int64_t convert_to_int64(const char *_str)
 {
     std::string str = _str;

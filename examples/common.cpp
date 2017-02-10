@@ -37,7 +37,7 @@ void output(int rank, int size, const char *prefix, const char *outdir)
     sprintf(filename, "%s/%s-%d_c%s-p%s-i%s-h%d", outdir, prefix, size,
             commsize, pagesize, ibufsize, bucketsize);
 
-    //MapReduce::output_stat(filename);
+    Mimir_stat(filename);
 
     MPI_Barrier(MPI_COMM_WORLD);
 }

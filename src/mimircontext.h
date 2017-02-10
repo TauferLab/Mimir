@@ -20,6 +20,10 @@ class MimirContext {
     ~MimirContext() {
     }
 
+    void set_shuffle_flag(bool do_shuffle = true) {
+        this->do_shuffle = do_shuffle;
+    }
+
     void set_map_callback(MapCallback user_map) {
         this->user_map = user_map;
     }
@@ -44,7 +48,7 @@ class MimirContext {
         VTYPE = valsize;
     }
 
-    uint64_t mapreduce(Readable *input, Writable *output, void *ptr);
+    uint64_t mapreduce(Readable *input, Writable *output, void *ptr = NULL);
 
   private:
     bool        do_shuffle;

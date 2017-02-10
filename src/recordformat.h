@@ -96,8 +96,8 @@ class KVRecord : public BaseRecordFormat {
     //    this->vtype = vsize;
     //}
 
-    KVRecord(const char * key, int keysize,
-             const char *val, int valsize) 
+    KVRecord(char * key, int keysize,
+             char *val, int valsize) 
         : BaseRecordFormat() 
     {
         ktype = KTYPE;
@@ -166,15 +166,15 @@ class KVRecord : public BaseRecordFormat {
         }
     }
 
-    const char* get_key() {
-        const char *key = this->key;
+    char* get_key() {
+        char *key = this->key;
         if (buffer != NULL)
             key = buffer + get_head_size();
         return key;
     }
 
-    const char *get_val() {
-        const char *val = this->val;
+    char *get_val() {
+        char *val = this->val;
         if (buffer != NULL)
             val = buffer + get_head_size() + get_key_size();
         return val;
@@ -221,7 +221,7 @@ class KVRecord : public BaseRecordFormat {
     }
 
   protected:
-    const char *key, *val;
+    char       *key, *val;
     int         keysize;
     int         valsize;
     int         ktype, vtype;

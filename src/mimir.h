@@ -7,11 +7,13 @@
 #include "inputsplit.h"
 #include "filesplitter.h"
 #include "filereader.h"
+#include "filewriter.h"
 #include "kvcontainer.h"
 #include "mimircontext.h"
 
 void Mimir_Init(int*, char ***, MPI_Comm);
 void Mimir_Finalize();
 
+void Mimir_stat(const char*);
 
 #endif

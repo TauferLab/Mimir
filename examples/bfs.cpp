@@ -26,16 +26,14 @@ using namespace MIMIR_NS;
     ((vis[(v) / LONG_BITS]) |= (1UL << ((v) % LONG_BITS)))
 
 int mypartition(const char *, int);
-void fileread(MapReduce * mr, BaseRecordFormat *record, void *ptr);
-void makegraph(MapReduce * mr, char *key, int keybytes, 
-               char *value, int valuebytes, void *ptr);
-void countedge(char *, int, char *, int, void *);
+void fileread(Readable *input, Writable *output, void *ptr);
+void makegraph(KVContainer *container);
+void countedge(KVContainer *container);
 
 int64_t getrootvert();
-void rootvisit(MapReduce *, void *);
-void expand(MapReduce *, char *, int, char *, int, void *);
-void combiner(MapReduce *, const char *, int,
-              const char *, int, const char *, int, void *);
+void rootvisit(Readable *input, Writable *output, void *ptr);
+void expand(Readable *input, Writable *output, void *ptr);
+void combiner(Combinable *combiner, KVRecord *kv1, KVRecord *kv2, void *ptr);
 
 int rank, size;
 int64_t nglobalverts;           // global vertex count
@@ -122,25 +120,26 @@ int main(int argc, char **argv)
     }
 #endif
 
-    MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
-    mr->set_hash(mypartition);
+    MimirContext mimir;
+    //MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
+    mimir.set_hash_callback(mypartition);
 
     if (rank == 0)
         fprintf(stdout, "make CSR graph start.\n");
 
-#ifdef KHINT
-    mr->set_key_length(sizeof(int64_t));
-#endif
-#ifdef VHINT
-    mr->set_value_length(sizeof(int64_t));
+#ifdef KVHINT
+    mimir.set_key_length(sizeof(int64_t));
+    mimir.set_value_length(sizeof(int64_t));
 #endif
 
     // partition file
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(indir);
-    splitinput->print();
-    StringRecordFormat::set_whitespace("\n");
-    FileReader<StringRecordFormat> reader(splitinput);
-    uint64_t nedges = mr->map_files(&reader, fileread, NULL);
+    StringRecord::set_whitespace("\n");
+    FileReader<StringRecord> reader(splitinput);
+    KVContainer *edges_container = new KVContainer();
+    mimir.set_map_callback(fileread);
+
+    uint64_t nedges = mimir.mapreduce(&reader, edges_container, NULL);
     nglobaledges = nedges;
 
     // mr->output(stdout, Int64Type, Int64Type);
@@ -153,7 +152,7 @@ int main(int argc, char **argv)
         rowinserts[i] = 0;
     }
     nlocaledges = 0;
-    mr->scan(countedge, NULL);
+    countedge(edges_container);
 
     for (int64_t i = 0; i < nlocalverts; i++) {
         rowstarts[i + 1] += rowstarts[i];
@@ -191,8 +190,8 @@ int main(int argc, char **argv)
     if (rank == 0)
         fprintf(stdout, "begin make graph.\n");
 
-    mr->map_key_value(mr, makegraph, NULL, 0);
-
+    makegraph(edges_container);
+    delete edges_container;
     delete[] rowinserts;
 
     // mr->output(stdout, Int64Type, Int64Type);
@@ -222,21 +221,34 @@ int main(int argc, char **argv)
         fprintf(stdout, "Traversal start. (root=%ld)\n", root);
 
 #ifdef COMBINE
-    mr->set_combiner(combiner);
+    mr->set_combine_callback(combiner);
 #endif
 
     // Inialize the child  vertexes of root
-    mr->init_key_value(rootvisit, NULL);
+    //mr->init_key_value(rootvisit, NULL);
+    KVContainer *in_container = new KVContainer();
+    KVContainer *out_container = NULL;
+
+    mimir.set_map_callback(rootvisit);
+    mimir.mapreduce(NULL, in_container);
 
     // mr->output(stdout, Int64Type, Int64Type);
+
+    mimir.set_map_callback(expand);
 
     // BFS search
     int level = 0;
     do {
-        nactives[level] = mr->map_key_value(mr, expand);
+        //nactives[level] = mr->map_key_value(mr, expand);
+        out_container = new KVContainer();
+        nactives[level] = mimir.mapreduce(in_container, out_container);
+        delete in_container;
+        in_container = out_container;
         // mr->output(stdout, Int64Type, Int64Type);
         level++;
     } while (nactives[level - 1]);
+
+    delete in_container;
 
     if (rank == 0) {
         fprintf(stdout, "BFS traversal end.\n");
@@ -263,7 +275,7 @@ int main(int argc, char **argv)
 
     output(rank, size, prefix, outdir);
 
-    delete mr;
+    //delete mr;
 
 #ifdef OUTPUT_RESULT
     if (rank == 0) {
@@ -288,59 +300,74 @@ int mypartition(const char *key, int keybytes)
 }
 
 // count edge number of each vertex
-void countedge(char *key, int keybytes, char *value, int valbytes, void *ptr)
+void countedge(KVContainer *edges)
 {
-    nlocaledges += 1;
-    int64_t v0 = *(int64_t *) key;
-    rowstarts[v0 - nvertoffset + 1] += 1;
+    edges->open();
+    KVRecord *edge = NULL;
+    while ((edge = edges->read()) != NULL) {
+        nlocaledges += 1;
+        int64_t v0 = *(int64_t *) edge->get_key();
+        rowstarts[v0 - nvertoffset + 1] += 1;
+    }
+    edges->close();
 }
 
 // read edge list from files
-void fileread(MapReduce * mr, BaseRecordFormat *record, void *ptr)
+void fileread(Readable *input, Writable *output, void *ptr)
 {
-    char *word = record->get_record();
-    char sep[10] = " ";
-    char *v0, *v1;
-    char *saveptr = NULL;
-    v0 = strtok_r(word, sep, &saveptr);
-    v1 = strtok_r(NULL, sep, &saveptr);
+    BaseRecordFormat *record = NULL;
+    while ((record = input->read()) != NULL) {
+        char *word = record->get_record();
+        char sep[10] = " ";
+        char *v0, *v1;
+        char *saveptr = NULL;
+        v0 = strtok_r(word, sep, &saveptr);
+        v1 = strtok_r(NULL, sep, &saveptr);
 
-    // skip self-loop edge
-    if (strcmp(v0, v1) == 0) {
-        return;
-    }
-    int64_t int_v0 = strtoull(v0, NULL, 0);
-    int64_t int_v1 = strtoull(v1, NULL, 0);
-    if (int_v0 >= nglobalverts || int_v1 >= nglobalverts) {
-        fprintf(stderr,
+        // skip self-loop edge
+        if (strcmp(v0, v1) == 0) {
+            return;
+        }
+        int64_t int_v0 = strtoull(v0, NULL, 0);
+        int64_t int_v1 = strtoull(v1, NULL, 0);
+        if (int_v0 >= nglobalverts || int_v1 >= nglobalverts) {
+            fprintf(stderr,
                 "The vertex index <%ld,%ld> is larger than maximum value %ld!\n",
                 int_v0, int_v1, nglobalverts);
-        exit(1);
+            exit(1);
+        }
+        KVRecord output_record((char *) &int_v0, sizeof(int64_t), 
+                               (char *) &int_v1, sizeof(int64_t));
+        output->write(&output_record);
     }
-    mr->add_key_value((char *) &int_v0, sizeof(int64_t), 
-                      (char *) &int_v1, sizeof(int64_t));
 }
 
 // make CSR graph based edge list
-void makegraph(MapReduce * mr, char *key, int keybytes, 
-               char *value, int valuebytes, void *ptr)
+void makegraph(KVContainer *edges)
 {
-    int64_t v0, v0_local, v1;
-    v0 = *(int64_t *) key;
-    v0_local = v0 - nvertoffset;
+    edges->open();
 
-    v1 = *(int64_t *) value;
+    KVRecord *edge = NULL;
+    while ((edge = edges->read()) != NULL) {
+        int64_t v0, v0_local, v1;
+        v0 = *(int64_t *) edge->get_key();
+        v0_local = v0 - nvertoffset;
+
+        v1 = *(int64_t *) edge->get_val();
 #ifndef COLUMN_SINGLE_BUFFER
-    size_t pos = rowstarts[v0_local] + rowinserts[v0_local];
-    columns[GET_COL_IDX(pos)][GET_COL_OFF(pos)] = v1;
+        size_t pos = rowstarts[v0_local] + rowinserts[v0_local];
+        columns[GET_COL_IDX(pos)][GET_COL_OFF(pos)] = v1;
 #else
-    columns[rowstarts[v0_local] + rowinserts[v0_local]] = v1;
+        columns[rowstarts[v0_local] + rowinserts[v0_local]] = v1;
 #endif
-    rowinserts[v0_local]++;
+        rowinserts[v0_local]++;
+    }
+
+    edges->close();
 }
 
 // expand child vertexes of root
-void rootvisit(MapReduce * mr, void *ptr)
+void rootvisit(Readable *input, Writable *output, void *ptr)
 {
     if (mypartition((char *) &root, sizeof(int64_t)) == rank) {
         int64_t root_local = root - nvertoffset;
@@ -353,47 +380,53 @@ void rootvisit(MapReduce * mr, void *ptr)
 #else
             int64_t v1 = columns[p];
 #endif
-            mr->add_key_value((char *) &v1, sizeof(int64_t), 
-                              (char *) &root, sizeof(int64_t));
+            KVRecord output_record((char *) &v1, sizeof(int64_t),
+                                   (char *) &root, sizeof(int64_t));
+            output->write(&output_record);
+            //mr->add_key_value((char *) &v1, sizeof(int64_t), 
+            //                  (char *) &root, sizeof(int64_t));
         }
     }
 }
 
 // Keep active vertexes in next level only
-void expand(MapReduce * mr, char *key, int keybytes, 
-            char *value, int valuebytes, void *ptr)
+void expand(Readable *input, Writable *output, void *ptr)
 {
-    int64_t v = *(int64_t *) key;
-    int64_t v_local = v - nvertoffset;
+    BaseRecordFormat *input_record = NULL;
 
-    int64_t v0 = *(int64_t *) value;
+    while ((input_record = input->read()) != NULL) {
+        int64_t v = *(int64_t *) (((KVRecord*)input_record)->get_key());
+        int64_t v_local = v - nvertoffset;
+
+        int64_t v0 = *(int64_t *) (((KVRecord*)input_record)->get_val());
 
     // printf("v0=%ld\n", v0);
 
-    if (!TEST_VISITED(v_local, vis)) {
-        SET_VISITED(v_local, vis);
-        pred[v_local] = v0;
-        // mr->add_key_value(key, keybytes, NULL, 0);
-        size_t p_end = rowstarts[v_local + 1];
-        for (size_t p = rowstarts[v_local]; p < p_end; p++) {
+        if (!TEST_VISITED(v_local, vis)) {
+            SET_VISITED(v_local, vis);
+            pred[v_local] = v0;
+            // mr->add_key_value(key, keybytes, NULL, 0);
+            size_t p_end = rowstarts[v_local + 1];
+            for (size_t p = rowstarts[v_local]; p < p_end; p++) {
 #ifndef COLUMN_SINGLE_BUFFER
-            int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
+                int64_t v1 = columns[GET_COL_IDX(p)][GET_COL_OFF(p)];
 #else
-            int64_t v1 = columns[p];
+                int64_t v1 = columns[p];
 #endif
-            mr->add_key_value((char *) &v1, sizeof(int64_t), 
-                              (char *) &v, sizeof(int64_t));
+                KVRecord output_record((char *) &v1, sizeof(int64_t), 
+                                       (char *) &v, sizeof(int64_t));
+                output->write(&output_record);
+                //mr->add_key_value((char *) &v1, sizeof(int64_t), 
+                //              (char *) &v, sizeof(int64_t));
+            }
         }
     }
 }
 
 // Compress KV with the sarank key
-void combiner(MapReduce * mr, const char *key, int keysize, 
-              const char *val1, int val1size, 
-              const char *val2, int val2size, void *ptr)
+void combiner(Combinable *combiner, KVRecord *kv1, KVRecord *kv2, void *ptr)
 {
-
-    mr->update_key_value(key, keysize, val1, val1size);
+    combiner->update(kv1);
 }
 
 // Rondom chosen a vertex in the CC part of the graph

@@ -12,6 +12,23 @@
 
 using namespace MIMIR_NS;
 
+class FileWriter : public BaseFileWriter {
+  public:
+    FileWriter(const char *filename) : BaseFileWriter(filename) {
+    }
+
+    void write(BaseRecordFormat *record) {
+        KVRecord *kv = (KVRecord*)record;
+        char *key = kv->get_key();
+        char *val = kv->get_val();
+#ifdef VALUE_STRING
+        fprintf(fp, "%s\t%s\n", key, val);
+#else
+        fprintf(fp, "%s\t%ld\n", key, *(int64_t*)(val));
+#endif
+    }
+};
+
 int rank, size;
 
 void map (Readable *input, Writable *output, void *ptr);
@@ -46,28 +63,23 @@ int main(int argc, char *argv[])
 
     check_envars(rank, size);
 
-    MimirContext context;
-//#ifndef KVHINT
-    context.set_key_length(-1);
-    context.set_val_length(sizeof(int64_t));
-//#endif
+    MimirContext mimir;
+#ifndef KVHINT
+    mimir.set_key_length(-1);
+#ifdef VALUE_STRING
+    mimir.set_val_length(-1);
+#else
+    mimir.set_val_length(sizeof(int64_t));
+#endif
+#endif
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(filedir);
     StringRecord::set_whitespace(" \n");
     FileReader<StringRecord> reader(splitinput);
-
-    KVContainer container;
-    context.set_map_callback(map);
-    context.set_reduce_callback(countword);
-    context.set_combine_callback(combine);
-    context.mapreduce(&reader, &container, NULL);
-
-    container.open();
-    KVRecord *record = NULL;
-    while ((record = container.read()) != NULL) {
-        printf("%s, %ld\n", record->get_key(),
-               *(int64_t*)record->get_val());
-    }
-    container.close();
+    FileWriter writer(outdir);
+    mimir.set_map_callback(map);
+    mimir.set_reduce_callback(countword);
+    mimir.set_combine_callback(combine);
+    mimir.mapreduce(&reader, &writer, NULL);
 
     output(rank, size, prefix, outdir);
 
@@ -118,7 +130,7 @@ void countword (Readable *input, Writable *output, void *ptr) {
         }
         KVRecord output_record(kmv->get_key(),
                                kmv->get_key_size(),
-                               (const char*)&count,
+                               (char*)&count,
                                (int)sizeof(count));
         output->write(&output_record);
     }
