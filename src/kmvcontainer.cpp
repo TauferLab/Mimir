@@ -1,3 +1,4 @@
+#include "globals.h"
 #include "kmvcontainer.h"
 
 using namespace MIMIR_NS;
@@ -8,7 +9,7 @@ void KMVContainer::convert(KVContainer *kv) {
 
     kv->open();
     ReducerUnique u;
-    KVRecord *record = kv->read();
+    KVRecord *record = (KVRecord*)(kv->read());
     while (record != NULL) {
         key = record->get_key();
         keybytes = record->get_key_size();
@@ -21,7 +22,7 @@ void KMVContainer::convert(KVContainer *kv) {
 
         h.insertElem(&u);
 
-        record = kv->read();
+        record = (KVRecord*)(kv->read());
     }
     kv->close();
 
@@ -57,18 +58,18 @@ void KMVContainer::convert(KVContainer *kv) {
 
         pset = h.NextSet();
     }
-
+    
     // Modify the pointers
     ReducerUnique *uq = h.BeginUnique();
     while (uq != NULL) {
 
         uq->lastset = uq->firstset;
-
+	kmvcount++;
         uq = h.NextUnique();
     }
-
+    
     kv->open();
-    record = kv->read();
+    record = (KVRecord*)kv->read();
     while (record != NULL) {
         key = record->get_key();
         keybytes = record->get_key_size();
@@ -90,7 +91,7 @@ void KMVContainer::convert(KVContainer *kv) {
             punique->lastset = punique->lastset->next;
         }
 
-        record = kv->read();
+        record = (KVRecord*)kv->read();
     }
     kv->close();
 

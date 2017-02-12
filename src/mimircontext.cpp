@@ -4,6 +4,7 @@
 #include "kmvcontainer.h"
 #include "collectiveshuffler.h"
 #include "combinecollectiveshuffler.h"
+#include "globals.h"
 
 using namespace MIMIR_NS;
 
@@ -12,6 +13,8 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
     KVContainer *kv = NULL;
     KMVContainer *kmv = NULL;
     Writable *map_output = output;
+    uint64_t record_count = 0;
+    uint64_t total_count = 0;
 
     if (user_map == NULL)
         LOG_ERROR("Please set map callback\n");
@@ -52,7 +55,7 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
         kmv = new KMVContainer();
         kmv->convert(kv);
         delete kv;
-        kmv->open();
+	kmv->open();
         output->open();
         user_reduce(kmv, output, ptr);
         output->close();
@@ -60,8 +63,11 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
         delete kmv;
     }
 
+    record_count = output->get_record_count();
+    MPI_Allreduce(&record_count, &total_count, 1, 
+		  MPI_INT64_T, MPI_SUM, mimir_world_comm);
+
     LOG_PRINT(DBG_GEN, "MapReduce: done\n");
 
-    return 0;
+    return total_count;
 }
-

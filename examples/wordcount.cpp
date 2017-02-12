@@ -26,6 +26,7 @@ class FileWriter : public BaseFileWriter {
 #else
         fprintf(fp, "%s\t%ld\n", key, *(int64_t*)(val));
 #endif
+	record_count++;
     }
 };
 
@@ -78,8 +79,12 @@ int main(int argc, char *argv[])
     FileWriter writer(outdir);
     mimir.set_map_callback(map);
     mimir.set_reduce_callback(countword);
+#ifdef COMBINE
     mimir.set_combine_callback(combine);
-    mimir.mapreduce(&reader, &writer, NULL);
+#endif
+    uint64_t nunique = mimir.mapreduce(&reader, &writer, NULL);
+
+    if(rank == 0) printf("unique words=%ld\n", nunique);
 
     output(rank, size, prefix, outdir);
 

@@ -86,7 +86,7 @@ int main(int argc, char **argv)
     mimir.set_reduce_callback(sum);
     mimir.set_shuffle_flag(true);
 #ifdef COMBINE
-    mimir->set_combine_callback(combiner);
+    mimir.set_combine_callback(combiner);
 #endif
 
     while ((min_limit + 1) != max_limit) {

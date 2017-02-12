@@ -15,6 +15,7 @@ class KMVContainer : public Container, public Readable {
         this->ksize = KTYPE;
         this->vsize = VTYPE;
         record.set_kv_size(ksize, vsize);
+	kmvcount = 0;
     }
 
     ~KMVContainer() {
@@ -24,7 +25,7 @@ class KMVContainer : public Container, public Readable {
         return true;
     }
 
-    virtual KMVRecord* read() {
+    virtual BaseRecordFormat* read() {
         if (u == NULL) {
             u = h.BeginUnique();
             if (u == NULL)
@@ -38,12 +39,11 @@ class KMVContainer : public Container, public Readable {
         return &record;
     }
 
-    virtual void add(const char *, int, const char *, int) {
-    }
-
     virtual void close() {
 
     }
+
+    virtual uint64_t get_record_count() { return kmvcount; }
 
     void convert(KVContainer *kv);
 
@@ -52,6 +52,7 @@ class KMVContainer : public Container, public Readable {
     ReducerHashBucket h;
     ReducerUnique *u;
     KMVRecord record;
+    uint64_t kmvcount;
 };
 
 }

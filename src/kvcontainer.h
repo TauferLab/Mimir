@@ -17,10 +17,10 @@ public:
 
     virtual bool open();
     virtual void close();
-    virtual KVRecord* read();
+    virtual BaseRecordFormat* read();
     virtual void write(BaseRecordFormat *record);
 
-    uint64_t get_kv_count() { return kvcount; }
+    virtual uint64_t get_record_count() { return kvcount; }
 
     int ksize, vsize;
 protected:

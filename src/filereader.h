@@ -36,7 +36,7 @@ class FileReader : public Readable {
     virtual ~FileReader() {
     }
 
-    bool open() {
+    virtual bool open() {
 
         if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
             bufsize = input->get_max_fsize();
@@ -58,10 +58,12 @@ class FileReader : public Readable {
         file_init();
         read_next_file();
 
+	record_count = 0;
+
         return true;
     }
 
-    void close() {
+    virtual void close() {
         mem_aligned_free(buffer);
         MPI_Status st;
         if (sreq != MPI_REQUEST_NULL) {
@@ -72,7 +74,9 @@ class FileReader : public Readable {
             mem_aligned_free(sbuffer);
     }
 
-    RecordFormat* read() {
+    virtual uint64_t get_record_count() { return record_count++; }
+
+    virtual RecordFormat* read() {
 
       if (state.seg_file == NULL)
             return NULL;
@@ -102,6 +106,7 @@ class FileReader : public Readable {
                     state.start_pos += record_size;
                     state.win_size -= record_size;
                 }
+		record_count ++;
                 return &record;
             }
             // ignore the last record
@@ -387,6 +392,8 @@ class FileReader : public Readable {
     int               tailsize;
     InputSplit       *input;
     RecordFormat      record;
+
+    uint64_t          record_count;
 
     MPI_Request       sreq, rreq;
 };

@@ -122,7 +122,8 @@ void CollectiveShuffler::save_data()
             record.set_buffer(src_buf);
             kvsize = record.get_record_size();
             out->write(&record);
-            src_buf += kvsize;
+	    kvcount++;
+	    src_buf += kvsize;
             count += kvsize;
         }
         int padding = recv_count[k] & ((0x1 << type_log_bytes) - 0x1);

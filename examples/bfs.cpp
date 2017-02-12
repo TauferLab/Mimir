@@ -221,7 +221,7 @@ int main(int argc, char **argv)
         fprintf(stdout, "Traversal start. (root=%ld)\n", root);
 
 #ifdef COMBINE
-    mr->set_combine_callback(combiner);
+    mimir.set_combine_callback(combiner);
 #endif
 
     // Inialize the child  vertexes of root
@@ -304,7 +304,7 @@ void countedge(KVContainer *edges)
 {
     edges->open();
     KVRecord *edge = NULL;
-    while ((edge = edges->read()) != NULL) {
+    while ((edge = (KVRecord*)(edges->read())) != NULL) {
         nlocaledges += 1;
         int64_t v0 = *(int64_t *) edge->get_key();
         rowstarts[v0 - nvertoffset + 1] += 1;
@@ -348,7 +348,7 @@ void makegraph(KVContainer *edges)
     edges->open();
 
     KVRecord *edge = NULL;
-    while ((edge = edges->read()) != NULL) {
+    while ((edge = (KVRecord*)(edges->read())) != NULL) {
         int64_t v0, v0_local, v1;
         v0 = *(int64_t *) edge->get_key();
         v0_local = v0 - nvertoffset;

@@ -33,7 +33,7 @@ void KVContainer::close() {
     return;
 }
 
-KVRecord* KVContainer::read() {
+BaseRecordFormat* KVContainer::read() {
     char *ptr;
     int kvsize;
 

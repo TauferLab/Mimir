@@ -15,6 +15,7 @@ public:
         this->user_hash = user_hash;
         done_flag = 0;
         done_count = 0;
+	kvcount = 0;
     }
     virtual ~BaseShuffler() {
     }
@@ -22,6 +23,7 @@ public:
     virtual bool open() = 0;
     virtual void write(BaseRecordFormat *) = 0;
     virtual void close() = 0;
+    virtual uint64_t get_record_count() { return 0; }
 
 protected:
     int get_target_rank(const char *key, int keysize) {
@@ -46,6 +48,8 @@ protected:
     Writable *out;
 
     int done_flag, done_count;
+
+    uint64_t kvcount;
 };
 
 }

@@ -21,23 +21,31 @@ class BaseFileWriter : public Writable {
         this->filename = filename + oss.str();
     }
 
-    bool open() {
+    virtual bool open() {
         fp = fopen(filename.c_str(), "w");
         if (!fp) {
             LOG_ERROR("Open file %s error!\n", filename.c_str());
         }
-        return true;
+	record_count = 0;
+        LOG_PRINT(DBG_IO, "Open output file %s.\n", filename.c_str());	
+	return true;
     }
 
-    void close() {
-        fclose(fp);
+    virtual void close() {
+        LOG_PRINT(DBG_IO, "Close output file %s.\n", filename.c_str());	
+    	fclose(fp);
     }
 
-    void write(BaseRecordFormat *) = 0;
+    virtual void write(BaseRecordFormat *) {
+	 record_count++;
+    }
+
+    virtual uint64_t get_record_count() { return record_count; }
 
   protected:
     std::string filename;
     FILE *fp;
+    uint64_t record_count;
 };
 
 }
