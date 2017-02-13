@@ -150,7 +150,7 @@ class KVRecord : public BaseRecordFormat {
             else if (ktype == KVString)
                 return (int)strlen(get_key()) + 1;
             else
-                return keysize;
+                return ktype;
         } else {
             return keysize;
         }
