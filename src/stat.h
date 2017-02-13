@@ -1,10 +1,9 @@
-/**
- * @file   mapreduce.h
- * @Author Tao Gao (taogao@udel.edu)
- * @date   September 1st, 2016
- * @brief  This file provides interfaces to application programs.
+/*
+ * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
+ *     Supercomputer Center, National University of Defense Technology, 
+ *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
  *
- * This file includes two classes: MapReduce and MultiValueIter.
+ *     See COPYRIGHT in top-level directory.
  */
 #ifndef STAT_H
 #define STAT_H
