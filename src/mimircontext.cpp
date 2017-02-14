@@ -11,6 +11,7 @@
 #include "kmvcontainer.h"
 #include "collectiveshuffler.h"
 #include "combinecollectiveshuffler.h"
+#include "filereader.h"
 #include "globals.h"
 
 using namespace MIMIR_NS;
@@ -41,12 +42,16 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
             c = new CombineCollectiveShuffler(user_combine, ptr,
                                               map_output, user_hash);
         map_output->open();
-        input->open();
-        c->open();
-        user_map(input, c, ptr);
-        c->close();
-        input->close();
-        map_output->close();
+	c->open();
+	if (input->get_object_name() == "FileReader") {
+	    FileReader<ByteRecord> *reader = (FileReader<ByteRecord>*)input;
+	    reader->set_shuffler(c);
+	}
+	input->open();
+	user_map(input, c, ptr);
+	c->close();
+	input->close();
+  	map_output->close();
         delete c;
     } else{
         map_output->open();

@@ -28,6 +28,8 @@ class BaseFileWriter : public Writable {
         this->filename = filename + oss.str();
     }
 
+    std::string get_object_name() { return "FileWriter"; }
+
     virtual bool open() {
         fp = fopen(filename.c_str(), "w");
         if (!fp) {

@@ -59,6 +59,14 @@ bool CollectiveShuffler::open() {
 ;
     a2a_r_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
 ;
+    for (int i = 0; i < mimir_world_size; i++) {
+        send_offset[i] = 0;
+	recv_count[i] = 0;
+	a2a_s_count[i] = 0;
+	a2a_s_displs[i] = 0;
+	a2a_r_count[i] = 0;
+	a2a_r_displs[i] = 0;
+    }
 
     MPI_Type_contiguous((0x1 << type_log_bytes), MPI_BYTE, &comm_type);
     MPI_Type_commit(&comm_type);

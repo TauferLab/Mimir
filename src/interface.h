@@ -8,6 +8,7 @@
 #ifndef MIMIR_INTERFACE_H
 #define MIMIR_INTERFACE_H
 
+#include <string>
 #include "recordformat.h"
 
 namespace MIMIR_NS {
@@ -18,6 +19,9 @@ class Base {
     virtual bool open() = 0;
     virtual void close() = 0;
     virtual uint64_t get_record_count() = 0; 
+    virtual std::string get_object_name() { 
+        return std::string("Unknown"); 
+    }
 };
 
 class Readable : public Base {

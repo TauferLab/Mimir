@@ -22,6 +22,8 @@ public:
     KVContainer();
     virtual ~KVContainer();
 
+    std::string get_object_name() { return "KVContainer"; }
+
     virtual bool open();
     virtual void close();
     virtual BaseRecordFormat* read();

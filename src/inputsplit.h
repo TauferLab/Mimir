@@ -56,8 +56,8 @@ class InputSplit {
         FileSeg *fileseg = NULL;
 
         while ((fileseg = get_next_file()) != NULL) {
-            if (fileseg->segsize > max_fsize)
-                max_fsize = fileseg->segsize;
+            if (fileseg->maxsegsize > max_fsize)
+                max_fsize = fileseg->maxsegsize;
         }
 
         return max_fsize;

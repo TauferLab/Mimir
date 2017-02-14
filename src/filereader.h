@@ -18,6 +18,7 @@
 #include "log.h"
 #include "inputsplit.h"
 #include "interface.h"
+#include "baseshuffler.h"
 #include "baserecordformat.h"
 
 namespace MIMIR_NS {
@@ -43,7 +44,15 @@ class FileReader : public Readable {
     virtual ~FileReader() {
     }
 
+    std::string get_object_name() { return "FileReader"; }
+
+    void set_shuffler(BaseShuffler *shuffler) {
+        this->shuffler = shuffler;
+    }
+
     virtual bool open() {
+
+        LOG_PRINT(DBG_IO, "Filereader open.\n");
 
         if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
             bufsize = input->get_max_fsize();
@@ -61,6 +70,9 @@ class FileReader : public Readable {
 
         sreq = MPI_REQUEST_NULL;
 	rreq = MPI_REQUEST_NULL;
+	creq = MPI_REQUEST_NULL;
+
+	record = new RecordFormat();
 
         file_init();
         read_next_file();
@@ -71,14 +83,21 @@ class FileReader : public Readable {
     }
 
     virtual void close() {
+	delete record;
+
         mem_aligned_free(buffer);
         MPI_Status st;
+	if (creq != MPI_REQUEST_NULL) {
+	    MPI_Wait(&creq, &st);
+	    creq = MPI_REQUEST_NULL;
+	}
         if (sreq != MPI_REQUEST_NULL) {
             MPI_Wait(&sreq, &st);
             sreq = MPI_REQUEST_NULL;
         }
 	if (sbuffer != NULL)
             mem_aligned_free(sbuffer);
+        LOG_PRINT(DBG_IO, "Filereader close.\n");
     }
 
     virtual uint64_t get_record_count() { return record_count++; }
@@ -99,12 +118,12 @@ class FileReader : public Readable {
             }
 
             char *ptr = buffer + state.start_pos;
-            record.set_buffer(ptr);
+            record->set_buffer(ptr);
 
             bool islast = is_last_block();
             if(state.win_size > 0
-               && record.has_full_record(ptr, state.win_size, islast)) {
-                int record_size = record.get_record_size();
+               && record->has_full_record(ptr, state.win_size, islast)) {
+                int record_size = record->get_record_size();
                 if ((uint64_t)record_size >= state.win_size) {
                     state.win_size = 0;
                     state.start_pos = 0;
@@ -114,7 +133,7 @@ class FileReader : public Readable {
                     state.win_size -= record_size;
                 }
 		record_count ++;
-                return &record;
+                return record;
             }
             // ignore the last record
             else if (islast) {
@@ -165,7 +184,7 @@ class FileReader : public Readable {
         FileSeg *segfile = state.seg_file;
         if (segfile->startpos + segfile->segsize < segfile->filesize) {
             state.has_tail = true;
-            recv_start();
+            //recv_start();
         }
         else
             state.has_tail = false;
@@ -220,7 +239,8 @@ class FileReader : public Readable {
         // recv tail from next process
         if (state.read_size == state.seg_file->segsize 
             && state.has_tail) {
-            int count = recv_tail(buffer + state.win_size, bufsize);
+            recv_start();
+	    int count = recv_tail(buffer + state.win_size, bufsize);
             state.win_size += count;
             state.has_tail = false;
         }
@@ -252,56 +272,61 @@ class FileReader : public Readable {
 
     int send_tail(char *buffer, uint64_t bufsize) {
         //MPI_Status st;
-        int count = 0;
 
         FileSeg* seg_file = state.seg_file;
 
         if (seg_file->startpos > 0) {
-            while ((uint64_t)count < bufsize 
-                   && !BaseRecordFormat::is_seperator(*(buffer + count))) {
-                count++;
+            while ((uint64_t)stailsize < bufsize 
+                   && !BaseRecordFormat::is_seperator(*(buffer + stailsize))) {
+                stailsize++;
             }
-            if (count < 0)
+            if (stailsize < 0)
                 LOG_ERROR("Error: header size is larger than max value of int!\n");
-            if ((uint64_t)count >= bufsize
+            if ((uint64_t)stailsize >= bufsize
                 && seg_file->startpos + bufsize < seg_file->filesize)
                 LOG_ERROR("Error: cannot find header at the first buffer (bufsize=%ld)!\n", bufsize);
         }
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        MPI_Send(&count, 1, MPI_INT, mimir_world_rank - 1, COUNT_TAG, mimir_world_comm);
+        //int count = 0;
+	MPI_Isend(&stailsize, 1, MPI_INT, mimir_world_rank - 1, 
+		  COUNT_TAG, mimir_world_comm, &creq);
         TRACKER_RECORD_EVENT(EVENT_COMM_SEND);
 
-        if (count != 0) {
-            sbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, count);
-            memcpy(sbuffer, buffer, count);
-            MPI_Isend(sbuffer, count, MPI_BYTE, mimir_world_rank - 1, 
+        if (stailsize != 0) {
+            sbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, stailsize);
+            memcpy(sbuffer, buffer, stailsize);
+            MPI_Isend(sbuffer, stailsize, MPI_BYTE, mimir_world_rank - 1, 
                       DATA_TAG, mimir_world_comm, &sreq);
             TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
-            //MPI_Wait(&sreq, &st);
-            //TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
-            //sreq = MPI_REQUEST_NULL;
         }
 
         LOG_PRINT(DBG_IO, "Send tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
-                  state.seg_file->startpos, count);
+                  state.seg_file->startpos, stailsize);
 
-        return count;
+        return stailsize;
     }
 
     void recv_start() {
         MPI_Status st;
+        MPI_Request req;
+        int flag = 0;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        MPI_Recv(&tailsize, 1, MPI_INT, mimir_world_rank + 1, 
-                 COUNT_TAG, mimir_world_comm, &st);
+        MPI_Irecv(&rtailsize, 1, MPI_INT, mimir_world_rank + 1, 
+                 COUNT_TAG, mimir_world_comm, &req);
+        while (1) {
+            MPI_Test(&req, &flag, &st);
+            if (flag) break;
+            shuffler->make_progress();
+        };
         TRACKER_RECORD_EVENT(EVENT_COMM_RECV);
 
-        if (tailsize != 0) {
+        if (rtailsize != 0) {
             rbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE,
-                                                tailsize);
-            MPI_Irecv(rbuffer, tailsize, MPI_BYTE, mimir_world_rank + 1,
+                                                rtailsize);
+            MPI_Irecv(rbuffer, rtailsize, MPI_BYTE, mimir_world_rank + 1,
                       DATA_TAG, mimir_world_comm, &rreq);
             TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
         }
@@ -309,6 +334,7 @@ class FileReader : public Readable {
 
     int recv_tail(char *buffer, uint64_t bufsize){
         MPI_Status st;
+	int flag = 0;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
@@ -318,17 +344,19 @@ class FileReader : public Readable {
 
         //MPI_Get_count(&st, MPI_BYTE, &count);
 
-        if(tailsize != 0) {
-            memcpy(buffer, rbuffer, tailsize);
-            mem_aligned_free(rbuffer);
+        if(rtailsize != 0) {
+    	    if ((uint64_t)rtailsize > bufsize)
+	        LOG_ERROR("tail size %d is larger than buffer size %ld\n", rtailsize, bufsize);
+	    memcpy(buffer, rbuffer, rtailsize);
+	    mem_aligned_free(rbuffer);
         }
 
         LOG_PRINT(DBG_IO, "Recv tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
                   state.seg_file->startpos + state.seg_file->segsize, 
-                  tailsize);
+                  rtailsize);
 
-        return tailsize;
+        return rtailsize;
     }
 
     virtual void file_init(){
@@ -396,13 +424,15 @@ class FileReader : public Readable {
     uint64_t          bufsize;
     char             *sbuffer;
     char             *rbuffer;
-    int               tailsize;
+    int               stailsize;
+    int               rtailsize;
     InputSplit       *input;
-    RecordFormat      record;
+    RecordFormat     *record;
 
+    BaseShuffler     *shuffler;
     uint64_t          record_count;
 
-    MPI_Request       sreq, rreq;
+    MPI_Request       sreq, rreq, creq;
 };
 
 template <typename RecordFormat>
