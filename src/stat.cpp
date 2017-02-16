@@ -40,6 +40,8 @@ const char *counter_str[COUNTER_NUM] = {
     "file_count",
     "file_size",
     "max_file",
+    "send_tail",
+    "recv_tail",
     "max_pages",
     "reduce_bucket",
     "combine_bucket",

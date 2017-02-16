@@ -57,7 +57,9 @@ class FileReader : public Readable {
         if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
             bufsize = input->get_max_fsize();
         else
-            bufsize = INPUT_BUF_SIZE;
+	     bufsize = INPUT_BUF_SIZE;
+
+	PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t) input->get_max_fsize(), OPMAX);
 
         buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE,
                                             bufsize + MAX_RECORD_SIZE + 1);
@@ -67,6 +69,12 @@ class FileReader : public Readable {
         state.start_pos = 0;
         state.win_size = 0;
         state.has_tail = false;
+
+	sbuffer = NULL;
+	rbuffer = NULL;
+
+	stailsize = 0;
+	rtailsize = 0;
 
         sreq = MPI_REQUEST_NULL;
 	rreq = MPI_REQUEST_NULL;
@@ -300,6 +308,8 @@ class FileReader : public Readable {
                       DATA_TAG, mimir_world_comm, &sreq);
             TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
         }
+	
+	PROFILER_RECORD_COUNT(COUNTER_SEND_TAIL, (uint64_t) stailsize, OPSUM);
 
         LOG_PRINT(DBG_IO, "Send tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
@@ -330,6 +340,8 @@ class FileReader : public Readable {
                       DATA_TAG, mimir_world_comm, &rreq);
             TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
         }
+
+	PROFILER_RECORD_COUNT(COUNTER_RECV_TAIL, (uint64_t) rtailsize, OPSUM);
     }
 
     int recv_tail(char *buffer, uint64_t bufsize){

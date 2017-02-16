@@ -17,24 +17,4 @@
 
 using namespace MIMIR_NS;
 
-#if 0
-int Container::object_id = 0;
-int64_t Container::mem_bytes = 0;
-
-void Container::addRef(Container *data)
-{
-    if (data)
-        data->ref++;
-}
-
-void Container::subRef(Container *data)
-{
-    if (data) {
-        data->ref--;
-        if (data->ref == 0) {
-            delete data;
-            data = NULL;
-        }
-    }
-}
-#endif
+uint64_t Container::mem_bytes = 0;

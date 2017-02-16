@@ -12,6 +12,7 @@
 #include "collectiveshuffler.h"
 #include "combinecollectiveshuffler.h"
 #include "filereader.h"
+#include "stat.h"
 #include "globals.h"
 
 using namespace MIMIR_NS;
@@ -75,11 +76,13 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
         delete kmv;
     }
 
-    record_count = output->get_record_count();
-    MPI_Allreduce(&record_count, &total_count, 1, 
-		  MPI_INT64_T, MPI_SUM, mimir_world_comm);
+    //PROFILER_RECORD_TIME_START;
+    //record_count = output->get_record_count();
+    //MPI_Allreduce(&record_count, &total_count, 1, 
+    //		  MPI_INT64_T, MPI_SUM, mimir_world_comm);
+    //PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
     LOG_PRINT(DBG_GEN, "MapReduce: done\n");
 
-    return total_count;
+    return output->get_record_count();
 }

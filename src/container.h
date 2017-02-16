@@ -15,6 +15,7 @@
 #include "log.h"
 #include "const.h"
 #include "memory.h"
+#include "stat.h"
 
 namespace MIMIR_NS {
 
@@ -30,11 +31,15 @@ public:
     Container(DataType datatype = ByteType) {
         this->datatype = datatype;
         pagesize = DATA_PAGE_SIZE;
-        //id = ref = 0;
-        //id = Container::object_id++;
     }
 
     virtual ~Container() {
+        for (size_t i = 0; i < groups.size(); i++) {
+            for (size_t j = 0; j < groups[i].pages.size(); j++) {
+                mem_aligned_free(groups[i].pages[j].buffer);
+                Container::mem_bytes -= pagesize;		
+	    }
+	}
     }
 
     Page* get_page(int pageid, int groupid=0) {
@@ -55,28 +60,12 @@ public:
         Page page;
         page.datasize = 0;
         page.buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
+	Container::mem_bytes += pagesize;
+	PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, Container::mem_bytes, OPMAX);
         groups[groupid].pages.push_back(page);
         pageid = (int)groups[groupid].pages.size() - 1;
         return &groups[groupid].pages[pageid];
     }
-
-#if 0
-    Page* get_next_page() {
-        while (groupid < get_group_count()) {
-            if (pageid >= get_page_count(groupid)) {
-                groupid ++;
-                pageid = 0;
-                continue;
-            }
-            Page *page = get_page(groupid, pageid);
-            pageid ++;
-            return page;
-        }
-        groupid = 0;
-        pageid = 0;
-        return NULL;
-    }
-#endif
 
     int get_group_count() {
         return (int)groups.size();
@@ -95,7 +84,6 @@ public:
 protected:
     int64_t  pagesize;
     DataType datatype;
-    //int id, ref;
 
 private:
     struct Group {
@@ -103,11 +91,8 @@ private:
     };
     std::vector<Group> groups;
 
-//public:
-//    static int object_id;
-//    static int64_t mem_bytes;
-//    static void addRef(Container*);
-//    static void subRef(Container*);
+public:
+    static uint64_t mem_bytes;
 };
 
 }
