@@ -8,18 +8,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "log.h"
-#include "config.h"
-#include "combinecollectiveshuffler.h"
-#include "const.h"
-#include "memory.h"
-#include "kvcontainer.h"
-
-#include "globals.h"
-#include "hash.h"
 #include "stat.h"
-#include "log.h"
-
+#include "config.h"
+#include "globals.h"
+#include "memory.h"
+#include "hash.h"
+#include "kvcontainer.h"
 #include "recordformat.h"
+#include "combinecollectiveshuffler.h"
+
 
 using namespace MIMIR_NS;
 

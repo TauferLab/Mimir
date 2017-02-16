@@ -13,7 +13,7 @@
 
 #include "log.h"
 #include "memory.h"
-#include "const.h"
+#include "globals.h"
 
 #include <malloc.h>
 #ifdef BGQ

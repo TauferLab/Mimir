@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "log.h"
-#include "const.h"
+#include "globals.h"
 #include "memory.h"
 #include "stat.h"
 

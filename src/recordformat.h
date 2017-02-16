@@ -8,7 +8,7 @@
 #ifndef RECORD_FORMAT_H
 #define RECORD_FORMAT_H
 
-#include "const.h"
+#include "globals.h"
 #include "hashbucket.h"
 #include "baserecordformat.h"
 

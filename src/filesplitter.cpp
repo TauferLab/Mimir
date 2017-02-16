@@ -5,10 +5,9 @@
  *
  *     See COPYRIGHT in top-level directory.
  */
-#include "globals.h"
-#include "config.h"
-#include "const.h"
 #include "log.h"
+#include "config.h"
+#include "globals.h"
 #include "filesplitter.h"
 
 using namespace MIMIR_NS;

@@ -8,7 +8,6 @@
 #include <string.h>
 #include <string>
 #include "log.h"
-#include "const.h"
 #include "kvcontainer.h"
 #include "recordformat.h"
 

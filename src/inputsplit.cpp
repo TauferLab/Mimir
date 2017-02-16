@@ -11,8 +11,7 @@
 #include <dirent.h>
 
 #include "log.h"
-#include "const.h"
-
+#include "globals.h"
 #include "inputsplit.h"
 
 using namespace MIMIR_NS;

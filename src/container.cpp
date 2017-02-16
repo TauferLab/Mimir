@@ -7,13 +7,8 @@
  */
 #include <string.h>
 #include <sys/stat.h>
-#include "container.h"
 #include <mpi.h>
-#include "log.h"
-#include "config.h"
-#include "const.h"
-#include "memory.h"
-#include "stat.h"
+#include "container.h"
 
 using namespace MIMIR_NS;
 

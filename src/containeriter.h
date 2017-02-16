@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <string.h>
 #include "log.h"
-#include "const.h"
 #include "memory.h"
 #include "container.h"
 

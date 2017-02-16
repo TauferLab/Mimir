@@ -7,12 +7,11 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include "hashbucket.h"
-#include "const.h"
+#include "stat.h"
 #include "hash.h"
 #include "memory.h"
-#include "stat.h"
 #include "recordformat.h"
+#include "hashbucket.h"
 
 using namespace MIMIR_NS;
 

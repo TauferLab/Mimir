@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "const.h"
+#include "globals.h"
 #include "hash.h"
 #include "memory.h"
 //#include "kvcontainer.h"

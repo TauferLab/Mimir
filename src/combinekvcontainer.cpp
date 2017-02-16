@@ -7,10 +7,9 @@
  */
 #include <string.h>
 #include <string>
-#include "combinekvcontainer.h"
 #include "log.h"
-#include "const.h"
 #include "recordformat.h"
+#include "combinekvcontainer.h"
 
 using namespace MIMIR_NS;
 

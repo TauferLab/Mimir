@@ -10,21 +10,17 @@
 
 #include <mpi.h>
 
-#include "globals.h"
-#include "const.h"
-#include "memory.h"
-#include "config.h"
-#include "stat.h"
 #include "log.h"
+#include "stat.h"
+#include "config.h"
+#include "globals.h"
+#include "memory.h"
 #include "inputsplit.h"
 #include "interface.h"
 #include "baseshuffler.h"
 #include "baserecordformat.h"
 
 namespace MIMIR_NS {
-
-#define COUNT_TAG     0xaa
-#define  DATA_TAG     0xbb
 
 enum IOTYPE{MIMIR_STDC_IO, MIMIR_MPI_IO, MIMIR_COLLEC_IO};
 
