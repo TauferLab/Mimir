@@ -31,4 +31,6 @@ extern int RECORD_PEAKMEM;
 
 extern int KTYPE, VTYPE;
 
+extern int SHUFFLE_TYPE;
+
 #endif

@@ -294,14 +294,14 @@ class FileReader : public Readable {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         //int count = 0;
 	MPI_Isend(&stailsize, 1, MPI_INT, mimir_world_rank - 1, 
-		  COUNT_TAG, mimir_world_comm, &creq);
+		  READER_COUNT_TAG, mimir_world_comm, &creq);
         TRACKER_RECORD_EVENT(EVENT_COMM_SEND);
 
         if (stailsize != 0) {
             sbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, stailsize);
             memcpy(sbuffer, buffer, stailsize);
             MPI_Isend(sbuffer, stailsize, MPI_BYTE, mimir_world_rank - 1, 
-                      DATA_TAG, mimir_world_comm, &sreq);
+                      READER_DATA_TAG, mimir_world_comm, &sreq);
             TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
         }
 	
@@ -321,7 +321,7 @@ class FileReader : public Readable {
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         MPI_Irecv(&rtailsize, 1, MPI_INT, mimir_world_rank + 1, 
-                 COUNT_TAG, mimir_world_comm, &req);
+                  READER_COUNT_TAG, mimir_world_comm, &req);
         while (1) {
             MPI_Test(&req, &flag, &st);
             if (flag) break;
@@ -333,7 +333,7 @@ class FileReader : public Readable {
             rbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE,
                                                 rtailsize);
             MPI_Irecv(rbuffer, rtailsize, MPI_BYTE, mimir_world_rank + 1,
-                      DATA_TAG, mimir_world_comm, &rreq);
+                      READER_DATA_TAG, mimir_world_comm, &rreq);
             TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
         }
 
@@ -342,7 +342,6 @@ class FileReader : public Readable {
 
     int recv_tail(char *buffer, uint64_t bufsize){
         MPI_Status st;
-	int flag = 0;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 

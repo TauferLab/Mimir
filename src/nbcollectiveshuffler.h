@@ -5,8 +5,8 @@
  *
  *     See COPYRIGHT in top-level directory.
  */
-#ifndef MIMIR_COLLECTIVE_SHUFFLER_H
-#define MIMIR_COLLECTIVE_SHUFFLER_H
+#ifndef MIMIR_NB_COLLECTIVE_SHUFFLER_H
+#define MIMIR_NB_COLLECTIVE_SHUFFLER_H
 
 #include <mpi.h>
 #include <vector>
@@ -16,19 +16,26 @@
 
 namespace MIMIR_NS {
 
-class CollectiveShuffler : public BaseShuffler {
+class NBCollectiveShuffler : public BaseShuffler {
 public:
-    CollectiveShuffler(Writable *out, HashCallback user_hash);
-    virtual ~CollectiveShuffler();
+    NBCollectiveShuffler(Writable *out, HashCallback user_hash);
+    virtual ~NBCollectiveShuffler();
 
     virtual bool open();
     virtual void close();
     virtual void write(BaseRecordFormat *record);
-    virtual void make_progress() { exchange_kv(); }
+    virtual void make_progress() {
+        if(done_kv_exchange())
+            start_kv_exchange();
+        push_kv_exchange();
+    }
 
 protected:
     void wait();
-    void exchange_kv();
+    void start_kv_exchange();
+    void push_kv_exchange();
+    bool done_kv_exchange();
+    void pull_done_flag();
     void save_data();
 
     int64_t buf_size;
@@ -40,12 +47,17 @@ protected:
     int *a2a_r_count;
     int *a2a_r_displs;
 
-    char *send_buffer;
-    int  *send_offset;
+    int  cur_idx, pre_idx, buf_count;
+    std::vector<char*> send_buffers;
+    std::vector<int*>  send_offsets;
     char *recv_buffer;
     int  *recv_count;
 
     KVRecord kv;
+
+    MPI_Request done_req;
+    MPI_Request a2a_req;
+    MPI_Request a2av_req;
 };
 
 }

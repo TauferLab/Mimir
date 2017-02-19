@@ -53,7 +53,9 @@ extern char timestr[];
 #define TIMER_COMM_A2A             2    // MPI_Alltoall
 #define TIMER_COMM_A2AV            3    // MPI_Alltoallv
 #define TIMER_COMM_RDC             4    // MPI_Allreduce
-#define TIMER_NUM                  5
+#define TIMER_COMM_IA2A            5    // MPI_Ialltoall
+#define TIMER_COMM_IA2AV           6    // MPI_Ialltoallv
+#define TIMER_NUM                  7
 
 
 // Counters
@@ -89,6 +91,8 @@ extern char timestr[];
 #define EVENT_COMM_ALLTOALL        "event_comm_alltoall"        // MPI_Alltoall
 #define EVENT_COMM_ALLTOALLV       "event_comm_alltoallv"       // MPI_Alltoallv
 #define EVENT_COMM_ALLREDUCE       "event_comm_allreduce"       // MPI_Allreduce
+#define EVENT_COMM_IALLTOALL       "event_comm_ialltoall"       // MPI_Alltoall
+#define EVENT_COMM_IALLTOALLV      "event_comm_ialltoallv"      // MPI_Alltoallv
 #define EVENT_COMM_SEND            "event_comm_send"            // MPI_Send
 #define EVENT_COMM_RECV            "event_comm_recv"            // MPI_Recv
 #define EVENT_COMM_ISEND           "event_comm_isend"           // MPI_Isend
