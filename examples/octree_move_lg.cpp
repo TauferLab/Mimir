@@ -82,8 +82,10 @@ int main(int argc, char **argv)
     KVContainer octkeys;
     mimir.set_map_callback(generate_octkey);
     mimir.set_shuffle_flag(false);
-    uint64_t nwords = mimir.mapreduce(&reader, &octkeys);
-
+    uint64_t ret = mimir.mapreduce(&reader, &octkeys);
+    uint64_t nwords = 0;
+    MPI_Allreduce(&ret, &nwords, 1, MPI_UINT64_T, 
+                  MPI_SUM, MPI_COMM_WORLD);
     thresh = (int64_t) ((float) nwords * density);
     if (rank == 0) {
         printf("Command line: input path=%s, thresh=%ld\n", indir, thresh);
@@ -102,7 +104,10 @@ int main(int argc, char **argv)
         mimir.set_value_length(sizeof(int64_t));
 #endif
         KVContainer loctkeys;
-        uint64_t nkv = mimir.mapreduce(&octkeys, &loctkeys);
+        uint64_t ret = mimir.mapreduce(&octkeys, &loctkeys);
+        uint64_t nkv = 0;
+        MPI_Allreduce(&ret, &nkv, 1, MPI_UINT64_T, 
+                      MPI_SUM, MPI_COMM_WORLD);
 
         if (nkv > 0) {
             min_limit = level;

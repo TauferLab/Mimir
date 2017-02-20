@@ -119,8 +119,6 @@ void *mem_aligned_malloc(size_t alignment, size_t size)
     size_t align_size = (size + alignment - 1) / alignment * alignment;
     int err = posix_memalign(&ptr, alignment, align_size);
 
-    //ptr=malloc(align_size);
-
     if (err != 0) {
         int64_t memsize = get_mem_usage();
         LOG_ERROR("Error: malloc memory error %d (align=%ld; size=%ld; \
@@ -130,8 +128,7 @@ void *mem_aligned_malloc(size_t alignment, size_t size)
 
     if (RECORD_PEAKMEM == 1) {
         int64_t vmsize = get_mem_usage();
-        if (vmsize > peakmem)
-            peakmem = vmsize;
+        if (vmsize > peakmem) peakmem = vmsize;
     }
 
     return ptr;
@@ -140,12 +137,6 @@ void *mem_aligned_malloc(size_t alignment, size_t size)
 void *mem_aligned_free(void *ptr)
 {
     free(ptr);
-
-    if (RECORD_PEAKMEM == 1) {
-        int64_t vmsize = get_mem_usage();
-        if (vmsize > peakmem)
-            peakmem = vmsize;
-    }
 
     return NULL;
 }

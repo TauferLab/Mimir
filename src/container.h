@@ -38,8 +38,8 @@ public:
             for (size_t j = 0; j < groups[i].pages.size(); j++) {
                 mem_aligned_free(groups[i].pages[j].buffer);
                 Container::mem_bytes -= pagesize;		
-	    }
-	}
+            }
+        }
     }
 
     Page* get_page(int pageid, int groupid=0) {

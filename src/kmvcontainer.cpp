@@ -14,6 +14,8 @@ void KMVContainer::convert(KVContainer *kv) {
     const char *key, *value;
     int keybytes, valuebytes;
 
+    LOG_PRINT(DBG_GEN, "MapReduce: convert start.\n");
+
     kv->open();
     ReducerUnique u;
     KVRecord *record = (KVRecord*)(kv->read());
@@ -33,17 +35,22 @@ void KMVContainer::convert(KVContainer *kv) {
     }
     kv->close();
 
-    // Set pointers to hold MVs
     char *page_buf = NULL;
     int64_t page_off = 0;
     Page *page = NULL;
     int page_id = 0;
     ReducerSet *pset = h.BeginSet();
+    if (pset != NULL) {
+        page = add_page();
+        page_buf = page->buffer;
+        page_off = 0;
+    }
     while (pset != NULL) {
-        if (page_buf == NULL || page_id != pset->pid) {
+        if (page_id != pset->pid) {
             page = add_page();
             page_buf = page->buffer;
             page_off = 0;
+            page_id ++;
          }
 
         if (kv->vsize == KVGeneral) {
@@ -65,8 +72,7 @@ void KMVContainer::convert(KVContainer *kv) {
 
         pset = h.NextSet();
     }
-    
-    // Modify the pointers
+
     ReducerUnique *uq = h.BeginUnique();
     while (uq != NULL) {
 
@@ -74,7 +80,7 @@ void KMVContainer::convert(KVContainer *kv) {
 	kmvcount++;
         uq = h.NextUnique();
     }
-    
+
     kv->open();
     record = (KVRecord*)kv->read();
     while (record != NULL) {

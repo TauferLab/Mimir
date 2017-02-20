@@ -74,7 +74,7 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
     }
 
     if (user_reduce != NULL) {
-        LOG_PRINT(DBG_GEN, "MapReduce: reduce start\n");
+        LOG_PRINT(DBG_GEN, "MapReduce: reduce start, %ld\n", Container::mem_bytes);
 
         kmv = new KMVContainer();
         kmv->convert(kv);

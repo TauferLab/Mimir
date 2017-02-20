@@ -91,7 +91,10 @@ int main(int argc, char *argv[])
 #endif
     uint64_t nunique = mimir.mapreduce(&reader, &writer, NULL);
 
-    if(rank == 0) printf("unique words=%ld\n", nunique);
+    uint64_t total_nunique = 0;
+    MPI_Reduce(&nunique, &total_nunique, 1, 
+               MPI_INT64_T, MPI_SUM, 0, MPI_COMM_WORLD);
+    if(rank == 0) printf("total unique words=%ld\n", total_nunique);
 
     output(rank, size, prefix, outdir);
 

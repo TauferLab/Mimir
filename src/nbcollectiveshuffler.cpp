@@ -65,7 +65,7 @@ bool NBCollectiveShuffler::open() {
 ;
     for (int i = 0; i < mimir_world_size; i++) {
         for (int j = 0; j < buf_count; j++)
-            send_offsets[i][j] = 0;
+            send_offsets[j][i] = 0;
 	recv_count[i] = 0;
 	a2a_s_count[i] = 0;
 	a2a_s_displs[i] = 0;
@@ -80,7 +80,7 @@ bool NBCollectiveShuffler::open() {
     a2a_req = MPI_REQUEST_NULL;
     a2av_req = MPI_REQUEST_NULL;
 
-    LOG_PRINT(DBG_GEN, "CollectiveShuffler open: buf_size=%ld\n", buf_size);
+    LOG_PRINT(DBG_GEN, "NBCollectiveShuffler open: buf_size=%ld\n", buf_size);
 
     return true;
 }
@@ -102,7 +102,7 @@ void NBCollectiveShuffler::close() {
         mem_aligned_free(send_offsets[i]);
     }
 
-    LOG_PRINT(DBG_GEN, "CollectiveShuffler close.\n");
+    LOG_PRINT(DBG_GEN, "NBCollectiveShuffler close.\n");
 
 }
 
@@ -115,8 +115,6 @@ void NBCollectiveShuffler::write(BaseRecordFormat *record)
     if (kvsize > buf_size)
         LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                   kvsize, buf_size);
-
-    printf("target=%d, kvsize=%d, cur_idx=%d\n", target, kvsize, cur_idx);
 
     if ((int64_t)send_offsets[cur_idx][target] + (int64_t)kvsize > buf_size) {
         while (!done_kv_exchange()) {

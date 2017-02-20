@@ -147,7 +147,8 @@ int main(int argc, char **argv)
     mimir.set_map_callback(fileread);
 
     uint64_t nedges = mimir.mapreduce(&reader, edges_container, NULL);
-    nglobaledges = nedges;
+    MPI_Allreduce(&nedges, &nglobaledges, 1, MPI_UINT64_T, 
+                  MPI_SUM, MPI_COMM_WORLD);
 
     // mr->output(stdout, Int64Type, Int64Type);
 
@@ -245,10 +246,15 @@ int main(int argc, char **argv)
 
     // BFS search
     int level = 0;
+    uint64_t active_vertexes = 0;
     do {
         //nactives[level] = mr->map_key_value(mr, expand);
         out_container = new KVContainer();
-        nactives[level] = mimir.mapreduce(in_container, out_container);
+        active_vertexes = mimir.mapreduce(in_container, out_container);
+        MPI_Allreduce(&active_vertexes, &nactives[level], 1, MPI_UINT64_T, 
+                      MPI_SUM, MPI_COMM_WORLD);
+
+
         delete in_container;
         in_container = out_container;
         // mr->output(stdout, Int64Type, Int64Type);
