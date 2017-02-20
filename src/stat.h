@@ -29,8 +29,6 @@ typedef struct _tracker_info {
     double prev_wtime;
 } Tracker_info;
 
-extern MPI_Comm stat_comm;
-extern int stat_ref, stat_rank, stat_size;
 extern double init_wtime;
 
 extern Profiler_info profiler_info;
@@ -106,45 +104,35 @@ extern char timestr[];
 #define EVENT_PFS_CLOSE            "event_pfs_close"    // Close file
 
 
-// Define initialize and uninitialize
-#define INIT_STAT() \
-{\
-    if (stat_ref == 0){\
-        stat_rank=mimir_world_rank; \
-        stat_size=mimir_world_size; \
-        stat_comm=mimir_world_comm;\
-        PROFILER_START; \
-        TRACKER_START; \
-        init_wtime=MR_GET_WTIME();\
-    }\
-    stat_ref+=1;\
+#define INIT_STAT()                                                            \
+{                                                                              \
+    PROFILER_START;                                                            \
+    TRACKER_START;                                                             \
+    init_wtime=MR_GET_WTIME();                                                 \
 }
 
-#define UNINIT_STAT \
-{\
-    stat_ref-=1;\
-    if (stat_ref == 0){\
-        PROFILER_END; \
-        TRACKER_END; \
-    }\
+#define UNINIT_STAT                                                            \
+{                                                                              \
+    PROFILER_END;                                                              \
+    TRACKER_END;                                                               \
 }
 
-#define GET_CUR_TIME \
-{\
-    if (stat_rank==0){\
-        time_t t = time(NULL);\
-        struct tm tm = *localtime(&t);\
-        sprintf(timestr, "%d-%d-%d-%d:%d:%d", \
-                tm.tm_year + 1900,\
-                tm.tm_mon + 1,\
-                tm.tm_mday,\
-                tm.tm_hour,\
-                tm.tm_min,\
-                tm.tm_sec);\
-    }\
+#define GET_CUR_TIME                                                           \
+{                                                                              \
+    if (mimir_world_rank == 0) {                                               \
+        time_t t = time(NULL);                                                 \
+        struct tm tm = *localtime(&t);                                         \
+        sprintf(timestr, "%d-%d-%d-%d-%d-%d",                                  \
+                tm.tm_year + 1900,                                             \
+                tm.tm_mon + 1,                                                 \
+                tm.tm_mday,                                                    \
+                tm.tm_hour,                                                    \
+                tm.tm_min,                                                     \
+                tm.tm_sec);                                                    \
+        printf("timestr=%s\n", timestr);                                       \
+    }                                                                          \
 }
 
-// Define profiler
 #ifndef ENABLE_PROFILER
 
 #define PROFILER_START
@@ -156,188 +144,176 @@ extern char timestr[];
 
 #else
 
-#define PROFILER_START \
-{\
-    profiler_timer=new double[TIMER_NUM];\
-    for(int i=0; i < TIMER_NUM; i++) profiler_timer[i]=0.0;\
-    profiler_counter=new uint64_t[COUNTER_NUM];\
-    for(int i=0; i < COUNTER_NUM; i++) profiler_counter[i]=0.0;\
+#define PROFILER_START                                                         \
+{                                                                              \
+    profiler_timer = new double[TIMER_NUM];                                    \
+    for (int i = 0; i < TIMER_NUM; i++) profiler_timer[i] = 0.0;               \
+    profiler_counter = new uint64_t[COUNTER_NUM];                              \
+    for (int i = 0; i < COUNTER_NUM; i++) profiler_counter[i] = 0.0;           \
 }
 
-#define PROFILER_END \
-{\
-    delete [] profiler_timer;\
-    delete [] profiler_counter;\
+#define PROFILER_END                                                           \
+{                                                                              \
+    delete [] profiler_timer;                                                  \
+    delete [] profiler_counter;                                                \
 }
 
-#define PROFILER_RECORD_TIME_START \
-    profiler_info.prev_wtime=MR_GET_WTIME();
+#define PROFILER_RECORD_TIME_START                                             \
+    profiler_info.prev_wtime = MR_GET_WTIME();
 
-#define PROFILER_RECORD_TIME_END(timer_type) \
-    profiler_timer[timer_type]+=\
-(MR_GET_WTIME()-profiler_info.prev_wtime);\
+#define PROFILER_RECORD_TIME_END(timer_type)                                   \
+    profiler_timer[timer_type] +=                                              \
+        (MR_GET_WTIME() - profiler_info.prev_wtime);
 
-#define PROFILER_RECORD_COUNT(counter_type, count, op) \
-{\
-    if (op==OPSUM){\
-        profiler_counter[counter_type]+=count;\
-    }else if (op==OPMAX){\
-        if (profiler_counter[counter_type] < count){\
-            profiler_counter[counter_type]=count;\
-        }\
-    }\
+#define PROFILER_RECORD_COUNT(counter_type, count, op)                         \
+{                                                                              \
+    if (op == OPSUM) {                                                         \
+        profiler_counter[counter_type] += count;                               \
+    } else if (op==OPMAX) {                                                    \
+        if (profiler_counter[counter_type] < count) {                          \
+            profiler_counter[counter_type] = count;                            \
+        }                                                                      \
+    }                                                                          \
 }
 
-#define PROFILER_PRINT(filename) \
-{\
-    profiler_timer[TIMER_TOTAL]=MR_GET_WTIME()-init_wtime;\
-    profiler_counter[COUNTER_PEAKMEM_USE]=peakmem;\
-    char fullname[1024];\
-    FILE *fp=NULL;\
-    if (stat_rank==0){\
-        sprintf(fullname, "%s_%s_profile.txt", filename, timestr);\
-        printf("filename=%s\n", fullname);\
-        fp = fopen(fullname, "w+");\
-        fprintf(fp, "testtime,rank,size");\
-        for(int i=0; i<TIMER_NUM; i++) fprintf(fp, ",%s", timer_str[i]);\
-        for(int i=0; i<COUNTER_NUM; i++) fprintf(fp, ",%s", counter_str[i]);\
-        fprintf(fp, "\n%s,0,%d", timestr, stat_size);\
-        for(int i=0; i<TIMER_NUM; i++) fprintf(fp, ",%g", profiler_timer[i]);\
-        for(int i=0; i<COUNTER_NUM; i++) fprintf(fp, ",%ld", profiler_counter[i]);\
-    }\
-    if (stat_rank==0){\
-        MPI_Status st;\
-        for(int i=1; i<stat_size; i++){\
-            fprintf(fp, "\n%s,%d,%d", timestr, i, stat_size);\
-            MPI_Recv(profiler_timer, TIMER_NUM, MPI_DOUBLE, i, 0x11, stat_comm, &st);\
-            for(int i=0; i<TIMER_NUM; i++) fprintf(fp, ",%g", profiler_timer[i]);\
-            MPI_Recv(profiler_counter, COUNTER_NUM, MPI_UINT64_T, i, 0x22, stat_comm, &st);\
-            for(int i=0; i<COUNTER_NUM; i++) fprintf(fp, ",%ld", profiler_counter[i]);\
-        }\
-    }else{\
-        MPI_Send(profiler_timer, TIMER_NUM, MPI_DOUBLE, 0, 0x11, stat_comm);\
-        MPI_Send(profiler_counter, COUNTER_NUM, MPI_UINT64_T, 0, 0x22, stat_comm);\
-    }\
-    if (stat_rank==0) fclose(fp);\
-    MPI_Barrier(stat_comm);\
+#define PROFILER_PRINT(filename)                                               \
+{                                                                              \
+    profiler_timer[TIMER_TOTAL] = MR_GET_WTIME() - init_wtime;                 \
+    profiler_counter[COUNTER_PEAKMEM_USE] = peakmem;                           \
+    char fullname[1024];                                                       \
+    FILE *fp = NULL;                                                           \
+    if (mimir_world_rank == 0) {                                               \
+        sprintf(fullname, "%s_%s_profile.txt", filename, timestr);             \
+        printf("filename=%s\n", fullname);                                     \
+        fp = fopen(fullname, "w+");                                            \
+        printf("fp=%p, %d, peakmem=%ld\n", fp, mimir_world_rank, peakmem);     \
+        fprintf(fp, "testtime,rank,size");                                     \
+        for(int i=0; i<TIMER_NUM; i++) fprintf(fp, ",%s", timer_str[i]);       \
+        for(int i=0; i<COUNTER_NUM; i++) fprintf(fp, ",%s", counter_str[i]);   \
+        fprintf(fp, "\n%s,0,%d", timestr, mimir_world_size);                   \
+        for(int i=0; i<TIMER_NUM; i++) fprintf(fp, ",%g", profiler_timer[i]);  \
+        for(int i=0; i<COUNTER_NUM; i++)                                       \
+            fprintf(fp, ",%ld", profiler_counter[i]);                          \
+    }                                                                          \
+    if (mimir_world_rank == 0) {                                               \
+        MPI_Status st;                                                         \
+        for (int i = 1; i < mimir_world_size; i++) {                           \
+            fprintf(fp, "\n%s,%d,%d", timestr, i, mimir_world_size);           \
+            MPI_Recv(profiler_timer, TIMER_NUM, MPI_DOUBLE,                    \
+                     i, 0x11, mimir_world_comm, &st);                          \
+            for (int i = 0; i < TIMER_NUM; i++)                                \
+                fprintf(fp, ",%g", profiler_timer[i]);                         \
+            MPI_Recv(profiler_counter, COUNTER_NUM, MPI_UINT64_T,              \
+                     i, 0x22, mimir_world_comm, &st);                          \
+            for (int i = 0; i < COUNTER_NUM; i++)                              \
+                fprintf(fp, ",%ld", profiler_counter[i]);                      \
+        }                                                                      \
+    } else {                                                                   \
+        MPI_Send(profiler_timer, TIMER_NUM, MPI_DOUBLE,                        \
+                 0, 0x11, mimir_world_comm);                                   \
+        MPI_Send(profiler_counter, COUNTER_NUM, MPI_UINT64_T,                  \
+                 0, 0x22, mimir_world_comm);                                   \
+    }                                                                          \
+    if (mimir_world_rank == 0) fclose(fp);                                     \
+    MPI_Barrier(mimir_world_comm);                                             \
 }
 
 #endif
 
-// Tracker
 #ifndef ENABLE_TRACKER
 
 #define TRACKER_START
 #define TRACKER_END
 #define TRACKER_RECORD_EVENT(event_type)
-//#define TRACKER_GATHER
 #define TRACKER_PRINT(filename)
 
 #else
 
-#define TRACKER_START  \
-{\
-    if (stat_rank==0){\
-        tracker_event=new std::vector<std::pair<std::string,double> >[stat_size];\
-    }else{\
-        tracker_event=new std::vector<std::pair<std::string,double> >[1];\
-    }\
-    tracker_info.prev_wtime=MR_GET_WTIME();\
+#define TRACKER_START                                                          \
+{                                                                              \
+    if (mimir_world_rank == 0) {                                               \
+        tracker_event =                                                        \
+          new std::vector<std::pair<std::string,double> >[mimir_world_size];   \
+    }else{                                                                     \
+        tracker_event=new std::vector<std::pair<std::string,double> >[1];      \
+    }                                                                          \
+    tracker_info.prev_wtime=MR_GET_WTIME();                                    \
 }
 
-#define TRACKER_END \
-{\
-    delete [] tracker_event;\
+#define TRACKER_END                                                            \
+{                                                                              \
+    delete [] tracker_event;                                                   \
 }
 
-#define TRACKER_RECORD_EVENT(event_type) \
-{\
-    double t_start=MR_GET_WTIME();\
-    double t_prev=tracker_info.prev_wtime;\
-    tracker_event[0].push_back(std::make_pair(event_type, t_start-t_prev));\
-    double t_end=MR_GET_WTIME();\
-    tracker_info.prev_wtime=t_end;\
+#define TRACKER_RECORD_EVENT(event_type)                                       \
+{                                                                              \
+    double t_start = MR_GET_WTIME();                                           \
+    double t_prev = tracker_info.prev_wtime;                                   \
+    tracker_event[0].push_back(std::make_pair(event_type, t_start-t_prev));    \
+    double t_end = MR_GET_WTIME();                                             \
+    tracker_info.prev_wtime = t_end;                                           \
 }
 
-#define TRACKER_PRINT(filename) \
-{\
-    int total_bytes=0, max_bytes=0;\
-    std::vector<std::pair<std::string,double> >::iterator iter;\
-    for(iter=tracker_event[0].begin(); iter!=tracker_event[0].end(); iter++){\
-        max_bytes+=(int)strlen(iter->first.c_str())+1;\
-        max_bytes+=(int)sizeof(iter->second);\
-    }\
-    MPI_Reduce(&max_bytes, &total_bytes, 1, MPI_INT, MPI_MAX, 0, stat_comm);\
-    if (max_bytes>total_bytes) total_bytes=max_bytes;\
-    char *tmp=(char*)mem_aligned_malloc(MEMPAGE_SIZE, total_bytes);\
-    if (stat_rank==0){\
-        MPI_Status st;\
-        for(int i=0; i<stat_size-1; i++){\
-            MPI_Recv(tmp, total_bytes, MPI_BYTE, MPI_ANY_SOURCE, 0x33, stat_comm, &st);\
-            int recv_rank=st.MPI_SOURCE;\
-            int recv_count=0;\
-            MPI_Get_count(&st, MPI_BYTE, &recv_count);\
-            int off=0;\
-            while (off<recv_count){\
-                char *type=tmp+off;\
-                off+=(int)strlen(type)+1;\
-                double value=*(double*)(tmp+off);\
+#define TRACKER_PRINT(filename)                                                \
+{                                                                              \
+    int total_bytes=0, max_bytes=0;                                            \
+    std::vector<std::pair<std::string,double> >::iterator iter;                \
+    for(iter=tracker_event[0].begin(); iter!=tracker_event[0].end(); iter++){  \
+        max_bytes+=(int)strlen(iter->first.c_str())+1;                         \
+        max_bytes+=(int)sizeof(iter->second);                                  \
+    }                                                                          \
+    MPI_Reduce(&max_bytes, &total_bytes, 1, MPI_INT,                           \
+               MPI_MAX, 0, mimir_world_comm);                                  \
+    if (max_bytes>total_bytes) total_bytes=max_bytes;                          \
+    char *tmp=(char*)mem_aligned_malloc(MEMPAGE_SIZE, total_bytes);            \
+    if (mimir_world_rank==0){                                                  \
+        MPI_Status st;                                                         \
+        for(int i=0; i<mimir_world_size-1; i++){                               \
+            MPI_Recv(tmp, total_bytes, MPI_BYTE,                               \
+                     MPI_ANY_SOURCE, 0x33, mimir_world_comm, &st);             \
+            int recv_rank=st.MPI_SOURCE;                                       \
+            int recv_count=0;                                                  \
+            MPI_Get_count(&st, MPI_BYTE, &recv_count);                         \
+            int off=0;                                                         \
+            while (off<recv_count){                                            \
+                char *type=tmp+off;                                            \
+                off+=(int)strlen(type)+1;                                      \
+                double value=*(double*)(tmp+off);                              \
                 tracker_event[recv_rank].push_back(std::make_pair(type, value));\
-                off+=(int)sizeof(double);\
-            }\
-        }\
-    }else{\
-        int off=0;\
-        std::vector<std::pair<std::string,double> >::iterator iter;\
+                off+=(int)sizeof(double);                                      \
+            }                                                                  \
+        }                                                                      \
+    }else{                                                                     \
+        int off=0;                                                             \
+        std::vector<std::pair<std::string,double> >::iterator iter;            \
         for(iter=tracker_event[0].begin(); iter!=tracker_event[0].end(); iter++){\
             memcpy(tmp+off, iter->first.c_str(), strlen(iter->first.c_str())+1);\
-            off+=(int)strlen(iter->first.c_str())+1;\
-            memcpy(tmp+off, &(iter->second), sizeof(double));\
-            off+=(int)sizeof(iter->second);\
-        }\
-        MPI_Send(tmp, off, MPI_BYTE, 0, 0x33, stat_comm);\
-    }\
-    mem_aligned_free(tmp);\
-    char fullname[1024];\
-    FILE *fp=NULL;\
-    if (stat_rank==0){\
-        sprintf(fullname, "%s_%s_trace.txt", filename, timestr);\
-        printf("filename=%s\n", fullname);\
-        fp = fopen(fullname, "w+");\
-        for(int i=0; i<stat_size; i++){\
-            fprintf(fp, "rank:%d,size:%d",i,stat_size);\
-            std::vector<std::pair<std::string,double> >::iterator iter;\
-            for(iter=tracker_event[i].begin(); \
-                iter!=tracker_event[i].end(); iter++){\
-                fprintf(fp, ",%s:%g", iter->first.c_str(), iter->second);\
-            }\
-            fprintf(fp, "\n");\
-        }\
-        fclose(fp);\
-    }\
-    MPI_Barrier(stat_comm);\
+            off+=(int)strlen(iter->first.c_str())+1;                           \
+            memcpy(tmp+off, &(iter->second), sizeof(double));                  \
+            off+=(int)sizeof(iter->second);                                    \
+        }                                                                      \
+        MPI_Send(tmp, off, MPI_BYTE, 0, 0x33, mimir_world_comm);               \
+    }                                                                          \
+    mem_aligned_free(tmp);                                                     \
+    char fullname[1024];                                                       \
+    FILE *fp=NULL;                                                             \
+    if (mimir_world_rank==0){                                                  \
+        sprintf(fullname, "%s_%s_trace.txt", filename, timestr);               \
+        printf("filename=%s\n", fullname);                                     \
+        fp = fopen(fullname, "w+");                                            \
+        for(int i=0; i<mimir_world_size; i++){                                 \
+            fprintf(fp, "rank:%d,size:%d",i,mimir_world_size);                 \
+            std::vector<std::pair<std::string,double> >::iterator iter;        \
+            for(iter=tracker_event[i].begin();                                 \
+                iter!=tracker_event[i].end(); iter++){                         \
+                fprintf(fp, ",%s:%g", iter->first.c_str(), iter->second);      \
+            }                                                                  \
+            fprintf(fp, "\n");                                                 \
+        }                                                                      \
+        fclose(fp);                                                            \
+    }                                                                          \
+    MPI_Barrier(mimir_world_comm);                                             \
 }
-
-#if 0
-#define TRACKER_PRINT(filename) \
-{\
-    char tmp[1024];\
-    if (stat_rank==0){\
-        sprintf(tmp, "%s_trace.txt", filename);\
-        FILE *fp = fopen(tmp, "w+");\
-        for(int i=0; i<stat_size; i++){\
-            fprintf(fp, "rank:%d,size:%d",i,stat_size);\
-            std::vector<std::pair<std::string,double> >::iterator iter;\
-            for(iter=tracker_event[i].begin(); \
-                iter!=tracker_event[i].end(); iter++){\
-                fprintf(fp, ",%s:%g", iter->first.c_str(), iter->second);\
-            }\
-            fprintf(fp, "\n");\
-        }\
-        fclose(fp);\
-    }\
-}
-#endif
 
 #endif
 
