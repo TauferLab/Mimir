@@ -193,8 +193,12 @@ void NBCollectiveShuffler::start_kv_exchange()
 
     TRACKER_RECORD_EVENT(EVENT_COMM_IALLTOALL);
 
+    PROFILER_RECORD_TIME_START;
     MPI_Iallreduce(&done_flag, &done_count, 1,
                    MPI_INT, MPI_SUM, mimir_world_comm, &done_req);
+    PROFILER_RECORD_TIME_END(TIMER_COMM_IRDC);
+
+    TRACKER_RECORD_EVENT(EVENT_COMM_IREDUCE);
 
     cur_idx = (cur_idx + 1) % buf_count;
 }
@@ -205,7 +209,9 @@ void NBCollectiveShuffler::push_kv_exchange() {
     MPI_Status st;
 
     if (a2a_req != MPI_REQUEST_NULL) {
+        PROFILER_RECORD_TIME_START;
         MPI_Test(&a2a_req, &flag, &st);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
         if (flag) {
             recvcount = (uint64_t) recv_count[0];
             for (int i = 1; i < mimir_world_size; i++) {
@@ -233,8 +239,6 @@ void NBCollectiveShuffler::push_kv_exchange() {
                            mimir_world_comm, &a2av_req);
             PROFILER_RECORD_TIME_END(TIMER_COMM_IA2AV);
 
-            TRACKER_RECORD_EVENT(EVENT_COMM_IALLTOALLV);
-
             PROFILER_RECORD_COUNT(COUNTER_RECV_BYTES, (uint64_t) recvcount, OPSUM);
 
             a2a_req = MPI_REQUEST_NULL;
@@ -242,7 +246,9 @@ void NBCollectiveShuffler::push_kv_exchange() {
     }
 
     if (a2av_req != MPI_REQUEST_NULL) {
+        PROFILER_RECORD_TIME_START;
         MPI_Test(&a2av_req, &flag, &st);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
         if (flag) {
             LOG_PRINT(DBG_COMM, "Comm: MPI_Ialltoallv finish.\n");
 
@@ -256,7 +262,9 @@ void NBCollectiveShuffler::push_kv_exchange() {
     }
 
     if (done_req != MPI_REQUEST_NULL) {
+        PROFILER_RECORD_TIME_START;
         MPI_Test(&done_req, &flag, &st);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
         if (flag) {
             done_req = MPI_REQUEST_NULL;
 

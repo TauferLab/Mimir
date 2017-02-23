@@ -53,7 +53,9 @@ extern char timestr[];
 #define TIMER_COMM_RDC             4    // MPI_Allreduce
 #define TIMER_COMM_IA2A            5    // MPI_Ialltoall
 #define TIMER_COMM_IA2AV           6    // MPI_Ialltoallv
-#define TIMER_NUM                  7
+#define TIMER_COMM_IRDC            7    // MPI_Ireduce
+#define TIMER_COMM_TEST            8    // MPI_Test
+#define TIMER_NUM                  9
 
 
 // Counters
@@ -77,32 +79,29 @@ extern char timestr[];
 
 /// Events
 //  Computation
-#define EVENT_COMPUTE_MAP          "event_compute_map"  // map computation
+#define EVENT_COMPUTE_MAP          "event_compute_map"          // map computation
 #define EVENT_COMPUTE_RDC          "event_compute_reduce"       // reduce computation
-#define EVENT_COMPUTE_SCAN         "event_compute_scan" // scan computation
 #define EVENT_COMPUTE_OTHER        "event_compute_other"        // other computation
-
-// Initialize
-#define EVENT_INIT_GETFILES        "event_init_getfiles"        // get input filelist
 
 // Communication
 #define EVENT_COMM_ALLTOALL        "event_comm_alltoall"        // MPI_Alltoall
 #define EVENT_COMM_ALLTOALLV       "event_comm_alltoallv"       // MPI_Alltoallv
 #define EVENT_COMM_ALLREDUCE       "event_comm_allreduce"       // MPI_Allreduce
-#define EVENT_COMM_IALLTOALL       "event_comm_ialltoall"       // MPI_Alltoall
-#define EVENT_COMM_IALLTOALLV      "event_comm_ialltoallv"      // MPI_Alltoallv
+#define EVENT_COMM_IALLTOALL       "event_comm_ialltoall"       // MPI_Ialltoall
+#define EVENT_COMM_IALLTOALLV      "event_comm_ialltoallv"      // MPI_Ialltoallv
+#define EVENT_COMM_IREDUCE         "event_comm_ireduce"         // MPI_Ireduce
 #define EVENT_COMM_SEND            "event_comm_send"            // MPI_Send
 #define EVENT_COMM_RECV            "event_comm_recv"            // MPI_Recv
 #define EVENT_COMM_ISEND           "event_comm_isend"           // MPI_Isend
 #define EVENT_COMM_IRECV           "event_comm_irecv"           // MPI_Irecv
-#define EVENT_COMM_WAIT            "envent_comm_wait"           // MPI_Wait
+#define EVENT_COMM_WAIT            "event_comm_wait"            // MPI_Wait
+#define EVENT_COMM_TEST            "event_comm_test"            // MPI_Test
 
 // Disk IO
 #define EVENT_PFS_OPEN             "event_pfs_open"     // Open file
 #define EVENT_PFS_SEEK             "event_pfs_seek"     // Seek file
 #define EVENT_PFS_READ             "event_pfs_read"     // Read file
 #define EVENT_PFS_CLOSE            "event_pfs_close"    // Close file
-
 
 #define INIT_STAT()                                                            \
 {                                                                              \
@@ -186,7 +185,6 @@ extern char timestr[];
         sprintf(fullname, "%s_%s_profile.txt", filename, timestr);             \
         printf("filename=%s\n", fullname);                                     \
         fp = fopen(fullname, "w+");                                            \
-        printf("fp=%p, %d, peakmem=%ld\n", fp, mimir_world_rank, peakmem);     \
         fprintf(fp, "testtime,rank,size");                                     \
         for(int i=0; i<TIMER_NUM; i++) fprintf(fp, ",%s", timer_str[i]);       \
         for(int i=0; i<COUNTER_NUM; i++) fprintf(fp, ",%s", counter_str[i]);   \

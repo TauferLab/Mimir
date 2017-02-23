@@ -51,6 +51,15 @@ class InputSplit {
         return &filesegs[fileidx++];
     }
 
+    FileSeg *get_share_file(int groupid) {
+        for (size_t i = 0; i < filesegs.size(); i++) {
+            if (filesegs[i].readorder == groupid) {
+                return &filesegs[i];
+            }
+        }
+        return NULL;
+    }
+
     uint64_t get_max_fsize() {
         uint64_t max_fsize = 0;
         FileSeg *fileseg = NULL;

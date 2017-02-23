@@ -87,7 +87,9 @@ class FileReader : public Readable {
     }
 
     virtual void close() {
-	delete record;
+        file_uninit();
+
+        delete record;
 
         mem_aligned_free(buffer);
         MPI_Status st;
@@ -295,7 +297,7 @@ class FileReader : public Readable {
         //int count = 0;
 	MPI_Isend(&stailsize, 1, MPI_INT, mimir_world_rank - 1, 
 		  READER_COUNT_TAG, mimir_world_comm, &creq);
-        TRACKER_RECORD_EVENT(EVENT_COMM_SEND);
+        TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
 
         if (stailsize != 0) {
             sbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, stailsize);
@@ -322,12 +324,13 @@ class FileReader : public Readable {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         MPI_Irecv(&rtailsize, 1, MPI_INT, mimir_world_rank + 1, 
                   READER_COUNT_TAG, mimir_world_comm, &req);
+        TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
+
         while (1) {
             MPI_Test(&req, &flag, &st);
             if (flag) break;
-            shuffler->make_progress();
+            if (shuffler) shuffler->make_progress();
         };
-        TRACKER_RECORD_EVENT(EVENT_COMM_RECV);
 
         if (rtailsize != 0) {
             rbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE,
@@ -368,6 +371,9 @@ class FileReader : public Readable {
 
     virtual void file_init(){
         union_fp.c_fp = NULL;
+    }
+
+    virtual void file_uninit(){
     }
 
     virtual bool file_open(const char *filename){
@@ -503,12 +509,31 @@ protected:
     virtual void file_init() {
         this->union_fp.mpi_fp = MPI_FILE_NULL;
         sfile_idx = 0;
+        create_comm();
+    }
+
+    virtual void file_uninit(){
+        destroy_comm();
     }
 
     virtual bool file_open(const char *filename) {
         MPI_Comm file_comm = MPI_COMM_SELF;
-        if (sfile_idx < sfile_count) {
+        MPI_Request req;
+        MPI_Status st;
+        int flag = 0;
+
+        while (sfile_idx < MAX_GROUPS
+               && sfile_comms[sfile_idx] == MPI_COMM_NULL)
+            sfile_idx++;
+
+        if (sfile_idx < MAX_GROUPS) {
             file_comm = sfile_comms[sfile_idx];
+            MPI_Ibarrier(file_comm, &req);
+            while (!flag) {
+                MPI_Test(&req, &flag, &st);
+                if (this->shuffler)
+                    this->shuffler->make_progress();
+            }
         }
 
         MPI_File_open(file_comm, (char*)filename, MPI_MODE_RDONLY,
@@ -523,6 +548,18 @@ protected:
 
     virtual void file_read_at(char *buf, uint64_t offset, uint64_t size) {
         MPI_Status st;
+        MPI_Request req;
+        int flag = 0;
+
+        if (sfile_idx < MAX_GROUPS) {
+            MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+            while (!flag) {
+                MPI_Test(&req, &flag, &st);
+                if (this->shuffler)
+                    this->shuffler->make_progress();
+            }
+        }
+
         MPI_File_read_at_all(this->union_fp.mpi_fp, offset, buf,
                              (int)size, MPI_BYTE, &st);
 
@@ -531,20 +568,38 @@ protected:
     }
 
     virtual void file_close() {
+        MPI_Status st;
+        MPI_Request req;
+        int flag = 0;
 
         if (this->union_fp.mpi_fp != MPI_FILE_NULL) {
-            if (sfile_idx < sfile_count) {
+            if (sfile_idx < MAX_GROUPS) {
                 int remain_count = (int)ROUNDUP(this->state.seg_file->maxsegsize, this->bufsize) \
                                    - (int)ROUNDUP(this->state.seg_file->segsize, this->bufsize);
                 for (int i = 0; i < remain_count; i++) {
-                    MPI_Status st;
+                    MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+                    while (!flag) {
+                        MPI_Test(&req, &flag, &st);
+                        if (this->shuffler)
+                            this->shuffler->make_progress();
+                    }
+
                     MPI_File_read_at_all(this->union_fp.mpi_fp, 0, NULL,
                              0, MPI_BYTE, &st);
                 }
+
+                MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+                while (!flag) {
+                    MPI_Test(&req, &flag, &st);
+                    if (this->shuffler)
+                        this->shuffler->make_progress();
+                }
+                MPI_File_close(&(this->union_fp.mpi_fp));
                 sfile_idx++;
+            } else {
+                MPI_File_close(&(this->union_fp.mpi_fp));
             }
 
-            MPI_File_close(&(this->union_fp.mpi_fp));
             this->union_fp.mpi_fp = MPI_FILE_NULL;
 
             LOG_PRINT(DBG_IO, "Collective MPI close input file=%s\n", 
@@ -553,26 +608,26 @@ protected:
     }
 
     void create_comm(){
+        LOG_PRINT(DBG_IO, "create comm start.\n");
 
-        sfile_count = 0;
         MPI_Group world_group, sfile_groups[MAX_GROUPS];
         MPI_Comm_group(mimir_world_comm, &world_group);
 
-        FileSeg *fileseg = this->input->get_next_file();
         for (int i = 0; i < MAX_GROUPS; i++) {
             int ranks[mimir_world_size], n = 1;
             int low_rank, high_rank;
-            if (fileseg && fileseg->readorder == i) {
+
+            FileSeg *fileseg = this->input->get_share_file(i);
+            if (fileseg) {
                 low_rank = fileseg->startrank;
                 high_rank = fileseg->endrank + 1;
-                fileseg = this->input->get_next_file();
-                sfile_count++;
             }
             else {
                 low_rank = mimir_world_rank;
                 high_rank = low_rank + 1;
             }
 
+            n = high_rank - low_rank;
             for (int j = 0; j < n; j++) {
                 ranks[j] = low_rank + j;
             }
@@ -580,20 +635,25 @@ protected:
             MPI_Group_incl(world_group, n, ranks, &sfile_groups[i]);
             MPI_Comm_create(mimir_world_comm, 
                             sfile_groups[i], 
-                            &sfile_comms[sfile_count]);
+                            &sfile_comms[i]);
             MPI_Group_free(&sfile_groups[i]);
+
+            if (n == 1) sfile_comms[i] = MPI_COMM_NULL;
         }
 
         MPI_Group_free(&world_group);
+
+        LOG_PRINT(DBG_IO, "create comm end.\n");
     }
 
     void destroy_comm(){
         for (int i = 0; i < MAX_GROUPS; i++)
-            MPI_Comm_free(&sfile_comms[i]);
+            if (sfile_comms[i] != MPI_COMM_NULL)
+                MPI_Comm_free(&sfile_comms[i]);
     }
 
     MPI_Comm sfile_comms[MAX_GROUPS];
-    int      sfile_count, sfile_idx;
+    int      sfile_idx;
 };
 
 }

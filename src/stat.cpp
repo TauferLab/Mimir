@@ -23,6 +23,8 @@ const char *timer_str[TIMER_NUM] = {
     "mpi_rdc_time",
     "mpi_ia2a_time",
     "mpi_ia2av_time",
+    "mpi_irdc_time",
+    "mpi_test",
 };
 
 const char *counter_str[COUNTER_NUM] = {
