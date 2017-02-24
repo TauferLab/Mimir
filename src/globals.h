@@ -10,9 +10,12 @@
 
 #include <mpi.h>
 
+#define STAT_TIMER_TAG       0x11
+#define STAT_COUNTER_TAG     0x22
+#define STAT_EVENT_TAG       0x33
+
 #define READER_COUNT_TAG     0xaa
 #define READER_DATA_TAG      0xbb
-#define SHUFFLE_DONE_TAG     0xcc
 
 #define NIN(A,B) ((A) < (B)) ? (A) : (B)
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)

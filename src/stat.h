@@ -203,19 +203,19 @@ extern char timestr[];
         for (int i = 1; i < mimir_world_size; i++) {                           \
             fprintf(fp, "\n%s,%d,%d", timestr, i, mimir_world_size);           \
             MPI_Recv(profiler_timer, TIMER_NUM, MPI_DOUBLE,                    \
-                     i, 0x11, mimir_world_comm, &st);                          \
+                     i, STAT_TIMER_TAG, mimir_world_comm, &st);                \
             for (int i = 0; i < TIMER_NUM; i++)                                \
                 fprintf(fp, ",%g", profiler_timer[i]);                         \
             MPI_Recv(profiler_counter, COUNTER_NUM, MPI_UINT64_T,              \
-                     i, 0x22, mimir_world_comm, &st);                          \
+                     i, STAT_COUNTER_TAG, mimir_world_comm, &st);              \
             for (int i = 0; i < COUNTER_NUM; i++)                              \
                 fprintf(fp, ",%ld", profiler_counter[i]);                      \
         }                                                                      \
     } else {                                                                   \
         MPI_Send(profiler_timer, TIMER_NUM, MPI_DOUBLE,                        \
-                 0, 0x11, mimir_world_comm);                                   \
+                 0, STAT_TIMER_TAG, mimir_world_comm);                         \
         MPI_Send(profiler_counter, COUNTER_NUM, MPI_UINT64_T,                  \
-                 0, 0x22, mimir_world_comm);                                   \
+                 0, STAT_COUNTER_TAG, mimir_world_comm);                       \
     }                                                                          \
     if (mimir_world_rank == 0) fclose(fp);                                     \
     MPI_Barrier(mimir_world_comm);                                             \
@@ -259,7 +259,6 @@ extern char timestr[];
 
 #define TRACKER_PRINT(filename)                                                \
 {                                                                              \
-    TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);                                   \
     int total_bytes=0, max_bytes=0;                                            \
     std::vector<std::pair<std::string,double> >::iterator iter;                \
     for(iter=tracker_event[0].begin(); iter!=tracker_event[0].end(); iter++){  \
@@ -274,7 +273,7 @@ extern char timestr[];
         MPI_Status st;                                                         \
         for(int i=0; i<mimir_world_size-1; i++){                               \
             MPI_Recv(tmp, total_bytes, MPI_BYTE,                               \
-                     MPI_ANY_SOURCE, 0x33, mimir_world_comm, &st);             \
+                     MPI_ANY_SOURCE, STAT_EVENT_TAG, mimir_world_comm, &st);   \
             int recv_rank=st.MPI_SOURCE;                                       \
             int recv_count=0;                                                  \
             MPI_Get_count(&st, MPI_BYTE, &recv_count);                         \
@@ -296,7 +295,7 @@ extern char timestr[];
             memcpy(tmp+off, &(iter->second), sizeof(double));                  \
             off+=(int)sizeof(iter->second);                                    \
         }                                                                      \
-        MPI_Send(tmp, off, MPI_BYTE, 0, 0x33, mimir_world_comm);               \
+        MPI_Send(tmp, off, MPI_BYTE, 0, STAT_EVENT_TAG, mimir_world_comm);     \
     }                                                                          \
     mem_aligned_free(tmp);                                                     \
     char fullname[1024];                                                       \

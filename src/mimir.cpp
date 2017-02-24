@@ -28,6 +28,7 @@ void Mimir_Finalize()
 void Mimir_stat(const char* filename)
 {
     GET_CUR_TIME;
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
     PROFILER_PRINT(filename);
     TRACKER_PRINT(filename);
 }
