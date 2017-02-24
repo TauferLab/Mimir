@@ -80,8 +80,9 @@ extern char timestr[];
 /// Events
 //  Computation
 #define EVENT_COMPUTE_MAP          "event_compute_map"          // map computation
+#define EVENT_COMPUTE_CVT          "event_compute_convert"      // convert computation
 #define EVENT_COMPUTE_RDC          "event_compute_reduce"       // reduce computation
-#define EVENT_COMPUTE_OTHER        "event_compute_other"        // other computation
+#define EVENT_COMPUTE_APP          "event_compute_app"          // application computation
 
 // Communication
 #define EVENT_COMM_ALLTOALL        "event_comm_alltoall"        // MPI_Alltoall
@@ -96,12 +97,15 @@ extern char timestr[];
 #define EVENT_COMM_IRECV           "event_comm_irecv"           // MPI_Irecv
 #define EVENT_COMM_WAIT            "event_comm_wait"            // MPI_Wait
 #define EVENT_COMM_TEST            "event_comm_test"            // MPI_Test
+#define EVENT_COMM_IBARRIER        "event_comm_ibarrier"        // MPI_Ibarrier
 
 // Disk IO
-#define EVENT_PFS_OPEN             "event_pfs_open"     // Open file
-#define EVENT_PFS_SEEK             "event_pfs_seek"     // Seek file
-#define EVENT_PFS_READ             "event_pfs_read"     // Read file
-#define EVENT_PFS_CLOSE            "event_pfs_close"    // Close file
+#define EVENT_DISK_FOPEN           "event_disk_fopen"           // fopen
+#define EVENT_DISK_FREADAT         "event_disk_freadat"         // fseek+fread
+#define EVENT_DISK_FCLOSE          "event_disk_fclose"          // fclose
+#define EVENT_DISK_MPIOPEN         "event_disk_mpiopen"         // MPI_File_open
+#define EVENT_DISK_MPIREADATALL    "event_disk_mpireadatall"    // MPI_File_read_at_all
+#define EVENT_DISK_MPICLOSE        "event_disk_mpiclose"        // MPI_File_close
 
 #define INIT_STAT()                                                            \
 {                                                                              \

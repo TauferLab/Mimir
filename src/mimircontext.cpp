@@ -26,6 +26,8 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
     KMVContainer *kmv = NULL;
     Writable *map_output = output;
 
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
     if (user_map == NULL)
         LOG_ERROR("Please set map callback\n");
 
@@ -73,18 +75,25 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
         map_output->close();
     }
 
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+
     if (user_reduce != NULL) {
         LOG_PRINT(DBG_GEN, "MapReduce: reduce start, %ld\n", Container::mem_bytes);
 
         kmv = new KMVContainer();
         kmv->convert(kv);
         delete kv;
+
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_CVT);
+
         kmv->open();
         output->open();
         user_reduce(kmv, output, ptr);
         output->close();
         kmv->close();
         delete kmv;
+
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_RDC);
     }
 
     LOG_PRINT(DBG_GEN, "MapReduce: done\n");

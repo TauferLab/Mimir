@@ -22,7 +22,7 @@
 
 namespace MIMIR_NS {
 
-enum IOTYPE{MIMIR_STDC_IO, MIMIR_MPI_IO, MIMIR_COLLEC_IO};
+enum IOTYPE{MIMIR_STDC_IO, MIMIR_MPI_IO};
 
 class InputSplit;
 class BaseFileReader;
@@ -33,8 +33,8 @@ class FileReader : public Readable {
     FileReader(InputSplit *input) {
         this->input = input;
         buffer = NULL;
-	sbuffer = NULL;
-	rbuffer = NULL;
+        sbuffer = NULL;
+        rbuffer = NULL;
     }
 
     virtual ~FileReader() {
@@ -53,9 +53,9 @@ class FileReader : public Readable {
         if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
             bufsize = input->get_max_fsize();
         else
-	     bufsize = INPUT_BUF_SIZE;
+            bufsize = INPUT_BUF_SIZE;
 
-	PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t) input->get_max_fsize(), OPMAX);
+        PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t) input->get_max_fsize(), OPMAX);
 
         buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE,
                                             bufsize + MAX_RECORD_SIZE + 1);
@@ -66,22 +66,22 @@ class FileReader : public Readable {
         state.win_size = 0;
         state.has_tail = false;
 
-	sbuffer = NULL;
-	rbuffer = NULL;
+        sbuffer = NULL;
+        rbuffer = NULL;
 
-	stailsize = 0;
-	rtailsize = 0;
+        stailsize = 0;
+        rtailsize = 0;
 
         sreq = MPI_REQUEST_NULL;
-	rreq = MPI_REQUEST_NULL;
-	creq = MPI_REQUEST_NULL;
+        rreq = MPI_REQUEST_NULL;
+        creq = MPI_REQUEST_NULL;
 
-	record = new RecordFormat();
+        record = new RecordFormat();
 
         file_init();
         read_next_file();
 
-	record_count = 0;
+        record_count = 0;
 
         return true;
     }
@@ -93,15 +93,19 @@ class FileReader : public Readable {
 
         mem_aligned_free(buffer);
         MPI_Status st;
-	if (creq != MPI_REQUEST_NULL) {
-	    MPI_Wait(&creq, &st);
-	    creq = MPI_REQUEST_NULL;
-	}
+        if (creq != MPI_REQUEST_NULL) {
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            MPI_Wait(&creq, &st);
+            TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
+            creq = MPI_REQUEST_NULL;
+        }
         if (sreq != MPI_REQUEST_NULL) {
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Wait(&sreq, &st);
+            TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
             sreq = MPI_REQUEST_NULL;
         }
-	if (sbuffer != NULL)
+        if (sbuffer != NULL)
             mem_aligned_free(sbuffer);
         LOG_PRINT(DBG_IO, "Filereader close.\n");
     }
@@ -110,7 +114,7 @@ class FileReader : public Readable {
 
     virtual RecordFormat* read() {
 
-      if (state.seg_file == NULL)
+        if (state.seg_file == NULL)
             return NULL;
 
         bool is_empty = false;
@@ -138,7 +142,7 @@ class FileReader : public Readable {
                     state.start_pos += record_size;
                     state.win_size -= record_size;
                 }
-		record_count ++;
+                record_count ++;
                 return record;
             }
             // ignore the last record
@@ -165,24 +169,16 @@ class FileReader : public Readable {
 
     bool read_next_file() {
         // close possible previous file
-        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        PROFILER_RECORD_TIME_START;
         file_close();
-        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
-        TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
 
         // open the next file
         state.seg_file = input->get_next_file();
         if (state.seg_file == NULL)
             return false;
 
-        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        PROFILER_RECORD_TIME_START;
         if (!file_open(state.seg_file->filename.c_str()))
             return false;
-        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
         PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
-        TRACKER_RECORD_EVENT(EVENT_PFS_OPEN);
 
         state.start_pos = 0;
         state.win_size = 0;
@@ -202,13 +198,8 @@ class FileReader : public Readable {
         else
             rsize = bufsize;
 
-        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        PROFILER_RECORD_TIME_START;
         file_read_at(buffer, state.seg_file->startpos, rsize);
-        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
         PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, rsize, OPSUM);
-
-        TRACKER_RECORD_EVENT(EVENT_PFS_READ);
 
         state.win_size += rsize;
         state.read_size += rsize;
@@ -222,11 +213,7 @@ class FileReader : public Readable {
 
         // close file
         if (state.read_size == state.seg_file->segsize) {
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);	
-            PROFILER_RECORD_TIME_START;
             file_close();
-            PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
-            TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
         }
 
         return true;
@@ -246,7 +233,7 @@ class FileReader : public Readable {
         if (state.read_size == state.seg_file->segsize 
             && state.has_tail) {
             recv_start();
-	    int count = recv_tail(buffer + state.win_size, bufsize);
+            int count = recv_tail(buffer + state.win_size, bufsize);
             state.win_size += count;
             state.has_tail = false;
         }
@@ -257,21 +244,15 @@ class FileReader : public Readable {
             else
                 rsize = bufsize;
 
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            PROFILER_RECORD_TIME_START;
             file_read_at(buffer + state.win_size,
                          state.seg_file->startpos + state.read_size, rsize);
-            PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
             PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, rsize, OPSUM);
-            TRACKER_RECORD_EVENT(EVENT_PFS_READ);
 
             state.win_size += rsize;
             state.read_size += rsize;
 
             if (state.read_size == state.seg_file->segsize) {
-                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 file_close();
-                TRACKER_RECORD_EVENT(EVENT_PFS_CLOSE);
             }
         }
     }
@@ -294,20 +275,20 @@ class FileReader : public Readable {
         }
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        //int count = 0;
-	MPI_Isend(&stailsize, 1, MPI_INT, mimir_world_rank - 1, 
-		  READER_COUNT_TAG, mimir_world_comm, &creq);
+        MPI_Isend(&stailsize, 1, MPI_INT, mimir_world_rank - 1, 
+                  READER_COUNT_TAG, mimir_world_comm, &creq);
         TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
 
         if (stailsize != 0) {
             sbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, stailsize);
             memcpy(sbuffer, buffer, stailsize);
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Isend(sbuffer, stailsize, MPI_BYTE, mimir_world_rank - 1, 
                       READER_DATA_TAG, mimir_world_comm, &sreq);
             TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
         }
-	
-	PROFILER_RECORD_COUNT(COUNTER_SEND_TAIL, (uint64_t) stailsize, OPSUM);
+
+        PROFILER_RECORD_COUNT(COUNTER_SEND_TAIL, (uint64_t) stailsize, OPSUM);
 
         LOG_PRINT(DBG_IO, "Send tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
@@ -327,7 +308,9 @@ class FileReader : public Readable {
         TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
 
         while (1) {
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Test(&req, &flag, &st);
+            TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
             if (flag) break;
             if (shuffler) shuffler->make_progress();
         };
@@ -335,19 +318,19 @@ class FileReader : public Readable {
         if (rtailsize != 0) {
             rbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE,
                                                 rtailsize);
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Irecv(rbuffer, rtailsize, MPI_BYTE, mimir_world_rank + 1,
                       READER_DATA_TAG, mimir_world_comm, &rreq);
             TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
         }
 
-	PROFILER_RECORD_COUNT(COUNTER_RECV_TAIL, (uint64_t) rtailsize, OPSUM);
+        PROFILER_RECORD_COUNT(COUNTER_RECV_TAIL, (uint64_t) rtailsize, OPSUM);
     }
 
     int recv_tail(char *buffer, uint64_t bufsize){
         MPI_Status st;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-
         MPI_Wait(&rreq, &st);
         TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
         rreq = MPI_REQUEST_NULL;
@@ -355,10 +338,10 @@ class FileReader : public Readable {
         //MPI_Get_count(&st, MPI_BYTE, &count);
 
         if(rtailsize != 0) {
-    	    if ((uint64_t)rtailsize > bufsize)
-	        LOG_ERROR("tail size %d is larger than buffer size %ld\n", rtailsize, bufsize);
-	    memcpy(buffer, rbuffer, rtailsize);
-	    mem_aligned_free(rbuffer);
+            if ((uint64_t)rtailsize > bufsize)
+                LOG_ERROR("tail size %d is larger than buffer size %ld\n", rtailsize, bufsize);
+            memcpy(buffer, rbuffer, rtailsize);
+            mem_aligned_free(rbuffer);
         }
 
         LOG_PRINT(DBG_IO, "Recv tail file=%s:%ld+%d\n", 
@@ -378,9 +361,15 @@ class FileReader : public Readable {
 
     virtual bool file_open(const char *filename){
 
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+        PROFILER_RECORD_TIME_START;
+
         union_fp.c_fp = fopen(filename, "r");
         if (union_fp.c_fp == NULL)
             return false;
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+        TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
 
         LOG_PRINT(DBG_IO, "Open input file=%s\n", 
                   state.seg_file->filename.c_str());
@@ -389,8 +378,14 @@ class FileReader : public Readable {
     }
 
     virtual void file_read_at(char *buf, uint64_t offset, uint64_t size){
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+        PROFILER_RECORD_TIME_START;
+
         fseek(union_fp.c_fp, offset, SEEK_SET);
         size = fread(buf, 1, size, union_fp.c_fp);
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+        TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
 
         LOG_PRINT(DBG_IO, "Read input file=%s:%ld+%ld\n", 
                   state.seg_file->filename.c_str(), offset, size);
@@ -399,7 +394,13 @@ class FileReader : public Readable {
     virtual void file_close(){
         if (union_fp.c_fp != NULL) {
 
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            PROFILER_RECORD_TIME_START;
+
             fclose(union_fp.c_fp);
+
+            PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+            TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
 
             union_fp.c_fp = NULL;
 
@@ -449,59 +450,13 @@ class FileReader : public Readable {
 };
 
 template <typename RecordFormat>
-class MPIFileReader : public FileReader<RecordFormat, MIMIR_MPI_IO> {
+class MPIFileReader : public FileReader< RecordFormat, MIMIR_MPI_IO >{
 public:
-    MPIFileReader(InputSplit *input)
+    MPIFileReader(InputSplit *input) 
         : FileReader<RecordFormat, MIMIR_MPI_IO>(input) {
     }
 
-    ~MPIFileReader() {
-    }
-
-protected:
-    virtual void file_init() {
-        this->union_fp.mpi_fp = MPI_FILE_NULL;
-    }
-
-    virtual bool file_open(const char *filename) {
-        MPI_File_open(MPI_COMM_SELF, (char*)filename, MPI_MODE_RDONLY,
-                      MPI_INFO_NULL, &(this->union_fp.mpi_fp));
-        if (this->union_fp.mpi_fp == MPI_FILE_NULL) return false;
-
-        LOG_PRINT(DBG_IO, "MPI open input file=%s\n",
-                  this->state.seg_file->filename.c_str());
-
-        return true;
-    }
-
-    virtual void file_read_at(char *buf, uint64_t offset, uint64_t size) {
-        MPI_Status st;
-        MPI_File_read_at(this->union_fp.mpi_fp, offset, buf,
-                         (int)size, MPI_BYTE, &st);
-
-        LOG_PRINT(DBG_IO, "MPI read input file=%s:%ld+%ld\n",
-                  this->state.seg_file->filename.c_str(), offset, size);
-    }
-
-    virtual void file_close(){
-        if (this->union_fp.mpi_fp != MPI_FILE_NULL) {
-            MPI_File_close(&(this->union_fp.mpi_fp));
-            this->union_fp.mpi_fp = MPI_FILE_NULL;
-
-            LOG_PRINT(DBG_IO, "MPI close input file=%s\n", 
-                      this->state.seg_file->filename.c_str());
-        }
-    }
-};
-
-template <typename RecordFormat>
-class CollecFileReader : public FileReader< RecordFormat, MIMIR_COLLEC_IO >{
-public:
-    CollecFileReader(InputSplit *input) 
-        : FileReader<RecordFormat, MIMIR_COLLEC_IO>(input) {
-    }
-
-    ~CollecFileReader(){
+    ~MPIFileReader(){
     }
 
 protected:
@@ -528,17 +483,29 @@ protected:
 
         if (sfile_idx < MAX_GROUPS) {
             file_comm = sfile_comms[sfile_idx];
+
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Ibarrier(file_comm, &req);
+            TRACKER_RECORD_EVENT(EVENT_COMM_IBARRIER);
+
             while (!flag) {
+                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 MPI_Test(&req, &flag, &st);
-                if (this->shuffler)
+                TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
+                 if (this->shuffler)
                     this->shuffler->make_progress();
             }
         }
 
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+        PROFILER_RECORD_TIME_START;
+
         MPI_File_open(file_comm, (char*)filename, MPI_MODE_RDONLY,
                       MPI_INFO_NULL, &(this->union_fp.mpi_fp));
         if (this->union_fp.mpi_fp == MPI_FILE_NULL) return false;
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+        TRACKER_RECORD_EVENT(EVENT_DISK_MPIOPEN);
 
         LOG_PRINT(DBG_IO, "Collective MPI open input file=%s\n",
                   this->state.seg_file->filename.c_str());
@@ -552,16 +519,29 @@ protected:
         int flag = 0;
 
         if (sfile_idx < MAX_GROUPS) {
+
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+            TRACKER_RECORD_EVENT(EVENT_COMM_IBARRIER);
+
             while (!flag) {
+                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 MPI_Test(&req, &flag, &st);
+                TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
                 if (this->shuffler)
                     this->shuffler->make_progress();
             }
         }
 
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+        PROFILER_RECORD_TIME_START;
+
         MPI_File_read_at_all(this->union_fp.mpi_fp, offset, buf,
                              (int)size, MPI_BYTE, &st);
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+        TRACKER_RECORD_EVENT(EVENT_DISK_MPIREADATALL);
+
 
         LOG_PRINT(DBG_IO, "Collective MPI read input file=%s:%ld+%ld\n", 
                   this->state.seg_file->filename.c_str(), offset, size);
@@ -577,27 +557,58 @@ protected:
                 int remain_count = (int)ROUNDUP(this->state.seg_file->maxsegsize, this->bufsize) \
                                    - (int)ROUNDUP(this->state.seg_file->segsize, this->bufsize);
                 for (int i = 0; i < remain_count; i++) {
+                    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                     MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+                    TRACKER_RECORD_EVENT(EVENT_COMM_IBARRIER);
+
                     while (!flag) {
+                        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                         MPI_Test(&req, &flag, &st);
+                        TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
                         if (this->shuffler)
                             this->shuffler->make_progress();
                     }
 
+                    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+                    PROFILER_RECORD_TIME_START;
+
                     MPI_File_read_at_all(this->union_fp.mpi_fp, 0, NULL,
                              0, MPI_BYTE, &st);
+
+                    PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+                    TRACKER_RECORD_EVENT(EVENT_DISK_MPIREADATALL);
                 }
 
+                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+                TRACKER_RECORD_EVENT(EVENT_COMM_IBARRIER);
+
                 while (!flag) {
+                    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                     MPI_Test(&req, &flag, &st);
+                    TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
                     if (this->shuffler)
                         this->shuffler->make_progress();
                 }
+
+                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+                PROFILER_RECORD_TIME_START;
+
                 MPI_File_close(&(this->union_fp.mpi_fp));
+
+                PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+                TRACKER_RECORD_EVENT(EVENT_DISK_MPICLOSE);
+
                 sfile_idx++;
             } else {
+
+                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+                PROFILER_RECORD_TIME_START;
+
                 MPI_File_close(&(this->union_fp.mpi_fp));
+
+                PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+                TRACKER_RECORD_EVENT(EVENT_DISK_MPICLOSE);
             }
 
             this->union_fp.mpi_fp = MPI_FILE_NULL;
@@ -611,6 +622,7 @@ protected:
         LOG_PRINT(DBG_IO, "create comm start.\n");
 
         MPI_Group world_group, sfile_groups[MAX_GROUPS];
+
         MPI_Comm_group(mimir_world_comm, &world_group);
 
         for (int i = 0; i < MAX_GROUPS; i++) {
