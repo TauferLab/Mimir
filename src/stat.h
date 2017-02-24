@@ -78,11 +78,15 @@ extern char timestr[];
 #define COUNTER_NUM                16
 
 /// Events
+#define EVENT_COMPUTE_APP          "event_compute_app"          // application computation
+
 //  Computation
 #define EVENT_COMPUTE_MAP          "event_compute_map"          // map computation
 #define EVENT_COMPUTE_CVT          "event_compute_convert"      // convert computation
 #define EVENT_COMPUTE_RDC          "event_compute_reduce"       // reduce computation
-#define EVENT_COMPUTE_APP          "event_compute_app"          // application computation
+
+// Synchnization
+#define EVENT_SYN_COMM             "event_syn_comm"             // make progress
 
 // Communication
 #define EVENT_COMM_ALLTOALL        "event_comm_alltoall"        // MPI_Alltoall
@@ -95,9 +99,6 @@ extern char timestr[];
 #define EVENT_COMM_RECV            "event_comm_recv"            // MPI_Recv
 #define EVENT_COMM_ISEND           "event_comm_isend"           // MPI_Isend
 #define EVENT_COMM_IRECV           "event_comm_irecv"           // MPI_Irecv
-#define EVENT_COMM_WAIT            "event_comm_wait"            // MPI_Wait
-#define EVENT_COMM_TEST            "event_comm_test"            // MPI_Test
-#define EVENT_COMM_IBARRIER        "event_comm_ibarrier"        // MPI_Ibarrier
 
 // Disk IO
 #define EVENT_DISK_FOPEN           "event_disk_fopen"           // fopen
@@ -258,6 +259,7 @@ extern char timestr[];
 
 #define TRACKER_PRINT(filename)                                                \
 {                                                                              \
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);                                   \
     int total_bytes=0, max_bytes=0;                                            \
     std::vector<std::pair<std::string,double> >::iterator iter;                \
     for(iter=tracker_event[0].begin(); iter!=tracker_event[0].end(); iter++){  \

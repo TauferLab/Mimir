@@ -174,8 +174,6 @@ void CollectiveShuffler::exchange_kv()
     for (int i = 1; i < mimir_world_size; i++)
         a2a_r_displs[i] = a2a_r_displs[i - 1] + a2a_r_count[i - 1];
 
-    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-
     PROFILER_RECORD_TIME_START;
     MPI_Alltoallv(send_buffer, a2a_s_count, a2a_s_displs, comm_type,
                   recv_buffer, a2a_r_count, a2a_r_displs, comm_type, 

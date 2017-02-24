@@ -96,13 +96,13 @@ class FileReader : public Readable {
         if (creq != MPI_REQUEST_NULL) {
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Wait(&creq, &st);
-            TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
+            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
             creq = MPI_REQUEST_NULL;
         }
         if (sreq != MPI_REQUEST_NULL) {
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Wait(&sreq, &st);
-            TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
+            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
             sreq = MPI_REQUEST_NULL;
         }
         if (sbuffer != NULL)
@@ -308,12 +308,11 @@ class FileReader : public Readable {
         TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
 
         while (1) {
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Test(&req, &flag, &st);
-            TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
             if (flag) break;
             if (shuffler) shuffler->make_progress();
         };
+        TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
 
         if (rtailsize != 0) {
             rbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE,
@@ -332,7 +331,7 @@ class FileReader : public Readable {
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         MPI_Wait(&rreq, &st);
-        TRACKER_RECORD_EVENT(EVENT_COMM_WAIT);
+        TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         rreq = MPI_REQUEST_NULL;
 
         //MPI_Get_count(&st, MPI_BYTE, &count);
@@ -486,15 +485,13 @@ protected:
 
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Ibarrier(file_comm, &req);
-            TRACKER_RECORD_EVENT(EVENT_COMM_IBARRIER);
-
             while (!flag) {
-                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 MPI_Test(&req, &flag, &st);
-                TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
                  if (this->shuffler)
                     this->shuffler->make_progress();
             }
+            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
+
         }
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -522,15 +519,12 @@ protected:
 
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Ibarrier(sfile_comms[sfile_idx], &req);
-            TRACKER_RECORD_EVENT(EVENT_COMM_IBARRIER);
-
             while (!flag) {
-                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 MPI_Test(&req, &flag, &st);
-                TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
                 if (this->shuffler)
                     this->shuffler->make_progress();
             }
+            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         }
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -559,17 +553,12 @@ protected:
                 for (int i = 0; i < remain_count; i++) {
                     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                     MPI_Ibarrier(sfile_comms[sfile_idx], &req);
-                    TRACKER_RECORD_EVENT(EVENT_COMM_IBARRIER);
-
                     while (!flag) {
-                        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                         MPI_Test(&req, &flag, &st);
-                        TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
                         if (this->shuffler)
                             this->shuffler->make_progress();
                     }
-
-                    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+                    TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
                     PROFILER_RECORD_TIME_START;
 
                     MPI_File_read_at_all(this->union_fp.mpi_fp, 0, NULL,
@@ -581,17 +570,13 @@ protected:
 
                 TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 MPI_Ibarrier(sfile_comms[sfile_idx], &req);
-                TRACKER_RECORD_EVENT(EVENT_COMM_IBARRIER);
-
                 while (!flag) {
-                    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                     MPI_Test(&req, &flag, &st);
-                    TRACKER_RECORD_EVENT(EVENT_COMM_TEST);
                     if (this->shuffler)
                         this->shuffler->make_progress();
                 }
+                TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
 
-                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 PROFILER_RECORD_TIME_START;
 
                 MPI_File_close(&(this->union_fp.mpi_fp));
