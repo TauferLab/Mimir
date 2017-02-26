@@ -37,8 +37,6 @@ class BaseRecordFormat {
 
     virtual int get_record_size() = 0;
 
-    virtual bool has_full_record(char *, uint64_t, bool) = 0;
-
   public:
     static bool is_contain(std::string &str, char ch) {
 
@@ -55,32 +53,18 @@ class BaseRecordFormat {
 
         return ret;
     }
+};
 
-    static bool is_whitespace(char ch) {
-        if (whitespaces.size() == 0)
-            return false;
-
-        return is_contain(whitespaces, ch);
-    }
-
-    static bool is_seperator(char ch) {
-        if( seperators.size() == 0)
-            return true;
-
-        return is_contain(seperators, ch);
-    }
-
-    static void set_seperators(const char *str) {
-        seperators = str;
-    }
-
-    static void set_whitespace(const char *str) {
-        whitespaces = str;
-        seperators = str;
-    }
-
-    static std::string seperators;
-    static std::string whitespaces;
+class InputRecord {
+  public:
+    virtual ~InputRecord() {}
+    virtual int skip_count(char *, uint64_t) = 0;
+    virtual int move_count(char *, uint64_t, bool) = 0;
+    virtual bool has_full_record(char *, uint64_t, bool) = 0;
+    virtual int get_left_border(char *, uint64_t, bool) = 0;
+    virtual int process_left_border(int, char*, uint64_t, char*, int) {return 0;}
+    virtual int get_right_cmd() { return 0; }
+    virtual bool has_right_cmd() { return false; }
 };
 
 }

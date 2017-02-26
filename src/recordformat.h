@@ -14,7 +14,7 @@
 
 namespace MIMIR_NS {
 
-class StringRecord : public BaseRecordFormat {
+class StringRecord : public BaseRecordFormat, public InputRecord {
   public:
     StringRecord() {
     }
@@ -26,14 +26,28 @@ class StringRecord : public BaseRecordFormat {
         return (int)strlen(buffer) + 1;
     }
 
+    virtual int skip_count(char *buffer, uint64_t len) {
+        int prefix = 0;
+        while ((uint64_t)prefix < len 
+               && StringRecord::is_whitespace(*(buffer+prefix))) {
+            prefix ++;
+        }
+
+        return prefix;
+    }
+
+    virtual int move_count(char *buffer, uint64_t len, bool islast) {
+        return (int)strlen(buffer) + 1;
+    }
+
     virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
         if (len == 0) return false;
 
-         if (BaseRecordFormat::is_whitespace(*buffer)) return false;
+        if(StringRecord::is_whitespace(*(buffer))) return false;
 
         uint64_t i;
         for (i = 0; i < len; i++) {
-            if(BaseRecordFormat::is_whitespace(*(buffer + i)))
+            if(StringRecord::is_whitespace(*(buffer + i)))
                 break;
         }
 
@@ -49,9 +63,35 @@ class StringRecord : public BaseRecordFormat {
 
         return false;
     }
+
+    virtual int get_left_border(char *buffer, uint64_t len, bool islast) {
+        int i;
+        for (i = 0; (uint64_t)i < len; i++) {
+            if(StringRecord::is_whitespace(*(buffer + i)))
+                break;
+        }
+        if (!islast && (uint64_t)i == len)
+            LOG_ERROR("Cannot find whitespace in the partition of a process!");
+        return i;
+    }
+
+  public:
+
+    static bool is_whitespace(char ch) {
+        if (whitespaces.size() == 0)
+            return false;
+
+        return is_contain(whitespaces, ch);
+    }
+
+    static void set_whitespace(const char *str) {
+        whitespaces = str;
+    }
+
+    static std::string whitespaces;
 };
 
-class ByteRecord : public BaseRecordFormat {
+class ByteRecord : public BaseRecordFormat, public InputRecord {
   public:
     ByteRecord() {
     }
@@ -67,6 +107,14 @@ class ByteRecord : public BaseRecordFormat {
         return 1;
     }
 
+    virtual int skip_count(char *buffer, uint64_t len) {
+        return 0;
+    }
+
+    virtual int move_count(char *buffer, uint64_t len, bool islast) {
+        return 1;
+    }
+
     virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
         if (len == 0) return false;
 
@@ -78,12 +126,38 @@ class ByteRecord : public BaseRecordFormat {
         return true;
     }
 
+    virtual int get_left_border(char *buffer, uint64_t len, bool islast) {
+        int i;
+        for (i = 0; (uint64_t)i < len; i++) {
+            if(ByteRecord::is_separator(*(buffer + i)))
+                break;
+        }
+        if (!islast && (uint64_t)i == len)
+            LOG_ERROR("Cannot find separators %s in the partition of a process!", 
+                      separators.c_str());
+        return i;
+    }
+
     bool is_eof() {
         return iseof;
     }
 
   private:
     bool iseof;
+
+  public:
+    static bool is_separator(char ch) {
+        if (separators.size() == 0)
+            return true;
+
+        return is_contain(separators, ch);
+    }
+
+    static void set_separators(const char *str) {
+        separators = str;
+    }
+
+    static std::string separators;
 };
 
 class KVRecord : public BaseRecordFormat {
@@ -95,13 +169,6 @@ class KVRecord : public BaseRecordFormat {
         key = val = NULL;
         keysize = valsize = 0;
     }
-
-    //KVRecord(int ksize, int vsize) 
-    //    : BaseRecordFormat() 
-    //{
-    //    this->ktype = ksize;
-    //    this->vtype = vsize;
-    //}
 
     KVRecord(char * key, int keysize,
              char *val, int valsize) 
@@ -191,41 +258,41 @@ class KVRecord : public BaseRecordFormat {
         return get_head_size() + get_key_size() + get_val_size();
     }
 
-    virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
-        if (len < (uint64_t)get_head_size()) 
-            return false;
-        if (ktype == KVGeneral) {
-            if (len < (uint64_t)(get_key_size() + get_head_size()))
-                return false;
-        }
-        if (ktype == KVString) {
-            uint64_t i = 0;
-            for (i = (uint64_t)get_head_size(); i < len; i++) {
-                if (buffer[i] == '\0')
-                    break;
-            }
-            if (i >= len)
-                return false;
-        }
-        else {
-            if (len < (uint64_t)(get_head_size() + get_head_size()))
-                return false;
-        }
-        if (vtype == KVString) {
-            uint64_t i = 0;
-            for (i = (uint64_t)(get_head_size() + get_key_size()); i < len; i++) {
-                if (buffer[i] == '\0')
-                    break;
-            }
-            if (i >= len)
-                return false;
-        }
-        else {
-            if (len < (uint64_t)(get_head_size() + get_key_size() + get_val_size()))
-                return false;
-        }
-        return true;
-    }
+    //virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
+    //    if (len < (uint64_t)get_head_size()) 
+    //        return false;
+    //    if (ktype == KVGeneral) {
+    //        if (len < (uint64_t)(get_key_size() + get_head_size()))
+    //            return false;
+    //    }
+    //    if (ktype == KVString) {
+    //        uint64_t i = 0;
+    //        for (i = (uint64_t)get_head_size(); i < len; i++) {
+    //            if (buffer[i] == '\0')
+    //                break;
+    //        }
+    //        if (i >= len)
+    //            return false;
+    //    }
+    //    else {
+    //        if (len < (uint64_t)(get_head_size() + get_head_size()))
+    //            return false;
+    //    }
+    //    if (vtype == KVString) {
+    //        uint64_t i = 0;
+    //        for (i = (uint64_t)(get_head_size() + get_key_size()); i < len; i++) {
+    //            if (buffer[i] == '\0')
+    //                break;
+    //        }
+    //        if (i >= len)
+    //            return false;
+    //    }
+    //    else {
+    //        if (len < (uint64_t)(get_head_size() + get_key_size() + get_val_size()))
+    //            return false;
+    //    }
+    //    return true;
+    //}
 
   protected:
     char       *key, *val;

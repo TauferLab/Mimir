@@ -5,10 +5,9 @@
  *
  *     See COPYRIGHT in top-level directory.
  */
-#include "baserecordformat.h"
+#include "recordformat.h"
 
 using namespace MIMIR_NS;
 
-std::string BaseRecordFormat::seperators = "";
-std::string BaseRecordFormat::whitespaces = "";
-
+std::string StringRecord::whitespaces = "";
+std::string ByteRecord::separators = "";

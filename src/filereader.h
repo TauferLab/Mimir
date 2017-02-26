@@ -22,7 +22,11 @@
 
 namespace MIMIR_NS {
 
-enum IOTYPE{MIMIR_STDC_IO, MIMIR_MPI_IO};
+enum IOTYPE {MIMIR_STDC_IO, MIMIR_MPI_IO};
+
+#define BORDER_LEFT       0
+#define BORDER_RIGHT      1
+#define BORDER_SIZE       2
 
 class InputSplit;
 class BaseFileReader;
@@ -33,8 +37,14 @@ class FileReader : public Readable {
     FileReader(InputSplit *input) {
         this->input = input;
         buffer = NULL;
-        sbuffer = NULL;
-        rbuffer = NULL;
+
+        for (int i = 0; i < BORDER_SIZE; i++) {
+            border_buffers[i] = NULL;
+            border_sizes[i] = 0;
+            border_cmds[i] = 0;
+            border_reqs[i] = MPI_REQUEST_NULL;
+            border_creqs[i] = MPI_REQUEST_NULL;
+        }
     }
 
     virtual ~FileReader() {
@@ -64,17 +74,16 @@ class FileReader : public Readable {
         state.read_size = 0;
         state.start_pos = 0;
         state.win_size = 0;
+        state.has_head = false;
         state.has_tail = false;
 
-        sbuffer = NULL;
-        rbuffer = NULL;
-
-        stailsize = 0;
-        rtailsize = 0;
-
-        sreq = MPI_REQUEST_NULL;
-        rreq = MPI_REQUEST_NULL;
-        creq = MPI_REQUEST_NULL;
+        for (int i = 0; i < BORDER_SIZE; i++) {
+            border_buffers[i] = NULL;
+            border_sizes[i] = 0;
+            border_cmds[i] = 0;
+            border_reqs[i] = MPI_REQUEST_NULL;
+            border_creqs[i] = MPI_REQUEST_NULL;
+        }
 
         record = new RecordFormat();
 
@@ -92,21 +101,24 @@ class FileReader : public Readable {
         delete record;
 
         mem_aligned_free(buffer);
+
         MPI_Status st;
-        if (creq != MPI_REQUEST_NULL) {
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            MPI_Wait(&creq, &st);
-            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-            creq = MPI_REQUEST_NULL;
+        for (int i = 0; i < BORDER_SIZE; i++) {
+            if (border_buffers[i] != NULL)
+                mem_aligned_free(border_buffers[i]);
+            if (border_reqs[i] != MPI_REQUEST_NULL) {
+                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+                MPI_Wait(&border_reqs[i], &st);
+                border_reqs[i] = MPI_REQUEST_NULL;
+                TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
+            }
+            if (border_creqs[i] != MPI_REQUEST_NULL) {
+                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+                MPI_Wait(&border_creqs[i], &st);
+                border_creqs[i] = MPI_REQUEST_NULL;
+                TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
+            }
         }
-        if (sreq != MPI_REQUEST_NULL) {
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            MPI_Wait(&sreq, &st);
-            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-            sreq = MPI_REQUEST_NULL;
-        }
-        if (sbuffer != NULL)
-            mem_aligned_free(sbuffer);
         LOG_PRINT(DBG_IO, "Filereader close.\n");
     }
 
@@ -120,32 +132,28 @@ class FileReader : public Readable {
         bool is_empty = false;
         while(!is_empty) {
 
-            // skip whitespace
-            while (state.win_size > 0
-                   && BaseRecordFormat::is_whitespace(*(buffer + state.start_pos))) {
-                state.start_pos++;
-                state.win_size--;
-            }
+            char *ptr = buffer + state.start_pos; 
+            int skip_count = record->skip_count(ptr, state.win_size);
+            state.start_pos += skip_count;
+            state.win_size -= skip_count;
 
-            char *ptr = buffer + state.start_pos;
+            ptr = buffer + state.start_pos;
             record->set_buffer(ptr);
-
             bool islast = is_last_block();
             if(state.win_size > 0
                && record->has_full_record(ptr, state.win_size, islast)) {
-                int record_size = record->get_record_size();
-                if ((uint64_t)record_size >= state.win_size) {
+                int move_count = record->move_count(ptr, state.win_size, islast);
+                if ((uint64_t)move_count >= state.win_size) {
                     state.win_size = 0;
                     state.start_pos = 0;
                 }
                 else {
-                    state.start_pos += record_size;
-                    state.win_size -= record_size;
+                    state.start_pos += move_count;
+                    state.win_size -= move_count;
                 }
                 record_count ++;
                 return record;
             }
-            // ignore the last record
             else if (islast) {
                 if (!read_next_file())
                     is_empty = true;
@@ -162,7 +170,7 @@ class FileReader : public Readable {
 
     bool is_last_block() {
         if (state.read_size == state.seg_file->segsize 
-            && !state.has_tail)
+            && !state.has_tail && !state.has_head)
             return true;
         return false;
     }
@@ -173,11 +181,14 @@ class FileReader : public Readable {
 
         // open the next file
         state.seg_file = input->get_next_file();
-        if (state.seg_file == NULL)
+        if (state.seg_file == NULL) {
             return false;
+        }
 
-        if (!file_open(state.seg_file->filename.c_str()))
+        if (!file_open(state.seg_file->filename.c_str())) {
+            LOG_ERROR("Open file %s error!\n", state.seg_file->filename.c_str());
             return false;
+        }
         PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
 
         state.start_pos = 0;
@@ -206,7 +217,8 @@ class FileReader : public Readable {
 
         // skip tail of previous process
         if (state.seg_file->startpos > 0) {
-            int count = send_tail(buffer, rsize);
+            int count = handle_left_border_start(buffer, rsize);
+            if (count > 0) state.has_head = true;
             state.start_pos += count;
             state.win_size -= count;
         }
@@ -230,12 +242,17 @@ class FileReader : public Readable {
         state.start_pos = 0;
 
         // recv tail from next process
-        if (state.read_size == state.seg_file->segsize 
-            && state.has_tail) {
-            recv_start();
-            int count = recv_tail(buffer + state.win_size, bufsize);
-            state.win_size += count;
-            state.has_tail = false;
+        if (state.read_size == state.seg_file->segsize ) {
+            if (state.has_tail) {
+                int count = handle_right_border(buffer + state.win_size, bufsize);
+                state.win_size += count;
+                state.has_tail = false;
+                print_state();
+            } else if  (state.has_head) {
+                int count = handle_left_border_end(buffer, bufsize);
+                state.win_size += count;
+                state.has_head = false;
+            }
         }
         else {
             uint64_t rsize;
@@ -257,98 +274,133 @@ class FileReader : public Readable {
         }
     }
 
-    int send_tail(char *buffer, uint64_t bufsize) {
-        //MPI_Status st;
+    int handle_left_border_start (char *buffer, uint64_t bufsize) {
 
-        FileSeg* seg_file = state.seg_file;
-
-        if (seg_file->startpos > 0) {
-            while ((uint64_t)stailsize < bufsize 
-                   && !BaseRecordFormat::is_seperator(*(buffer + stailsize))) {
-                stailsize++;
-            }
-            if (stailsize < 0)
-                LOG_ERROR("Error: header size is larger than max value of int!\n");
-            if ((uint64_t)stailsize >= bufsize
-                && seg_file->startpos + bufsize < seg_file->filesize)
-                LOG_ERROR("Error: cannot find header at the first buffer (bufsize=%ld)!\n", bufsize);
-        }
+        border_sizes[BORDER_LEFT] = record->get_left_border(buffer, bufsize,
+                                                            !state.has_tail);
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        MPI_Isend(&stailsize, 1, MPI_INT, mimir_world_rank - 1, 
-                  READER_COUNT_TAG, mimir_world_comm, &creq);
+        border_cmds[BORDER_LEFT] = border_sizes[BORDER_LEFT];
+        MPI_Isend(&border_cmds[BORDER_LEFT], 1, MPI_INT, mimir_world_rank - 1, 
+                  READER_CMD_TAG, mimir_world_comm, &border_creqs[BORDER_LEFT]);
         TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
 
-        if (stailsize != 0) {
-            sbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, stailsize);
-            memcpy(sbuffer, buffer, stailsize);
+        if (border_sizes[BORDER_LEFT] != 0) {
+            border_buffers[BORDER_LEFT] 
+                = (char*)mem_aligned_malloc(MEMPAGE_SIZE, border_sizes[BORDER_LEFT]);
+            memcpy(border_buffers[BORDER_LEFT], buffer, border_sizes[BORDER_LEFT]);
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            MPI_Isend(sbuffer, stailsize, MPI_BYTE, mimir_world_rank - 1, 
-                      READER_DATA_TAG, mimir_world_comm, &sreq);
+            MPI_Isend(border_buffers[BORDER_LEFT], border_sizes[BORDER_LEFT], 
+                      MPI_BYTE, mimir_world_rank - 1, 
+                      READER_DATA_TAG, mimir_world_comm, &border_reqs[BORDER_LEFT]);
             TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
         }
 
-        PROFILER_RECORD_COUNT(COUNTER_SEND_TAIL, (uint64_t) stailsize, OPSUM);
+        PROFILER_RECORD_COUNT(COUNTER_SEND_TAIL, 
+                              (uint64_t) border_sizes[BORDER_LEFT], OPSUM);
 
         LOG_PRINT(DBG_IO, "Send tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
-                  state.seg_file->startpos, stailsize);
+                  state.seg_file->startpos, border_sizes[BORDER_LEFT]);
 
-        return stailsize;
+        return border_sizes[BORDER_LEFT];
     }
 
-    void recv_start() {
+    int handle_left_border_end (char *buffer, uint64_t bufsize) {
+        int count = 0;
+
+#if 0
         MPI_Status st;
-        MPI_Request req;
+        int flag = 0;
+        if (record->has_right_cmd() ) {
+            if (border_creqs[BORDER_LEFT] != MPI_REQUEST_NULL) {
+                MPI_Wait(&border_creqs[BORDER_LEFT], &st);
+            }
+
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            MPI_Irecv(&border_cmds[BORDER_LEFT], 1, MPI_INT,
+                      mimir_world_rank - 1, READER_CMD_TAG,
+                      mimir_world_comm, &border_creqs[BORDER_LEFT]);
+            TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
+
+            while (1) {
+                MPI_Test(&border_creqs[BORDER_LEFT], &flag, &st);
+                if (flag) break;
+                if (shuffler) shuffler->make_progress();
+            };
+
+            count = record->process_left_border(border_creqs[BORDER_LEFT],
+                                                buffer, bufsize,
+                                                border_buffers[BORDER_LEFT],
+                                                border_sizes[BORDER_LEFT]);
+        }
+#endif
+
+        return count;
+    }
+
+    int handle_right_border (char *buffer, uint64_t bufsize) {
+        MPI_Status st;
         int flag = 0;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        MPI_Irecv(&rtailsize, 1, MPI_INT, mimir_world_rank + 1, 
-                  READER_COUNT_TAG, mimir_world_comm, &req);
+        MPI_Irecv(&border_sizes[BORDER_RIGHT], 1, MPI_INT,
+                  mimir_world_rank + 1, READER_CMD_TAG,
+                  mimir_world_comm, &border_creqs[BORDER_RIGHT]);
         TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
 
         while (1) {
-            MPI_Test(&req, &flag, &st);
+            MPI_Test(&border_creqs[BORDER_RIGHT], &flag, &st);
             if (flag) break;
             if (shuffler) shuffler->make_progress();
         };
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
 
-        if (rtailsize != 0) {
-            rbuffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE,
-                                                rtailsize);
+        border_creqs[BORDER_RIGHT] = MPI_REQUEST_NULL;
+
+        if (border_sizes[BORDER_RIGHT] != 0) {
+            border_buffers[BORDER_RIGHT] 
+                = (char*)mem_aligned_malloc(MEMPAGE_SIZE, border_sizes[BORDER_RIGHT]);
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            MPI_Irecv(rbuffer, rtailsize, MPI_BYTE, mimir_world_rank + 1,
-                      READER_DATA_TAG, mimir_world_comm, &rreq);
+            MPI_Irecv(border_buffers[BORDER_RIGHT], border_sizes[BORDER_RIGHT], 
+                      MPI_BYTE, mimir_world_rank + 1,
+                      READER_DATA_TAG, mimir_world_comm, &border_reqs[BORDER_RIGHT]);
             TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
         }
 
-        PROFILER_RECORD_COUNT(COUNTER_RECV_TAIL, (uint64_t) rtailsize, OPSUM);
-    }
+        PROFILER_RECORD_COUNT(COUNTER_RECV_TAIL, 
+                              (uint64_t) border_sizes[BORDER_RIGHT], OPSUM);
 
-    int recv_tail(char *buffer, uint64_t bufsize){
-        MPI_Status st;
+#if 0
+        if (record->has_right_cmd()) {
+            border_cmds[BORDER_RIGHT] = record->get_right_cmd();
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            MPI_Isend(&border_cmds[BORDER_RIGHT], 1, MPI_INT, mimir_world_rank + 1, 
+                      READER_CMD_TAG, mimir_world_comm, &border_creqs[BORDER_RIGHT]);
+            TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
+        }
+#endif
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        MPI_Wait(&rreq, &st);
+        MPI_Wait(&border_reqs[BORDER_RIGHT], &st);
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-        rreq = MPI_REQUEST_NULL;
+        border_reqs[BORDER_RIGHT] = MPI_REQUEST_NULL;
 
-        //MPI_Get_count(&st, MPI_BYTE, &count);
-
-        if(rtailsize != 0) {
-            if ((uint64_t)rtailsize > bufsize)
-                LOG_ERROR("tail size %d is larger than buffer size %ld\n", rtailsize, bufsize);
-            memcpy(buffer, rbuffer, rtailsize);
-            mem_aligned_free(rbuffer);
+        if (border_sizes[BORDER_RIGHT] != 0) {
+            if ((uint64_t)border_sizes[BORDER_RIGHT] > bufsize)
+                LOG_ERROR("tail size %d is larger than buffer size %ld\n",
+                          border_sizes[BORDER_RIGHT], bufsize);
+            memcpy(buffer, border_buffers[BORDER_RIGHT], border_sizes[BORDER_RIGHT]);
+            mem_aligned_free(border_buffers[BORDER_RIGHT]);
+            border_buffers[BORDER_RIGHT] = NULL;
         }
 
         LOG_PRINT(DBG_IO, "Recv tail file=%s:%ld+%d\n", 
                   state.seg_file->filename.c_str(),
                   state.seg_file->startpos + state.seg_file->segsize, 
-                  rtailsize);
+                  border_sizes[BORDER_RIGHT]);
 
-        return rtailsize;
+        return border_sizes[BORDER_RIGHT];
     }
 
     virtual void file_init(){
@@ -418,11 +470,12 @@ class FileReader : public Readable {
         uint64_t  read_size;
         uint64_t  start_pos;
         uint64_t  win_size;
+        bool      has_head;
         bool      has_tail;
     }state;
 
     void print_state(){
-        printf("%d[%d] file_name=%s:%ld+%ld, read_size=%ld, start_pos=%ld, win_size=%ld, has_tail=%d\n",
+        printf("%d[%d] file_name=%s:%ld+%ld, read_size=%ld, start_pos=%ld, win_size=%ld, has_tail=%d, has_head=%d\n",
                mimir_world_rank, mimir_world_size,
                state.seg_file->filename.c_str(),
                state.seg_file->startpos,
@@ -430,22 +483,24 @@ class FileReader : public Readable {
                state.read_size,
                state.start_pos,
                state.win_size,
-               state.has_tail);
+               state.has_tail,
+               state.has_head);
     }
 
     char             *buffer;
     uint64_t          bufsize;
-    char             *sbuffer;
-    char             *rbuffer;
-    int               stailsize;
-    int               rtailsize;
+
     InputSplit       *input;
     RecordFormat     *record;
 
     BaseShuffler     *shuffler;
     uint64_t          record_count;
 
-    MPI_Request       sreq, rreq, creq;
+    char*        border_buffers[BORDER_SIZE];
+    int          border_sizes[BORDER_SIZE];
+    int          border_cmds[BORDER_SIZE];
+    MPI_Request  border_reqs[BORDER_SIZE];
+    MPI_Request  border_creqs[BORDER_SIZE];
 };
 
 template <typename RecordFormat>

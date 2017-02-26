@@ -56,4 +56,4 @@ int KTYPE = -2, VTYPE = -2;
 
 // 0: blocking collective communication
 // 1: nonblocking collective communication
-int SHUFFLE_TYPE = 1;
+int SHUFFLE_TYPE = 0;
