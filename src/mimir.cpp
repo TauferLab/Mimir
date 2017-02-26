@@ -197,10 +197,20 @@ void get_default_values()
         }
     }
 
+    env = getenv("MIMIR_SHUFFLE_TYPE");
+    if (env) {
+        if (strcmp(env, "a2av") == 0) {
+            SHUFFLE_TYPE = 0;
+        }else if (strcmp(env, "ia2av") == 0) {
+            SHUFFLE_TYPE = 1;
+        }
+    }
+
     if (mimir_world_rank == 0) {
-        fprintf(stdout, "bucket size(2^x)=%d, comm_buf_size=%ld, data_page_size=%ld, input_buf_size=%ld, DBG_LEVEL=%x\n", 
+        fprintf(stdout, "bucket size(2^x)=%d, comm_buf_size=%ld, data_page_size=%ld, input_buf_size=%ld, shuffle_type=%d, DBG_LEVEL=%x\n", 
                 BUCKET_COUNT, COMM_BUF_SIZE, 
-                DATA_PAGE_SIZE, INPUT_BUF_SIZE, DBG_LEVEL);
+                DATA_PAGE_SIZE, INPUT_BUF_SIZE,
+                SHUFFLE_TYPE, DBG_LEVEL);
     }
     fflush(stdout);
 
