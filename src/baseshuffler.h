@@ -18,6 +18,7 @@ namespace MIMIR_NS {
 class BaseShuffler : public Writable {
 public:
     BaseShuffler(Writable *out, HashCallback user_hash = NULL) {
+        if (out == NULL) LOG_ERROR("Output shuffler cannot be NULL!\n");
         this->out = out;
         this->user_hash = user_hash;
         done_flag = 0;

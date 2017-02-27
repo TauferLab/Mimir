@@ -8,9 +8,10 @@
 #ifndef MIMIR_CONTEXT_H
 #define MIMIR_CONTEXT_H
 
-#include "config.h"
 #include "log.h"
+#include "config.h"
 #include "interface.h"
+#include "globals.h"
 
 namespace MIMIR_NS {
 
@@ -57,12 +58,28 @@ class MimirContext {
 
     uint64_t mapreduce(Readable *input, Writable *output, void *ptr = NULL);
 
+    uint64_t get_input_record_count() { return input_records; }
+    uint64_t get_output_record_count() { return output_records; }
+    uint64_t get_kv_record_count() { return kv_records; }
+    uint64_t get_kmv_record_count() { return kmv_records; }
+
+    void print_record_count () {
+        printf("%d[%d] input=%ld, kv=%ld, kmv=%ld, output=%ld\n",
+               mimir_world_rank, mimir_world_size, input_records,
+               kv_records, kmv_records, output_records);
+    }
+
   private:
     bool        do_shuffle;
     MapCallback user_map;
     ReduceCallback user_reduce;
     CombineCallback user_combine;
     HashCallback user_hash;
+
+    uint64_t    input_records;
+    uint64_t    kv_records;
+    uint64_t    kmv_records;
+    uint64_t    output_records;
 };
 
 }

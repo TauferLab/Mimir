@@ -21,6 +21,9 @@
 using namespace MIMIR_NS;
 
 uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
+    input_records = output_records = 0;
+    kv_records = kmv_records = 0;
+
     BaseShuffler *c = NULL;
     KVContainer *kv = NULL;
     KMVContainer *kmv = NULL;
@@ -55,24 +58,36 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
                                                     map_output, user_hash);
             else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
         }
-        map_output->open();
+        if (map_output) map_output->open();
         c->open();
-        if (input->get_object_name() == "FileReader") {
+        if (input && input->get_object_name() == "FileReader") {
             FileReader<ByteRecord> *reader = (FileReader<ByteRecord>*)input;
             reader->set_shuffler(c);
         }
-        input->open();
+        if (input) input->open();
         user_map(input, c, ptr);
         c->close();
-        input->close();
-        map_output->close();
+        if (input) {
+            input->close();
+            input_records = input->get_record_count();
+        }
+        if (map_output) {
+            map_output->close();
+            kv_records = map_output->get_record_count();
+        }
         delete c;
-    } else{
-        map_output->open();
-        input->open();
+    } else {
+        if (map_output) map_output->open();
+        if (input) input->open();
         user_map(input, map_output, ptr);
-        input->close();
-        map_output->close();
+        if (input) {
+            input->close();
+            input_records = input->get_record_count();
+        }
+        if (map_output) {
+            map_output->close();
+            kv_records = map_output->get_record_count();
+        }
     }
 
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
@@ -83,6 +98,8 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
         kmv = new KMVContainer();
         kmv->convert(kv);
         delete kv;
+
+        kmv_records = kmv->get_record_count();
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_CVT);
 
@@ -98,5 +115,9 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
 
     LOG_PRINT(DBG_GEN, "MapReduce: done\n");
 
-    return output->get_record_count();
+    if (output) {
+        output_records = output->get_record_count();
+    }
+
+    return output_records;
 }
