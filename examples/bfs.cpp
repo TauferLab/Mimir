@@ -82,7 +82,6 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // Get pararankters
     if (argc < 7) {
         if (rank == 0)
             printf("Syntax: bfs N indir prefix outdir seed\n");
@@ -107,7 +106,6 @@ int main(int argc, char **argv)
 
     check_envars(rank, size);
 
-    // compute vertex partition range
     quot = nglobalverts / size;
     rem = nglobalverts % size;
     if (rank < rem) {
@@ -128,7 +126,6 @@ int main(int argc, char **argv)
 #endif
 
     MimirContext mimir;
-    //MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
     mimir.set_hash_callback(mypartition);
 
     if (rank == 0)
@@ -150,8 +147,6 @@ int main(int argc, char **argv)
     MPI_Allreduce(&nedges, &nglobaledges, 1, MPI_UINT64_T, 
                   MPI_SUM, MPI_COMM_WORLD);
 
-    // mr->output(stdout, Int64Type, Int64Type);
-
     rowstarts = new size_t[nlocalverts + 1];
     rowinserts = new size_t[nlocalverts];
     rowstarts[0] = 0;
@@ -166,10 +161,6 @@ int main(int argc, char **argv)
         rowstarts[i + 1] += rowstarts[i];
     }
 
-    if (rank == 0)
-        fprintf(stdout, "local edge=%ld\n", nlocaledges);
-
-    // columns=(int64_t*)malloc(nlocaledges*sizeof(int64_t));
 #ifndef COLUMN_SINGLE_BUFFER
     ncolumn = (int) (nlocaledges / ncolumnedge) + 1;
     if (rank == 0) {
@@ -202,8 +193,6 @@ int main(int argc, char **argv)
     delete edges_container;
     delete[] rowinserts;
 
-    // mr->output(stdout, Int64Type, Int64Type);
-
     if (rank == 0) {
         fprintf(stdout, "make CSR graph end.\n");
     }
@@ -232,15 +221,12 @@ int main(int argc, char **argv)
     mimir.set_combine_callback(combiner);
 #endif
 
-    // Inialize the child  vertexes of root
-    //mr->init_key_value(rootvisit, NULL);
+    // Inialize the child vertexes of root
     KVContainer *in_container = new KVContainer();
     KVContainer *out_container = NULL;
 
     mimir.set_map_callback(rootvisit);
     mimir.mapreduce(NULL, in_container);
-
-    // mr->output(stdout, Int64Type, Int64Type);
 
     mimir.set_map_callback(expand);
 
@@ -248,7 +234,6 @@ int main(int argc, char **argv)
     int level = 0;
     uint64_t active_vertexes = 0;
     do {
-        //nactives[level] = mr->map_key_value(mr, expand);
         out_container = new KVContainer();
         active_vertexes = mimir.mapreduce(in_container, out_container);
         MPI_Allreduce(&active_vertexes, &nactives[level], 1, MPI_UINT64_T, 
@@ -257,7 +242,6 @@ int main(int argc, char **argv)
 
         delete in_container;
         in_container = out_container;
-        // mr->output(stdout, Int64Type, Int64Type);
         level++;
     } while (nactives[level - 1]);
 
@@ -287,8 +271,6 @@ int main(int argc, char **argv)
 #endif
 
     output(rank, size, prefix, outdir);
-
-    //delete mr;
 
 #ifdef OUTPUT_RESULT
     if (rank == 0) {
@@ -339,7 +321,7 @@ void fileread(Readable *input, Writable *output, void *ptr)
 
         // skip self-loop edge
         if (strcmp(v0, v1) == 0) {
-            return;
+            continue;
         }
         int64_t int_v0 = strtoull(v0, NULL, 0);
         int64_t int_v1 = strtoull(v1, NULL, 0);
@@ -396,8 +378,6 @@ void rootvisit(Readable *input, Writable *output, void *ptr)
             KVRecord output_record((char *) &v1, sizeof(int64_t),
                                    (char *) &root, sizeof(int64_t));
             output->write(&output_record);
-            //mr->add_key_value((char *) &v1, sizeof(int64_t), 
-            //                  (char *) &root, sizeof(int64_t));
         }
     }
 }
@@ -413,12 +393,9 @@ void expand(Readable *input, Writable *output, void *ptr)
 
         int64_t v0 = *(int64_t *) (((KVRecord*)input_record)->get_val());
 
-    // printf("v0=%ld\n", v0);
-
         if (!TEST_VISITED(v_local, vis)) {
             SET_VISITED(v_local, vis);
             pred[v_local] = v0;
-            // mr->add_key_value(key, keybytes, NULL, 0);
             size_t p_end = rowstarts[v_local + 1];
             for (size_t p = rowstarts[v_local]; p < p_end; p++) {
 #ifndef COLUMN_SINGLE_BUFFER
@@ -429,8 +406,6 @@ void expand(Readable *input, Writable *output, void *ptr)
                 KVRecord output_record((char *) &v1, sizeof(int64_t), 
                                        (char *) &v, sizeof(int64_t));
                 output->write(&output_record);
-                //mr->add_key_value((char *) &v1, sizeof(int64_t), 
-                //              (char *) &v, sizeof(int64_t));
             }
         }
     }
