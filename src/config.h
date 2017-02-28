@@ -33,4 +33,6 @@ extern int KTYPE, VTYPE;
 
 extern int SHUFFLE_TYPE;
 
+extern int OUTPUT_STAT;
+
 #endif

@@ -22,6 +22,14 @@ void Mimir_Init(int *argc, char **argv[], MPI_Comm comm){
 
 void Mimir_Finalize()
 {
+    if (OUTPUT_STAT) {
+        const char *env = getenv("MIMIR_STAT_FILE");
+        if (env) {
+            Mimir_stat(env);
+        }
+        else Mimir_stat("Mimir");
+    }
+
     UNINIT_STAT;
 }
 
@@ -203,6 +211,16 @@ void get_default_values()
             SHUFFLE_TYPE = 0;
         }else if (strcmp(env, "ia2av") == 0) {
             SHUFFLE_TYPE = 1;
+        }
+    }
+
+    env = getenv("MIMIR_OUTPUT_STAT");
+    if (env) {
+        int flag = atoi(env);
+        if (flag == 0) {
+            OUTPUT_STAT = 0;
+        } else {
+            OUTPUT_STAT = 1;
         }
     }
 
