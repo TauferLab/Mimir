@@ -97,7 +97,6 @@ class FileReader : public Readable {
 
     virtual void close() {
         file_uninit();
-
         delete record;
 
         mem_aligned_free(buffer);
@@ -247,7 +246,7 @@ class FileReader : public Readable {
                 int count = handle_right_border(buffer + state.win_size, bufsize);
                 state.win_size += count;
                 state.has_tail = false;
-                print_state();
+                //print_state();
             } else if  (state.has_head) {
                 int count = handle_left_border_end(buffer, bufsize);
                 state.win_size += count;
@@ -349,9 +348,9 @@ class FileReader : public Readable {
                   mimir_world_comm, &border_creqs[BORDER_RIGHT]);
         TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
 
-        while (1) {
+        flag = 0;
+        while (!flag) {
             MPI_Test(&border_creqs[BORDER_RIGHT], &flag, &st);
-            if (flag) break;
             if (shuffler) shuffler->make_progress();
         };
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
@@ -382,7 +381,12 @@ class FileReader : public Readable {
 #endif
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        MPI_Wait(&border_reqs[BORDER_RIGHT], &st);
+        flag = 0;
+        while (!flag) {
+            MPI_Test(&border_reqs[BORDER_RIGHT], &flag, &st);
+            if (shuffler) shuffler->make_progress();
+        };
+        //MPI_Wait(&border_reqs[BORDER_RIGHT], &st);
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         border_reqs[BORDER_RIGHT] = MPI_REQUEST_NULL;
 
@@ -531,6 +535,9 @@ protected:
         MPI_Status st;
         int flag = 0;
 
+        LOG_PRINT(DBG_IO, "Collective MPI open input file=%s start\n",
+                  this->state.seg_file->filename.c_str());
+
         while (sfile_idx < MAX_GROUPS
                && sfile_comms[sfile_idx] == MPI_COMM_NULL)
             sfile_idx++;
@@ -540,6 +547,7 @@ protected:
 
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Ibarrier(file_comm, &req);
+            flag = 0;
             while (!flag) {
                 MPI_Test(&req, &flag, &st);
                  if (this->shuffler)
@@ -570,10 +578,14 @@ protected:
         MPI_Request req;
         int flag = 0;
 
+        LOG_PRINT(DBG_IO, "Collective MPI read input file=%s:%ld+%ld start\n", 
+                  this->state.seg_file->filename.c_str(), offset, size);
+
         if (sfile_idx < MAX_GROUPS) {
 
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+            flag = 0;
             while (!flag) {
                 MPI_Test(&req, &flag, &st);
                 if (this->shuffler)
@@ -602,12 +614,17 @@ protected:
         int flag = 0;
 
         if (this->union_fp.mpi_fp != MPI_FILE_NULL) {
+
+            LOG_PRINT(DBG_IO, "Collective MPI close input file=%s start\n", 
+                      this->state.seg_file->filename.c_str());
+
             if (sfile_idx < MAX_GROUPS) {
                 int remain_count = (int)ROUNDUP(this->state.seg_file->maxsegsize, this->bufsize) \
                                    - (int)ROUNDUP(this->state.seg_file->segsize, this->bufsize);
                 for (int i = 0; i < remain_count; i++) {
                     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                     MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+                    flag = 0;
                     while (!flag) {
                         MPI_Test(&req, &flag, &st);
                         if (this->shuffler)
@@ -625,6 +642,7 @@ protected:
 
                 TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                 MPI_Ibarrier(sfile_comms[sfile_idx], &req);
+                flag = 0;
                 while (!flag) {
                     MPI_Test(&req, &flag, &st);
                     if (this->shuffler)

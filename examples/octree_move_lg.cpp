@@ -73,11 +73,11 @@ int main(int argc, char **argv)
 
 #ifdef KVHINT
     mimir.set_key_length(digits);
-    mimir.set_value_length(0);
+    mimir.set_val_length(0);
 #endif
 
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(indir);
-    StringRecord::set_whitespace("\n");
+    StringRecord::set_whitespaces("\n");
     FileReader<StringRecord> reader(splitinput);
     KVContainer octkeys;
     mimir.set_map_callback(generate_octkey);
@@ -101,7 +101,7 @@ int main(int argc, char **argv)
     while ((min_limit + 1) != max_limit) {
 #ifdef KVHINT
         mimir.set_key_length(level);
-        mimir.set_value_length(sizeof(int64_t));
+        mimir.set_val_length(sizeof(int64_t));
 #endif
         KVContainer loctkeys;
         uint64_t ret = mimir.mapreduce(&octkeys, &loctkeys);

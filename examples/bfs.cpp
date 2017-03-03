@@ -133,12 +133,12 @@ int main(int argc, char **argv)
 
 #ifdef KVHINT
     mimir.set_key_length(sizeof(int64_t));
-    mimir.set_value_length(sizeof(int64_t));
+    mimir.set_val_length(sizeof(int64_t));
 #endif
 
     // partition file
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(indir);
-    StringRecord::set_whitespace("\n");
+    StringRecord::set_whitespaces("\n");
     FileReader<StringRecord> reader(splitinput);
     KVContainer *edges_container = new KVContainer();
     mimir.set_map_callback(fileread);
