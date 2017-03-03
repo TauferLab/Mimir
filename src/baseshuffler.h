@@ -32,7 +32,7 @@ public:
     virtual void write(BaseRecordFormat *) = 0;
     virtual void close() = 0;
     virtual void make_progress() = 0;
-    virtual uint64_t get_record_count() { return 0; }
+    virtual uint64_t get_record_count() { return kvcount; }
 protected:
     int get_target_rank(const char *key, int keysize) {
         int target = 0;

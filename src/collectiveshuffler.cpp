@@ -106,6 +106,7 @@ void CollectiveShuffler::write(BaseRecordFormat *record)
     kv.set_buffer(buffer);
     kv.convert((KVRecord*)record);
     send_offset[target] += kvsize;
+    kvcount++;
     return;
 }
 
@@ -134,7 +135,6 @@ void CollectiveShuffler::save_data()
             record.set_buffer(src_buf);
             kvsize = record.get_record_size();
             out->write(&record);
-	    kvcount++;
 	    src_buf += kvsize;
             count += kvsize;
         }

@@ -84,7 +84,7 @@ class StringRecord : public BaseRecordFormat, public InputRecord {
         return is_contain(whitespaces, ch);
     }
 
-    static void set_whitespace(const char *str) {
+    static void set_whitespaces(const char *str) {
         whitespaces = str;
     }
 

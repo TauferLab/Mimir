@@ -190,6 +190,7 @@ extern char timestr[];
         sprintf(fullname, "%s_%s_profile.txt", filename, timestr);             \
         printf("filename=%s\n", fullname);                                     \
         fp = fopen(fullname, "w+");                                            \
+        if (!fp) LOG_ERROR("Create file %s error!\n", fullname);               \
         fprintf(fp, "testtime,rank,size");                                     \
         for(int i=0; i<TIMER_NUM; i++) fprintf(fp, ",%s", timer_str[i]);       \
         for(int i=0; i<COUNTER_NUM; i++) fprintf(fp, ",%s", counter_str[i]);   \
@@ -304,6 +305,7 @@ extern char timestr[];
         sprintf(fullname, "%s_%s_trace.txt", filename, timestr);               \
         printf("filename=%s\n", fullname);                                     \
         fp = fopen(fullname, "w+");                                            \
+        if (!fp) LOG_ERROR("Create file %s error!\n", fullname);               \
         for(int i=0; i<mimir_world_size; i++){                                 \
             fprintf(fp, "rank:%d,size:%d",i,mimir_world_size);                 \
             std::vector<std::pair<std::string,double> >::iterator iter;        \

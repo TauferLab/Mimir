@@ -101,6 +101,7 @@ void NBCombineCollectiveShuffler::write(BaseRecordFormat *record)
         }
 
         bucket->insertElem(&tmp);
+        kvcount ++;
     }
     else {
         kv.set_buffer(u->kv);

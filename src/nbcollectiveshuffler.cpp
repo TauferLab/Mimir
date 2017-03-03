@@ -132,6 +132,7 @@ void NBCollectiveShuffler::write(BaseRecordFormat *record)
     send_offsets[cur_idx][target] += kvsize;
 
     //push_kv_exchange();
+    kvcount++;
 
     return;
 }
@@ -168,7 +169,6 @@ void NBCollectiveShuffler::save_data()
             record.set_buffer(src_buf);
             kvsize = record.get_record_size();
             out->write(&record);
-	    kvcount++;
 	    src_buf += kvsize;
             count += kvsize;
         }

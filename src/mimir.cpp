@@ -37,6 +37,10 @@ void Mimir_stat(const char* filename)
 {
     GET_CUR_TIME;
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+    if (RECORD_PEAKMEM == 1) {
+        int64_t vmsize = get_mem_usage();
+        if (vmsize > peakmem) peakmem = vmsize;
+    }
     PROFILER_PRINT(filename);
     TRACKER_PRINT(filename);
 }
