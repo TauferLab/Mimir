@@ -21,21 +21,30 @@ class BaseRecordFormat {
   public:
     BaseRecordFormat(){
         buffer = NULL;
+        len = 0;
+    }
+    BaseRecordFormat(char *buffer, int len = 0){
+        this->buffer = buffer;
+        this->len = len;
     }
     virtual ~BaseRecordFormat(){
     }
 
     char* buffer;
+    int   len;
 
     virtual char *get_record() {
         return buffer;
     }
 
-    virtual void set_buffer(char *buffer) {
+    virtual void set_buffer(char *buffer, int len = 0) {
         this->buffer = buffer;
+        this->len = len;
     }
 
-    virtual int get_record_size() = 0;
+    virtual int get_record_size() {
+        return len;
+    }
 
   public:
     static bool is_contain(std::string &str, char ch) {

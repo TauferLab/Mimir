@@ -15,46 +15,182 @@
 #include <sstream>
 
 #include "log.h"
+#include "stat.h"
 #include "interface.h"
+#include "memory.h"
 #include "globals.h"
 
 namespace MIMIR_NS {
 
-class BaseFileWriter : public Writable {
+class FileWriter : public Writable {
   public:
-    BaseFileWriter(const char *filename) {
-        std::ostringstream oss;
-        oss << mimir_world_size << "." << mimir_world_rank;
-        this->filename = filename + oss.str();
+    FileWriter(const char *filename) {
+        //std::ostringstream oss;
+        //oss << mimir_world_size << "." << mimir_world_rank;
+        this->filename = filename;// + oss.str();
     }
 
     std::string get_object_name() { return "FileWriter"; }
 
     virtual bool open() {
-        fp = fopen(filename.c_str(), "w");
-        if (!fp) {
-            LOG_ERROR("Open file %s error!\n", filename.c_str());
+        bufsize = INPUT_BUF_SIZE;
+        datasize = 0;
+        buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE,  bufsize);
+        record_count = 0;
+        return file_open();
+    }
+
+    virtual void close() { 
+        if (datasize > 0) file_write();
+        file_close();
+    }
+
+    virtual void write(BaseRecordFormat *record) {
+        if ((uint64_t)record->get_record_size() > bufsize) {
+            LOG_ERROR("The write record length is larger than the buffer size!\n");
         }
-	record_count = 0;
-        LOG_PRINT(DBG_IO, "Open output file %s.\n", filename.c_str());	
-	return true;
-    }
-
-    virtual void close() {
-        LOG_PRINT(DBG_IO, "Close output file %s.\n", filename.c_str());	
-    	fclose(fp);
-    }
-
-    virtual void write(BaseRecordFormat *) {
-	 record_count++;
+        if (record->get_record_size() + datasize > bufsize) {
+            file_write();
+        }
+        //printf("record size=%d\n", record->get_record_size());
+        memcpy(buffer + datasize, record->get_record(),
+               record->get_record_size());
+        datasize += record->get_record_size();
+        record_count++;
     }
 
     virtual uint64_t get_record_count() { return record_count; }
 
+    virtual bool file_open() {
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+        std::ostringstream oss;
+        oss << mimir_world_size << "." << mimir_world_rank;
+        filename += oss.str();
+
+        union_fp.c_fp = fopen(filename.c_str(), "w");
+        if (!union_fp.c_fp) {
+            LOG_ERROR("Open file %s error!\n", filename.c_str());
+        }
+
+        TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
+
+        LOG_PRINT(DBG_IO, "Open output file %s.\n", filename.c_str());	
+
+        return true;
+    }
+
+    virtual void file_write() {
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+        LOG_PRINT(DBG_IO, "Write output file %s:%d\n", 
+                  filename.c_str(), (int)datasize);
+        fwrite(buffer, datasize, 1, union_fp.c_fp);
+        datasize = 0;
+        TRACKER_RECORD_EVENT(EVENT_DISK_FWRITE);
+    }
+
+    virtual void file_close() {
+        if (union_fp.c_fp) {
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+            fclose(union_fp.c_fp);
+            union_fp.c_fp = NULL;
+            TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
+
+            LOG_PRINT(DBG_IO, "Close output file %s.\n", filename.c_str());	
+        }
+    }
+
   protected:
     std::string filename;
-    FILE *fp;
     uint64_t record_count;
+
+    union FilePtr {
+        FILE    *c_fp;
+        MPI_File mpi_fp;
+    } union_fp;
+
+    char             *buffer;
+    uint64_t          datasize;
+    uint64_t          bufsize;
+};
+
+class MPIFileWriter : public FileWriter {
+  public:
+    MPIFileWriter(const char *filename) : FileWriter(filename) {
+    }
+
+    virtual bool file_open() {
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+        MPI_File_open(mimir_world_comm, filename.c_str(), 
+                      MPI_MODE_WRONLY | MPI_MODE_CREATE,
+                      MPI_INFO_NULL, &(union_fp.mpi_fp));
+        if (union_fp.mpi_fp == MPI_FILE_NULL) {
+            LOG_ERROR("Open file %s error!\n", filename.c_str());
+        }
+
+        TRACKER_RECORD_EVENT(EVENT_DISK_MPIOPEN);
+
+        LOG_PRINT(DBG_IO, "Collective open output file %s.\n", filename.c_str());	
+        done_flag = 0;
+        return true;
+    }
+
+    virtual void file_write() {
+        MPI_Status st;
+        MPI_Offset filesize = 0, fileoff = 0;
+        int sendcounts[mimir_world_size];
+
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+        MPI_File_get_size(union_fp.mpi_fp, &filesize);
+        MPI_Allgather(&datasize, 1, MPI_INT,
+                      sendcounts, 1, MPI_INT, mimir_world_comm);
+
+        TRACKER_RECORD_EVENT(EVENT_COMM_ALLGATHER);
+
+        fileoff = filesize;
+        for (int i = 0; i < mimir_world_rank; i++) fileoff += sendcounts[i];
+        for (int i = 0; i < mimir_world_rank; i++) filesize += sendcounts[i];
+
+        //if (mimir_world_rank == 0)
+        MPI_File_set_size(union_fp.mpi_fp, filesize);
+
+        LOG_PRINT(DBG_IO, "Collective write output file %s:%lld+%d\n", 
+                  filename.c_str(), fileoff, (int)datasize);
+
+        MPI_File_write_at_all(union_fp.mpi_fp, fileoff, buffer,
+                              (int)datasize, MPI_BYTE, &st);
+        datasize = 0;
+
+        TRACKER_RECORD_EVENT(EVENT_DISK_MPIWRITEATALL);
+
+        MPI_Allreduce(&done_flag, &done_count, 1, MPI_INT, MPI_SUM, mimir_world_comm);
+
+        TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
+    }
+
+    virtual void file_close() {
+        if (union_fp.mpi_fp) {
+            done_flag = 1;
+            while (done_count < mimir_world_size) {
+                file_write();
+            }
+
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+            MPI_File_close(&(union_fp.mpi_fp));
+            union_fp.mpi_fp = MPI_FILE_NULL;
+
+            TRACKER_RECORD_EVENT(EVENT_DISK_MPICLOSE);
+
+            LOG_PRINT(DBG_IO, "Collective close output file %s.\n", filename.c_str());	
+        }
+    }
+  private:
+    int done_flag, done_count;
 };
 
 }

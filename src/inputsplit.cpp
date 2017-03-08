@@ -31,7 +31,7 @@ void InputSplit::print() {
 void InputSplit::get_file_list(const char* filepath, int recurse) {
     struct stat inpath_stat;
     int err = stat(filepath, &inpath_stat);
-    if (err) LOG_ERROR("Error in get input files, err=%d\n", err);
+    if (err) LOG_ERROR("Error in get input files filepath=%s, err=%d\n", filepath, err);
 
     if (S_ISREG(inpath_stat.st_mode)) {
         int64_t fsize = inpath_stat.st_size;

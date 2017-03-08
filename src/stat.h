@@ -99,13 +99,16 @@ extern char timestr[];
 #define EVENT_COMM_RECV            "event_comm_recv"            // MPI_Recv
 #define EVENT_COMM_ISEND           "event_comm_isend"           // MPI_Isend
 #define EVENT_COMM_IRECV           "event_comm_irecv"           // MPI_Irecv
+#define EVENT_COMM_ALLGATHER       "event_comm_allgather"       // MPI_Allgather
 
 // Disk IO
 #define EVENT_DISK_FOPEN           "event_disk_fopen"           // fopen
 #define EVENT_DISK_FREADAT         "event_disk_freadat"         // fseek+fread
+#define EVENT_DISK_FWRITE          "event_disk_fwrite"          // fwrite
 #define EVENT_DISK_FCLOSE          "event_disk_fclose"          // fclose
 #define EVENT_DISK_MPIOPEN         "event_disk_mpiopen"         // MPI_File_open
 #define EVENT_DISK_MPIREADATALL    "event_disk_mpireadatall"    // MPI_File_read_at_all
+#define EVENT_DISK_MPIWRITEATALL   "event_disk_mpiwriteatall"   // MPI_File_write_at_all
 #define EVENT_DISK_MPICLOSE        "event_disk_mpiclose"        // MPI_File_close
 
 #define INIT_STAT()                                                            \
