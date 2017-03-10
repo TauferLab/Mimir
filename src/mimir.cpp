@@ -246,6 +246,13 @@ void get_default_values()
         }
     }
 
+    env = getenv("MIMIR_FILE_ALIGN");
+    if (env) {
+        FILE_SPLIT_UNIT = convert_to_int64(env);
+        if (FILE_SPLIT_UNIT <= 0)
+            LOG_ERROR("Error: set file alignment error\n");
+    }
+
     if (mimir_world_rank == 0) {
         printf(\
 "**********************************************************************\n\
@@ -261,10 +268,11 @@ Library configuration:\n\
 \tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv)\n\
 \treader type: %d (0 - POSIX; 1 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - MPIIO)\n\
+\tfile alignment: %ld\n\
 \tdebug level: %x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, 
-        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, DBG_LEVEL);
+        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, FILE_SPLIT_UNIT, DBG_LEVEL);
         fflush(stdout);
     }
 
