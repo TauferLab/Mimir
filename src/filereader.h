@@ -430,7 +430,7 @@ class FileReader : public Readable {
         if (union_fp.c_fp == NULL)
             return false;
 
-        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
 
         LOG_PRINT(DBG_IO, "Open input file=%s\n", 
@@ -446,7 +446,7 @@ class FileReader : public Readable {
         fseek(union_fp.c_fp, offset, SEEK_SET);
         size = fread(buf, 1, size, union_fp.c_fp);
 
-        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
 
         LOG_PRINT(DBG_IO, "Read input file=%s:%ld+%ld\n", 
@@ -461,7 +461,7 @@ class FileReader : public Readable {
 
             fclose(union_fp.c_fp);
 
-            PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+            PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
             TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
 
             union_fp.c_fp = NULL;
@@ -571,7 +571,7 @@ protected:
                       MPI_INFO_NULL, &(this->union_fp.mpi_fp));
         if (this->union_fp.mpi_fp == MPI_FILE_NULL) return false;
 
-        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIOPEN);
 
         LOG_PRINT(DBG_IO, "Collective MPI open input file=%s\n",
@@ -607,7 +607,7 @@ protected:
         MPI_File_read_at_all(this->union_fp.mpi_fp, offset, buf,
                              (int)size, MPI_BYTE, &st);
 
-        PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIREADATALL);
 
 
@@ -643,7 +643,7 @@ protected:
                     MPI_File_read_at_all(this->union_fp.mpi_fp, 0, NULL,
                              0, MPI_BYTE, &st);
 
-                    PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+                    PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
                     TRACKER_RECORD_EVENT(EVENT_DISK_MPIREADATALL);
                 }
 
@@ -661,7 +661,7 @@ protected:
 
                 MPI_File_close(&(this->union_fp.mpi_fp));
 
-                PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+                PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
                 TRACKER_RECORD_EVENT(EVENT_DISK_MPICLOSE);
 
                 sfile_idx++;
@@ -672,7 +672,7 @@ protected:
 
                 MPI_File_close(&(this->union_fp.mpi_fp));
 
-                PROFILER_RECORD_TIME_END(TIMER_PFS_IO);
+                PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
                 TRACKER_RECORD_EVENT(EVENT_DISK_MPICLOSE);
             }
 

@@ -17,7 +17,8 @@ char timestr[1024];
 
 const char *timer_str[TIMER_NUM] = {
     "total_time",
-    "pfs_io_time",
+    "pfs_input_time",
+    "pfs_output_time",
     "mpi_a2a_time",
     "mpi_a2av_time",
     "mpi_rdc_time",

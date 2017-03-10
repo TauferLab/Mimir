@@ -47,15 +47,16 @@ extern char timestr[];
 
 // Timers
 #define TIMER_TOTAL                0    // Total time
-#define TIMER_PFS_IO               1    // PFS time
-#define TIMER_COMM_A2A             2    // MPI_Alltoall
-#define TIMER_COMM_A2AV            3    // MPI_Alltoallv
-#define TIMER_COMM_RDC             4    // MPI_Allreduce
-#define TIMER_COMM_IA2A            5    // MPI_Ialltoall
-#define TIMER_COMM_IA2AV           6    // MPI_Ialltoallv
-#define TIMER_COMM_IRDC            7    // MPI_Ireduce
-#define TIMER_COMM_TEST            8    // MPI_Test
-#define TIMER_NUM                  9
+#define TIMER_PFS_INPUT            1    // PFS input time
+#define TIMER_PFS_OUTPUT           2    // PFS output time
+#define TIMER_COMM_A2A             3    // MPI_Alltoall
+#define TIMER_COMM_A2AV            4    // MPI_Alltoallv
+#define TIMER_COMM_RDC             5    // MPI_Allreduce
+#define TIMER_COMM_IA2A            6    // MPI_Ialltoall
+#define TIMER_COMM_IA2AV           7    // MPI_Ialltoallv
+#define TIMER_COMM_IRDC            8    // MPI_Ireduce
+#define TIMER_COMM_TEST            9    // MPI_Test
+#define TIMER_NUM                 10
 
 
 // Counters

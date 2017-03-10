@@ -85,10 +85,14 @@ class FileWriter : public Writable {
         oss << mimir_world_size << "." << mimir_world_rank;
         filename += oss.str();
 
+        PROFILER_RECORD_TIME_START;
+
         union_fp.c_fp = fopen(filename.c_str(), "w");
         if (!union_fp.c_fp) {
             LOG_ERROR("Open file %s error!\n", filename.c_str());
         }
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
         TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
 
@@ -102,7 +106,11 @@ class FileWriter : public Writable {
 
         LOG_PRINT(DBG_IO, "Write output file %s:%d\n", 
                   filename.c_str(), (int)datasize);
+
+        PROFILER_RECORD_TIME_START;
         fwrite(buffer, datasize, 1, union_fp.c_fp);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
+
         datasize = 0;
         TRACKER_RECORD_EVENT(EVENT_DISK_FWRITE);
     }
@@ -111,7 +119,10 @@ class FileWriter : public Writable {
         if (union_fp.c_fp) {
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
+            PROFILER_RECORD_TIME_START;
             fclose(union_fp.c_fp);
+            PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
+
             union_fp.c_fp = NULL;
             TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
 
@@ -159,12 +170,14 @@ class MPIFileWriter : public FileWriter {
             TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         }
 
+        PROFILER_RECORD_TIME_START;
         MPI_File_open(mimir_world_comm, filename.c_str(), 
                       MPI_MODE_WRONLY | MPI_MODE_CREATE,
                       MPI_INFO_NULL, &(union_fp.mpi_fp));
         if (union_fp.mpi_fp == MPI_FILE_NULL) {
             LOG_ERROR("Open file %s error!\n", filename.c_str());
         }
+        PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIOPEN);
 
@@ -220,9 +233,12 @@ class MPIFileWriter : public FileWriter {
         LOG_PRINT(DBG_IO, "Collective write output file %s:%lld+%d\n", 
                   filename.c_str(), fileoff, (int)datasize);
 
+        PROFILER_RECORD_TIME_START;
         MPI_File_write_at_all(union_fp.mpi_fp, fileoff, buffer,
                               (int)datasize, MPI_BYTE, &st);
         datasize = 0;
+        PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
+
 
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIWRITEATALL);
 
@@ -256,8 +272,10 @@ class MPIFileWriter : public FileWriter {
                 TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
             }
 
+            PROFILER_RECORD_TIME_START;
             MPI_File_close(&(union_fp.mpi_fp));
             union_fp.mpi_fp = MPI_FILE_NULL;
+            PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
             TRACKER_RECORD_EVENT(EVENT_DISK_MPICLOSE);
 
