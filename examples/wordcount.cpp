@@ -19,24 +19,6 @@
 
 using namespace MIMIR_NS;
 
-class FileWriter : public BaseFileWriter {
-  public:
-    FileWriter(const char *filename) : BaseFileWriter(filename) {
-    }
-
-    void write(BaseRecordFormat *record) {
-        KVRecord *kv = (KVRecord*)record;
-        char *key = kv->get_key();
-        char *val = kv->get_val();
-#ifdef VALUE_STRING
-        fprintf(fp, "%s\t%s\n", key, val);
-#else
-        fprintf(fp, "%s\t%ld\n", key, *(int64_t*)(val));
-#endif
-	record_count++;
-    }
-};
-
 int rank, size;
 
 void map (Readable *input, Writable *output, void *ptr);
@@ -81,15 +63,17 @@ int main(int argc, char *argv[])
 #endif
 #endif
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(filedir);
-    StringRecord::set_whitespace(" \n");
-    FileReader<StringRecord> reader(splitinput);
-    FileWriter writer(outdir);
+    StringRecord::set_whitespaces(" \n");
+    FileReader<StringRecord> *reader = FileReader<StringRecord>::getReader(splitinput);
+    char outfile[100];
+    sprintf(outfile, "%s/test.output", outdir);
+    FileWriter *writer = FileWriter::getWriter(outfile);
     mimir.set_map_callback(map);
     mimir.set_reduce_callback(countword);
 #ifdef COMBINE
     mimir.set_combine_callback(combine);
 #endif
-    uint64_t nunique = mimir.mapreduce(&reader, &writer, NULL);
+    uint64_t nunique = mimir.mapreduce(reader, writer, NULL);
 
     uint64_t total_nunique = 0;
     MPI_Reduce(&nunique, &total_nunique, 1, 
@@ -143,10 +127,17 @@ void countword (Readable *input, Writable *output, void *ptr) {
             count += *(int64_t *) val;
 #endif
         }
-        KVRecord output_record(kmv->get_key(),
-                               kmv->get_key_size(),
-                               (char*)&count,
-                               (int)sizeof(count));
+        //KVRecord output_record(kmv->get_key(),
+        //                       kmv->get_key_size(),
+        //                       (char*)&count,
+        //                       (int)sizeof(count));
+        char str[1024];
+#ifdef VALUE_STRING
+        sprintf(str, "%s:%s\n", kmv->get_key(), count);
+#else
+        sprintf(str, "%s:%ld\n", kmv->get_key(), count);
+#endif
+        BaseRecordFormat output_record(str, (int)strlen(str));
         output->write(&output_record);
     }
 }

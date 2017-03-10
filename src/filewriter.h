@@ -5,8 +5,8 @@
  *
  *     See COPYRIGHT in top-level directory.
  */
-#ifndef MIMIR_BASE_FILE_WRITER_H
-#define MIMIR_BASE_FILE_WRITER_H
+#ifndef MIMIR_FILE_WRITER_H
+#define MIMIR_FILE_WRITER_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,21 +16,38 @@
 
 #include "log.h"
 #include "stat.h"
+#include "config.h"
 #include "interface.h"
 #include "memory.h"
 #include "globals.h"
+#include "baseshuffler.h"
 
 namespace MIMIR_NS {
 
+//class MPIFileWriter;
+
 class FileWriter : public Writable {
+  public:
+    static FileWriter *getWriter(const char *filename);
+    static FileWriter *writer;
+
   public:
     FileWriter(const char *filename) {
         //std::ostringstream oss;
         //oss << mimir_world_size << "." << mimir_world_rank;
         this->filename = filename;// + oss.str();
+        shuffler = NULL;
     }
 
     std::string get_object_name() { return "FileWriter"; }
+
+    void set_shuffler(BaseShuffler *shuffler) {
+        this->shuffler = shuffler;
+    }
+
+    virtual bool is_single_file() {
+        return false;
+    }
 
     virtual bool open() {
         bufsize = INPUT_BUF_SIZE;
@@ -106,6 +123,8 @@ class FileWriter : public Writable {
     std::string filename;
     uint64_t record_count;
 
+    BaseShuffler     *shuffler;
+
     union FilePtr {
         FILE    *c_fp;
         MPI_File mpi_fp;
@@ -121,8 +140,24 @@ class MPIFileWriter : public FileWriter {
     MPIFileWriter(const char *filename) : FileWriter(filename) {
     }
 
+    virtual bool is_single_file() {
+        return true;
+    }
+
     virtual bool file_open() {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+        MPI_Request req;
+        MPI_Status st;
+        if (this->shuffler) {
+            MPI_Ibarrier(mimir_world_comm, &req);
+            int flag = 0;
+            while (!flag) {
+                MPI_Test(&req, &flag, &st);
+                this->shuffler->make_progress();
+            }
+            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
+        }
 
         MPI_File_open(mimir_world_comm, filename.c_str(), 
                       MPI_MODE_WRONLY | MPI_MODE_CREATE,
@@ -139,11 +174,25 @@ class MPIFileWriter : public FileWriter {
     }
 
     virtual void file_write() {
+        MPI_Request done_req, req;
         MPI_Status st;
         MPI_Offset filesize = 0, fileoff = 0;
         int sendcounts[mimir_world_size];
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+        MPI_Iallreduce(&done_flag, &done_count, 1, MPI_INT, MPI_SUM, 
+                       mimir_world_comm, &done_req);
+
+        if (this->shuffler) {
+            MPI_Ibarrier(mimir_world_comm, &req);
+            int flag = 0;
+            while (!flag) {
+                MPI_Test(&req, &flag, &st);
+                this->shuffler->make_progress();
+            }
+            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
+        }
 
         MPI_File_get_size(union_fp.mpi_fp, &filesize);
         MPI_Allgather(&datasize, 1, MPI_INT,
@@ -158,6 +207,16 @@ class MPIFileWriter : public FileWriter {
         //if (mimir_world_rank == 0)
         MPI_File_set_size(union_fp.mpi_fp, filesize);
 
+        if (this->shuffler) {
+            MPI_Ibarrier(mimir_world_comm, &req);
+            int flag = 0;
+            while (!flag) {
+                MPI_Test(&req, &flag, &st);
+                this->shuffler->make_progress();
+            }
+            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
+        }
+
         LOG_PRINT(DBG_IO, "Collective write output file %s:%lld+%d\n", 
                   filename.c_str(), fileoff, (int)datasize);
 
@@ -167,9 +226,13 @@ class MPIFileWriter : public FileWriter {
 
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIWRITEATALL);
 
-        MPI_Allreduce(&done_flag, &done_count, 1, MPI_INT, MPI_SUM, mimir_world_comm);
+        int flag = 0;
+        while (!flag) {
+            MPI_Test(&done_req, &flag, &st);
+            if (this->shuffler) this->shuffler->make_progress();
+        }
 
-        TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
+        TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
     }
 
     virtual void file_close() {
@@ -180,6 +243,18 @@ class MPIFileWriter : public FileWriter {
             }
 
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+            MPI_Request req;
+            MPI_Status st;
+            if (this->shuffler) {
+                MPI_Ibarrier(mimir_world_comm, &req);
+                int flag = 0;
+                while (!flag) {
+                    MPI_Test(&req, &flag, &st);
+                    this->shuffler->make_progress();
+                }
+                TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
+            }
 
             MPI_File_close(&(union_fp.mpi_fp));
             union_fp.mpi_fp = MPI_FILE_NULL;

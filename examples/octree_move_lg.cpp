@@ -78,11 +78,11 @@ int main(int argc, char **argv)
 
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(indir);
     StringRecord::set_whitespaces("\n");
-    FileReader<StringRecord> reader(splitinput);
+    FileReader<StringRecord> *reader = FileReader<StringRecord>::getReader(splitinput);
     KVContainer octkeys;
     mimir.set_map_callback(generate_octkey);
     mimir.set_shuffle_flag(false);
-    uint64_t ret = mimir.mapreduce(&reader, &octkeys);
+    uint64_t ret = mimir.mapreduce(reader, &octkeys);
     uint64_t nwords = 0;
     MPI_Allreduce(&ret, &nwords, 1, MPI_UINT64_T, 
                   MPI_SUM, MPI_COMM_WORLD);

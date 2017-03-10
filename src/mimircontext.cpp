@@ -17,6 +17,7 @@
 #include "combinecollectiveshuffler.h"
 #include "nbcombinecollectiveshuffler.h"
 #include "filereader.h"
+#include "filewriter.h"
 
 using namespace MIMIR_NS;
 
@@ -58,7 +59,13 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
                                                     map_output, user_hash);
             else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
         }
-        if (map_output) map_output->open();
+        if (map_output) {
+            if (map_output->get_object_name() == "FileWriter") {
+                FileWriter *writer = (FileWriter*)map_output;
+                writer->set_shuffler(c);
+            }
+            map_output->open();
+        }
         c->open();
         if (input && input->get_object_name() == "FileReader") {
             FileReader<ByteRecord> *reader = (FileReader<ByteRecord>*)input;

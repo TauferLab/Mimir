@@ -54,6 +54,10 @@ int RECORD_PEAKMEM = 1;
 
 int KTYPE = -2, VTYPE = -2;
 
+// 0: POSIX interfaces
+// 1: MPIIO interfaces
+int READER_TYPE = 0;
+int WRITER_TYPE = 0;
 // 0: blocking collective communication
 // 1: nonblocking collective communication
 int SHUFFLE_TYPE = 0;

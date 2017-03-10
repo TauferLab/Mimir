@@ -139,11 +139,11 @@ int main(int argc, char **argv)
     // partition file
     InputSplit* splitinput = FileSplitter::getFileSplitter()->split(indir);
     StringRecord::set_whitespaces("\n");
-    FileReader<StringRecord> reader(splitinput);
+    FileReader<StringRecord> *reader = FileReader<StringRecord>::getReader(splitinput);
     KVContainer *edges_container = new KVContainer();
     mimir.set_map_callback(fileread);
 
-    uint64_t nedges = mimir.mapreduce(&reader, edges_container, NULL);
+    uint64_t nedges = mimir.mapreduce(reader, edges_container, NULL);
     MPI_Allreduce(&nedges, &nglobaledges, 1, MPI_UINT64_T, 
                   MPI_SUM, MPI_COMM_WORLD);
 

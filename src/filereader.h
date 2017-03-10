@@ -22,7 +22,7 @@
 
 namespace MIMIR_NS {
 
-enum IOTYPE {MIMIR_STDC_IO, MIMIR_MPI_IO};
+//enum IOTYPE {MIMIR_STDC_IO, MIMIR_MPI_IO};
 
 #define BORDER_LEFT       0
 #define BORDER_RIGHT      1
@@ -31,8 +31,15 @@ enum IOTYPE {MIMIR_STDC_IO, MIMIR_MPI_IO};
 class InputSplit;
 class BaseFileReader;
 
-template<typename RecordFormat, IOTYPE iotype = MIMIR_STDC_IO>
+template <typename RecordFormat>
+class MPIFileReader;
+
+template<typename RecordFormat>
 class FileReader : public Readable {
+  public:
+    static FileReader<RecordFormat> *getReader(InputSplit *input);
+    static FileReader<RecordFormat> *reader;
+
   public:
     FileReader(InputSplit *input) {
         this->input = input;
@@ -508,10 +515,10 @@ class FileReader : public Readable {
 };
 
 template <typename RecordFormat>
-class MPIFileReader : public FileReader< RecordFormat, MIMIR_MPI_IO >{
+class MPIFileReader : public FileReader< RecordFormat >{
 public:
     MPIFileReader(InputSplit *input) 
-        : FileReader<RecordFormat, MIMIR_MPI_IO>(input) {
+        : FileReader<RecordFormat>(input) {
     }
 
     ~MPIFileReader(){
@@ -725,6 +732,23 @@ protected:
     MPI_Comm sfile_comms[MAX_GROUPS];
     int      sfile_idx;
 };
+
+template<typename RecordFormat>
+FileReader<RecordFormat>* FileReader<RecordFormat>::reader = NULL;
+
+template<typename RecordFormat>
+FileReader<RecordFormat>* FileReader<RecordFormat>
+    ::getReader(InputSplit *input) {
+    if (reader != NULL) delete reader;
+    if (READER_TYPE == 0) {
+        reader = new FileReader<RecordFormat>(input);
+    } else if (READER_TYPE == 1) {
+        reader = new MPIFileReader<RecordFormat>(input);
+    } else {
+        LOG_ERROR("Error reader type %d\n", READER_TYPE);
+    }
+    return reader;
+}
 
 }
 

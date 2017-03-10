@@ -209,6 +209,24 @@ void get_default_values()
         }
     }
 
+    env = getenv("MIMIR_READER_TYPE");
+    if (env) {
+        if (strcmp(env, "posix") == 0) {
+            READER_TYPE = 0;
+        }else if (strcmp(env, "mpiio") == 0) {
+            READER_TYPE = 1;
+        }
+    }
+
+    env = getenv("MIMIR_WRITER_TYPE");
+    if (env) {
+        if (strcmp(env, "posix") == 0) {
+            WRITER_TYPE = 0;
+        }else if (strcmp(env, "mpiio") == 0) {
+            WRITER_TYPE = 1;
+        }
+    }
+
     env = getenv("MIMIR_SHUFFLE_TYPE");
     if (env) {
         if (strcmp(env, "a2av") == 0) {
@@ -229,12 +247,26 @@ void get_default_values()
     }
 
     if (mimir_world_rank == 0) {
-        fprintf(stdout, "bucket size(2^x)=%d, comm_buf_size=%ld, data_page_size=%ld, input_buf_size=%ld, shuffle_type=%d, DBG_LEVEL=%x\n", 
-                BUCKET_COUNT, COMM_BUF_SIZE, 
-                DATA_PAGE_SIZE, INPUT_BUF_SIZE,
-                SHUFFLE_TYPE, DBG_LEVEL);
+        printf(\
+"**********************************************************************\n\
+******** Welcome to use Mimir (MapReduce framework over MPI) *********\n\
+**********************************************************************\n\
+Refer IPDPS17 paper \"Mimir: Memory-Efficient and Scalable MapReduce\n\
+for Large Supercomputing Systems\" for the design idea.\n\
+Library configuration:\n\
+\tcomm buffer size: %ld\n\
+\tpage buffer size: %ld\n\
+\tdisk buffer size: %ld\n\
+\tbucket size (2^x): %d\n\
+\tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv)\n\
+\treader type: %d (0 - POSIX; 1 - MPIIO)\n\
+\twriter type: %d (0 - POSIX; 1 - MPIIO)\n\
+\tdebug level: %x\n\
+***********************************************************************\n",
+        COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, 
+        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, DBG_LEVEL);
+        fflush(stdout);
     }
-    fflush(stdout);
 
     PROFILER_RECORD_COUNT(COUNTER_BUCKET_SIZE, (uint64_t) BUCKET_COUNT, OPMAX);
     PROFILER_RECORD_COUNT(COUNTER_INBUF_SIZE, (uint64_t) INPUT_BUF_SIZE, OPMAX);
