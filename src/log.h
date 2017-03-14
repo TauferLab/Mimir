@@ -53,7 +53,8 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
         char _s[MIMIR_MAX_LOG_LEN] = "";                                       \
         sprintf(_s, __VA_ARGS__);                                              \
         fprintf(stderr, "%d[%d] %s:%d %s",                                     \
-                mimir_world_rank, mimir_world_size, __FILE__, __LINE__, _s);       \
+                mimir_world_rank, mimir_world_size, __FILE__, __LINE__, _s);   \
+        fflush(stderr);                                                        \
     } while (0)
 
 #define LOG_ERROR(...)                                                         \
@@ -61,7 +62,8 @@ extern char dump_buffer[MIMIR_MAX_LOG_LEN];
         char _s[MIMIR_MAX_LOG_LEN] = "";                                       \
         sprintf(_s, __VA_ARGS__);                                              \
         fprintf(stderr, "%d[%d] %s:%d %s",                                     \
-                mimir_world_rank, mimir_world_size, __FILE__, __LINE__, _s);       \
+                mimir_world_rank, mimir_world_size, __FILE__, __LINE__, _s);   \
+        fflush(stderr);                                                        \
         MPI_Abort(MPI_COMM_WORLD, 1);                                          \
     } while (0)
 

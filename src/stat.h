@@ -54,9 +54,13 @@ extern char timestr[];
 #define TIMER_COMM_RDC             5    // MPI_Allreduce
 #define TIMER_COMM_IA2A            6    // MPI_Ialltoall
 #define TIMER_COMM_IA2AV           7    // MPI_Ialltoallv
-#define TIMER_COMM_IRDC            8    // MPI_Ireduce
-#define TIMER_COMM_TEST            9    // MPI_Test
-#define TIMER_NUM                 10
+#define TIMER_COMM_IRDC            8    // MPI_Iallreduce
+#define TIMER_COMM_ISEND           9    // MPI_ISend
+#define TIMER_COMM_IRECV          10    // MPI_IRecv
+#define TIMER_COMM_IBARRIER       11    // MPI_Ibarrier
+#define TIMER_COMM_TEST           12    // MPI_Test
+#define TIMER_COMM_ALLGATHER      13    // MPI_Allgather
+#define TIMER_NUM                 14
 
 
 // Counters

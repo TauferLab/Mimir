@@ -287,8 +287,10 @@ class FileReader : public Readable {
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         border_cmds[BORDER_LEFT] = border_sizes[BORDER_LEFT];
+        PROFILER_RECORD_TIME_START;
         MPI_Isend(&border_cmds[BORDER_LEFT], 1, MPI_INT, mimir_world_rank - 1, 
                   READER_CMD_TAG, mimir_world_comm, &border_creqs[BORDER_LEFT]);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_ISEND);
         TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
 
         if (border_sizes[BORDER_LEFT] != 0) {
@@ -296,9 +298,11 @@ class FileReader : public Readable {
                 = (char*)mem_aligned_malloc(MEMPAGE_SIZE, border_sizes[BORDER_LEFT]);
             memcpy(border_buffers[BORDER_LEFT], buffer, border_sizes[BORDER_LEFT]);
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            PROFILER_RECORD_TIME_START;
             MPI_Isend(border_buffers[BORDER_LEFT], border_sizes[BORDER_LEFT], 
                       MPI_BYTE, mimir_world_rank - 1, 
                       READER_DATA_TAG, mimir_world_comm, &border_reqs[BORDER_LEFT]);
+            PROFILER_RECORD_TIME_END(TIMER_COMM_ISEND);
             TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
         }
 
@@ -350,14 +354,18 @@ class FileReader : public Readable {
         int flag = 0;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+        PROFILER_RECORD_TIME_START;
         MPI_Irecv(&border_sizes[BORDER_RIGHT], 1, MPI_INT,
                   mimir_world_rank + 1, READER_CMD_TAG,
                   mimir_world_comm, &border_creqs[BORDER_RIGHT]);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_IRECV);
         TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
 
         flag = 0;
         while (!flag) {
+            PROFILER_RECORD_TIME_START;
             MPI_Test(&border_creqs[BORDER_RIGHT], &flag, &st);
+            PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
             if (shuffler) shuffler->make_progress();
         };
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
@@ -368,9 +376,11 @@ class FileReader : public Readable {
             border_buffers[BORDER_RIGHT] 
                 = (char*)mem_aligned_malloc(MEMPAGE_SIZE, border_sizes[BORDER_RIGHT]);
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            PROFILER_RECORD_TIME_START;
             MPI_Irecv(border_buffers[BORDER_RIGHT], border_sizes[BORDER_RIGHT], 
                       MPI_BYTE, mimir_world_rank + 1,
                       READER_DATA_TAG, mimir_world_comm, &border_reqs[BORDER_RIGHT]);
+            PROFILER_RECORD_TIME_END(TIMER_COMM_IRECV);
             TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
         }
 
@@ -390,7 +400,9 @@ class FileReader : public Readable {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         flag = 0;
         while (!flag) {
+            PROFILER_RECORD_TIME_START;
             MPI_Test(&border_reqs[BORDER_RIGHT], &flag, &st);
+            PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
             if (shuffler) shuffler->make_progress();
         };
         //MPI_Wait(&border_reqs[BORDER_RIGHT], &st);
@@ -556,7 +568,9 @@ protected:
             MPI_Ibarrier(file_comm, &req);
             flag = 0;
             while (!flag) {
+                PROFILER_RECORD_TIME_START;
                 MPI_Test(&req, &flag, &st);
+                PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                  if (this->shuffler)
                     this->shuffler->make_progress();
             }
@@ -594,7 +608,9 @@ protected:
             MPI_Ibarrier(sfile_comms[sfile_idx], &req);
             flag = 0;
             while (!flag) {
+                PROFILER_RECORD_TIME_START;
                 MPI_Test(&req, &flag, &st);
+                PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                 if (this->shuffler)
                     this->shuffler->make_progress();
             }
@@ -633,7 +649,9 @@ protected:
                     MPI_Ibarrier(sfile_comms[sfile_idx], &req);
                     flag = 0;
                     while (!flag) {
+                        PROFILER_RECORD_TIME_START;
                         MPI_Test(&req, &flag, &st);
+                        PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                         if (this->shuffler)
                             this->shuffler->make_progress();
                     }
@@ -651,7 +669,9 @@ protected:
                 MPI_Ibarrier(sfile_comms[sfile_idx], &req);
                 flag = 0;
                 while (!flag) {
+                    PROFILER_RECORD_TIME_START;
                     MPI_Test(&req, &flag, &st);
+                    PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                     if (this->shuffler)
                         this->shuffler->make_progress();
                 }

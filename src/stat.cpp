@@ -25,7 +25,11 @@ const char *timer_str[TIMER_NUM] = {
     "mpi_ia2a_time",
     "mpi_ia2av_time",
     "mpi_irdc_time",
-    "mpi_test",
+    "mpi_isend_time",
+    "mpi_irecv_time",
+    "mpi_ibarrier_time",
+    "mpi_test_time",
+    "mpi_allgather_time"
 };
 
 const char *counter_str[COUNTER_NUM] = {

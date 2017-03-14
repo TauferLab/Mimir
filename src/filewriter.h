@@ -161,10 +161,14 @@ class MPIFileWriter : public FileWriter {
         MPI_Request req;
         MPI_Status st;
         if (this->shuffler) {
+            PROFILER_RECORD_TIME_START;
             MPI_Ibarrier(mimir_world_comm, &req);
+            PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
             int flag = 0;
             while (!flag) {
+                PROFILER_RECORD_TIME_START;
                 MPI_Test(&req, &flag, &st);
+                PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                 this->shuffler->make_progress();
             }
             TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
@@ -194,22 +198,30 @@ class MPIFileWriter : public FileWriter {
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
+        PROFILER_RECORD_TIME_START;
         MPI_Iallreduce(&done_flag, &done_count, 1, MPI_INT, MPI_SUM, 
                        mimir_world_comm, &done_req);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_IRDC);
 
         if (this->shuffler) {
+            PROFILER_RECORD_TIME_START;
             MPI_Ibarrier(mimir_world_comm, &req);
+            PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
             int flag = 0;
             while (!flag) {
+                PROFILER_RECORD_TIME_START;
                 MPI_Test(&req, &flag, &st);
+                PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                 this->shuffler->make_progress();
             }
             TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         }
 
         MPI_File_get_size(union_fp.mpi_fp, &filesize);
+        PROFILER_RECORD_TIME_START;
         MPI_Allgather(&datasize, 1, MPI_INT,
                       sendcounts, 1, MPI_INT, mimir_world_comm);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_ALLGATHER);
 
         TRACKER_RECORD_EVENT(EVENT_COMM_ALLGATHER);
 
@@ -220,15 +232,15 @@ class MPIFileWriter : public FileWriter {
         //if (mimir_world_rank == 0)
         MPI_File_set_size(union_fp.mpi_fp, filesize);
 
-        if (this->shuffler) {
-            MPI_Ibarrier(mimir_world_comm, &req);
-            int flag = 0;
-            while (!flag) {
-                MPI_Test(&req, &flag, &st);
-                this->shuffler->make_progress();
-            }
-            TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-        }
+        //if (this->shuffler) {
+        //    MPI_Ibarrier(mimir_world_comm, &req);
+        //    int flag = 0;
+        //    while (!flag) {
+        //        MPI_Test(&req, &flag, &st);
+        //        this->shuffler->make_progress();
+        //    }
+        //    TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
+        //}
 
         LOG_PRINT(DBG_IO, "Collective write output file %s:%lld+%d\n", 
                   filename.c_str(), fileoff, (int)datasize);
@@ -244,7 +256,9 @@ class MPIFileWriter : public FileWriter {
 
         int flag = 0;
         while (!flag) {
+            PROFILER_RECORD_TIME_START;
             MPI_Test(&done_req, &flag, &st);
+            PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
             if (this->shuffler) this->shuffler->make_progress();
         }
 
@@ -263,10 +277,14 @@ class MPIFileWriter : public FileWriter {
             MPI_Request req;
             MPI_Status st;
             if (this->shuffler) {
+                PROFILER_RECORD_TIME_START;
                 MPI_Ibarrier(mimir_world_comm, &req);
+                PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
                 int flag = 0;
                 while (!flag) {
+                    PROFILER_RECORD_TIME_START;
                     MPI_Test(&req, &flag, &st);
+                    PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                     this->shuffler->make_progress();
                 }
                 TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
