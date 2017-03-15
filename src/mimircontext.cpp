@@ -14,6 +14,7 @@
 #include "kmvcontainer.h"
 #include "collectiveshuffler.h"
 #include "nbcollectiveshuffler.h"
+#include "nbshuffler.h"
 #include "combinecollectiveshuffler.h"
 #include "nbcombinecollectiveshuffler.h"
 #include "filereader.h"
@@ -49,6 +50,8 @@ uint64_t MimirContext::mapreduce(Readable *input, Writable *output, void *ptr) {
                 c = new CollectiveShuffler(map_output, user_hash);
             else if (SHUFFLE_TYPE == 1)
                 c = new NBCollectiveShuffler(map_output, user_hash);
+            else if (SHUFFLE_TYPE == 2)
+                c = new NBShuffler(map_output, user_hash);
             else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
         } else {
             if (SHUFFLE_TYPE == 0)

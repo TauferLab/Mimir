@@ -139,6 +139,8 @@ void NBCollectiveShuffler::write(BaseRecordFormat *record)
 
 void NBCollectiveShuffler::wait()
 {
+    LOG_PRINT(DBG_COMM, "Comm: start wait.\n");
+
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
     while (!done_kv_exchange()) {
         push_kv_exchange();

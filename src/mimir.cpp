@@ -233,6 +233,8 @@ void get_default_values()
             SHUFFLE_TYPE = 0;
         }else if (strcmp(env, "ia2av") == 0) {
             SHUFFLE_TYPE = 1;
+        }else if (strcmp(env, "isend") == 0) {
+            SHUFFLE_TYPE = 2;
         }
     }
 
@@ -265,7 +267,7 @@ Library configuration:\n\
 \tpage buffer size: %ld\n\
 \tdisk buffer size: %ld\n\
 \tbucket size (2^x): %d\n\
-\tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv)\n\
+\tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv; 2 - MPI_Isend)\n\
 \treader type: %d (0 - POSIX; 1 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - MPIIO)\n\
 \tfile alignment: %ld\n\

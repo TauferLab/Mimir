@@ -141,7 +141,6 @@ extern char timestr[];
                 tm.tm_hour,                                                    \
                 tm.tm_min,                                                     \
                 tm.tm_sec);                                                    \
-        printf("timestr=%s\n", timestr);                                       \
     }                                                                          \
 }
 

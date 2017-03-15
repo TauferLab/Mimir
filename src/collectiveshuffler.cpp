@@ -112,7 +112,7 @@ void CollectiveShuffler::write(BaseRecordFormat *record)
 
 void CollectiveShuffler::wait()
 {
-    LOG_PRINT(DBG_COMM, "Comm: finish start.\n");
+    LOG_PRINT(DBG_COMM, "Comm: start wait.\n");
 
     done_flag = 1;
 

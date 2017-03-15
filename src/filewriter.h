@@ -32,21 +32,26 @@ class FileWriter : public Writable {
     static FileWriter *writer;
 
   public:
-    FileWriter(const char *filename) {
-        //std::ostringstream oss;
-        //oss << mimir_world_size << "." << mimir_world_rank;
-        this->filename = filename;// + oss.str();
+    FileWriter(const char *filename, bool singlefile = false) {
+        this->filename = filename;
+        this->singlefile = singlefile;
+        if (!singlefile) {
+            std::ostringstream oss;
+            oss << mimir_world_size << "." << mimir_world_rank;
+            this->filename += oss.str();
+        }
         shuffler = NULL;
     }
 
     std::string get_object_name() { return "FileWriter"; }
+    std::string& get_file_name() { return filename; }
 
     void set_shuffler(BaseShuffler *shuffler) {
         this->shuffler = shuffler;
     }
 
     virtual bool is_single_file() {
-        return false;
+        return singlefile;
     }
 
     virtual bool open() {
@@ -81,13 +86,13 @@ class FileWriter : public Writable {
     virtual bool file_open() {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
-        std::ostringstream oss;
-        oss << mimir_world_size << "." << mimir_world_rank;
-        filename += oss.str();
+        //std::ostringstream oss;
+        //oss << mimir_world_size << "." << mimir_world_rank;
+        //filename += oss.str();
 
         PROFILER_RECORD_TIME_START;
 
-        union_fp.c_fp = fopen(filename.c_str(), "w");
+        union_fp.c_fp = fopen(filename.c_str(), "a+");
         if (!union_fp.c_fp) {
             LOG_ERROR("Open file %s error!\n", filename.c_str());
         }
@@ -144,6 +149,7 @@ class FileWriter : public Writable {
     char             *buffer;
     uint64_t          datasize;
     uint64_t          bufsize;
+    bool              singlefile;
 };
 
 class MPIFileWriter : public FileWriter {

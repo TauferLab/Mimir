@@ -60,6 +60,7 @@ int READER_TYPE = 0;
 int WRITER_TYPE = 0;
 // 0: blocking collective communication
 // 1: nonblocking collective communication
+// 2: MPI_Isend/MPI_Irecv communication
 int SHUFFLE_TYPE = 0;
 
 /// output profile and trace data
