@@ -156,6 +156,9 @@ void NBCombineCollectiveShuffler::garbage_collection()
 {
     if (!slices.empty()) {
 
+        LOG_PRINT(DBG_GEN, "NBCollectiveShuffler garbage collection: slices=%ld\n",
+                  slices.size());
+
         int dst_off = 0, src_off = 0;
         char *dst_buf = NULL, *src_buf = NULL;
 
@@ -166,12 +169,13 @@ void NBCombineCollectiveShuffler::garbage_collection()
             dst_off = src_off = 0;
             while (src_off < send_offsets[cur_idx][k]) {
 
-                std::unordered_map < char *, int >::iterator iter = slices.find(src_buf);
+                char *tmp_buf = src_buf + src_off;
+                std::unordered_map < char *, int >::iterator iter = slices.find(tmp_buf);
                 if (iter != slices.end()) {
                     src_off += iter->second;
                 }
                 else {
-                    kv.set_buffer(src_buf);
+                    kv.set_buffer(tmp_buf);
                     int kvsize = kv.get_record_size();
                     if (src_off != dst_off) {
                         for (int kk = 0; kk < kvsize; kk++)

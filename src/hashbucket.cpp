@@ -29,6 +29,8 @@ CombinerUnique* CombinerHashBucket::insertElem(CombinerUnique *elem)
     keybytes = record.get_key_size();
 
     if (nbuf == (nunique / nbucket) && buffers[nbuf] == NULL) {
+        if (nbuf >= MAX_PAGE_COUNT)
+            LOG_ERROR("The bucket size is larger than max value!\n");
         buffers[nbuf] = (char*) mem_aligned_malloc(MEMPAGE_SIZE, usize);
         CombinerHashBucket::mem_bytes += usize;
         PROFILER_RECORD_COUNT(COUNTER_COMBINE_BUCKET,
