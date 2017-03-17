@@ -65,6 +65,7 @@ class FileWriter : public Writable {
     virtual void close() { 
         if (datasize > 0) file_write();
         file_close();
+        mem_aligned_free(buffer);
     }
 
     virtual void write(BaseRecordFormat *record) {
