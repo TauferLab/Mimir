@@ -99,8 +99,10 @@ void CollectiveShuffler::write(BaseRecordFormat *record)
         LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                   kvsize, buf_size);
 
-    if ((int64_t)send_offset[target] + (int64_t)kvsize > buf_size)
+    if ((int64_t)send_offset[target] + (int64_t)kvsize > buf_size) {
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         exchange_kv();
+    }
 
     char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
     kv.set_buffer(buffer);
@@ -114,11 +116,15 @@ void CollectiveShuffler::wait()
 {
     LOG_PRINT(DBG_COMM, "Comm: start wait.\n");
 
+    TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+
     done_flag = 1;
 
     do {
         exchange_kv();
     } while (done_count < mimir_world_size);
+
+    TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
 
     LOG_PRINT(DBG_COMM, "Comm: finish wait.\n");
 }
