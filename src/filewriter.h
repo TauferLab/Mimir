@@ -155,11 +155,7 @@ class FileWriter : public Writable {
 
 class MPIFileWriter : public FileWriter {
   public:
-    MPIFileWriter(const char *filename) : FileWriter(filename) {
-    }
-
-    virtual bool is_single_file() {
-        return true;
+    MPIFileWriter(const char *filename) : FileWriter(filename, true) {
     }
 
     virtual bool file_open() {
