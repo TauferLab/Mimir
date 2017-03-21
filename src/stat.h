@@ -107,10 +107,10 @@ extern char timestr[];
 #define EVENT_COMM_ALLGATHER       "event_comm_allgather"       // MPI_Allgather
 
 // Disk IO
-#define EVENT_DISK_FOPEN           "event_disk_fopen"           // fopen
-#define EVENT_DISK_FREADAT         "event_disk_freadat"         // fseek+fread
-#define EVENT_DISK_FWRITE          "event_disk_fwrite"          // fwrite
-#define EVENT_DISK_FCLOSE          "event_disk_fclose"          // fclose
+#define EVENT_DISK_FOPEN           "event_disk_open"            // posix open
+#define EVENT_DISK_FREADAT         "event_disk_readat"          // posix seek+read
+#define EVENT_DISK_FWRITE          "event_disk_write"           // posx write
+#define EVENT_DISK_FCLOSE          "event_disk_close"           // posix close
 #define EVENT_DISK_MPIOPEN         "event_disk_mpiopen"         // MPI_File_open
 #define EVENT_DISK_MPIREADATALL    "event_disk_mpireadatall"    // MPI_File_read_at_all
 #define EVENT_DISK_MPIWRITEATALL   "event_disk_mpiwriteatall"   // MPI_File_write_at_all

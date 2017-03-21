@@ -9,6 +9,10 @@
 #define MIMIR_FILE_READER_H
 
 #include <mpi.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "log.h"
 #include "stat.h"
@@ -486,6 +490,7 @@ class FileReader : public Readable {
     union FilePtr{
         FILE    *c_fp;
         MPI_File mpi_fp;
+        int      posix_fd;
     } union_fp;
 
     struct FileState{
@@ -525,6 +530,79 @@ class FileReader : public Readable {
     MPI_Request  border_reqs[BORDER_SIZE];
     MPI_Request  border_creqs[BORDER_SIZE];
 };
+
+template <typename RecordFormat>
+class PosixFileReader : public FileReader< RecordFormat >{
+
+  public:
+    PosixFileReader(InputSplit *input) 
+        : FileReader<RecordFormat>(input) {
+    }
+
+    ~PosixFileReader(){
+    }
+
+  protected:
+
+    virtual void file_init(){
+        this->union_fp.posix_fp = -1;
+    }
+
+    virtual void file_uninit(){
+    }
+
+    virtual bool file_open(const char *filename){
+
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+        PROFILER_RECORD_TIME_START;
+
+        this->union_fp.posix_fd = ::open(filename, O_RDONLY | O_DIRECT);
+        if (this->union_fp.posix_fd == -1)
+            return false;
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+        TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
+
+        LOG_PRINT(DBG_IO, "Open (POSIX) input file=%s\n", 
+                  this->state.seg_file->filename.c_str());
+
+        return true;
+    }
+
+    virtual void file_read_at(char *buf, uint64_t offset, uint64_t size){
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+        PROFILER_RECORD_TIME_START;
+
+        lseek(this->union_fp.posix_fd, offset, SEEK_SET);
+        size = ::read(this->union_fp.posix_fd, buf, size);
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+        TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
+
+        LOG_PRINT(DBG_IO, "Read (POSIX) input file=%s:%ld+%ld\n", 
+                  this->state.seg_file->filename.c_str(), offset, size);
+    }
+
+    virtual void file_close(){
+        if (this->union_fp.posix_fd != -1) {
+
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            PROFILER_RECORD_TIME_START;
+
+            ::close(this->union_fp.posix_fd);
+
+            PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+            TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
+
+            this->union_fp.posix_fd = -1;
+
+            LOG_PRINT(DBG_IO, "Close (POSIX) input file=%s\n", 
+                      this->state.seg_file->filename.c_str());
+        }
+    }
+
+};
+
 
 template <typename RecordFormat>
 class MPIFileReader : public FileReader< RecordFormat >{
@@ -761,7 +839,7 @@ FileReader<RecordFormat>* FileReader<RecordFormat>
     ::getReader(InputSplit *input) {
     if (reader != NULL) delete reader;
     if (READER_TYPE == 0) {
-        reader = new FileReader<RecordFormat>(input);
+        reader = new PosixFileReader<RecordFormat>(input);
     } else if (READER_TYPE == 1) {
         reader = new MPIFileReader<RecordFormat>(input);
     } else {

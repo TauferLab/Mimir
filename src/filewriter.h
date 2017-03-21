@@ -10,6 +10,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <string>
 #include <sstream>
@@ -145,12 +149,69 @@ class FileWriter : public Writable {
     union FilePtr {
         FILE    *c_fp;
         MPI_File mpi_fp;
+        int      posix_fd;
     } union_fp;
 
     char             *buffer;
     uint64_t          datasize;
     uint64_t          bufsize;
     bool              singlefile;
+};
+
+class PosixFileWriter : public FileWriter
+{
+  public:
+    PosixFileWriter(const char *filename) : FileWriter(filename, false) {
+    }
+
+    virtual bool file_open() {
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+        PROFILER_RECORD_TIME_START;
+
+        union_fp.posix_fd = ::open(filename.c_str(), O_WRONLY | O_APPEND 
+                                   | O_CREAT | O_DIRECT);
+        if (union_fp.posix_fd == -1) {
+            LOG_ERROR("Open file %s error!\n", filename.c_str());
+        }
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
+
+        TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
+
+        LOG_PRINT(DBG_IO, "Open (POSIX) output file %s.\n", filename.c_str());	
+
+        return true;
+    }
+
+    virtual void file_write() {
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+        LOG_PRINT(DBG_IO, "Write (POSIX) output file %s:%d\n", 
+                  filename.c_str(), (int)datasize);
+
+        PROFILER_RECORD_TIME_START;
+        ::write(union_fp.posix_fd, buffer, datasize);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
+
+        datasize = 0;
+        TRACKER_RECORD_EVENT(EVENT_DISK_FWRITE);
+    }
+
+    virtual void file_close() {
+        if (union_fp.posix_fd != -1) {
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
+
+            PROFILER_RECORD_TIME_START;
+            ::close(union_fp.posix_fd);
+            PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
+
+            union_fp.posix_fd = NULL;
+            TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
+
+            LOG_PRINT(DBG_IO, "Close (POSIX) output file %s.\n", filename.c_str());	
+        }
+    }
 };
 
 class MPIFileWriter : public FileWriter {
