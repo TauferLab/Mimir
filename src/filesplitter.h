@@ -36,8 +36,11 @@ class FileSplitter{
 
     InputSplit* split(InputSplit *input, SplitPolicy policy = BYNAME){
 
+        LOG_PRINT(DBG_IO, "Start bcast file list\n");
         bcast_file_list(input);
+        LOG_PRINT(DBG_IO, "Start split file list\n");
         split_files(input, policy);
+        LOG_PRINT(DBG_IO, "End split file list\n");
 
         return get_my_split();
     }
@@ -45,8 +48,11 @@ class FileSplitter{
     InputSplit* split(const char *indir, SplitPolicy policy = BYNAME){
 
         InputSplit input(indir);
+        LOG_PRINT(DBG_IO, "Start bcast file list\n");
         bcast_file_list(&input);
+        LOG_PRINT(DBG_IO, "Start split file list\n");
         split_files(&input, policy);
+        LOG_PRINT(DBG_IO, "End split file list\n");
 
         return get_my_split();
     }

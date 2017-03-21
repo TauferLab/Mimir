@@ -206,7 +206,7 @@ class PosixFileWriter : public FileWriter
             ::close(union_fp.posix_fd);
             PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
-            union_fp.posix_fd = NULL;
+            union_fp.posix_fd = -1;
             TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
 
             LOG_PRINT(DBG_IO, "Close (POSIX) output file %s.\n", filename.c_str());	

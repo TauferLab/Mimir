@@ -50,7 +50,7 @@ int COMM_UNIT_SIZE = 4096;
 int DBG_LEVEL = 0;
 
 /// Record peakmem
-int RECORD_PEAKMEM = 1;
+int RECORD_PEAKMEM = 0;
 
 int KTYPE = -2, VTYPE = -2;
 
