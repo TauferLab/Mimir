@@ -14,7 +14,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include <errno.h>
 #include <string>
 #include <sstream>
 
@@ -63,10 +63,12 @@ class FileWriter : public Writable {
         datasize = 0;
         buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE,  bufsize);
         record_count = 0;
+        done_flag = 0;
         return file_open();
     }
 
-    virtual void close() { 
+    virtual void close() {
+        done_flag = 1;
         if (datasize > 0) file_write();
         file_close();
         mem_aligned_free(buffer);
@@ -97,7 +99,7 @@ class FileWriter : public Writable {
 
         PROFILER_RECORD_TIME_START;
 
-        union_fp.c_fp = fopen(filename.c_str(), "a+");
+        union_fp.c_fp = fopen(filename.c_str(), "w+");
         if (!union_fp.c_fp) {
             LOG_ERROR("Open file %s error!\n", filename.c_str());
         }
@@ -152,16 +154,17 @@ class FileWriter : public Writable {
         int      posix_fd;
     } union_fp;
 
-    char             *buffer;
-    uint64_t          datasize;
-    uint64_t          bufsize;
-    bool              singlefile;
+    char        *buffer;
+    uint64_t    datasize;
+    uint64_t    bufsize;
+    bool        singlefile;
+    int         done_flag;
 };
 
-class PosixFileWriter : public FileWriter
+class DirectFileWriter : public FileWriter
 {
   public:
-    PosixFileWriter(const char *filename) : FileWriter(filename, false) {
+    DirectFileWriter(const char *filename) : FileWriter(filename, false) {
     }
 
     virtual bool file_open() {
@@ -169,11 +172,14 @@ class PosixFileWriter : public FileWriter
 
         PROFILER_RECORD_TIME_START;
 
-        union_fp.posix_fd = ::open(filename.c_str(), O_WRONLY | O_APPEND 
-                                   | O_CREAT | O_DIRECT);
+        union_fp.posix_fd = ::open(filename.c_str(), O_CREAT | O_WRONLY | 
+                                   O_DIRECT | O_LARGEFILE,
+                                   S_IRUSR | S_IWUSR);
         if (union_fp.posix_fd == -1) {
-            LOG_ERROR("Open file %s error!\n", filename.c_str());
+            LOG_ERROR("Open file %s error %d!\n", filename.c_str(), errno);
         }
+
+        filesize = 0;
 
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
@@ -191,10 +197,41 @@ class PosixFileWriter : public FileWriter
                   filename.c_str(), (int)datasize);
 
         PROFILER_RECORD_TIME_START;
-        ::write(union_fp.posix_fd, buffer, datasize);
+        //::lseek64(union_fp.posix_fd, 0, SEEK_END);
+        uint64_t total_bytes = 0;
+        if (done_flag) {
+            total_bytes = ROUNDUP(datasize, DISKPAGE_SIZE) * DISKPAGE_SIZE;
+        } else {
+            total_bytes = ROUNDDOWN(datasize, DISKPAGE_SIZE) * DISKPAGE_SIZE;
+        }
+        uint64_t remain_bytes = total_bytes;
+        char *remain_buffer = buffer;
+        do {
+            ssize_t write_bytes = ::write(union_fp.posix_fd, remain_buffer, remain_bytes);
+            if (write_bytes == -1) {
+                LOG_ERROR("Write error, %d\n", errno);
+            }
+            remain_bytes -= write_bytes;
+            remain_buffer += write_bytes;
+        } while (remain_bytes > 0);
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
-        datasize = 0;
+        if (total_bytes < datasize) {
+            filesize += total_bytes;
+            datasize = datasize - total_bytes;
+            for (size_t i = 0; i < datasize; i++) {
+                buffer[i] = buffer[total_bytes + i];
+            }
+        } else if (total_bytes > datasize ) {
+            filesize += datasize;
+            datasize = 0;
+            LOG_PRINT(DBG_IO, "Set (POSIX) output file %s:%ld\n", 
+                      filename.c_str(), filesize);
+            ::ftruncate64(union_fp.posix_fd, filesize);
+        } else {
+            filesize += datasize;
+            datasize = 0;
+        }
         TRACKER_RECORD_EVENT(EVENT_DISK_FWRITE);
     }
 
@@ -212,6 +249,9 @@ class PosixFileWriter : public FileWriter
             LOG_PRINT(DBG_IO, "Close (POSIX) output file %s.\n", filename.c_str());	
         }
     }
+
+  private:
+    off64_t     filesize;
 };
 
 class MPIFileWriter : public FileWriter {
@@ -238,6 +278,7 @@ class MPIFileWriter : public FileWriter {
             TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         }
 
+        LOG_PRINT(DBG_IO, "Collective open output file %s.\n", filename.c_str());	
         PROFILER_RECORD_TIME_START;
         MPI_File_open(mimir_world_comm, filename.c_str(), 
                       MPI_MODE_WRONLY | MPI_MODE_CREATE,
@@ -249,15 +290,15 @@ class MPIFileWriter : public FileWriter {
 
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIOPEN);
 
-        LOG_PRINT(DBG_IO, "Collective open output file %s.\n", filename.c_str());	
-        done_flag = 0;
+        done_count = 0;
+        filesize = 0;
         return true;
     }
 
     virtual void file_write() {
         MPI_Request done_req, req;
         MPI_Status st;
-        MPI_Offset filesize = 0, fileoff = 0;
+        MPI_Offset fileoff = 0;
         int sendcounts[mimir_world_size];
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
@@ -281,7 +322,7 @@ class MPIFileWriter : public FileWriter {
             TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         }
 
-        MPI_File_get_size(union_fp.mpi_fp, &filesize);
+        //MPI_File_get_size(union_fp.mpi_fp, &filesize);
         PROFILER_RECORD_TIME_START;
         MPI_Allgather(&datasize, 1, MPI_INT,
                       sendcounts, 1, MPI_INT, mimir_world_comm);
@@ -291,9 +332,11 @@ class MPIFileWriter : public FileWriter {
 
         fileoff = filesize;
         for (int i = 0; i < mimir_world_rank; i++) fileoff += sendcounts[i];
-        for (int i = 0; i < mimir_world_rank; i++) filesize += sendcounts[i];
+        for (int i = 0; i < mimir_world_size; i++) filesize += sendcounts[i];
 
         //if (mimir_world_rank == 0)
+        LOG_PRINT(DBG_IO, "Collective set output file %s:%lld\n", 
+                  filename.c_str(), filesize);
         MPI_File_set_size(union_fp.mpi_fp, filesize);
 
         //if (this->shuffler) {
@@ -331,7 +374,6 @@ class MPIFileWriter : public FileWriter {
 
     virtual void file_close() {
         if (union_fp.mpi_fp) {
-            done_flag = 1;
             while (done_count < mimir_world_size) {
                 file_write();
             }
@@ -365,7 +407,8 @@ class MPIFileWriter : public FileWriter {
         }
     }
   private:
-    int done_flag, done_count;
+    int done_count;
+    MPI_Offset filesize;
 };
 
 }

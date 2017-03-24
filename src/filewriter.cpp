@@ -14,9 +14,11 @@ FileWriter* FileWriter::writer = NULL;
 FileWriter* FileWriter::getWriter(const char *filename) {
     if (writer != NULL) delete writer;
     if (WRITER_TYPE == 0) {
-        writer = new PosixFileWriter(filename);
+        writer = new FileWriter(filename);
     } else if (WRITER_TYPE == 1) {
-        writer = new MPIFileWriter(filename);
+        writer = new DirectFileWriter(filename);
+    } else if (WRITER_TYPE == 2) {
+        writer = new MPIFileWriter(filename); 
     } else {
         LOG_ERROR("Error writer type %d\n", WRITER_TYPE);
     }

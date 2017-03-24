@@ -213,8 +213,10 @@ void get_default_values()
     if (env) {
         if (strcmp(env, "posix") == 0) {
             READER_TYPE = 0;
-        }else if (strcmp(env, "mpiio") == 0) {
+        }else if (strcmp(env, "direct") == 0) {
             READER_TYPE = 1;
+        }else if (strcmp(env, "mpiio") == 0) {
+            READER_TYPE = 2;
         }
     }
 
@@ -222,8 +224,10 @@ void get_default_values()
     if (env) {
         if (strcmp(env, "posix") == 0) {
             WRITER_TYPE = 0;
-        }else if (strcmp(env, "mpiio") == 0) {
+        } else if (strcmp(env, "direct") == 0) {
             WRITER_TYPE = 1;
+        }else if (strcmp(env, "mpiio") == 0) {
+            WRITER_TYPE = 2;
         }
     }
 
@@ -268,8 +272,8 @@ Library configuration:\n\
 \tdisk buffer size: %ld\n\
 \tbucket size (2^x): %d\n\
 \tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv; 2 - MPI_Isend)\n\
-\treader type: %d (0 - POSIX; 1 - MPIIO)\n\
-\twriter type: %d (0 - POSIX; 1 - MPIIO)\n\
+\treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
+\twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \tfile alignment: %ld\n\
 \tdebug level: %x\n\
 ***********************************************************************\n",

@@ -13,7 +13,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include <errno.h>
 #include "log.h"
 #include "stat.h"
 #include "config.h"
@@ -56,6 +56,8 @@ class FileReader : public Readable {
             border_reqs[i] = MPI_REQUEST_NULL;
             border_creqs[i] = MPI_REQUEST_NULL;
         }
+
+        shuffler = NULL;
     }
 
     virtual ~FileReader() {
@@ -72,9 +74,9 @@ class FileReader : public Readable {
         LOG_PRINT(DBG_IO, "Filereader open.\n");
 
         if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
-            bufsize = input->get_max_fsize();
+            bufsize = ROUNDUP(input->get_max_fsize(), DISKPAGE_SIZE) * DISKPAGE_SIZE;
         else
-            bufsize = INPUT_BUF_SIZE;
+            bufsize = ROUNDUP(INPUT_BUF_SIZE, DISKPAGE_SIZE) * DISKPAGE_SIZE;
 
         PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t) input->get_max_fsize(), OPMAX);
 
@@ -247,14 +249,16 @@ class FileReader : public Readable {
             LOG_ERROR("Record size (%ld) is larger than max size (%d)\n", 
                       state.win_size, MAX_RECORD_SIZE);
 
+        uint64_t aligned_size = ROUNDUP(state.win_size, MEMPAGE_SIZE) * MEMPAGE_SIZE;
+        uint64_t new_start_pos = aligned_size - state.win_size;
         for (uint64_t i = 0; i < state.win_size; i++)
-            buffer[i] = buffer[state.start_pos + i];
-        state.start_pos = 0;
+            buffer[i + new_start_pos] = buffer[state.start_pos + i];
+        state.start_pos = new_start_pos;
 
         // recv tail from next process
         if (state.read_size == state.seg_file->segsize ) {
             if (state.has_tail) {
-                int count = handle_right_border(buffer + state.win_size, bufsize);
+                int count = handle_right_border(buffer + state.start_pos + state.win_size, bufsize);
                 state.win_size += count;
                 state.has_tail = false;
                 //print_state();
@@ -271,7 +275,7 @@ class FileReader : public Readable {
             else
                 rsize = bufsize;
 
-            file_read_at(buffer + state.win_size,
+            file_read_at(buffer + state.start_pos + state.win_size,
                          state.seg_file->startpos + state.read_size, rsize);
             PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, rsize, OPSUM);
 
@@ -532,20 +536,20 @@ class FileReader : public Readable {
 };
 
 template <typename RecordFormat>
-class PosixFileReader : public FileReader< RecordFormat >{
+class DirectFileReader : public FileReader< RecordFormat >{
 
   public:
-    PosixFileReader(InputSplit *input) 
+    DirectFileReader(InputSplit *input) 
         : FileReader<RecordFormat>(input) {
     }
 
-    ~PosixFileReader(){
+    ~DirectFileReader(){
     }
 
   protected:
 
     virtual void file_init(){
-        this->union_fp.posix_fp = -1;
+        this->union_fp.posix_fd = -1;
     }
 
     virtual void file_uninit(){
@@ -556,7 +560,7 @@ class PosixFileReader : public FileReader< RecordFormat >{
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         PROFILER_RECORD_TIME_START;
 
-        this->union_fp.posix_fd = ::open(filename, O_RDONLY | O_DIRECT);
+        this->union_fp.posix_fd = ::open(filename, O_RDONLY | O_DIRECT | O_LARGEFILE);
         if (this->union_fp.posix_fd == -1)
             return false;
 
@@ -573,15 +577,35 @@ class PosixFileReader : public FileReader< RecordFormat >{
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         PROFILER_RECORD_TIME_START;
 
-        lseek(this->union_fp.posix_fd, offset, SEEK_SET);
-        size = ::read(this->union_fp.posix_fd, buf, size);
+        if ((uint64_t)buf % MEMPAGE_SIZE !=0)
+            LOG_ERROR("Buffer (%p) should be page alignment!\n", buf);
+
+        if (offset % DISKPAGE_SIZE != 0)
+            LOG_ERROR("Read offset (%ld) should be sector alignment!\n", offset);
+
+        size_t remain_bytes = size;
+        while (remain_bytes > 0) {
+            ssize_t read_bytes = 0;
+            if (read_bytes % DISKPAGE_SIZE != 0)
+                LOG_ERROR("Read bytes (%ld) should be sector alignment!\n", read_bytes);
+            if ((uint64_t)buf % MEMPAGE_SIZE !=0)
+                LOG_ERROR("Buffer (%p) should be page alignment!\n", buf);
+            ::lseek64(this->union_fp.posix_fd, (off64_t)offset, SEEK_SET);
+            size_t param_bytes = ROUNDUP(remain_bytes, DISKPAGE_SIZE) * DISKPAGE_SIZE;
+            read_bytes = ::read(this->union_fp.posix_fd, buf, param_bytes);
+            if (read_bytes < (ssize_t)remain_bytes)
+                read_bytes = read_bytes / DISKPAGE_SIZE * DISKPAGE_SIZE;
+            LOG_PRINT(DBG_IO, "Read (POSIX) input file=%s:%ld+%ld\n", 
+                      this->state.seg_file->filename.c_str(), offset, read_bytes);
+            remain_bytes -= read_bytes;
+            buf += read_bytes;
+            offset += read_bytes;
+        }
 
         PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
 
-        LOG_PRINT(DBG_IO, "Read (POSIX) input file=%s:%ld+%ld\n", 
-                  this->state.seg_file->filename.c_str(), offset, size);
-    }
+   }
 
     virtual void file_close(){
         if (this->union_fp.posix_fd != -1) {
@@ -839,8 +863,10 @@ FileReader<RecordFormat>* FileReader<RecordFormat>
     ::getReader(InputSplit *input) {
     if (reader != NULL) delete reader;
     if (READER_TYPE == 0) {
-        reader = new PosixFileReader<RecordFormat>(input);
+        reader = new FileReader<RecordFormat>(input);
     } else if (READER_TYPE == 1) {
+        reader = new DirectFileReader<RecordFormat>(input);
+    } else if (READER_TYPE == 2) {
         reader = new MPIFileReader<RecordFormat>(input);
     } else {
         LOG_ERROR("Error reader type %d\n", READER_TYPE);
