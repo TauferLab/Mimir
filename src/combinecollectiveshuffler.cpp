@@ -56,6 +56,11 @@ void CombineCollectiveShuffler::write(BaseRecordFormat *record)
     int target = get_target_rank(((KVRecord*)record)->get_key(),
                                  ((KVRecord*)record)->get_key_size());
 
+    if (target == mimir_world_rank) {
+        out->write(record);
+        return;
+    }
+
     int kvsize = record->get_record_size();
     if (kvsize > buf_size)
         LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
