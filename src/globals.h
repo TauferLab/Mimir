@@ -35,8 +35,9 @@
 #define MAX_COMM_SIZE        0x40000000
 
 enum KVType {
-    KVGeneral = -2,
-    KVString
+    KVGeneral = -3,
+    KVVARINT = -2,
+    KVString = -1,
 };
 
 extern int mimir_world_rank;

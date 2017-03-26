@@ -169,8 +169,12 @@ void FileSplitter::split_by_size(InputSplit *input){
     if(tmpsplit.get_file_count() > 0)
         LOG_ERROR("Split state error!\n");
 
-     if((int)files.size() != mimir_world_size)
-         LOG_ERROR("The split file count %ld is error!\n", files.size());
+    for (int i = (int)files.size() ; i < mimir_world_size; i++) {
+        tmpsplit.clear();
+        files.push_back(tmpsplit);
+    }
+     //if((int)files.size() != mimir_world_size)
+     //    LOG_ERROR("The split file count %ld is error!\n", files.size());
 }
 
 void FileSplitter::split_by_name(InputSplit *input){

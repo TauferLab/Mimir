@@ -145,7 +145,7 @@ class FileReader : public Readable {
         while(!is_empty) {
 
             char *ptr = buffer + state.start_pos; 
-            int skip_count = record->skip_count(ptr, state.win_size);
+            int skip_count = record->get_skip_size(ptr, state.win_size);
             state.start_pos += skip_count;
             state.win_size -= skip_count;
 
@@ -153,8 +153,9 @@ class FileReader : public Readable {
             record->set_buffer(ptr);
             bool islast = is_last_block();
             if(state.win_size > 0
-               && record->has_full_record(ptr, state.win_size, islast)) {
-                int move_count = record->move_count(ptr, state.win_size, islast);
+               && record->get_next_record_size(ptr, state.win_size, islast) != -1) {
+                //int move_count = record->move_count(ptr, state.win_size, islast);
+                int move_count = record->get_record_size();
                 if ((uint64_t)move_count >= state.win_size) {
                     state.win_size = 0;
                     state.start_pos = 0;
@@ -290,7 +291,7 @@ class FileReader : public Readable {
 
     int handle_left_border_start (char *buffer, uint64_t bufsize) {
 
-        border_sizes[BORDER_LEFT] = record->get_left_border(buffer, bufsize,
+        border_sizes[BORDER_LEFT] = record->get_border_size(buffer, bufsize,
                                                             !state.has_tail);
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);

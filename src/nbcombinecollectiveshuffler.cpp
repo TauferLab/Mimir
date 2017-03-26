@@ -61,8 +61,8 @@ void NBCombineCollectiveShuffler::write(BaseRecordFormat *record)
         LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                   kvsize, buf_size);
 
-    CombinerUnique *u = bucket->findElem(((KVRecord*)record)->get_key(), 
-                                         ((KVRecord*)record)->get_key_size());
+    u = bucket->findElem(((KVRecord*)record)->get_key(), 
+                         ((KVRecord*)record)->get_key_size());
 
     if (u == NULL) {
         CombinerUnique tmp;
@@ -150,6 +150,7 @@ void NBCombineCollectiveShuffler::update(BaseRecordFormat *record)
         char *gbuf = send_buffers[cur_idx] + target * (int64_t) buf_size + send_offsets[cur_idx][target];
         kv.set_buffer(gbuf);
         kv.convert((KVRecord*)record);
+        u->kv = gbuf;
         send_offsets[cur_idx][target] += kvsize;
     }
 

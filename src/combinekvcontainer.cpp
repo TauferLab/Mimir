@@ -53,8 +53,8 @@ void CombineKVContainer::write(BaseRecordFormat *record)
         LOG_ERROR("Error: KV size (%d) is larger \
                   than one page (%ld)\n", kvsize, pagesize);
 
-    CombinerUnique *u = bucket->findElem(((KVRecord*)record)->get_key(), 
-                                         ((KVRecord*)record)->get_key_size());
+    u = bucket->findElem(((KVRecord*)record)->get_key(), 
+                         ((KVRecord*)record)->get_key_size());
 
     if (u == NULL) {
         CombinerUnique tmp;
@@ -109,7 +109,7 @@ void CombineKVContainer::update(BaseRecordFormat *record)
 
     if (kvsize <= ukvsize) {
         kv.convert((KVRecord*)record);
-         if (kvsize < ukvsize) {
+        if (kvsize < ukvsize) {
             slices.insert(std::make_pair(kv.get_record() + ukvsize - kvsize, ukvsize - kvsize));
         }
     }
@@ -119,6 +119,7 @@ void CombineKVContainer::update(BaseRecordFormat *record)
 
         kv.set_buffer(page->buffer + page->datasize);
         kv.convert((KVRecord*)record);
+        u->kv = page->buffer + page->datasize;
         page->datasize += kvsize;
     }
 
@@ -133,6 +134,10 @@ void CombineKVContainer::garbage_collection()
     int kvsize;
 
     if (!slices.empty()) {
+
+        LOG_PRINT(DBG_GEN, "KVContainer garbage collection: slices=%ld\n",
+                  slices.size());
+
         dst_page = dst_iter.next();
         while ((src_page = src_iter.next()) != NULL) {
             src_off = 0;

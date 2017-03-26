@@ -37,6 +37,7 @@ private:
     void *user_ptr;
     std::unordered_map<char*, int> slices;
     CombinerHashBucket *bucket;
+    CombinerUnique *u;
 };
 
 }

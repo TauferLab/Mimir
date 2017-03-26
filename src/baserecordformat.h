@@ -19,61 +19,64 @@ namespace MIMIR_NS {
 
 class BaseRecordFormat {
   public:
-    BaseRecordFormat(){
+    BaseRecordFormat() {
         buffer = NULL;
         len = 0;
     }
-    BaseRecordFormat(char *buffer, int len = 0){
+
+    BaseRecordFormat(char *buffer, int len = 0) {
         this->buffer = buffer;
         this->len = len;
     }
+
     virtual ~BaseRecordFormat(){
     }
 
-    char* buffer;
-    int   len;
-
     virtual char *get_record() {
         return buffer;
-    }
-
-    virtual void set_buffer(char *buffer, int len = 0) {
-        this->buffer = buffer;
-        this->len = len;
     }
 
     virtual int get_record_size() {
         return len;
     }
 
+    virtual void set_buffer(char *buffer) {
+        this->buffer = buffer;
+    }
+
+    virtual void set_record(char *buffer, int len = 0) {
+        this->buffer = buffer;
+        this->len = len;
+    }
+
+    virtual int get_skip_size(char *, uint64_t) {
+        return 0;
+    }
+
+    virtual int get_next_record_size(char *, uint64_t, bool) {
+        return -1;
+    }
+
+    virtual int get_border_size(char *, uint64_t, bool) {
+        return 0;
+    }
+
+  protected:
+    char* buffer;
+    int   len;
+
   public:
     static bool is_contain(std::string &str, char ch) {
-
         if (str.size() == 0) return false;
-
         bool ret = false;
-
         for (int i =0; i < (int)str.size(); i++) {
             if (ch == str[i]) {
                 ret = true;
                 break;
             }
         }
-
         return ret;
     }
-};
-
-class InputRecord {
-  public:
-    virtual ~InputRecord() {}
-    virtual int skip_count(char *, uint64_t) = 0;
-    virtual int move_count(char *, uint64_t, bool) = 0;
-    virtual bool has_full_record(char *, uint64_t, bool) = 0;
-    virtual int get_left_border(char *, uint64_t, bool) = 0;
-    virtual int process_left_border(int, char*, uint64_t, char*, int) {return 0;}
-    virtual int get_right_cmd() { return 0; }
-    virtual bool has_right_cmd() { return false; }
 };
 
 }

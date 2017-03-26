@@ -14,19 +14,13 @@
 
 namespace MIMIR_NS {
 
-class StringRecord : public BaseRecordFormat, public InputRecord {
+class StringRecord : public BaseRecordFormat {
   public:
-    StringRecord() {
-    }
-
-    virtual ~StringRecord() {
-    }
-
     virtual int get_record_size() {
         return (int)strlen(buffer) + 1;
     }
 
-    virtual int skip_count(char *buffer, uint64_t len) {
+    virtual int get_skip_size(char *buffer, uint64_t len) {
         int prefix = 0;
         while ((uint64_t)prefix < len 
                && StringRecord::is_whitespace(*(buffer+prefix))) {
@@ -36,14 +30,10 @@ class StringRecord : public BaseRecordFormat, public InputRecord {
         return prefix;
     }
 
-    virtual int move_count(char *buffer, uint64_t len, bool islast) {
-        return (int)strlen(buffer) + 1;
-    }
+    virtual int get_next_record_size(char *buffer, uint64_t len, bool islast) {
+        if (len == 0) return -1;
 
-    virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
-        if (len == 0) return false;
-
-        if(StringRecord::is_whitespace(*(buffer))) return false;
+        if(StringRecord::is_whitespace(*(buffer))) return -1;
 
         uint64_t i;
         for (i = 0; i < len; i++) {
@@ -53,18 +43,18 @@ class StringRecord : public BaseRecordFormat, public InputRecord {
 
         if (i < len) {
             buffer[i] = '\0';
-            return true;
+            return (int)i + 1;
         }
 
         if (islast) {
             buffer[len] = '\0';
-            return true;
+            return (int)len + 1;
         }
 
-        return false;
+        return -1;
     }
 
-    virtual int get_left_border(char *buffer, uint64_t len, bool islast) {
+    virtual int get_border_size(char *buffer, uint64_t len, bool islast) {
         int i;
         for (i = 0; (uint64_t)i < len; i++) {
             if(StringRecord::is_whitespace(*(buffer + i)))
@@ -91,42 +81,24 @@ class StringRecord : public BaseRecordFormat, public InputRecord {
     static std::string whitespaces;
 };
 
-class ByteRecord : public BaseRecordFormat, public InputRecord {
+class ByteRecord : public BaseRecordFormat {
   public:
-    ByteRecord() {
-    }
-
-    virtual ~ByteRecord() {
-    }
-
-    virtual char *get_record() {
-        return buffer;
-    }
-
     virtual int get_record_size() {
         return 1;
     }
 
-    virtual int skip_count(char *buffer, uint64_t len) {
-        return 0;
-    }
-
-    virtual int move_count(char *buffer, uint64_t len, bool islast) {
-        return 1;
-    }
-
-    virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
-        if (len == 0) return false;
+    virtual int get_next_record_size(char *buffer, uint64_t len, bool islast) {
+        if (len == 0) return -1;
 
         if (len == 1 && islast == true)
             iseof = true;
         else
             iseof = false;
 
-        return true;
+        return 1;
     }
 
-    virtual int get_left_border(char *buffer, uint64_t len, bool islast) {
+    virtual int get_border_size(char *buffer, uint64_t len, bool islast) {
         int i;
         for (i = 0; (uint64_t)i < len; i++) {
             if(ByteRecord::is_separator(*(buffer + i)))
@@ -162,7 +134,7 @@ class ByteRecord : public BaseRecordFormat, public InputRecord {
 
 class KVRecord : public BaseRecordFormat {
   public:
-    KVRecord() : BaseRecordFormat() 
+    KVRecord()
     {
         ktype = KTYPE;
         vtype = VTYPE;
@@ -170,9 +142,8 @@ class KVRecord : public BaseRecordFormat {
         keysize = valsize = 0;
     }
 
-    KVRecord(char * key, int keysize,
+    KVRecord(char *key, int keysize,
              char *val, int valsize) 
-        : BaseRecordFormat() 
     {
         ktype = KTYPE;
         vtype = VTYPE;
@@ -180,9 +151,6 @@ class KVRecord : public BaseRecordFormat {
         this->val = val;
         this->keysize = keysize;
         this->valsize = valsize;
-    }
-
-    ~KVRecord() {
     }
 
     void convert(KVRecord *record) {
@@ -216,6 +184,12 @@ class KVRecord : public BaseRecordFormat {
                 return *(int*)buffer;
             else if (ktype == KVString)
                 return (int)strlen(get_key()) + 1;
+            else if (ktype == KVVARINT) {
+                char *key = get_key();
+                int i = 0;
+                while ((key[i] & 0x80) != 0) i++;
+                return i;
+            }
             else
                 return ktype;
         } else {
@@ -233,6 +207,12 @@ class KVRecord : public BaseRecordFormat {
             }
             else if (vtype == KVString)
                 return (int)strlen(get_val()) + 1;
+            else if (vtype == KVVARINT) {
+                char *val = get_val();
+                int i = 0;
+                while ((val[i] & 0x80) != 0) i++;
+                return i;
+            }
             else
                 return vtype;
         } else {
@@ -256,6 +236,10 @@ class KVRecord : public BaseRecordFormat {
 
     virtual int get_record_size() {
         return get_head_size() + get_key_size() + get_val_size();
+    }
+
+    virtual int get_next_record_size(char *buffer, uint64_t len, bool islast) {
+        return 0;
     }
 
     //virtual bool has_full_record(char *buffer, uint64_t len, bool islast) {
@@ -296,8 +280,7 @@ class KVRecord : public BaseRecordFormat {
 
   protected:
     char       *key, *val;
-    int         keysize;
-    int         valsize;
+    int         keysize, valsize;
     int         ktype, vtype;
 };
 
