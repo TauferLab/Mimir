@@ -30,6 +30,11 @@ public:
     virtual void update(BaseRecordFormat *);
     virtual void close();
 
+    virtual void make_progress() { 
+        garbage_collection();
+        exchange_kv(); 
+    }
+
 private:
     void garbage_collection();
 

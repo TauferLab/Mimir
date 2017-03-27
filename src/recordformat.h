@@ -188,7 +188,7 @@ class KVRecord : public BaseRecordFormat {
                 char *key = get_key();
                 int i = 0;
                 while ((key[i] & 0x80) != 0) i++;
-                return i;
+                return i + 1;
             }
             else
                 return ktype;
@@ -211,7 +211,7 @@ class KVRecord : public BaseRecordFormat {
                 char *val = get_val();
                 int i = 0;
                 while ((val[i] & 0x80) != 0) i++;
-                return i;
+                return i + 1;
             }
             else
                 return vtype;

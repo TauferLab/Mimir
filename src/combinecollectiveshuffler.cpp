@@ -17,7 +17,6 @@
 #include "recordformat.h"
 #include "combinecollectiveshuffler.h"
 
-
 using namespace MIMIR_NS;
 
 CombineCollectiveShuffler::CombineCollectiveShuffler(CombineCallback user_combine,
@@ -74,11 +73,13 @@ void CombineCollectiveShuffler::write(BaseRecordFormat *record)
         tmp.next = NULL;
 
         std::unordered_map < char *, int >::iterator iter;
+        char *range_start = send_buffer + target * (int64_t)buf_size;
+        char *range_end = send_buffer + target * (int64_t)buf_size + send_offset[target];
         for (iter = slices.begin(); iter != slices.end(); iter++) {
             char *sbuf = iter->first;
             int ssize = iter->second;
 
-            if (ssize >= kvsize) {
+            if (sbuf >= range_start && sbuf < range_end && ssize >= kvsize) {
                 tmp.kv = sbuf + (ssize - kvsize);
                 kv.set_buffer(tmp.kv);
                 kv.convert((KVRecord*)record);
@@ -99,6 +100,7 @@ void CombineCollectiveShuffler::write(BaseRecordFormat *record)
                 garbage_collection();
                 exchange_kv();
             }
+
             tmp.kv = send_buffer + target * (int64_t)buf_size + send_offset[target];
             kv.set_buffer(tmp.kv);
             kv.convert((KVRecord*)record);
@@ -136,20 +138,21 @@ void CombineCollectiveShuffler::update(BaseRecordFormat *record)
     if (kvsize <= ukvsize) {
         kv.convert((KVRecord*)record);
         if (kvsize < ukvsize)
-            slices.insert(std::make_pair(kv.get_record() + ukvsize - kvsize, 
+            slices.insert(std::make_pair(kv.get_record() + kvsize, 
                                          ukvsize - kvsize));
     }
     else {
-        if ((int64_t)send_offset[target] + (int64_t) kvsize > buf_size) {
-            garbage_collection();
-            exchange_kv();
-        }
         slices.insert(std::make_pair(kv.get_record(), ukvsize));
+        if ((int64_t)send_offset[target] + (int64_t) kvsize > buf_size) {
+             garbage_collection();
+            exchange_kv();
+            u = NULL;
+        }
         char *gbuf = send_buffer + target * (int64_t) buf_size + send_offset[target];
         kv.set_buffer(gbuf);
         kv.convert((KVRecord*)record);
-        u->kv=gbuf;
         send_offset[target] += kvsize;
+        if (u != NULL) u->kv=gbuf;
     }
 
     return;

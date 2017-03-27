@@ -32,8 +32,10 @@ public:
     virtual void write(BaseRecordFormat *record);
     virtual void update(BaseRecordFormat *);
     virtual void make_progress() {
-        if(done_kv_exchange())
+        if(done_kv_exchange()) {
+            garbage_collection();
             start_kv_exchange();
+        }
         push_kv_exchange();
     }
 
