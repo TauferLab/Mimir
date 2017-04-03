@@ -11,7 +11,8 @@
 #include "config.h"
 #include "hashbucket.h"
 #include "recordformat.h"
-#include "kvcontainer.h"
+#include "container.h"
+#include "interface.h"
 
 namespace MIMIR_NS {
 
@@ -52,7 +53,7 @@ class KMVContainer : public Container, public Readable {
 
     virtual uint64_t get_record_count() { return kmvcount; }
 
-    void convert(KVContainer *kv);
+    void convert(Readable *kv);
 
   private:
     int ksize, vsize;

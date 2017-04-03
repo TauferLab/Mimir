@@ -4,8 +4,11 @@ libmimir_adir = $(includedir)
 libmimir_a_HEADERS = mimir.h interface.h recordformat.h globals.h hashbucket.h \
 		     hash.h log.h baserecordformat.h inputsplit.h filesplitter.h \
 		     filereader.h stat.h baseshuffler.h filewriter.h kvcontainer.h \
-		     container.h containeriter.h mimircontext.h var128int.h memory.h \
-		     config.h
+		     container.h containeriter.h mimircontext.h tools.h memory.h \
+		     combinekvcontainer.h kmvcontainer.h collectiveshuffler.h  \
+		     nbcollectiveshuffler.h nbshuffler.h 		       \
+		     combinecollectiveshuffler.h config.h                      \
+		     nbcombinecollectiveshuffler.h
 libmimir_a_SOURCES = mimircontext.cpp mimircontext.h                           \
 		     container.cpp container.h containeriter.h	       	       \
 		     kvcontainer.cpp kvcontainer.h		      	       \
@@ -22,4 +25,4 @@ libmimir_a_SOURCES = mimircontext.cpp mimircontext.h                           \
 		     baserecordformat.h recordformat.h recordformat.cpp        \
 		     config.cpp config.h stat.cpp stat.h globals.cpp	       \
 		     globals.h log.h interface.h			       \
-		     mimir.cpp mimir.h var128int.h memory.cpp memory.h
+		     mimir.cpp mimir.h tools.h memory.cpp memory.h

@@ -17,7 +17,7 @@
 #include "filewriter.h"
 #include "kvcontainer.h"
 #include "mimircontext.h"
-#include "var128int.h"
+#include "tools.h"
 
 void Mimir_Init(int*, char ***, MPI_Comm);
 void Mimir_Finalize();

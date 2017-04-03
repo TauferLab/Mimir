@@ -42,10 +42,54 @@ class Combinable {
     virtual void update(BaseRecordFormat *) = 0;
 };
 
+class BaseDatabase : virtual public Readable, virtual public Writable
+{
+  public:
+    BaseDatabase() {
+        ref = 0;
+    }
+
+    virtual bool open() = 0;
+    virtual void close() = 0;
+    virtual BaseRecordFormat* read() = 0;
+    virtual void write(BaseRecordFormat *) = 0;
+
+    uint64_t getRef() {
+        return ref;
+    }
+
+    void addRef() {
+        ref ++;
+    }
+
+    void subRef() {
+        ref --;
+    }
+
+    static void addRef(BaseDatabase *d) {
+        if (d != NULL) {
+            d->addRef();
+        }
+    }
+
+    static void subRef(BaseDatabase *d) {
+        if (d != NULL) {
+            d->subRef();
+            if (d->getRef() == 0) {
+                delete d;
+            }
+        }
+    }
+
+  private:
+    uint64_t ref;
+};
+
 typedef void (*MapCallback) (Readable *input, Writable *output, void *ptr);
 typedef void (*ReduceCallback) (Readable *input, Writable *output, void *ptr);
 typedef void (*CombineCallback) (Combinable *output, KVRecord *kv1, KVRecord *kv2, void *ptr);
 typedef int (*HashCallback) (const char*, int);
+typedef int (*RepartitionCallback) (const char*, int, bool islast);
 
 }
 

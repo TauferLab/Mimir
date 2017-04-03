@@ -36,7 +36,7 @@ extern double *profiler_timer;
 extern uint64_t *profiler_counter;
 
 extern Tracker_info tracker_info;
-extern std::vector<std::pair<std::string, double>> *tracker_event;
+extern std::vector<std::pair<std::string, double> > *tracker_event;
 
 extern const char *timer_str[];
 extern const char *counter_str[];

@@ -10,7 +10,7 @@
 
 using namespace MIMIR_NS;
 
-void KMVContainer::convert(KVContainer *kv) {
+void KMVContainer::convert(Readable *kv) {
     const char *key, *value;
     int keybytes, valuebytes;
 
@@ -53,7 +53,7 @@ void KMVContainer::convert(KVContainer *kv) {
             page_id ++;
          }
 
-        if (kv->vsize == KVGeneral) {
+        if (VTYPE == KVGeneral) {
             pset->soffset = (int*) (page_buf + page_off);
             page_off += sizeof(int) * (pset->nvalue);
         }
@@ -92,7 +92,7 @@ void KMVContainer::convert(KVContainer *kv) {
         ReducerUnique *punique = h.findElem(key, keybytes);
         ReducerSet *pset = punique->lastset;
 
-        if (kv->vsize == KVGeneral) {
+        if (VTYPE == KVGeneral) {
             pset->soffset[pset->ivalue] = valuebytes;
         }
 

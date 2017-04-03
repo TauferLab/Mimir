@@ -8,6 +8,7 @@
 #ifndef RECORD_FORMAT_H
 #define RECORD_FORMAT_H
 
+#include "log.h"
 #include "globals.h"
 #include "hashbucket.h"
 #include "baserecordformat.h"
@@ -54,16 +55,16 @@ class StringRecord : public BaseRecordFormat {
         return -1;
     }
 
-    virtual int get_border_size(char *buffer, uint64_t len, bool islast) {
-        int i;
-        for (i = 0; (uint64_t)i < len; i++) {
-            if(StringRecord::is_whitespace(*(buffer + i)))
-                break;
-        }
-        if (!islast && (uint64_t)i == len)
-            LOG_ERROR("Cannot find whitespace in the partition of a process!");
-        return i;
-    }
+    //virtual int get_border_size(char *buffer, uint64_t len, bool islast) {
+    //    int i;
+    //    for (i = 0; (uint64_t)i < len; i++) {
+    //        if(StringRecord::is_whitespace(*(buffer + i)))
+    //            break;
+    //    }
+    //    if (!islast && (uint64_t)i == len)
+    //        LOG_ERROR("Cannot find whitespace in the partition of a process!");
+    //    return i;
+    //}
 
   public:
 
@@ -98,17 +99,17 @@ class ByteRecord : public BaseRecordFormat {
         return 1;
     }
 
-    virtual int get_border_size(char *buffer, uint64_t len, bool islast) {
-        int i;
-        for (i = 0; (uint64_t)i < len; i++) {
-            if(ByteRecord::is_separator(*(buffer + i)))
-                break;
-        }
-        if (!islast && (uint64_t)i == len)
-            LOG_ERROR("Cannot find separators %s in the partition of a process!", 
-                      separators.c_str());
-        return i;
-    }
+    //virtual int get_border_size(char *buffer, uint64_t len, bool islast) {
+    //   int i;
+    //    for (i = 0; (uint64_t)i < len; i++) {
+    //        if(ByteRecord::is_separator(*(buffer + i)))
+    //            break;
+    //    }
+    //    if (!islast && (uint64_t)i == len)
+    //        LOG_ERROR("Cannot find separators %s in the partition of a process!", 
+    //                  separators.c_str());
+    //    return i;
+    //}
 
     bool is_eof() {
         return iseof;

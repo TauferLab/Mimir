@@ -17,7 +17,7 @@
 
 namespace MIMIR_NS {
 
-class KVContainer : public Container, public Readable, public Writable {
+class KVContainer : public Container, public BaseDatabase {
 public:
     KVContainer();
     virtual ~KVContainer();

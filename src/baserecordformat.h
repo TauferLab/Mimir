@@ -57,9 +57,9 @@ class BaseRecordFormat {
         return -1;
     }
 
-    virtual int get_border_size(char *, uint64_t, bool) {
-        return 0;
-    }
+    //virtual int get_border_size(char *, uint64_t, bool) {
+    //    return 0;
+    //}
 
   protected:
     char* buffer;

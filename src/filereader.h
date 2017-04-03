@@ -33,7 +33,6 @@ namespace MIMIR_NS {
 #define BORDER_SIZE       2
 
 class InputSplit;
-class BaseFileReader;
 
 template <typename RecordFormat>
 class MPIFileReader;
@@ -41,11 +40,12 @@ class MPIFileReader;
 template<typename RecordFormat>
 class FileReader : public Readable {
   public:
-    static FileReader<RecordFormat> *getReader(InputSplit *input);
+    static FileReader<RecordFormat> *getReader(InputSplit *input,
+                                               RepartitionCallback repartition_fn);
     static FileReader<RecordFormat> *reader;
 
   public:
-    FileReader(InputSplit *input) {
+    FileReader(InputSplit *input, RepartitionCallback repartition_fn) {
         this->input = input;
         buffer = NULL;
 
@@ -56,6 +56,8 @@ class FileReader : public Readable {
             border_reqs[i] = MPI_REQUEST_NULL;
             border_creqs[i] = MPI_REQUEST_NULL;
         }
+
+        this->repartition_fn = repartition_fn;
 
         shuffler = NULL;
     }
@@ -291,8 +293,10 @@ class FileReader : public Readable {
 
     int handle_left_border_start (char *buffer, uint64_t bufsize) {
 
-        border_sizes[BORDER_LEFT] = record->get_border_size(buffer, bufsize,
-                                                            !state.has_tail);
+        //border_sizes[BORDER_LEFT] = record->get_border_size(buffer, bufsize,
+        //                                                    !state.has_tail);
+
+        border_sizes[BORDER_LEFT] = repartition_fn(buffer, bufsize, !state.has_tail);
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         border_cmds[BORDER_LEFT] = border_sizes[BORDER_LEFT];
@@ -520,14 +524,16 @@ class FileReader : public Readable {
                state.has_head);
     }
 
-    char             *buffer;
-    uint64_t          bufsize;
+    char*           buffer;
+    uint64_t        bufsize;
 
-    InputSplit       *input;
-    RecordFormat     *record;
+    InputSplit*     input;
+    RecordFormat*   record;
 
-    BaseShuffler     *shuffler;
-    uint64_t          record_count;
+    BaseShuffler*   shuffler;
+    uint64_t        record_count;
+
+    RepartitionCallback repartition_fn;
 
     char*        border_buffers[BORDER_SIZE];
     int          border_sizes[BORDER_SIZE];
@@ -540,8 +546,8 @@ template <typename RecordFormat>
 class DirectFileReader : public FileReader< RecordFormat >{
 
   public:
-    DirectFileReader(InputSplit *input) 
-        : FileReader<RecordFormat>(input) {
+    DirectFileReader(InputSplit *input, RepartitionCallback repartition_cb) 
+        : FileReader<RecordFormat>(input, repartition_cb) {
     }
 
     ~DirectFileReader(){
@@ -632,8 +638,8 @@ class DirectFileReader : public FileReader< RecordFormat >{
 template <typename RecordFormat>
 class MPIFileReader : public FileReader< RecordFormat >{
 public:
-    MPIFileReader(InputSplit *input) 
-        : FileReader<RecordFormat>(input) {
+    MPIFileReader(InputSplit *input, RepartitionCallback repartition_cb) 
+        : FileReader<RecordFormat>(input, repartition_cb) {
     }
 
     ~MPIFileReader(){
@@ -861,14 +867,14 @@ FileReader<RecordFormat>* FileReader<RecordFormat>::reader = NULL;
 
 template<typename RecordFormat>
 FileReader<RecordFormat>* FileReader<RecordFormat>
-    ::getReader(InputSplit *input) {
+    ::getReader(InputSplit *input, RepartitionCallback repartition_fn) {
     if (reader != NULL) delete reader;
     if (READER_TYPE == 0) {
-        reader = new FileReader<RecordFormat>(input);
+        reader = new FileReader<RecordFormat>(input, repartition_fn);
     } else if (READER_TYPE == 1) {
-        reader = new DirectFileReader<RecordFormat>(input);
+        reader = new DirectFileReader<RecordFormat>(input, repartition_fn);
     } else if (READER_TYPE == 2) {
-        reader = new MPIFileReader<RecordFormat>(input);
+        reader = new MPIFileReader<RecordFormat>(input, repartition_fn);
     } else {
         LOG_ERROR("Error reader type %d\n", READER_TYPE);
     }
