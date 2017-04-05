@@ -1,2 +1,2 @@
 CXX = mpicxx
-SUBDIRS = src examples
+SUBDIRS = src
