@@ -154,6 +154,16 @@ class KVRecord : public BaseRecordFormat {
         this->valsize = valsize;
     }
 
+    void set_key_val(char *key, int keysize,
+                     char *val, int valsize) {
+        ktype = KTYPE;
+        vtype = VTYPE;
+        this->key = key;
+        this->keysize = keysize;
+        this->val = val;
+        this->valsize = valsize;
+    }
+
     void convert(KVRecord *record) {
         key = record->get_key();
         val = record->get_val();

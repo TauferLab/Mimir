@@ -38,6 +38,8 @@ namespace MIMIR_NS {
 
 enum OUTPUT_MODE {IMPLICIT_OUTPUT, EXPLICIT_OUTPUT};
 
+#define MIMIR_COPY (MapCallback)0x01
+
 template <typename KeyType, typename ValType>
 class MimirContext {
   public:
@@ -147,6 +149,7 @@ class MimirContext {
                 splitinput = FileSplitter::getFileSplitter()->split(&filelist, BYSIZE);
             else
                 splitinput = FileSplitter::getFileSplitter()->split(&filelist, BYNAME);
+            splitinput->print();
             reader = FileReader<StringRecord>::getReader(splitinput, user_repartition);
             input = reader;
         }
@@ -196,7 +199,11 @@ class MimirContext {
                 reader->set_shuffler(c);
             }
             if (input) input->open();
-            user_map(input, c, ptr);
+            if (user_map == (MapCallback)MIMIR_COPY) {
+                ::mimir_copy(input, c, NULL);
+            } else {
+                user_map(input, c, ptr);
+            }
             c->close();
             if (input) {
                 input->close();
@@ -211,7 +218,11 @@ class MimirContext {
         } else {
             if (output) output->open();
             if (input) input->open();
-            user_map(input, output, ptr);
+            if (user_map == (MapCallback)MIMIR_COPY) {
+                ::mimir_copy(input, output, NULL);
+            } else {
+                user_map(input, output, ptr);
+            }
             if (input) {
                 input->close();
                 input_records = input->get_record_count();
@@ -231,6 +242,8 @@ class MimirContext {
 
         if (user_database != NULL) {
             database = user_database;
+            BaseDatabase::addRef(database);
+            user_database = NULL;
         } else if (user_reduce != NULL 
                    || output_mode == EXPLICIT_OUTPUT) {
             database = kv;
@@ -272,11 +285,11 @@ class MimirContext {
         // output to user database
         if (user_database != NULL) {
             output = user_database;
-            // output to stage area
+        // output to stage area
         } else if (output_mode == EXPLICIT_OUTPUT) {
             kv = new KVContainer();
             output = kv;
-            // output to disk files
+        // output to disk files
         } else {
             writer = FileWriter::getWriter(output_dir.c_str());
             output = writer;
@@ -286,7 +299,6 @@ class MimirContext {
         kmv->convert(input);
         BaseDatabase::subRef(database);
         database = NULL;
-        //delete kv;
 
         kmv_records = kmv->get_record_count();
 
@@ -305,8 +317,11 @@ class MimirContext {
 
         if (user_database != NULL) {
             database = user_database;
+            BaseDatabase::addRef(database);
+            user_database = NULL;
         } else if (output_mode == EXPLICIT_OUTPUT) {
             database = kv;
+            BaseDatabase::addRef(database);
             // output to disk files
         } else {
             delete writer;
@@ -342,6 +357,10 @@ class MimirContext {
         database->close();
         uint64_t output_records = writer->get_record_count();
         delete writer;
+
+        BaseDatabase::subRef(database);
+        database = NULL;
+
         uint64_t total_records = 0;
         MPI_Allreduce(&output_records, &total_records, 1,
                       MPI_INT64_T, MPI_SUM, mimir_world_comm);

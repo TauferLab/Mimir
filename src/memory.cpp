@@ -36,6 +36,10 @@ void *mem_aligned_malloc(size_t alignment, size_t size)
         return NULL;
     }
 
+    for (size_t i = 0; i < align_size; i++) {
+        *((char*)ptr + i) = 0;
+    }
+
     if (RECORD_PEAKMEM == 1) {
         int64_t vmsize = get_mem_usage();
         if (vmsize > peakmem) peakmem = vmsize;

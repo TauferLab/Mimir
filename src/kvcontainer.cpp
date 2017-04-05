@@ -13,7 +13,7 @@
 
 using namespace MIMIR_NS;
 
-KVContainer::KVContainer() {
+KVContainer::KVContainer() : BaseDatabase(true) {
     this->ksize = KTYPE;
     this->vsize = VTYPE;
     kv.set_kv_size(ksize, vsize);

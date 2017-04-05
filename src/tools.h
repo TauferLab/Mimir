@@ -10,8 +10,20 @@
 #include <string>
 #include <cstdlib>
 
+#include "interface.h"
+
+using namespace MIMIR_NS;
+
 int encode_varint(char *buf, uint64_t x);
 uint64_t decode_varint(char *buf);
+
+inline void mimir_copy (Readable *input, Writable *output, void *ptr) {
+    BaseRecordFormat *record = NULL;
+    while ((record = input->read()) != NULL) {
+        output->write(record);
+    }
+}
+
 
 inline int encode_varint(char *buf, uint64_t x)
 {

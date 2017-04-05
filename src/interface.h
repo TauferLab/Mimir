@@ -45,8 +45,9 @@ class Combinable {
 class BaseDatabase : virtual public Readable, virtual public Writable
 {
   public:
-    BaseDatabase() {
+    BaseDatabase(bool if_inner_object = false) {
         ref = 0;
+        this->if_inner_object = if_inner_object;
     }
 
     virtual bool open() = 0;
@@ -66,6 +67,10 @@ class BaseDatabase : virtual public Readable, virtual public Writable
         ref --;
     }
 
+    bool is_inner_object() {
+        return if_inner_object;
+    }
+
     static void addRef(BaseDatabase *d) {
         if (d != NULL) {
             d->addRef();
@@ -75,14 +80,16 @@ class BaseDatabase : virtual public Readable, virtual public Writable
     static void subRef(BaseDatabase *d) {
         if (d != NULL) {
             d->subRef();
-            if (d->getRef() == 0) {
+            if (d->getRef() == 0 
+                && d->is_inner_object() ) {
                 delete d;
             }
         }
     }
 
   private:
-    uint64_t ref;
+    uint64_t    ref;
+    bool        if_inner_object;
 };
 
 typedef void (*MapCallback) (Readable *input, Writable *output, void *ptr);

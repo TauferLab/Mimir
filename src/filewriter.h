@@ -82,8 +82,11 @@ class FileWriter : public Writable {
             file_write();
         }
         //printf("record size=%d\n", record->get_record_size());
-        memcpy(buffer + datasize, record->get_record(),
-               record->get_record_size());
+        KVRecord kv;
+        kv.set_buffer(buffer + datasize);
+        kv.convert((KVRecord*)record);
+        //memcpy(buffer + datasize, record->get_record(),
+        //       record->get_record_size());
         datasize += record->get_record_size();
         record_count++;
     }
