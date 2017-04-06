@@ -153,6 +153,19 @@ void NBShuffler::wait()
         make_progress();
     } while (done_count < mimir_world_size - 1);
 
+    for (int i = 0; i < mimir_world_size; i++) {
+        if (recv_reqs[i] != MPI_REQUEST_NULL)
+            LOG_ERROR("Receive request of %d is not NULL!\n", i);
+    }
+
+    MPI_Status st;
+    for (int i = 0; i < mimir_world_size; i++) {
+        if (send_reqs[i] != MPI_REQUEST_NULL) {
+            MPI_Wait(&send_reqs[i], &st);
+            send_reqs[i] = MPI_REQUEST_NULL;
+        }
+    }
+
     TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
 
     LOG_PRINT(DBG_COMM, "Comm: finish wait.\n");

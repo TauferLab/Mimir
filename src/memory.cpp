@@ -36,7 +36,7 @@ void *mem_aligned_malloc(size_t alignment, size_t size)
         return NULL;
     }
 
-    for (size_t i = 0; i < align_size; i++) {
+    for (size_t i = 0; i < align_size; i += MEMPAGE_SIZE) {
         *((char*)ptr + i) = 0;
     }
 
