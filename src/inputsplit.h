@@ -77,19 +77,19 @@ class InputSplit {
     uint64_t get_file_count() { return filesegs.size(); }
 
     void add_seg_file(FileSeg *seg) {
-        if (seg->readorder == -1)
+        //if (seg->readorder == -1)
             filesegs.push_back(*seg);
-        else {
-            std::vector<FileSeg>::iterator iter = filesegs.begin();
-            for (; iter != filesegs.end(); iter++) {
-                if (seg->readorder < iter->readorder || iter->readorder == -1) {
-                    filesegs.insert(iter, *seg);
-                    break;
-                }
-            }
-            if(iter == filesegs.end())
-                filesegs.push_back(*seg);
-        }
+        //else {
+        //    std::vector<FileSeg>::iterator iter = filesegs.begin();
+        //    for (; iter != filesegs.end(); iter++) {
+        //        if (seg->readorder < iter->readorder || iter->readorder == -1) {
+        //            filesegs.insert(iter, *seg);
+        //            break;
+        //        }
+        //    }
+        //    if(iter == filesegs.end())
+        //        filesegs.push_back(*seg);
+        //}
     }
 
     std::vector<FileSeg>& get_file_segs() {
@@ -105,6 +105,7 @@ class InputSplit {
 
     std::vector<FileSeg> filesegs;
     size_t               fileidx;
+
 };
 
 }

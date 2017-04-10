@@ -117,6 +117,10 @@ void get_default_values()
                 ("Error: set bucket size error, please set MIMIR_BUCKET_SIZE (%s) correctly!\n",
                  env);
     }
+    env = getenv("MIMIR_WORK_STEAL");
+    if (env) {
+        WORK_STEAL = atoi(env);
+    }
     env = getenv("MIMIR_COMM_SIZE");
     if (env) {
         COMM_BUF_SIZE = convert_to_int64(env);
@@ -271,12 +275,13 @@ Library configuration:\n\
 \tpage buffer size: %ld\n\
 \tdisk buffer size: %ld\n\
 \tbucket size (2^x): %d\n\
+\twork stealing: %d\n\
 \tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv; 2 - MPI_Isend)\n\
 \treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \tdebug level: %x\n\
 ***********************************************************************\n",
-        COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, 
+        COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, WORK_STEAL, 
         SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, DBG_LEVEL);
         fflush(stdout);
     }

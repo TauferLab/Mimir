@@ -167,8 +167,8 @@ class FileReader : public Readable {
                 buffer[i + new_start_pos] = buffer[state.start_pos + i];
             state.start_pos = new_start_pos;
             if (chunk_mgr->acquire_local_chunk(new_chunk, state.cur_chunk.localid + 1) == false) {
-                printf("%d[%d] acquire local chunk=%ld fail!\n",
-                       mimir_world_rank, mimir_world_size, state.cur_chunk.localid + 1);
+                //printf("%d[%d] acquire local chunk=%ld fail!\n",
+                //       mimir_world_rank, mimir_world_size, state.cur_chunk.localid + 1);
                 int count = chunk_mgr->recv_tail(state.cur_chunk,
                                                 buffer + state.start_pos + state.win_size,
                                                 MAX_RECORD_SIZE);
@@ -194,6 +194,9 @@ class FileReader : public Readable {
                 LOG_ERROR("Open file %s error!\n", new_chunk.fileseg->filename.c_str());
                 return false;
             }
+            state.start_pos = 0;
+            state.win_size = 0;
+            cont_chunk = false;
             PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
         }
 
@@ -218,7 +221,7 @@ class FileReader : public Readable {
             state.has_tail = false;
         }
 
-        print_state();
+        //print_state();
 
         return true;
     }
@@ -347,15 +350,13 @@ class DirectFileReader : public FileReader< RecordFormat >{
         PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
 
-        LOG_PRINT(DBG_IO, "Open (POSIX) input file=%s\n", 
-                  this->state.cur_chunk.fileseg->filename.c_str());
+        LOG_PRINT(DBG_IO, "Open (POSIX) input file=%s\n", filename);
 
         return true;
     }
 
     virtual void file_read_at(char *buf, uint64_t offset, uint64_t size){
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        PROFILER_RECORD_TIME_START;
 
         if ((uint64_t)buf % MEMPAGE_SIZE !=0)
             LOG_ERROR("Buffer (%p) should be page alignment!\n", buf);
@@ -372,9 +373,13 @@ class DirectFileReader : public FileReader< RecordFormat >{
                 LOG_ERROR("Buffer (%p) should be page alignment!\n", buf);
             ::lseek64(this->union_fp.posix_fd, (off64_t)offset, SEEK_SET);
             size_t param_bytes = ROUNDUP(remain_bytes, DISKPAGE_SIZE) * DISKPAGE_SIZE;
+            PROFILER_RECORD_TIME_START;
             read_bytes = ::read(this->union_fp.posix_fd, buf, param_bytes);
+            PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
             if (read_bytes < (ssize_t)remain_bytes)
                 read_bytes = read_bytes / DISKPAGE_SIZE * DISKPAGE_SIZE;
+            this->chunk_mgr->make_progress();
+            this->shuffler->make_progress();
             LOG_PRINT(DBG_IO, "Read (POSIX) input file=%s:%ld+%ld\n", 
                       this->state.cur_chunk.fileseg->filename.c_str(), offset, read_bytes);
             remain_bytes -= read_bytes;
@@ -382,7 +387,6 @@ class DirectFileReader : public FileReader< RecordFormat >{
             offset += read_bytes;
         }
 
-        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
 
    }

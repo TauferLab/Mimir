@@ -151,10 +151,15 @@ class MimirContext {
             //else
             //    splitinput = FileSplitter::getFileSplitter()->split(&filelist, BYNAME);
             //splitinput->print();
-            if (user_repartition != NULL)
-                chunk_mgr = new StealChunkManager(input_dir, BYSIZE);
+            if (user_repartition != NULL) {
+                if (WORK_STEAL) {
+                    chunk_mgr = new StealChunkManager(input_dir, BYSIZE);
+                } else {
+                    chunk_mgr = new ChunkManager(input_dir, BYSIZE);
+                }
+            }
             else
-                chunk_mgr = new StealChunkManager(input_dir, BYNAME);
+                chunk_mgr = new ChunkManager(input_dir, BYNAME);
             reader = FileReader<StringRecord>::getReader(chunk_mgr, user_repartition);
             input = reader;
         }

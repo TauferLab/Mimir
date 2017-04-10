@@ -27,6 +27,8 @@ int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024;
 /// (0: c library io; 1: mpi io; 2; mpi collective io)
 int DISK_IO_TYPE = 1;
 
+int WORK_STEAL = 0;
+
 /// KV exchange communication mode
 /// (0: collective; 1: point to point)
 int KV_EXCH_COMM = 0;
