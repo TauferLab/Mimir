@@ -19,7 +19,7 @@
 #include "globals.h"
 #include "tools.h"
 #include "mimircontext.h"
-#include "filesplitter.h"
+#include "chunkmanager.h"
 #include "kvcontainer.h"
 #include "combinekvcontainer.h"
 #include "kmvcontainer.h"
@@ -125,6 +125,7 @@ class MimirContext {
         Writable *output = NULL;
         FileReader<StringRecord> *reader = NULL;
         FileWriter *writer = NULL;
+        ChunkManager *chunk_mgr = NULL;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
@@ -137,20 +138,24 @@ class MimirContext {
         if (database != NULL) input = database;
         // input from files
         else {
-            InputSplit filelist;
-            for (std::vector<std::string>::const_iterator iter = input_dir.begin();
-                 iter != input_dir.end(); iter++) {
-                std::string file = *(iter);
-                filelist.add(file.c_str());
-            }
+            //InputSplit filelist;
+            //for (std::vector<std::string>::const_iterator iter = input_dir.begin();
+            //     iter != input_dir.end(); iter++) {
+            //    std::string file = *(iter);
+            //    filelist.add(file.c_str());
+            //}
             StringRecord::set_whitespaces("\n");
-            InputSplit* splitinput = NULL;
+            //InputSplit* splitinput = NULL;
+            //if (user_repartition != NULL)
+            //    splitinput = FileSplitter::getFileSplitter()->split(&filelist, BYSIZE);
+            //else
+            //    splitinput = FileSplitter::getFileSplitter()->split(&filelist, BYNAME);
+            //splitinput->print();
             if (user_repartition != NULL)
-                splitinput = FileSplitter::getFileSplitter()->split(&filelist, BYSIZE);
+                chunk_mgr = new StealChunkManager(input_dir, BYSIZE);
             else
-                splitinput = FileSplitter::getFileSplitter()->split(&filelist, BYNAME);
-            splitinput->print();
-            reader = FileReader<StringRecord>::getReader(splitinput, user_repartition);
+                chunk_mgr = new StealChunkManager(input_dir, BYNAME);
+            reader = FileReader<StringRecord>::getReader(chunk_mgr, user_repartition);
             input = reader;
         }
 
@@ -252,6 +257,8 @@ class MimirContext {
             database = NULL;
             delete writer;
         }
+
+        if (chunk_mgr != NULL) delete chunk_mgr;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 

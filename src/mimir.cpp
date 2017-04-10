@@ -155,7 +155,7 @@ void get_default_values()
     if (env) {
         int flag = atoi(env);
         if (flag != 0) {
-            DBG_LEVEL |= (DBG_GEN | DBG_DATA | DBG_COMM | DBG_IO | DBG_MEM);
+            DBG_LEVEL |= (DBG_GEN | DBG_DATA | DBG_COMM | DBG_IO | DBG_MEM | DBG_CHUNK);
         }
     }
     env = getenv("MIMIR_DBG_GEN");
@@ -252,12 +252,12 @@ void get_default_values()
         }
     }
 
-    env = getenv("MIMIR_FILE_ALIGN");
-    if (env) {
-        FILE_SPLIT_UNIT = convert_to_int64(env);
-        if (FILE_SPLIT_UNIT <= 0)
-            LOG_ERROR("Error: set file alignment error\n");
-    }
+    //env = getenv("MIMIR_FILE_ALIGN");
+    //if (env) {
+    //    FILE_SPLIT_UNIT = convert_to_int64(env);
+    //    if (FILE_SPLIT_UNIT <= 0)
+    //        LOG_ERROR("Error: set file alignment error\n");
+    //}
 
     if (mimir_world_rank == 0) {
         printf(\
@@ -274,11 +274,10 @@ Library configuration:\n\
 \tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv; 2 - MPI_Isend)\n\
 \treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
-\tfile alignment: %ld\n\
 \tdebug level: %x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, 
-        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, FILE_SPLIT_UNIT, DBG_LEVEL);
+        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, DBG_LEVEL);
         fflush(stdout);
     }
 

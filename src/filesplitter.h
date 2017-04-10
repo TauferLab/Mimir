@@ -34,38 +34,42 @@ class FileSplitter{
     ~FileSplitter(){
     }
 
-    InputSplit* split(InputSplit *input, SplitPolicy policy = BYNAME){
+    void split(InputSplit* input, 
+                      std::vector<InputSplit>& files,
+                      SplitPolicy policy = BYNAME){
 
         LOG_PRINT(DBG_IO, "Start bcast file list\n");
         bcast_file_list(input);
         LOG_PRINT(DBG_IO, "Start split file list\n");
-        split_files(input, policy);
+        split_files(input, files, policy);
         LOG_PRINT(DBG_IO, "End split file list\n");
 
-        return get_my_split();
+        //return get_my_split();
     }
 
-    InputSplit* split(const char *indir, SplitPolicy policy = BYNAME){
+    void split(const char* indir,
+                      std::vector<InputSplit>& files,
+                      SplitPolicy policy = BYNAME){
 
         InputSplit input(indir);
         LOG_PRINT(DBG_IO, "Start bcast file list\n");
         bcast_file_list(&input);
         LOG_PRINT(DBG_IO, "Start split file list\n");
-        split_files(&input, policy);
+        split_files(&input, files, policy);
         LOG_PRINT(DBG_IO, "End split file list\n");
 
-        return get_my_split();
+        //return get_my_split();
     }
 
   private:
-    void bcast_file_list(InputSplit *input);
-    void split_files(InputSplit *input, SplitPolicy policy);
-    void split_by_size(InputSplit *input);
-    void split_by_name(InputSplit *input);
-    InputSplit *get_my_split();
+    void bcast_file_list(InputSplit* input);
+    void split_files(InputSplit* input, std::vector<InputSplit>& files, SplitPolicy policy);
+    void split_by_size(InputSplit* input, std::vector<InputSplit>& files);
+    void split_by_name(InputSplit* input, std::vector<InputSplit>& files);
+    //InputSplit *get_my_split();
     uint64_t get_proc_count(int, uint64_t);
 
-    std::vector<InputSplit> files;
+    //std::vector<InputSplit> files;
 };
 
 }

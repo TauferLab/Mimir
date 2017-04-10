@@ -8,7 +8,7 @@ libmimir_a_HEADERS = mimir.h interface.h recordformat.h globals.h hashbucket.h \
 		     combinekvcontainer.h kmvcontainer.h collectiveshuffler.h  \
 		     nbcollectiveshuffler.h nbshuffler.h 		       \
 		     combinecollectiveshuffler.h config.h                      \
-		     nbcombinecollectiveshuffler.h
+		     nbcombinecollectiveshuffler.h chunkmanager.h
 libmimir_a_SOURCES = mimircontext.h                           		       \
 		     container.cpp container.h containeriter.h	       	       \
 		     kvcontainer.cpp kvcontainer.h		      	       \

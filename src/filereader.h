@@ -19,18 +19,12 @@
 #include "config.h"
 #include "globals.h"
 #include "memory.h"
-#include "inputsplit.h"
+#include "chunkmanager.h"
 #include "interface.h"
 #include "baseshuffler.h"
 #include "baserecordformat.h"
 
 namespace MIMIR_NS {
-
-//enum IOTYPE {MIMIR_STDC_IO, MIMIR_MPI_IO};
-
-#define BORDER_LEFT       0
-#define BORDER_RIGHT      1
-#define BORDER_SIZE       2
 
 class InputSplit;
 
@@ -40,26 +34,22 @@ class MPIFileReader;
 template<typename RecordFormat>
 class FileReader : public Readable {
   public:
-    static FileReader<RecordFormat> *getReader(InputSplit *input,
+    static FileReader<RecordFormat> *getReader(ChunkManager *chunk_mgr,
                                                RepartitionCallback repartition_fn);
     static FileReader<RecordFormat> *reader;
 
   public:
-    FileReader(InputSplit *input, RepartitionCallback repartition_fn) {
-        this->input = input;
-        buffer = NULL;
-
-        for (int i = 0; i < BORDER_SIZE; i++) {
-            border_buffers[i] = NULL;
-            border_sizes[i] = 0;
-            border_cmds[i] = 0;
-            border_reqs[i] = MPI_REQUEST_NULL;
-            border_creqs[i] = MPI_REQUEST_NULL;
-        }
-
+    FileReader(ChunkManager *chunk_mgr, RepartitionCallback repartition_fn) {
+        this->chunk_mgr = chunk_mgr;
         this->repartition_fn = repartition_fn;
 
+        buffer = NULL;
+        bufsize = 0;
+
+        record = NULL;
         shuffler = NULL;
+
+        record_count = 0;
     }
 
     virtual ~FileReader() {
@@ -69,78 +59,56 @@ class FileReader : public Readable {
 
     void set_shuffler(BaseShuffler *shuffler) {
         this->shuffler = shuffler;
+        chunk_mgr->set_shuffler(shuffler);
     }
 
     virtual bool open() {
 
         LOG_PRINT(DBG_IO, "Filereader open.\n");
 
-        if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
-            bufsize = ROUNDUP(input->get_max_fsize(), DISKPAGE_SIZE) * DISKPAGE_SIZE;
-        else
-            bufsize = ROUNDUP(INPUT_BUF_SIZE, DISKPAGE_SIZE) * DISKPAGE_SIZE;
+        //if (input->get_max_fsize() <= (uint64_t)INPUT_BUF_SIZE)
+        //    bufsize = ROUNDUP(input->get_max_fsize(), DISKPAGE_SIZE) * DISKPAGE_SIZE;
+        //else
+        //    bufsize = ROUNDUP(INPUT_BUF_SIZE, DISKPAGE_SIZE) * DISKPAGE_SIZE;
+        //
+        bufsize = INPUT_BUF_SIZE;
+        if (bufsize % DISKPAGE_SIZE != 0)
+            LOG_ERROR("The chunck size should be multiple times of disk sector size!\n");
 
-        PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t) input->get_max_fsize(), OPMAX);
+        PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t) bufsize, OPMAX);
 
-        buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE,
-                                            bufsize + MAX_RECORD_SIZE + 1);
+        buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE, bufsize + MAX_RECORD_SIZE + 1);
 
-        state.seg_file = NULL;
-        state.read_size = 0;
+        state.cur_chunk.fileseg = NULL;
         state.start_pos = 0;
         state.win_size = 0;
-        state.has_head = false;
         state.has_tail = false;
-
-        for (int i = 0; i < BORDER_SIZE; i++) {
-            border_buffers[i] = NULL;
-            border_sizes[i] = 0;
-            border_cmds[i] = 0;
-            border_reqs[i] = MPI_REQUEST_NULL;
-            border_creqs[i] = MPI_REQUEST_NULL;
-        }
 
         record = new RecordFormat();
 
         file_init();
-        read_next_file();
+        read_next_chunk();
 
         record_count = 0;
-
         return true;
     }
 
     virtual void close() {
+        file_close();
         file_uninit();
+
         delete record;
 
         mem_aligned_free(buffer);
 
-        MPI_Status st;
-        for (int i = 0; i < BORDER_SIZE; i++) {
-            if (border_buffers[i] != NULL)
-                mem_aligned_free(border_buffers[i]);
-            if (border_reqs[i] != MPI_REQUEST_NULL) {
-                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-                MPI_Wait(&border_reqs[i], &st);
-                border_reqs[i] = MPI_REQUEST_NULL;
-                TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-            }
-            if (border_creqs[i] != MPI_REQUEST_NULL) {
-                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-                MPI_Wait(&border_creqs[i], &st);
-                border_creqs[i] = MPI_REQUEST_NULL;
-                TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-            }
-        }
         LOG_PRINT(DBG_IO, "Filereader close.\n");
     }
 
-    virtual uint64_t get_record_count() { return record_count++; }
+    virtual uint64_t get_record_count() { return record_count; }
 
     virtual RecordFormat* read() {
 
-        if (state.seg_file == NULL)
+        if (state.cur_chunk.fileseg == NULL)
             return NULL;
 
         bool is_empty = false;
@@ -156,7 +124,6 @@ class FileReader : public Readable {
             bool islast = is_last_block();
             if(state.win_size > 0
                && record->get_next_record_size(ptr, state.win_size, islast) != -1) {
-                //int move_count = record->move_count(ptr, state.win_size, islast);
                 int move_count = record->get_record_size();
                 if ((uint64_t)move_count >= state.win_size) {
                     state.win_size = 0;
@@ -169,274 +136,91 @@ class FileReader : public Readable {
                 record_count ++;
                 return record;
             }
-            else if (islast) {
-                if (!read_next_file())
-                    is_empty = true;
-            }
             else {
-                handle_border();
+                // read next chunk
+                if(!read_next_chunk()) {
+                    is_empty = true;
+                }
             }
         };
 
+        chunk_mgr->wait();
         return NULL;
     }
 
   protected:
 
     bool is_last_block() {
-        if (state.read_size == state.seg_file->segsize 
-            && !state.has_tail && !state.has_head)
+        if (state.cur_chunk.fileoff + INPUT_BUF_SIZE >= state.cur_chunk.fileseg->filesize
+            || !state.has_tail)
             return true;
         return false;
     }
 
-    bool read_next_file() {
-        // close possible previous file
-        file_close();
+    bool read_next_chunk() {
+        bool cont_chunk = false;
+        Chunk new_chunk;
+        if (state.cur_chunk.fileseg && chunk_mgr->has_tail(state.cur_chunk) && !is_last_block()) {
+            uint64_t aligned_size = ROUNDUP(state.win_size, MEMPAGE_SIZE) * MEMPAGE_SIZE;
+            uint64_t new_start_pos = aligned_size - state.win_size;
+            for (uint64_t i = 0; i < state.win_size; i++)
+                buffer[i + new_start_pos] = buffer[state.start_pos + i];
+            state.start_pos = new_start_pos;
+            if (chunk_mgr->acquire_local_chunk(new_chunk, state.cur_chunk.localid + 1) == false) {
+                printf("%d[%d] acquire local chunk=%ld fail!\n",
+                       mimir_world_rank, mimir_world_size, state.cur_chunk.localid + 1);
+                int count = chunk_mgr->recv_tail(state.cur_chunk,
+                                                buffer + state.start_pos + state.win_size,
+                                                MAX_RECORD_SIZE);
+                state.win_size += count;
+                state.has_tail = false;
+                return true;
+            } else {
+                cont_chunk = true;
+            }
 
-        // open the next file
-        state.seg_file = input->get_next_file();
-        if (state.seg_file == NULL) {
-            return false;
+        } else {
+            state.start_pos = 0;
+            state.win_size = 0;
+            if (chunk_mgr->acquire_chunk(new_chunk) == false) {
+                return false;
+            }
         }
 
-        if (!file_open(state.seg_file->filename.c_str())) {
-            LOG_ERROR("Open file %s error!\n", state.seg_file->filename.c_str());
-            return false;
+        if (!state.cur_chunk.fileseg
+            || new_chunk.fileseg->filename != state.cur_chunk.fileseg->filename) {
+            file_close();
+            if (!file_open(new_chunk.fileseg->filename.c_str())) {
+                LOG_ERROR("Open file %s error!\n", new_chunk.fileseg->filename.c_str());
+                return false;
+            }
+            PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
         }
-        PROFILER_RECORD_COUNT(COUNTER_FILE_COUNT, 1, OPSUM);
 
-        state.start_pos = 0;
-        state.win_size = 0;
-        state.read_size = 0;
-        FileSeg *segfile = state.seg_file;
-        if (segfile->startpos + segfile->segsize < segfile->filesize) {
-            state.has_tail = true;
-            //recv_start();
-        }
-        else
-            state.has_tail = false;
+        state.cur_chunk = new_chunk;
+        file_read_at(buffer + state.start_pos + state.win_size,
+                     state.cur_chunk.fileoff, state.cur_chunk.chunksize);
+        state.win_size += state.cur_chunk.chunksize;
+        PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, new_chunk.chunksize, OPSUM);
 
-        // read data
-        uint64_t rsize;
-        if (state.seg_file->segsize <= bufsize)
-            rsize = state.seg_file->segsize;
-        else
-            rsize = bufsize;
-
-        file_read_at(buffer, state.seg_file->startpos, rsize);
-        PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, rsize, OPSUM);
-
-        state.win_size += rsize;
-        state.read_size += rsize;
-
-        // skip tail of previous process
-        if (state.seg_file->startpos > 0) {
-            int count = handle_left_border_start(buffer, rsize);
-            if (count > 0) state.has_head = true;
+        if (chunk_mgr->has_head(state.cur_chunk) && cont_chunk == false) {
+            int count = repartition_fn(buffer + state.start_pos,
+                                       state.win_size,
+                                       chunk_mgr->is_file_end(state.cur_chunk));
+            chunk_mgr->send_head(state.cur_chunk, buffer, count);
             state.start_pos += count;
             state.win_size -= count;
         }
 
-        // close file
-        if (state.read_size == state.seg_file->segsize) {
-            file_close();
+        if (!chunk_mgr->is_file_end(state.cur_chunk)) {
+            state.has_tail = true;
+        } else {
+            state.has_tail = false;
         }
+
+        print_state();
 
         return true;
-    }
-
-    void handle_border() {
-
-        if (state.win_size > (uint64_t)MAX_RECORD_SIZE)
-            LOG_ERROR("Record size (%ld) is larger than max size (%d)\n", 
-                      state.win_size, MAX_RECORD_SIZE);
-
-        uint64_t aligned_size = ROUNDUP(state.win_size, MEMPAGE_SIZE) * MEMPAGE_SIZE;
-        uint64_t new_start_pos = aligned_size - state.win_size;
-        for (uint64_t i = 0; i < state.win_size; i++)
-            buffer[i + new_start_pos] = buffer[state.start_pos + i];
-        state.start_pos = new_start_pos;
-
-        // recv tail from next process
-        if (state.read_size == state.seg_file->segsize ) {
-            if (state.has_tail) {
-                int count = handle_right_border(buffer + state.start_pos + state.win_size, bufsize);
-                state.win_size += count;
-                state.has_tail = false;
-                //print_state();
-            } else if  (state.has_head) {
-                int count = handle_left_border_end(buffer, bufsize);
-                state.win_size += count;
-                state.has_head = false;
-            }
-        }
-        else {
-            uint64_t rsize;
-            if (state.seg_file->segsize - state.read_size <= bufsize) 
-                rsize = state.seg_file->segsize - state.read_size;
-            else
-                rsize = bufsize;
-
-            file_read_at(buffer + state.start_pos + state.win_size,
-                         state.seg_file->startpos + state.read_size, rsize);
-            PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, rsize, OPSUM);
-
-            state.win_size += rsize;
-            state.read_size += rsize;
-
-            if (state.read_size == state.seg_file->segsize) {
-                file_close();
-            }
-        }
-    }
-
-    int handle_left_border_start (char *buffer, uint64_t bufsize) {
-
-        //border_sizes[BORDER_LEFT] = record->get_border_size(buffer, bufsize,
-        //                                                    !state.has_tail);
-
-        border_sizes[BORDER_LEFT] = repartition_fn(buffer, bufsize, !state.has_tail);
-
-        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        border_cmds[BORDER_LEFT] = border_sizes[BORDER_LEFT];
-        PROFILER_RECORD_TIME_START;
-        MPI_Isend(&border_cmds[BORDER_LEFT], 1, MPI_INT, mimir_world_rank - 1, 
-                  READER_CMD_TAG, mimir_world_comm, &border_creqs[BORDER_LEFT]);
-        PROFILER_RECORD_TIME_END(TIMER_COMM_ISEND);
-        TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
-
-        if (border_sizes[BORDER_LEFT] != 0) {
-            border_buffers[BORDER_LEFT] 
-                = (char*)mem_aligned_malloc(MEMPAGE_SIZE, border_sizes[BORDER_LEFT]);
-            memcpy(border_buffers[BORDER_LEFT], buffer, border_sizes[BORDER_LEFT]);
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            PROFILER_RECORD_TIME_START;
-            MPI_Isend(border_buffers[BORDER_LEFT], border_sizes[BORDER_LEFT], 
-                      MPI_BYTE, mimir_world_rank - 1, 
-                      READER_DATA_TAG, mimir_world_comm, &border_reqs[BORDER_LEFT]);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_ISEND);
-            TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
-        }
-
-        PROFILER_RECORD_COUNT(COUNTER_SEND_TAIL, 
-                              (uint64_t) border_sizes[BORDER_LEFT], OPSUM);
-
-        LOG_PRINT(DBG_IO, "Send tail file=%s:%ld+%d\n", 
-                  state.seg_file->filename.c_str(),
-                  state.seg_file->startpos, border_sizes[BORDER_LEFT]);
-
-        return border_sizes[BORDER_LEFT];
-    }
-
-    int handle_left_border_end (char *buffer, uint64_t bufsize) {
-        int count = 0;
-
-#if 0
-        MPI_Status st;
-        int flag = 0;
-        if (record->has_right_cmd() ) {
-            if (border_creqs[BORDER_LEFT] != MPI_REQUEST_NULL) {
-                MPI_Wait(&border_creqs[BORDER_LEFT], &st);
-            }
-
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            MPI_Irecv(&border_cmds[BORDER_LEFT], 1, MPI_INT,
-                      mimir_world_rank - 1, READER_CMD_TAG,
-                      mimir_world_comm, &border_creqs[BORDER_LEFT]);
-            TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
-
-            while (1) {
-                MPI_Test(&border_creqs[BORDER_LEFT], &flag, &st);
-                if (flag) break;
-                if (shuffler) shuffler->make_progress();
-            };
-
-            count = record->process_left_border(border_creqs[BORDER_LEFT],
-                                                buffer, bufsize,
-                                                border_buffers[BORDER_LEFT],
-                                                border_sizes[BORDER_LEFT]);
-        }
-#endif
-
-        return count;
-    }
-
-    int handle_right_border (char *buffer, uint64_t bufsize) {
-        MPI_Status st;
-        int flag = 0;
-
-        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        PROFILER_RECORD_TIME_START;
-        MPI_Irecv(&border_sizes[BORDER_RIGHT], 1, MPI_INT,
-                  mimir_world_rank + 1, READER_CMD_TAG,
-                  mimir_world_comm, &border_creqs[BORDER_RIGHT]);
-        PROFILER_RECORD_TIME_END(TIMER_COMM_IRECV);
-        TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
-
-        flag = 0;
-        while (!flag) {
-            PROFILER_RECORD_TIME_START;
-            MPI_Test(&border_creqs[BORDER_RIGHT], &flag, &st);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
-            if (shuffler) shuffler->make_progress();
-        };
-        TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-
-        border_creqs[BORDER_RIGHT] = MPI_REQUEST_NULL;
-
-        if (border_sizes[BORDER_RIGHT] != 0) {
-            border_buffers[BORDER_RIGHT] 
-                = (char*)mem_aligned_malloc(MEMPAGE_SIZE, border_sizes[BORDER_RIGHT]);
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            PROFILER_RECORD_TIME_START;
-            MPI_Irecv(border_buffers[BORDER_RIGHT], border_sizes[BORDER_RIGHT], 
-                      MPI_BYTE, mimir_world_rank + 1,
-                      READER_DATA_TAG, mimir_world_comm, &border_reqs[BORDER_RIGHT]);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_IRECV);
-            TRACKER_RECORD_EVENT(EVENT_COMM_IRECV);
-        }
-
-        PROFILER_RECORD_COUNT(COUNTER_RECV_TAIL, 
-                              (uint64_t) border_sizes[BORDER_RIGHT], OPSUM);
-
-#if 0
-        if (record->has_right_cmd()) {
-            border_cmds[BORDER_RIGHT] = record->get_right_cmd();
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            MPI_Isend(&border_cmds[BORDER_RIGHT], 1, MPI_INT, mimir_world_rank + 1, 
-                      READER_CMD_TAG, mimir_world_comm, &border_creqs[BORDER_RIGHT]);
-            TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
-        }
-#endif
-
-        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-        flag = 0;
-        while (!flag) {
-            PROFILER_RECORD_TIME_START;
-            MPI_Test(&border_reqs[BORDER_RIGHT], &flag, &st);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
-            if (shuffler) shuffler->make_progress();
-        };
-        //MPI_Wait(&border_reqs[BORDER_RIGHT], &st);
-        TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-        border_reqs[BORDER_RIGHT] = MPI_REQUEST_NULL;
-
-        if (border_sizes[BORDER_RIGHT] != 0) {
-            if ((uint64_t)border_sizes[BORDER_RIGHT] > bufsize)
-                LOG_ERROR("tail size %d is larger than buffer size %ld\n",
-                          border_sizes[BORDER_RIGHT], bufsize);
-            memcpy(buffer, border_buffers[BORDER_RIGHT], border_sizes[BORDER_RIGHT]);
-            mem_aligned_free(border_buffers[BORDER_RIGHT]);
-            border_buffers[BORDER_RIGHT] = NULL;
-        }
-
-        LOG_PRINT(DBG_IO, "Recv tail file=%s:%ld+%d\n", 
-                  state.seg_file->filename.c_str(),
-                  state.seg_file->startpos + state.seg_file->segsize, 
-                  border_sizes[BORDER_RIGHT]);
-
-        return border_sizes[BORDER_RIGHT];
     }
 
     virtual void file_init(){
@@ -458,8 +242,7 @@ class FileReader : public Readable {
         PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
 
-        LOG_PRINT(DBG_IO, "Open input file=%s\n", 
-                  state.seg_file->filename.c_str());
+        LOG_PRINT(DBG_IO, "Open input file=%s\n", filename);
 
         return true;
     }
@@ -475,7 +258,7 @@ class FileReader : public Readable {
         TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
 
         LOG_PRINT(DBG_IO, "Read input file=%s:%ld+%ld\n", 
-                  state.seg_file->filename.c_str(), offset, size);
+                  state.cur_chunk.fileseg->filename.c_str(), offset, size);
     }
 
     virtual void file_close(){
@@ -492,7 +275,7 @@ class FileReader : public Readable {
             union_fp.c_fp = NULL;
 
             LOG_PRINT(DBG_IO, "Close input file=%s\n", 
-                      state.seg_file->filename.c_str());
+                      state.cur_chunk.fileseg->filename.c_str());
         }
     }
 
@@ -503,51 +286,41 @@ class FileReader : public Readable {
     } union_fp;
 
     struct FileState{
-        FileSeg  *seg_file;
-        uint64_t  read_size;
+        Chunk     cur_chunk;
         uint64_t  start_pos;
         uint64_t  win_size;
-        bool      has_head;
         bool      has_tail;
     }state;
 
     void print_state(){
-        printf("%d[%d] file_name=%s:%ld+%ld, read_size=%ld, start_pos=%ld, win_size=%ld, has_tail=%d, has_head=%d\n",
+        printf("%d[%d] file_name=%s:%ld+%ld (%ld<%d,%ld>), start_pos=%ld, win_size=%ld, has_tail=%d\n",
                mimir_world_rank, mimir_world_size,
-               state.seg_file->filename.c_str(),
-               state.seg_file->startpos,
-               state.seg_file->segsize,
-               state.read_size,
+               state.cur_chunk.fileseg->filename.c_str(),
+               state.cur_chunk.fileoff,
+               state.cur_chunk.chunksize,
+               state.cur_chunk.globalid,
+               state.cur_chunk.procrank,
+               state.cur_chunk.localid,
                state.start_pos,
                state.win_size,
-               state.has_tail,
-               state.has_head);
+               state.has_tail);
     }
 
     char*           buffer;
-    uint64_t        bufsize;
-
-    InputSplit*     input;
+    int             bufsize;
+    ChunkManager*   chunk_mgr;
     RecordFormat*   record;
-
     BaseShuffler*   shuffler;
     uint64_t        record_count;
-
     RepartitionCallback repartition_fn;
-
-    char*        border_buffers[BORDER_SIZE];
-    int          border_sizes[BORDER_SIZE];
-    int          border_cmds[BORDER_SIZE];
-    MPI_Request  border_reqs[BORDER_SIZE];
-    MPI_Request  border_creqs[BORDER_SIZE];
 };
 
 template <typename RecordFormat>
 class DirectFileReader : public FileReader< RecordFormat >{
 
   public:
-    DirectFileReader(InputSplit *input, RepartitionCallback repartition_cb) 
-        : FileReader<RecordFormat>(input, repartition_cb) {
+    DirectFileReader(ChunkManager *chunk_mgr, RepartitionCallback repartition_cb) 
+        : FileReader<RecordFormat>(chunk_mgr, repartition_cb) {
     }
 
     ~DirectFileReader(){
@@ -575,7 +348,7 @@ class DirectFileReader : public FileReader< RecordFormat >{
         TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
 
         LOG_PRINT(DBG_IO, "Open (POSIX) input file=%s\n", 
-                  this->state.seg_file->filename.c_str());
+                  this->state.cur_chunk.fileseg->filename.c_str());
 
         return true;
     }
@@ -603,7 +376,7 @@ class DirectFileReader : public FileReader< RecordFormat >{
             if (read_bytes < (ssize_t)remain_bytes)
                 read_bytes = read_bytes / DISKPAGE_SIZE * DISKPAGE_SIZE;
             LOG_PRINT(DBG_IO, "Read (POSIX) input file=%s:%ld+%ld\n", 
-                      this->state.seg_file->filename.c_str(), offset, read_bytes);
+                      this->state.cur_chunk.fileseg->filename.c_str(), offset, read_bytes);
             remain_bytes -= read_bytes;
             buf += read_bytes;
             offset += read_bytes;
@@ -628,13 +401,13 @@ class DirectFileReader : public FileReader< RecordFormat >{
             this->union_fp.posix_fd = -1;
 
             LOG_PRINT(DBG_IO, "Close (POSIX) input file=%s\n", 
-                      this->state.seg_file->filename.c_str());
+                      this->state.cur_chunk.fileseg->filename.c_str());
         }
     }
 
 };
 
-
+#if 0
 template <typename RecordFormat>
 class MPIFileReader : public FileReader< RecordFormat >{
 public:
@@ -861,20 +634,21 @@ protected:
     MPI_Comm sfile_comms[MAX_GROUPS];
     int      sfile_idx;
 };
+#endif
 
 template<typename RecordFormat>
 FileReader<RecordFormat>* FileReader<RecordFormat>::reader = NULL;
 
 template<typename RecordFormat>
 FileReader<RecordFormat>* FileReader<RecordFormat>
-    ::getReader(InputSplit *input, RepartitionCallback repartition_fn) {
+    ::getReader(ChunkManager *mgr, RepartitionCallback repartition_fn) {
     if (reader != NULL) delete reader;
     if (READER_TYPE == 0) {
-        reader = new FileReader<RecordFormat>(input, repartition_fn);
+        reader = new FileReader<RecordFormat>(mgr, repartition_fn);
     } else if (READER_TYPE == 1) {
-        reader = new DirectFileReader<RecordFormat>(input, repartition_fn);
-    } else if (READER_TYPE == 2) {
-        reader = new MPIFileReader<RecordFormat>(input, repartition_fn);
+        reader = new DirectFileReader<RecordFormat>(mgr, repartition_fn);
+    //} else if (READER_TYPE == 2) {
+    //    reader = new MPIFileReader<RecordFormat>(input, repartition_fn);
     } else {
         LOG_ERROR("Error reader type %d\n", READER_TYPE);
     }

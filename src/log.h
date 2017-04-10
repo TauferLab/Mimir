@@ -18,12 +18,13 @@
 
 #define _DEBUG
 
-#define DBG_GEN 1
-#define DBG_DATA 2
-#define DBG_COMM 4
-#define DBG_IO 8
-#define DBG_MEM 16
-#define DBG_VERBOSE 0x100
+#define DBG_GEN      1
+#define DBG_DATA     2
+#define DBG_COMM     4
+#define DBG_IO       8
+#define DBG_MEM     16
+#define DBG_CHUNK   32
+#define DBG_VERBOSE 32
 
 #define MIMIR_MAX_LOG_LEN 256
 

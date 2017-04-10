@@ -72,20 +72,22 @@ void FileSplitter::bcast_file_list(InputSplit *input){
     LOG_PRINT(DBG_IO, "Broadcast file list (count=%d)\n", total_count);
 }
 
-void FileSplitter::split_files(InputSplit *input, SplitPolicy policy){
+void FileSplitter::split_files(InputSplit* input,
+                               std::vector<InputSplit>& files,
+                               SplitPolicy policy){
     switch(policy){
-    case BYSIZE: split_by_size(input); break;
-    case BYNAME: split_by_name(input); break;
+    case BYSIZE: split_by_size(input, files); break;
+    case BYNAME: split_by_name(input, files); break;
     }
 }
 
-void FileSplitter::split_by_size(InputSplit *input){
+void FileSplitter::split_by_size(InputSplit* input, std::vector<InputSplit>& files){
 
     FileSeg *fileseg = NULL;
     uint64_t totalblocks = 0;
     // compute total number of blocks
     while((fileseg = input->get_next_file()) != NULL)
-        totalblocks += ROUNDUP(fileseg->filesize, FILE_SPLIT_UNIT);
+        totalblocks += ROUNDUP(fileseg->filesize, INPUT_BUF_SIZE);
 
     InputSplit tmpsplit;
     int max_rank = -1, proc_rank = 0;
@@ -99,7 +101,7 @@ void FileSplitter::split_by_size(InputSplit *input){
         uint64_t file_off = 0, file_blocks = 0;
         int start_rank = proc_rank, end_rank = proc_rank;
 
-        file_blocks = ROUNDUP(fileseg->filesize, FILE_SPLIT_UNIT);
+        file_blocks = ROUNDUP(fileseg->filesize, INPUT_BUF_SIZE);
 
         offsets[0] = 0;
         while(file_blocks > 0){
@@ -113,7 +115,7 @@ void FileSplitter::split_by_size(InputSplit *input){
                 if(segsize > maxsegsize) maxsegsize = segsize;
             }else{
                 file_blocks -= (proc_blocks - proc_off);
-                file_off += (proc_blocks - proc_off) * FILE_SPLIT_UNIT;
+                file_off += (proc_blocks - proc_off) * INPUT_BUF_SIZE;
                 proc_off = proc_blocks;
                 offsets[proc_rank - start_rank + 1] = file_off;
                 uint64_t segsize = file_off - offsets[proc_rank - start_rank];
@@ -177,7 +179,7 @@ void FileSplitter::split_by_size(InputSplit *input){
      //    LOG_ERROR("The split file count %ld is error!\n", files.size());
 }
 
-void FileSplitter::split_by_name(InputSplit *input){
+void FileSplitter::split_by_name(InputSplit* input, std::vector<InputSplit>& files){
 
     uint64_t totalcount = input->get_file_count();
 
@@ -206,9 +208,9 @@ void FileSplitter::split_by_name(InputSplit *input){
         files.push_back(tmpsplit);
 }
 
-InputSplit *FileSplitter::get_my_split(){
-    return &files[mimir_world_rank];
-}
+//InputSplit *FileSplitter::get_my_split(){
+//    return &files[mimir_world_rank];
+//}
 
 uint64_t FileSplitter::get_proc_count(int rank, uint64_t totalcount){
     uint64_t localcount = totalcount / mimir_world_size;

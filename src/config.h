@@ -21,9 +21,8 @@ extern int MAX_RECORD_SIZE;
 extern int64_t COMM_BUF_SIZE;
 extern int64_t DATA_PAGE_SIZE;
 extern int64_t INPUT_BUF_SIZE;
-extern int64_t FILE_SPLIT_UNIT;
+//extern int64_t FILE_SPLIT_UNIT;
 extern int DISK_IO_TYPE;
-extern int TAIL_BUF_SIZE;
 
 extern int DBG_LEVEL;
 extern int COMM_UNIT_SIZE;

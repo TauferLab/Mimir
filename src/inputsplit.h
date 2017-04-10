@@ -92,6 +92,10 @@ class InputSplit {
         }
     }
 
+    std::vector<FileSeg>& get_file_segs() {
+        return filesegs;
+    }
+
     void clear() { filesegs.clear(); }
 
     void print();
