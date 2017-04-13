@@ -334,9 +334,14 @@ class StealChunkManager : public ChunkManager {
             return steal_chunk(chunk);
 
         MPI_Win_lock(MPI_LOCK_SHARED, mimir_world_rank, 0, chunk_id_win);
+#ifdef MPI_FETCH_AND_OP
         MPI_Fetch_and_op(&one, &my_chunk_id,
                          MPI_INT, mimir_world_rank, 0,
                          MPI_SUM, chunk_id_win);
+#else
+        MPI_Get_accumulate(&one, 1, MPI_INT, &my_chunk_id, 1, MPI_INT,
+                           mimir_world_rank, 0, 1, MPI_INT, MPI_SUM, chunk_id_win);
+#endif
         MPI_Win_unlock(mimir_world_rank, chunk_id_win);
 
         if (my_chunk_id >= chunk_nums[mimir_world_rank])
@@ -389,17 +394,27 @@ class StealChunkManager : public ChunkManager {
             int victim_steal_off = 0;
             MPI_Win_lock(MPI_LOCK_SHARED, victim_rank, 0, steal_off_win);
             int tmp;
+#ifdef MPI_FETCH_AND_OP
             MPI_Fetch_and_op(&tmp, &victim_steal_off,
                              MPI_INT, victim_rank, 0, 
                              MPI_NO_OP, steal_off_win);
+#else
+            MPI_Get_accumulate(&tmp, 1, MPI_INT, &victim_steal_off, 1, MPI_INT,
+                               victim_rank, 0, 1, MPI_INT, MPI_NO_OP, steal_off_win);
+#endif
             MPI_Win_unlock(victim_rank, steal_off_win);
             LOG_PRINT(DBG_CHUNK, "Chunk: try to steal from %d (steal offset=%d)\n",
                       victim_rank, victim_steal_off);
             if (victim_steal_off == 0) {
                 MPI_Win_lock(MPI_LOCK_SHARED, victim_rank, 0, chunk_id_win);
+#ifdef MPI_FETCH_AND_OP
                 MPI_Fetch_and_op(&one, &local_chunk_id,
                                  MPI_INT, victim_rank, 0,
                                  MPI_SUM, chunk_id_win);
+#else
+                MPI_Get_accumulate(&one, 1, MPI_INT, &local_chunk_id, 1, MPI_INT,
+                                   victim_rank, 0, 1, MPI_INT, MPI_SUM, chunk_id_win);
+#endif
                 MPI_Win_unlock(victim_rank, chunk_id_win);
 
                 LOG_PRINT(DBG_CHUNK, "Chunk: try to steal from %d FOP ret=%d\n",
@@ -444,9 +459,15 @@ class StealChunkManager : public ChunkManager {
 
         MPI_Win_lock(MPI_LOCK_SHARED, chunk_owner_rank, 0, chunk_map_win);
         int tmp;
+#ifdef MPI_FETCH_AND_OP
         MPI_Fetch_and_op(&tmp, &worker_rank,
                          MPI_INT, chunk_owner_rank, chunk_owner_id,
                          MPI_NO_OP, chunk_map_win);
+#else
+        MPI_Get_accumulate(&tmp, 1, MPI_INT, &worker_rank, 1, MPI_INT,
+                           chunk_owner_rank, chunk_owner_id, 1, MPI_INT,
+                           MPI_NO_OP, chunk_map_win);
+#endif
         MPI_Win_unlock(chunk_owner_rank, chunk_map_win);
 
         return worker_rank;
@@ -466,8 +487,6 @@ class StealChunkManager : public ChunkManager {
     MPI_Win    steal_off_win;
     MPI_Win    chunk_map_win;
 };
-
-
 
 }
 

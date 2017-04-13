@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+//#define MPI_FETCH_AND_OP
+
 extern int KV_EXCH_COMM;
 extern int MAX_PAGE_COUNT;
 extern int BUCKET_COUNT;
