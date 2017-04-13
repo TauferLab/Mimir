@@ -306,11 +306,6 @@ class MPIFileWriter : public FileWriter {
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
-        PROFILER_RECORD_TIME_START;
-        MPI_Iallreduce(&done_flag, &done_count, 1, MPI_INT, MPI_SUM, 
-                       mimir_world_comm, &done_req);
-        PROFILER_RECORD_TIME_END(TIMER_COMM_IRDC);
-
         if (this->shuffler) {
             PROFILER_RECORD_TIME_START;
             MPI_Ibarrier(mimir_world_comm, &req);
@@ -338,9 +333,9 @@ class MPIFileWriter : public FileWriter {
         for (int i = 0; i < mimir_world_size; i++) filesize += sendcounts[i];
 
         //if (mimir_world_rank == 0)
-        LOG_PRINT(DBG_IO, "Collective set output file %s:%lld\n", 
-                  filename.c_str(), filesize);
-        MPI_File_set_size(union_fp.mpi_fp, filesize);
+        //LOG_PRINT(DBG_IO, "Collective set output file %s:%lld\n", 
+        //          filename.c_str(), filesize);
+        //MPI_File_set_size(union_fp.mpi_fp, filesize);
 
         //if (this->shuffler) {
         //    MPI_Ibarrier(mimir_world_comm, &req);
@@ -360,17 +355,19 @@ class MPIFileWriter : public FileWriter {
                               (int)datasize, MPI_BYTE, &st);
         datasize = 0;
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
-
-
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIWRITEATALL);
 
-        int flag = 0;
-        while (!flag) {
-            PROFILER_RECORD_TIME_START;
-            MPI_Test(&done_req, &flag, &st);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
-            if (this->shuffler) this->shuffler->make_progress();
-        }
+        //int flag = 0;
+        //while (!flag) {
+        //    PROFILER_RECORD_TIME_START;
+        //    MPI_Test(&done_req, &flag, &st);
+        //    PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
+        //    if (this->shuffler) this->shuffler->make_progress();
+        //}
+        PROFILER_RECORD_TIME_START;
+        MPI_Allreduce(&done_flag, &done_count, 1, MPI_INT, MPI_SUM, 
+                       mimir_world_comm);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
     }
