@@ -158,6 +158,11 @@ class FileReader : public Readable {
     }
 
     bool read_next_chunk() {
+
+        chunk_mgr->make_progress();
+
+        //print_state();
+
         bool cont_chunk = false;
         Chunk new_chunk;
         if (state.cur_chunk.fileseg && chunk_mgr->has_tail(state.cur_chunk) && !is_last_block()) {
@@ -296,7 +301,8 @@ class FileReader : public Readable {
     }state;
 
     void print_state(){
-        printf("%d[%d] file_name=%s:%ld+%ld (%ld<%d,%ld>), start_pos=%ld, win_size=%ld, has_tail=%d\n",
+        if (state.cur_chunk.fileseg != NULL) {
+            printf("%d[%d] file_name=%s:%ld+%ld (%ld<%d,%ld>), start_pos=%ld, win_size=%ld, has_tail=%d\n",
                mimir_world_rank, mimir_world_size,
                state.cur_chunk.fileseg->filename.c_str(),
                state.cur_chunk.fileoff,
@@ -307,6 +313,7 @@ class FileReader : public Readable {
                state.start_pos,
                state.win_size,
                state.has_tail);
+        }
     }
 
     char*           buffer;
@@ -376,18 +383,17 @@ class DirectFileReader : public FileReader< RecordFormat >{
             PROFILER_RECORD_TIME_START;
             read_bytes = ::read(this->union_fp.posix_fd, buf, param_bytes);
             PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+            TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
             if (read_bytes < (ssize_t)remain_bytes)
                 read_bytes = read_bytes / DISKPAGE_SIZE * DISKPAGE_SIZE;
             this->chunk_mgr->make_progress();
-            this->shuffler->make_progress();
+            if (this->shuffler) this->shuffler->make_progress();
             LOG_PRINT(DBG_IO, "Read (POSIX) input file=%s:%ld+%ld\n", 
                       this->state.cur_chunk.fileseg->filename.c_str(), offset, read_bytes);
             remain_bytes -= read_bytes;
             buf += read_bytes;
             offset += read_bytes;
         }
-
-        TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
 
    }
 
