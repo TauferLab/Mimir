@@ -417,6 +417,97 @@ class DirectFileReader : public FileReader< RecordFormat >{
 
 };
 
+template <typename RecordFormat>
+class MPIFileReader : public FileReader< RecordFormat >{
+
+  public:
+    MPIFileReader(ChunkManager *chunk_mgr, RepartitionCallback repartition_cb) 
+        : FileReader<RecordFormat>(chunk_mgr, repartition_cb) {
+    }
+
+    ~MPIFileReader(){
+    }
+
+  protected:
+
+    virtual void file_init() {
+        this->union_fp.mpi_fp = MPI_FILE_NULL;
+    }
+
+    virtual void file_uninit() {
+    }
+
+    virtual bool file_open(const char *filename){
+
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+        PROFILER_RECORD_TIME_START;
+
+        MPI_Info file_info;
+        MPI_Info_create(&file_info);
+        MPI_Info_set(file_info, "direct_read", "true");
+        MPI_File_open(MPI_COMM_SELF, filename, MPI_MODE_RDONLY,
+                      file_info, &(this->union_fp.mpi_fp));
+        MPI_Info_free(&file_info);
+        if (this->union_fp.mpi_fp == MPI_FILE_NULL)
+            return false;
+
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+        TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
+
+        LOG_PRINT(DBG_IO, "Open (MPI) input file=%s\n", filename);
+
+        return true;
+    }
+
+    virtual void file_read_at(char *buf, uint64_t offset, uint64_t size){
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+
+        MPI_Request req;
+        PROFILER_RECORD_TIME_START;
+        MPI_File_iread_at(this->union_fp.mpi_fp, offset, 
+                          buf, (int)size, MPI_BYTE, &req);
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+        TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
+
+        int flag = 0;
+        MPI_Status st;
+        int read_count = 0;
+        while (!flag) {
+            MPI_Test(&req, &flag, &st);
+            this->chunk_mgr->make_progress();
+            if (this->shuffler) this->shuffler->make_progress();
+            if (flag) {
+                MPI_Get_count(&st, MPI_BYTE, &read_count);
+                if (read_count != (int)size)
+                    LOG_ERROR("Read file error!\n");
+            }
+        }
+
+        LOG_PRINT(DBG_IO, "Read (MPI) input file=%s:%ld+%ld\n", 
+                  this->state.cur_chunk.fileseg->filename.c_str(), offset, size);
+
+   }
+
+    virtual void file_close(){
+        if (this->union_fp.mpi_fp != MPI_FILE_NULL) {
+
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            PROFILER_RECORD_TIME_START;
+
+            MPI_File_close(&(this->union_fp.mpi_fp));
+
+            PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+            TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
+
+            this->union_fp.mpi_fp = MPI_FILE_NULL;
+
+            LOG_PRINT(DBG_IO, "Close (MPI) input file=%s\n", 
+                      this->state.cur_chunk.fileseg->filename.c_str());
+        }
+    }
+
+};
+
 #if 0
 template <typename RecordFormat>
 class MPIFileReader : public FileReader< RecordFormat >{
@@ -657,8 +748,8 @@ FileReader<RecordFormat>* FileReader<RecordFormat>
         reader = new FileReader<RecordFormat>(mgr, repartition_fn);
     } else if (READER_TYPE == 1) {
         reader = new DirectFileReader<RecordFormat>(mgr, repartition_fn);
-    //} else if (READER_TYPE == 2) {
-    //    reader = new MPIFileReader<RecordFormat>(input, repartition_fn);
+    } else if (READER_TYPE == 2) {
+        reader = new MPIFileReader<RecordFormat>(mgr, repartition_fn);
     } else {
         LOG_ERROR("Error reader type %d\n", READER_TYPE);
     }
