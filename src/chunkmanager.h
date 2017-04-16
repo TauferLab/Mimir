@@ -50,10 +50,12 @@ class ChunkManager {
     ChunkManager(std::vector<std::string> input_dir, SplitPolicy policy = BYNAME) {
         // get file list
         InputSplit filelist;
-        for (std::vector<std::string>::const_iterator iter = input_dir.begin();
-             iter != input_dir.end(); iter++) {
-            std::string file = *(iter);
-            filelist.add(file.c_str());
+        if (mimir_world_rank == 0) {
+            for (std::vector<std::string>::const_iterator iter = input_dir.begin();
+                 iter != input_dir.end(); iter++) {
+                std::string file = *(iter);
+                filelist.add(file.c_str());
+            }
         }
         FileSplitter::getFileSplitter()->split(&filelist, file_list, policy);
         file_list[mimir_world_rank].print();

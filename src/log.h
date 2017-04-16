@@ -32,6 +32,9 @@ extern int mimir_world_rank;
 extern int mimir_world_size;
 extern char dump_buffer[MIMIR_MAX_LOG_LEN];
 
+#define MPI_CHECK(fn) { int errcode; errcode = (fn);                           \
+    if (errcode != MPI_SUCCESS) handle_error(errcode, #fn); }
+
 #define LOG_DUMP_BUFFER dump_buffer
 
 #ifdef _DEBUG

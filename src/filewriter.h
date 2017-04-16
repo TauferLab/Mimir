@@ -283,9 +283,9 @@ class MPIFileWriter : public FileWriter {
 
         LOG_PRINT(DBG_IO, "Collective open output file %s.\n", filename.c_str());	
         PROFILER_RECORD_TIME_START;
-        MPI_File_open(mimir_world_comm, filename.c_str(), 
-                      MPI_MODE_WRONLY | MPI_MODE_CREATE,
-                      MPI_INFO_NULL, &(union_fp.mpi_fp));
+        MPI_CHECK(MPI_File_open(mimir_world_comm, filename.c_str(), 
+                                MPI_MODE_WRONLY | MPI_MODE_CREATE,
+                                MPI_INFO_NULL, &(union_fp.mpi_fp)));
         if (union_fp.mpi_fp == MPI_FILE_NULL) {
             LOG_ERROR("Open file %s error!\n", filename.c_str());
         }
@@ -351,8 +351,8 @@ class MPIFileWriter : public FileWriter {
                   filename.c_str(), fileoff, (int)datasize);
 
         PROFILER_RECORD_TIME_START;
-        MPI_File_write_at_all(union_fp.mpi_fp, fileoff, buffer,
-                              (int)datasize, MPI_BYTE, &st);
+        MPI_CHECK(MPI_File_write_at_all(union_fp.mpi_fp, fileoff, buffer,
+                                        (int)datasize, MPI_BYTE, &st));
         datasize = 0;
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIWRITEATALL);
@@ -397,7 +397,7 @@ class MPIFileWriter : public FileWriter {
             }
 
             PROFILER_RECORD_TIME_START;
-            MPI_File_close(&(union_fp.mpi_fp));
+            MPI_CHECK(MPI_File_close(&(union_fp.mpi_fp)));
             union_fp.mpi_fp = MPI_FILE_NULL;
             PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 

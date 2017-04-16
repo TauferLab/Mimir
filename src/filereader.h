@@ -445,8 +445,8 @@ class MPIFileReader : public FileReader< RecordFormat >{
         MPI_Info file_info;
         MPI_Info_create(&file_info);
         MPI_Info_set(file_info, "direct_read", "true");
-        MPI_File_open(MPI_COMM_SELF, filename, MPI_MODE_RDONLY,
-                      file_info, &(this->union_fp.mpi_fp));
+        MPI_CHECK(MPI_File_open(MPI_COMM_SELF, filename, MPI_MODE_RDONLY,
+                                file_info, &(this->union_fp.mpi_fp)));
         MPI_Info_free(&file_info);
         if (this->union_fp.mpi_fp == MPI_FILE_NULL)
             return false;
@@ -462,30 +462,35 @@ class MPIFileReader : public FileReader< RecordFormat >{
     virtual void file_read_at(char *buf, uint64_t offset, uint64_t size){
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-        MPI_Request req;
-        PROFILER_RECORD_TIME_START;
-        MPI_File_iread_at(this->union_fp.mpi_fp, offset, 
-                          buf, (int)size, MPI_BYTE, &req);
-        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
-        TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
-
-        int flag = 0;
-        MPI_Status st;
         int read_count = 0;
-        while (!flag) {
-            MPI_Test(&req, &flag, &st);
-            this->chunk_mgr->make_progress();
-            if (this->shuffler) this->shuffler->make_progress();
-            if (flag) {
-                MPI_Get_count(&st, MPI_BYTE, &read_count);
-                if (read_count != (int)size)
-                    LOG_ERROR("Read file error!\n");
+
+        while (read_count < size) {
+            MPI_Request req;
+            PROFILER_RECORD_TIME_START;
+            MPI_CHECK(MPI_File_iread_at(this->union_fp.mpi_fp, offset + read_count, 
+                                        buf + read_count, (int)size - read_count,
+                                        MPI_BYTE, &req));
+            PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+            TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
+
+            int flag = 0;
+            MPI_Status st;
+            while (!flag) {
+                MPI_Test(&req, &flag, &st);
+                this->chunk_mgr->make_progress();
+                if (this->shuffler) this->shuffler->make_progress();
+                if (flag) {
+                    int count = 0;
+                    MPI_Get_count(&st, MPI_BYTE, &count);
+                    read_count += count;
+                    LOG_PRINT(DBG_IO, "Read (MPI) input file=%s:%ld+%ld\n", 
+                              this->state.cur_chunk.fileseg->filename.c_str(),
+                              offset + read_count, count);
+                    //if (read_count != (int)size)
+                    //LOG_ERROR("Read file error!\n");
+                }
             }
         }
-
-        LOG_PRINT(DBG_IO, "Read (MPI) input file=%s:%ld+%ld\n", 
-                  this->state.cur_chunk.fileseg->filename.c_str(), offset, size);
-
    }
 
     virtual void file_close(){
@@ -494,7 +499,7 @@ class MPIFileReader : public FileReader< RecordFormat >{
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             PROFILER_RECORD_TIME_START;
 
-            MPI_File_close(&(this->union_fp.mpi_fp));
+            MPI_CHECK(MPI_File_close(&(this->union_fp.mpi_fp)));
 
             PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
             TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
