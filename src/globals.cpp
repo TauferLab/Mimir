@@ -14,7 +14,7 @@ int mimir_world_size = 0;
 
 char dump_buffer[MIMIR_MAX_LOG_LEN] = "";
 
-void handle_error(int errcode, char *str)
+void handle_error(int errcode, const char *str)
 {
     char name[MPI_MAX_PROCESSOR_NAME];
     char msg[MPI_MAX_ERROR_STRING];
@@ -22,6 +22,7 @@ void handle_error(int errcode, char *str)
 
     MPI_Get_processor_name(name, &resultlen);
     MPI_Error_string(errcode, msg, &resultlen);
-    fprintf(stderr, "%d[%d](host=%s) %s: %s\n", rank, size, name, str, msg);
+    fprintf(stderr, "%d[%d](host=%s) %s: %s\n",
+            mimir_world_rank, mimir_world_size, name, str, msg);
     MPI_Abort(MPI_COMM_WORLD, 1);
 }

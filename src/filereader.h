@@ -114,6 +114,8 @@ class FileReader : public Readable {
         bool is_empty = false;
         while(!is_empty) {
 
+            if (this->shuffler) this->shuffler->make_progress();
+
             char *ptr = buffer + state.start_pos; 
             int skip_count = record->get_skip_size(ptr, state.win_size);
             state.start_pos += skip_count;
@@ -464,7 +466,7 @@ class MPIFileReader : public FileReader< RecordFormat >{
 
         int read_count = 0;
 
-        while (read_count < size) {
+        while (read_count < (int)size) {
             MPI_Request req;
             PROFILER_RECORD_TIME_START;
             MPI_CHECK(MPI_File_iread_at(this->union_fp.mpi_fp, offset + read_count, 
@@ -483,7 +485,7 @@ class MPIFileReader : public FileReader< RecordFormat >{
                     int count = 0;
                     MPI_Get_count(&st, MPI_BYTE, &count);
                     read_count += count;
-                    LOG_PRINT(DBG_IO, "Read (MPI) input file=%s:%ld+%ld\n", 
+                    LOG_PRINT(DBG_IO, "Read (MPI) input file=%s:%ld+%d\n", 
                               this->state.cur_chunk.fileseg->filename.c_str(),
                               offset + read_count, count);
                     //if (read_count != (int)size)

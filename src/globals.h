@@ -43,4 +43,6 @@ extern int mimir_world_rank;
 extern int mimir_world_size;
 extern MPI_Comm  mimir_world_comm;
 
+void handle_error(int errcode, const char *str);
+
 #endif

@@ -299,7 +299,8 @@ class MPIFileWriter : public FileWriter {
     }
 
     virtual void file_write() {
-        MPI_Request done_req, req;
+        //MPI_Request done_req, req;
+        MPI_Request req;
         MPI_Status st;
         MPI_Offset fileoff = 0;
         int sendcounts[mimir_world_size];
