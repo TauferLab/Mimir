@@ -56,10 +56,10 @@ bool NBShuffler::open() {
         recv_reqs[i] = MPI_REQUEST_NULL;
         if (i == mimir_world_rank) continue;
         char *buffer = recv_buffer + i * (int64_t)buf_size;
-        PROFILER_RECORD_TIME_START;
+        //PROFILER_RECORD_TIME_START;
         MPI_Irecv(buffer, (int)buf_size, MPI_BYTE, i,
                   SHUFFLER_KV_TAG, mimir_world_comm, &recv_reqs[i]);
-        PROFILER_RECORD_TIME_END(TIMER_COMM_IRECV);
+        //PROFILER_RECORD_TIME_END(TIMER_COMM_IRECV);
     }
 
     LOG_PRINT(DBG_GEN, "NBShuffler open: buf_size=%ld\n", buf_size);
@@ -201,12 +201,12 @@ void NBShuffler::start_send(int target_rank)
 
     //TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-    PROFILER_RECORD_TIME_START;
+    //PROFILER_RECORD_TIME_START;
     char *buffer = send_buffers[idx] + target_rank * (int64_t)buf_size;
     int count = send_offsets[idx][target_rank];
     MPI_Isend(buffer, count, MPI_BYTE, target_rank, SHUFFLER_KV_TAG,
               mimir_world_comm, &send_reqs[target_rank]);
-    PROFILER_RECORD_TIME_END(TIMER_COMM_ISEND);
+    //PROFILER_RECORD_TIME_END(TIMER_COMM_ISEND);
 
     //TRACKER_RECORD_EVENT(EVENT_COMM_ISEND);
 
@@ -215,7 +215,7 @@ void NBShuffler::start_send(int target_rank)
     send_offsets[idx][target_rank] = 0;
 }
 
-void NBShuffler::make_progress() {
+void NBShuffler::make_progress(bool issue_new) {
     //uint64_t recvcount = 0;
     int flag = 0;
     MPI_Status st;
@@ -223,18 +223,18 @@ void NBShuffler::make_progress() {
     for (int i = 0; i < mimir_world_size; i++) {
         if (i == mimir_world_rank) continue;
         if (send_reqs[i] != MPI_REQUEST_NULL) {
-            PROFILER_RECORD_TIME_START;
+            //PROFILER_RECORD_TIME_START;
             MPI_Test(&send_reqs[i], &flag, &st);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
+            //PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
             if (flag) {
                 send_reqs[i] = MPI_REQUEST_NULL;
                 LOG_PRINT(DBG_COMM, "Comm: MPI_Isend finish.\n");
             }
         }
         if (recv_reqs[i] != MPI_REQUEST_NULL) {
-            PROFILER_RECORD_TIME_START;
+            //PROFILER_RECORD_TIME_START;
             MPI_Test(&recv_reqs[i], &flag, &st);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
+            //PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
             if (flag) {
                 int count;
                 MPI_Get_count(&st, MPI_BYTE, &count);
@@ -246,10 +246,10 @@ void NBShuffler::make_progress() {
                     save_data(i, count);
                     TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
                     char *buffer = recv_buffer + i * (int64_t)buf_size;
-                    PROFILER_RECORD_TIME_START;
+                    //PROFILER_RECORD_TIME_START;
                     MPI_Irecv(buffer, (int)buf_size, MPI_BYTE, i,
                               SHUFFLER_KV_TAG, mimir_world_comm, &recv_reqs[i]);
-                    PROFILER_RECORD_TIME_END(TIMER_COMM_IRECV);
+                    //PROFILER_RECORD_TIME_END(TIMER_COMM_IRECV);
                 } else {
                     LOG_PRINT(DBG_COMM, "Comm: MPI_Irecv (done).\n");
                     recv_reqs[i] = MPI_REQUEST_NULL;

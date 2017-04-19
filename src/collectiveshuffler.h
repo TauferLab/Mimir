@@ -24,7 +24,7 @@ public:
     virtual bool open();
     virtual void close();
     virtual void write(BaseRecordFormat *record);
-    virtual void make_progress() { exchange_kv(); }
+    virtual void make_progress(bool issue_new = false) { exchange_kv(); }
 
 protected:
     void wait();

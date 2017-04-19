@@ -114,8 +114,6 @@ class FileReader : public Readable {
         bool is_empty = false;
         while(!is_empty) {
 
-            if (this->shuffler) this->shuffler->make_progress();
-
             char *ptr = buffer + state.start_pos; 
             int skip_count = record->get_skip_size(ptr, state.win_size);
             state.start_pos += skip_count;
@@ -162,6 +160,8 @@ class FileReader : public Readable {
     bool read_next_chunk() {
 
         chunk_mgr->make_progress();
+        if (this->shuffler && state.cur_chunk.fileseg)
+            this->shuffler->make_progress(true);
 
         //print_state();
 
@@ -388,8 +388,8 @@ class DirectFileReader : public FileReader< RecordFormat >{
             TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
             if (read_bytes < (ssize_t)remain_bytes)
                 read_bytes = read_bytes / DISKPAGE_SIZE * DISKPAGE_SIZE;
-            this->chunk_mgr->make_progress();
-            if (this->shuffler) this->shuffler->make_progress();
+            //this->chunk_mgr->make_progress();
+            //if (this->shuffler) this->shuffler->make_progress();
             LOG_PRINT(DBG_IO, "Read (POSIX) input file=%s:%ld+%ld\n", 
                       this->state.cur_chunk.fileseg->filename.c_str(), offset, read_bytes);
             remain_bytes -= read_bytes;
@@ -466,33 +466,32 @@ class MPIFileReader : public FileReader< RecordFormat >{
 
         int read_count = 0;
 
+        PROFILER_RECORD_TIME_START;
         while (read_count < (int)size) {
             MPI_Request req;
-            PROFILER_RECORD_TIME_START;
             MPI_CHECK(MPI_File_iread_at(this->union_fp.mpi_fp, offset + read_count, 
                                         buf + read_count, (int)size - read_count,
                                         MPI_BYTE, &req));
-            PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
-            TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
-
             int flag = 0;
             MPI_Status st;
             while (!flag) {
-                MPI_Test(&req, &flag, &st);
+                for (int i = 0; i < 100; i++) {
+                    MPI_Test(&req, &flag, &st);
+                    if (flag) break;
+                }
+                if (flag) break;
                 this->chunk_mgr->make_progress();
                 if (this->shuffler) this->shuffler->make_progress();
-                if (flag) {
-                    int count = 0;
-                    MPI_Get_count(&st, MPI_BYTE, &count);
-                    read_count += count;
-                    LOG_PRINT(DBG_IO, "Read (MPI) input file=%s:%ld+%d\n", 
-                              this->state.cur_chunk.fileseg->filename.c_str(),
-                              offset + read_count, count);
-                    //if (read_count != (int)size)
-                    //LOG_ERROR("Read file error!\n");
-                }
             }
+            int count = 0;
+            MPI_Get_count(&st, MPI_BYTE, &count);
+            read_count += count;
+            LOG_PRINT(DBG_IO, "Read (MPI) input file=%s:%ld+%d\n", 
+                      this->state.cur_chunk.fileseg->filename.c_str(),
+                      offset + read_count, count);
         }
+        PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
+        TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
    }
 
     virtual void file_close(){

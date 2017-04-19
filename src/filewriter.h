@@ -268,14 +268,14 @@ class MPIFileWriter : public FileWriter {
         MPI_Request req;
         MPI_Status st;
         if (this->shuffler) {
-            PROFILER_RECORD_TIME_START;
+            //PROFILER_RECORD_TIME_START;
             MPI_Ibarrier(mimir_world_comm, &req);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
+            //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
             int flag = 0;
             while (!flag) {
-                PROFILER_RECORD_TIME_START;
+                //PROFILER_RECORD_TIME_START;
                 MPI_Test(&req, &flag, &st);
-                PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
+                //PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                 this->shuffler->make_progress();
             }
             TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
@@ -308,14 +308,14 @@ class MPIFileWriter : public FileWriter {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
         if (this->shuffler) {
-            PROFILER_RECORD_TIME_START;
+            //PROFILER_RECORD_TIME_START;
             MPI_Ibarrier(mimir_world_comm, &req);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
+            //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
             int flag = 0;
             while (!flag) {
-                PROFILER_RECORD_TIME_START;
+                //PROFILER_RECORD_TIME_START;
                 MPI_Test(&req, &flag, &st);
-                PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
+                //PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                 this->shuffler->make_progress();
             }
             TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
@@ -384,14 +384,14 @@ class MPIFileWriter : public FileWriter {
             MPI_Request req;
             MPI_Status st;
             if (this->shuffler) {
-                PROFILER_RECORD_TIME_START;
+                //PROFILER_RECORD_TIME_START;
                 MPI_Ibarrier(mimir_world_comm, &req);
-                PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
+                //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
                 int flag = 0;
                 while (!flag) {
-                    PROFILER_RECORD_TIME_START;
+                    //PROFILER_RECORD_TIME_START;
                     MPI_Test(&req, &flag, &st);
-                    PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
+                    //PROFILER_RECORD_TIME_END(TIMER_COMM_TEST);
                     this->shuffler->make_progress();
                 }
                 TRACKER_RECORD_EVENT(EVENT_SYN_COMM);

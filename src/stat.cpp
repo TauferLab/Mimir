@@ -22,21 +22,13 @@ const char *timer_str[TIMER_NUM] = {
     "mpi_a2a_time",
     "mpi_a2av_time",
     "mpi_rdc_time",
-    "mpi_ia2a_time",
-    "mpi_ia2av_time",
-    "mpi_irdc_time",
-    "mpi_isend_time",
-    "mpi_irecv_time",
-    "mpi_ibarrier_time",
-    "mpi_test_time",
+    "mpi_block_time",
     "mpi_allgather_time"
 };
 
 const char *counter_str[COUNTER_NUM] = {
-    "bucket_size",
-    "inbuf_size",
-    "page_size",
-    "comm_size",
+    "comm_bufs",
+    "shuffle_times",
     "send_bytes",
     "recv_bytes",
     "file_count",

@@ -31,8 +31,8 @@ public:
     virtual void close();
     virtual void write(BaseRecordFormat *record);
     virtual void update(BaseRecordFormat *);
-    virtual void make_progress() {
-        if(done_kv_exchange()) {
+    virtual void make_progress(bool issue_new = false) {
+        if(issue_new && pending_msg == 0) {
             garbage_collection();
             start_kv_exchange();
         }

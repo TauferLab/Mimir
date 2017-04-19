@@ -155,7 +155,7 @@ class ChunkManager {
 
         while ((next_rank = next_chunk_worker(chunk)) == PROC_RANK_PENDING) {
             make_progress();
-            if (shuffler) shuffler->make_progress();
+            if (shuffler) shuffler->make_progress(true);
         }
 
         MPI_Irecv(buffer, bufsize, MPI_BYTE, next_rank,
@@ -163,7 +163,7 @@ class ChunkManager {
         while (!flag) {
             MPI_Test(&req, &flag, &st);
             make_progress();
-            if (shuffler) shuffler->make_progress();
+            if (shuffler) shuffler->make_progress(true);
         }
         MPI_Get_count(&st, MPI_BYTE, &recv_count);
 

@@ -20,6 +20,9 @@ int64_t DATA_PAGE_SIZE = 64 * 1024 * 1024;
 /// Input buffer size
 int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024;
 
+/// MAX buffer count
+int MAX_SBUF_COUNT = 5;
+
 /// IO split unit
 //int64_t FILE_SPLIT_UNIT = INPUT_BUF_SIZE;
 

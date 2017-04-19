@@ -69,9 +69,9 @@ void NBCombineCollectiveShuffler::write(BaseRecordFormat *record)
         tmp.next = NULL;
 
         std::unordered_map < char *, int >::iterator iter;
-        char *range_start = send_buffers[cur_idx] + target * (int64_t)buf_size;
-        char *range_end = send_buffers[cur_idx] + target * (int64_t)buf_size 
-            + send_offsets[cur_idx][target];
+        char *range_start = msg_buffers[cur_idx].send_buffer + target * (int64_t)buf_size;
+        char *range_end = msg_buffers[cur_idx].send_buffer + target * (int64_t)buf_size 
+            + msg_buffers[cur_idx].send_offset[target];
         for (iter = slices.begin(); iter != slices.end(); iter++) {
             char *sbuf = iter->first;
             int ssize = iter->second;
@@ -93,18 +93,18 @@ void NBCombineCollectiveShuffler::write(BaseRecordFormat *record)
         }
 
         if (iter == slices.end()) {
-            if ((int64_t)send_offsets[cur_idx][target] + (int64_t) kvsize > buf_size) {
-                while (!done_kv_exchange()) {
-                    push_kv_exchange();
-                }
+            if ((int64_t)msg_buffers[cur_idx].send_offset[target] + (int64_t) kvsize > buf_size) {
+                //while (!done_kv_exchange()) {
+                //    push_kv_exchange();
+                //}
                 garbage_collection();
                 start_kv_exchange();
             }
-            tmp.kv = send_buffers[cur_idx] + target * (int64_t)buf_size 
-                + send_offsets[cur_idx][target];
+            tmp.kv = msg_buffers[cur_idx].send_buffer + target * (int64_t)buf_size 
+                + msg_buffers[cur_idx].send_offset[target];
             kv.set_buffer(tmp.kv);
             kv.convert((KVRecord*)record);
-            send_offsets[cur_idx][target] += kvsize;
+            msg_buffers[cur_idx].send_offset[target] += kvsize;
         }
 
         bucket->insertElem(&tmp);
@@ -143,18 +143,19 @@ void NBCombineCollectiveShuffler::update(BaseRecordFormat *record)
     }
     else {
         slices.insert(std::make_pair(kv.get_record(), ukvsize));
-        if ((int64_t)send_offsets[cur_idx][target] + (int64_t) kvsize > buf_size) {
-            while (!done_kv_exchange()) {
-                push_kv_exchange();
-            }
+        if ((int64_t)msg_buffers[cur_idx].send_offset[target] + (int64_t) kvsize > buf_size) {
+            //while (!done_kv_exchange()) {
+            //    push_kv_exchange();
+            //}
             garbage_collection();
             start_kv_exchange();
             u = NULL;
         }
-        char *gbuf = send_buffers[cur_idx] + target * (int64_t) buf_size + send_offsets[cur_idx][target];
+        char *gbuf = msg_buffers[cur_idx].send_buffer + target * (int64_t) buf_size 
+            + msg_buffers[cur_idx].send_offset[target];
         kv.set_buffer(gbuf);
         kv.convert((KVRecord*)record);
-        send_offsets[cur_idx][target] += kvsize;
+        msg_buffers[cur_idx].send_offset[target] += kvsize;
         if (u != NULL) u->kv=gbuf;
     }
 
@@ -172,11 +173,11 @@ void NBCombineCollectiveShuffler::garbage_collection()
         char *dst_buf = NULL, *src_buf = NULL;
 
         for (int k = 0; k < mimir_world_size; k++) {
-            src_buf = send_buffers[cur_idx] + k * (int64_t)buf_size;
-            dst_buf = send_buffers[cur_idx] + k * (int64_t)buf_size;
+            src_buf = msg_buffers[cur_idx].send_buffer + k * (int64_t)buf_size;
+            dst_buf = msg_buffers[cur_idx].send_buffer + k * (int64_t)buf_size;
 
             dst_off = src_off = 0;
-            while (src_off < send_offsets[cur_idx][k]) {
+            while (src_off < msg_buffers[cur_idx].send_offset[k]) {
 
                 char *tmp_buf = src_buf + src_off;
                 std::unordered_map < char *, int >::iterator iter = slices.find(tmp_buf);
@@ -194,7 +195,7 @@ void NBCombineCollectiveShuffler::garbage_collection()
                     src_off += kvsize;
                 }
             }
-            send_offsets[cur_idx][k] = dst_off;
+            msg_buffers[cur_idx].send_offset[k] = dst_off;
         }
         slices.clear();
     }

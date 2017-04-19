@@ -20,6 +20,8 @@ extern int BUCKET_COUNT;
 extern int SET_COUNT;
 extern int MAX_RECORD_SIZE;
 
+extern int MAX_SBUF_COUNT;
+
 extern int64_t COMM_BUF_SIZE;
 extern int64_t DATA_PAGE_SIZE;
 extern int64_t INPUT_BUF_SIZE;

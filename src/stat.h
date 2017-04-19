@@ -52,35 +52,27 @@ extern char timestr[];
 #define TIMER_COMM_A2A             3    // MPI_Alltoall
 #define TIMER_COMM_A2AV            4    // MPI_Alltoallv
 #define TIMER_COMM_RDC             5    // MPI_Allreduce
-#define TIMER_COMM_IA2A            6    // MPI_Ialltoall
-#define TIMER_COMM_IA2AV           7    // MPI_Ialltoallv
-#define TIMER_COMM_IRDC            8    // MPI_Iallreduce
-#define TIMER_COMM_ISEND           9    // MPI_ISend
-#define TIMER_COMM_IRECV          10    // MPI_IRecv
-#define TIMER_COMM_IBARRIER       11    // MPI_Ibarrier
-#define TIMER_COMM_TEST           12    // MPI_Test
-#define TIMER_COMM_ALLGATHER      13    // MPI_Allgather
-#define TIMER_NUM                 14
+#define TIMER_COMM_BLOCK           6
+#define TIMER_COMM_ALLGATHER       7    // MPI_Allgather
+#define TIMER_NUM                  8
 
 
 // Counters
-#define COUNTER_BUCKET_SIZE         0   // bucket size
-#define COUNTER_INBUF_SIZE          1   // inbuf size
-#define COUNTER_PAGE_SIZE           2   // page size
-#define COUNTER_COMM_SIZE           3   // comm_size
-#define COUNTER_SEND_BYTES          4   // send bytes
-#define COUNTER_RECV_BYTES          5   // recv bytes
-#define COUNTER_FILE_COUNT          6   // file count
-#define COUNTER_FILE_SIZE           7   // file size
-#define COUNTER_MAX_FILE            8   // max size
-#define COUNTER_SEND_TAIL           9   // max size
-#define COUNTER_RECV_TAIL          10   // max size
-#define COUNTER_MAX_PAGES          11   // max pages
-#define COUNTER_REDUCE_BUCKET      12   // max reduce bucket
-#define COUNTER_COMBINE_BUCKET     13   // max combine bucket
-#define COUNTER_PEAKMEM_USE        14   // peak memory usage
-#define COUNTER_UNIQUE_KEY         15   // unique words
-#define COUNTER_NUM                16
+#define COUNTER_COMM_BUFS           0   // comm buffer count
+#define COUNTER_SHUFFLE_TIMES       1   // shuffle times
+#define COUNTER_SEND_BYTES          2   // send bytes
+#define COUNTER_RECV_BYTES          3   // recv bytes
+#define COUNTER_FILE_COUNT          4   // file count
+#define COUNTER_FILE_SIZE           5   // file size
+#define COUNTER_MAX_FILE            6   // max size
+#define COUNTER_SEND_TAIL           7   // send tail
+#define COUNTER_RECV_TAIL           8   // recv tail
+#define COUNTER_MAX_PAGES           9   // max pages
+#define COUNTER_REDUCE_BUCKET      10   // max reduce bucket
+#define COUNTER_COMBINE_BUCKET     11   // max combine bucket
+#define COUNTER_PEAKMEM_USE        12   // peak memory usage
+#define COUNTER_UNIQUE_KEY         13   // unique words
+#define COUNTER_NUM                14
 
 /// Events
 #define EVENT_COMPUTE_APP          "event_compute_app"          // application computation
