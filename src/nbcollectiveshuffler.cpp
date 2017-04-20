@@ -34,13 +34,11 @@ NBCollectiveShuffler::NBCollectiveShuffler(Writable *out, HashCallback user_hash
     }
     MPI_Comm_dup(mimir_world_comm, &a2a_comm);
     MPI_Comm_dup(mimir_world_comm, &a2av_comm);
-    MPI_Comm_dup(mimir_world_comm, &done_comm);
     buf_count = 0;
 }
 
 NBCollectiveShuffler::~NBCollectiveShuffler()
 {
-    MPI_Comm_free(&done_comm);
     MPI_Comm_free(&a2a_comm);
     MPI_Comm_free(&a2av_comm);
 }
@@ -110,7 +108,6 @@ void NBCollectiveShuffler::insert_comm_buffer() {
     buf.recv_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
     buf.a2a_req = MPI_REQUEST_NULL;
     buf.a2av_req = MPI_REQUEST_NULL;
-    buf.done_req = MPI_REQUEST_NULL;
     buf.send_bytes = 0;
     buf.recv_bytes = 0;
     buf.msg_state = ShuffleMsgComplete;
@@ -179,30 +176,9 @@ void NBCollectiveShuffler::wait()
         start_kv_exchange();
         wait_all();
         PROFILER_RECORD_TIME_END(TIMER_COMM_BLOCK);
-        //printf("%d[%d] done_count=%ld\n",
-        //       mimir_world_rank, mimir_world_size, done_count);
     } while (done_count < mimir_world_size);
 
     TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
-
-
-    //uint64_t max_token = 0;
-    //MPI_Iallreduce(&a2a_token, &max_token, 1,
-    //               MPI_UINT64_T, MPI_MAX, done_comm, &done_req);
-    //flag = 0;
-    //while (!flag) {
-    //    MPI_Test(&done_req, &flag, &st);
-    //    push_kv_exchange();
-    //}
-
-    //LOG_PRINT(DBG_COMM, "Comm: begin issue last comms (my_token=%ld, max_token=%ld).\n",
-    //          a2a_token, max_token);
-
-    //for (uint64_t i = a2a_token; i < max_token; i++) {
-    //    start_kv_exchange();
-    //}
-
-    //wait_all();
 
     LOG_PRINT(DBG_COMM, "Comm: finish wait.\n");
 }
@@ -229,21 +205,19 @@ void NBCollectiveShuffler::save_data(int idx)
 
 void NBCollectiveShuffler::start_kv_exchange()
 {
-    for (int i = 0; i < mimir_world_size; i++)
-        msg_buffers[cur_idx].send_bytes += (uint64_t)msg_buffers[cur_idx].send_offset[i];
-    PROFILER_RECORD_COUNT(COUNTER_SEND_BYTES, msg_buffers[cur_idx].send_bytes, OPSUM);
+    if (done_flag) {
+        for (int i = 0; i < mimir_world_size; i++)
+            msg_buffers[cur_idx].send_offset[i] = -1;
+    } else {
+        for (int i = 0; i < mimir_world_size; i++)
+            msg_buffers[cur_idx].send_bytes += (uint64_t)msg_buffers[cur_idx].send_offset[i];
+        PROFILER_RECORD_COUNT(COUNTER_SEND_BYTES, msg_buffers[cur_idx].send_bytes, OPSUM);
+    }
     PROFILER_RECORD_COUNT(COUNTER_SHUFFLE_TIMES, 1, OPSUM);
 
     MPI_Ialltoall(msg_buffers[cur_idx].send_offset, 1, MPI_INT,
                   msg_buffers[cur_idx].recv_count, 1, MPI_INT,
                   a2a_comm, &(msg_buffers[cur_idx].a2a_req));
-
-    msg_buffers[cur_idx].done_flag = done_flag;
-    msg_buffers[cur_idx].done_count = 0;
-    MPI_Iallreduce(&(msg_buffers[cur_idx].done_flag),
-                   &(msg_buffers[cur_idx].done_count),
-                   1, MPI_INT, MPI_SUM, done_comm,
-                   &(msg_buffers[cur_idx].done_req));
 
     msg_buffers[cur_idx].msg_state = ShuffleMsgStart;
     msg_buffers[cur_idx].msg_token = a2a_token;
@@ -258,6 +232,7 @@ void NBCollectiveShuffler::start_kv_exchange()
     for (int i = 0; i < buf_count; i++) {
         if (done_kv_exchange(i)) {
             cur_idx = i;
+            break;
         }
     }
 
@@ -298,20 +273,36 @@ void NBCollectiveShuffler::push_kv_exchange() {
                 MPI_Test(&(msg_buffers[k].a2a_req), &flag, &st);
 
                 if (flag) {
-                    LOG_PRINT(DBG_COMM, "Comm: MPI_Ialltoall finish (token=%ld).\n",
-                              msg_buffers[k].msg_token);
+                    done_count = 0;
+                    for (int i = 0; i < mimir_world_size; i++) {
+                        if (msg_buffers[k].recv_count[i] == -1) done_count ++;
+                        else
+                            msg_buffers[k].recv_bytes += (int64_t) msg_buffers[k].recv_count[i];
+                    }
+                    LOG_PRINT(DBG_COMM, "Comm: MPI_Ialltoall finish (token=%ld, done=%d).\n",
+                              msg_buffers[k].msg_token, done_count);
                     msg_buffers[k].a2a_req = MPI_REQUEST_NULL;
                 }
             }
 
+            if (done_count > mimir_world_size)
+                LOG_ERROR("Done count %d is lager than process size %d!\n",
+                          done_count, mimir_world_size);
+
+            if (done_count == mimir_world_size) {
+                msg_buffers[k].msg_state = ShuffleMsgComplete;
+                pending_msg -= 1;
+            }
+
             if (msg_buffers[k].msg_token == a2av_token 
-                && msg_buffers[k].a2a_req == MPI_REQUEST_NULL) {
+                && msg_buffers[k].a2a_req == MPI_REQUEST_NULL 
+                && done_count < mimir_world_size) {
 
                 for (int i = 0; i < mimir_world_size; i++) {
-                    msg_buffers[k].recv_bytes += (int64_t) msg_buffers[k].recv_count[i];
-                }
-
-                for (int i = 0; i < mimir_world_size; i++) {
+                    if (msg_buffers[k].send_offset[i] == -1)
+                        msg_buffers[k].send_offset[i] = 0;
+                    if (msg_buffers[k].recv_count[i] == -1)
+                        msg_buffers[k].recv_count[i] = 0;
                     a2a_s_count[i] = (msg_buffers[k].send_offset[i] 
                                       + (0x1 << type_log_bytes) - 1) >> type_log_bytes;
                     a2a_r_count[i] = (msg_buffers[k].recv_count[i] 
@@ -340,34 +331,20 @@ void NBCollectiveShuffler::push_kv_exchange() {
             if (msg_buffers[k].a2av_req != MPI_REQUEST_NULL) {
                 MPI_Test(&(msg_buffers[k].a2av_req), &flag, &st);
                 if (flag) {
+                    LOG_PRINT(DBG_COMM, "Comm: MPI_Ialltoallv finish (token=%ld, done=%d).\n",
+                              msg_buffers[k].msg_token, done_count);
                     msg_buffers[k].a2av_req = MPI_REQUEST_NULL;
+                    save_data(k);
+                    msg_buffers[k].msg_token = 0;
+                    msg_buffers[k].send_bytes = 0;
+                    msg_buffers[k].recv_bytes = 0;
+                    for (int i = 0; i < mimir_world_size; i++) {
+                        msg_buffers[k].send_offset[i] = 0;
+                        msg_buffers[k].recv_count[i] = 0;
+                    }
+                    msg_buffers[k].msg_state = ShuffleMsgComplete;
+                    pending_msg -= 1;
                 }
-            }
-            if (msg_buffers[k].done_req != MPI_REQUEST_NULL) {
-                MPI_Test(&(msg_buffers[k].done_req), &flag, &st);
-                if (flag) {
-                    msg_buffers[k].done_req = MPI_REQUEST_NULL;
-                }
-            }
-            if (msg_buffers[k].a2av_req == MPI_REQUEST_NULL
-                && msg_buffers[k].done_req == MPI_REQUEST_NULL) {
-                if (msg_buffers[k].done_count > done_count)
-                    done_count = msg_buffers[k].done_count;
-                if (done_count > mimir_world_size)
-                    LOG_ERROR("done_count=%d, msg_done_count=%d, msg_done_flag=%d\n",
-                              done_count, msg_buffers[k].done_count, msg_buffers[k].done_flag);
-                LOG_PRINT(DBG_COMM, "Comm: MPI_Ialltoallv finish (token=%ld, done=%d).\n",
-                          msg_buffers[k].msg_token, done_count);
-                save_data(k);
-                msg_buffers[k].msg_token = 0;
-                msg_buffers[k].send_bytes = 0;
-                msg_buffers[k].recv_bytes = 0;
-                for (int i = 0; i < mimir_world_size; i++) {
-                    msg_buffers[k].send_offset[i] = 0;
-                    msg_buffers[k].recv_count[i] = 0;
-                }
-                msg_buffers[k].msg_state = ShuffleMsgComplete;
-                pending_msg -= 1;
             }
         }
 

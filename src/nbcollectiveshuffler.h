@@ -29,9 +29,6 @@ struct ShuffleMsgBuf {
     uint64_t        msg_token;
     MPI_Request     a2a_req;
     MPI_Request     a2av_req;
-    MPI_Request     done_req;
-    int             done_flag;
-    int             done_count;
     ShuffleMsgState msg_state;
     uint64_t        send_bytes;
     uint64_t        recv_bytes;
@@ -61,14 +58,7 @@ protected:
         }
         return false;
     }
-    //void wait_kv_exchange(int idx) {
-    //    while (!done_kv_exchange(idx)) {
-    //        push_kv_exchange();
-    //    }
-    //}
     void wait_all() {
-        //for (int i = 0; i < buf_count; i++)
-        //    wait_kv_exchange(i);
         while (pending_msg > 0)
             push_kv_exchange();
     }
@@ -91,7 +81,6 @@ protected:
     uint64_t                    a2av_token;
     MPI_Comm                    a2a_comm;
     MPI_Comm                    a2av_comm;
-    MPI_Comm                    done_comm;
     int                         pending_msg;
 
     KVRecord kv;
