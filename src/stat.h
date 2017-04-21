@@ -52,9 +52,10 @@ extern char timestr[];
 #define TIMER_COMM_A2A             3    // MPI_Alltoall
 #define TIMER_COMM_A2AV            4    // MPI_Alltoallv
 #define TIMER_COMM_RDC             5    // MPI_Allreduce
-#define TIMER_COMM_BLOCK           6
+#define TIMER_COMM_BLOCK           6    // blocking time
 #define TIMER_COMM_ALLGATHER       7    // MPI_Allgather
-#define TIMER_NUM                  8
+#define TIMER_MEM_ALLOCATE         8    // memory allocation
+#define TIMER_NUM                  9
 
 
 // Counters

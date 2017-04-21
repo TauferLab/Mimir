@@ -12,6 +12,7 @@
 #include <ctype.h>
 
 #include "log.h"
+#include "stat.h"
 #include "memory.h"
 #include "globals.h"
 
@@ -26,8 +27,10 @@ void *mem_aligned_malloc(size_t alignment, size_t size)
 {
     void *ptr = NULL;
 
+    PROFILER_RECORD_TIME_START;
     size_t align_size = (size + alignment - 1) / alignment * alignment;
     int err = posix_memalign(&ptr, alignment, align_size);
+    PROFILER_RECORD_TIME_END(TIMER_MEM_ALLOCATE);
 
     if (err != 0) {
         int64_t memsize = get_mem_usage();

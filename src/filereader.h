@@ -481,7 +481,7 @@ class MPIFileReader : public FileReader< RecordFormat >{
                 }
                 if (flag) break;
                 this->chunk_mgr->make_progress();
-                if (this->shuffler) this->shuffler->make_progress();
+                if (this->shuffler) this->shuffler->make_progress(true);
             }
             int count = 0;
             MPI_Get_count(&st, MPI_BYTE, &count);

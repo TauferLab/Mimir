@@ -21,6 +21,7 @@ int64_t DATA_PAGE_SIZE = 64 * 1024 * 1024;
 int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024;
 
 /// MAX buffer count
+int MIN_SBUF_COUNT = 2;
 int MAX_SBUF_COUNT = 5;
 
 /// IO split unit

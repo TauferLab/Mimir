@@ -51,8 +51,8 @@ bool NBCollectiveShuffler::open() {
     a2a_token = 0;
     a2av_token = 0;
     pending_msg = 0;
-    insert_comm_buffer();
-    insert_comm_buffer();
+    for (int i = 0; i < MIN_SBUF_COUNT; i++)
+        insert_comm_buffer();
 
     a2a_s_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
 ;

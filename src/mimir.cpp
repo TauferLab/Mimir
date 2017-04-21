@@ -246,6 +246,16 @@ void get_default_values()
         }
     }
 
+    env = getenv("MIMIR_MIN_COMM_BUF");
+    if (env) {
+        MIN_SBUF_COUNT = atoi(env);
+    }
+
+    env = getenv("MIMIR_MAX_COMM_BUF");
+    if (env) {
+        MAX_SBUF_COUNT = atoi(env);
+    }
+
     env = getenv("MIMIR_OUTPUT_STAT");
     if (env) {
         int flag = atoi(env);
@@ -279,10 +289,13 @@ Library configuration:\n\
 \tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv; 2 - MPI_Isend)\n\
 \treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
+\tcomm buffer: min=%d, max=%d\n\
 \tdebug level: %x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, WORK_STEAL, 
-        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, DBG_LEVEL);
+        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, 
+        MIN_SBUF_COUNT, MAX_SBUF_COUNT, 
+        DBG_LEVEL);
         fflush(stdout);
     }
 

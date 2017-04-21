@@ -20,6 +20,7 @@ extern int BUCKET_COUNT;
 extern int SET_COUNT;
 extern int MAX_RECORD_SIZE;
 
+extern int MIN_SBUF_COUNT;
 extern int MAX_SBUF_COUNT;
 
 extern int64_t COMM_BUF_SIZE;
