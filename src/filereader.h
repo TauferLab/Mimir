@@ -488,7 +488,7 @@ class MPIFileReader : public FileReader< RecordFormat >{
             read_count += count;
             LOG_PRINT(DBG_IO, "Read (MPI) input file=%s:%ld+%d\n", 
                       this->state.cur_chunk.fileseg->filename.c_str(),
-                      offset + read_count, count);
+                      offset, count);
         }
         PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_FREADAT);
@@ -749,7 +749,7 @@ FileReader<RecordFormat>* FileReader<RecordFormat>::reader = NULL;
 template<typename RecordFormat>
 FileReader<RecordFormat>* FileReader<RecordFormat>
     ::getReader(ChunkManager *mgr, RepartitionCallback repartition_fn) {
-    if (reader != NULL) delete reader;
+    //if (reader != NULL) delete reader;
     if (READER_TYPE == 0) {
         reader = new FileReader<RecordFormat>(mgr, repartition_fn);
     } else if (READER_TYPE == 1) {

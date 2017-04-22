@@ -12,7 +12,7 @@ using namespace MIMIR_NS;
 
 FileWriter* FileWriter::writer = NULL;
 FileWriter* FileWriter::getWriter(const char *filename) {
-    if (writer != NULL) delete writer;
+    //if (writer != NULL) delete writer;
     if (WRITER_TYPE == 0) {
         writer = new FileWriter(filename);
     } else if (WRITER_TYPE == 1) {

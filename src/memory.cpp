@@ -30,8 +30,6 @@ void *mem_aligned_malloc(size_t alignment, size_t size)
     PROFILER_RECORD_TIME_START;
     size_t align_size = (size + alignment - 1) / alignment * alignment;
     int err = posix_memalign(&ptr, alignment, align_size);
-    PROFILER_RECORD_TIME_END(TIMER_MEM_ALLOCATE);
-
     if (err != 0) {
         int64_t memsize = get_mem_usage();
         LOG_ERROR("Error: malloc memory error %d (align=%ld; size=%ld; \
@@ -42,6 +40,8 @@ void *mem_aligned_malloc(size_t alignment, size_t size)
     for (size_t i = 0; i < align_size; i += MEMPAGE_SIZE) {
         *((char*)ptr + i) = 0;
     }
+
+    PROFILER_RECORD_TIME_END(TIMER_MEM_ALLOCATE);
 
     if (RECORD_PEAKMEM == 1) {
         int64_t vmsize = get_mem_usage();
