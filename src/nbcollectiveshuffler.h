@@ -36,7 +36,7 @@ struct ShuffleMsgBuf {
 
 class NBCollectiveShuffler : public BaseShuffler {
 public:
-    NBCollectiveShuffler(Writable *out, HashCallback user_hash);
+    NBCollectiveShuffler(MPI_Comm comm, Writable *out, HashCallback user_hash);
     virtual ~NBCollectiveShuffler();
 
     virtual bool open();

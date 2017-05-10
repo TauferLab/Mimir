@@ -20,9 +20,9 @@ class FileSplitter;
 
 class FileSplitter{
   public:
-    static FileSplitter* getFileSplitter(){
+    static FileSplitter* getFileSplitter(MPI_Comm comm){
         if(splitter==NULL){
-            splitter = new FileSplitter();
+            splitter = new FileSplitter(comm);
         }
         return splitter;
     }
@@ -30,6 +30,12 @@ class FileSplitter{
     static FileSplitter *splitter;
 
   public:
+
+    FileSplitter(MPI_Comm comm) {
+        split_comm = comm;
+        MPI_Comm_rank(split_comm, &split_rank);
+        MPI_Comm_size(split_comm, &split_size);
+    }
 
     ~FileSplitter(){
     }
@@ -69,6 +75,9 @@ class FileSplitter{
     //InputSplit *get_my_split();
     uint64_t get_proc_count(int, uint64_t);
 
+    MPI_Comm split_comm;
+    int      split_rank;
+    int      split_size;
     //std::vector<InputSplit> files;
 };
 

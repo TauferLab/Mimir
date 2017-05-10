@@ -45,4 +45,8 @@ extern MPI_Comm  mimir_world_comm;
 
 void handle_error(int errcode, const char *str);
 
+void mimir_init();
+void mimir_finalize();
+void mimir_stat(const char*);
+
 #endif

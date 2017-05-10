@@ -11,6 +11,7 @@
 #include <typeinfo>
 
 #include "log.h"
+#include "mimir.h"
 #include "config.h"
 #include "interface.h"
 #include "globals.h"
@@ -18,14 +19,12 @@
 #include "stat.h"
 #include "globals.h"
 #include "tools.h"
-#include "mimircontext.h"
 #include "chunkmanager.h"
 #include "kvcontainer.h"
 #include "combinekvcontainer.h"
 #include "kmvcontainer.h"
 #include "collectiveshuffler.h"
 #include "nbcollectiveshuffler.h"
-#include "nbshuffler.h"
 #include "combinecollectiveshuffler.h"
 #include "nbcombinecollectiveshuffler.h"
 #include "filereader.h"
@@ -43,7 +42,8 @@ enum OUTPUT_MODE {IMPLICIT_OUTPUT, EXPLICIT_OUTPUT};
 template <typename KeyType, typename ValType>
 class MimirContext {
   public:
-    MimirContext(MapCallback map_fn,
+    MimirContext(MPI_Comm mimir_comm,
+                 MapCallback map_fn,
                  ReduceCallback reduce_fn,
                  std::vector<std::string> input_dir,
                  std::string output_dir,
@@ -65,12 +65,18 @@ class MimirContext {
         else
             VTYPE = sizeof(ValType);
 
-        _init(map_fn, reduce_fn, combine_fn,
+        _init(mimir_comm, map_fn, reduce_fn, combine_fn,
               hash_fn, repartition_fn, do_shuffle,
               input_dir, output_dir, output_mode);
+
+        if (mimir_ctx_count == 0) {
+            ::mimir_init();
+            mimir_ctx_count +=1;
+        }
     }
 
-    MimirContext(int ktype, int vtype,
+    MimirContext(MPI_Comm mimir_comm,
+                 int ktype, int vtype,
                  MapCallback map_fn,
                  ReduceCallback reduce_fn,
                  std::vector<std::string> input_dir,
@@ -91,13 +97,24 @@ class MimirContext {
 
         //printf("vtype=%d, ktype=%d\n", vtype, vtype);
 
-        _init(map_fn, reduce_fn, combine_fn,
+        _init(mimir_comm, map_fn, reduce_fn, combine_fn,
               hash_fn, repartition_fn, do_shuffle,
               input_dir, output_dir, output_mode);
+
+        if (mimir_ctx_count == 0) {
+            ::mimir_init();
+            mimir_ctx_count +=1;
+        }
+
     }
 
 
     ~MimirContext() {
+        _uinit();
+        mimir_ctx_count -= 1;
+        if (mimir_ctx_count = 0) {
+            ::mimir_finalize();
+        }
     }
 
     void set_user_database(void *database) {
@@ -153,14 +170,14 @@ class MimirContext {
             //splitinput->print();
             if (user_repartition != NULL) {
                 if (WORK_STEAL) {
-                    chunk_mgr = new StealChunkManager(input_dir, BYSIZE);
+                    chunk_mgr = new StealChunkManager(mimir_ctx_comm, input_dir, BYSIZE);
                 } else {
-                    chunk_mgr = new ChunkManager(input_dir, BYSIZE);
+                    chunk_mgr = new ChunkManager(mimir_ctx_comm, input_dir, BYSIZE);
                 }
             }
             else
-                chunk_mgr = new ChunkManager(input_dir, BYNAME);
-            reader = FileReader<StringRecord>::getReader(chunk_mgr, user_repartition);
+                chunk_mgr = new ChunkManager(mimir_ctx_comm, input_dir, BYNAME);
+            reader = FileReader<StringRecord>::getReader(mimir_ctx_comm, chunk_mgr, user_repartition);
             input = reader;
         }
 
@@ -175,7 +192,7 @@ class MimirContext {
             output = kv;
             // output to files
         } else {
-            writer = FileWriter::getWriter(output_dir.c_str());
+            writer = FileWriter::getWriter(mimir_ctx_comm, output_dir.c_str());
             output = writer;
         }
 
@@ -183,18 +200,18 @@ class MimirContext {
         if (do_shuffle) {
             if (!user_combine) {
                 if (SHUFFLE_TYPE == 0)
-                    c = new CollectiveShuffler(output, user_hash);
+                    c = new CollectiveShuffler(mimir_ctx_comm, output, user_hash);
                 else if (SHUFFLE_TYPE == 1)
-                    c = new NBCollectiveShuffler(output, user_hash);
-                else if (SHUFFLE_TYPE == 2)
-                    c = new NBShuffler(output, user_hash);
+                    c = new NBCollectiveShuffler(mimir_ctx_comm, output, user_hash);
+                //else if (SHUFFLE_TYPE == 2)
+                //    c = new NBShuffler(output, user_hash);
                 else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
             } else {
                 if (SHUFFLE_TYPE == 0)
-                    c = new CombineCollectiveShuffler(user_combine, ptr,
+                    c = new CombineCollectiveShuffler(mimir_ctx_comm, user_combine, ptr,
                                                       output, user_hash);
                 else if (SHUFFLE_TYPE == 1)
-                    c = new NBCombineCollectiveShuffler(user_combine, ptr,
+                    c = new NBCombineCollectiveShuffler(mimir_ctx_comm, user_combine, ptr,
                                                         output, user_hash);
                 else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
             }
@@ -269,7 +286,7 @@ class MimirContext {
 
         uint64_t total_records = 0;
         MPI_Allreduce(&kv_records, &total_records, 1,
-                      MPI_INT64_T, MPI_SUM, mimir_world_comm);
+                      MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
 
         LOG_PRINT(DBG_GEN, "MapReduce: map done\n");
 
@@ -303,7 +320,7 @@ class MimirContext {
             output = kv;
         // output to disk files
         } else {
-            writer = FileWriter::getWriter(output_dir.c_str());
+            writer = FileWriter::getWriter(mimir_ctx_comm, output_dir.c_str());
             output = writer;
         }
 
@@ -345,7 +362,7 @@ class MimirContext {
 
         uint64_t total_records = 0;
         MPI_Allreduce(&output_records, &total_records, 1,
-                      MPI_INT64_T, MPI_SUM, mimir_world_comm);
+                      MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
 
         LOG_PRINT(DBG_GEN, "MapReduce: reduce done\n");
 
@@ -358,7 +375,7 @@ class MimirContext {
 
         LOG_PRINT(DBG_GEN, "MapReduce: output start\n");
 
-        FileWriter *writer = FileWriter::getWriter(output_dir.c_str());
+        FileWriter *writer = FileWriter::getWriter(mimir_ctx_comm, output_dir.c_str());
         KVRecord *record = NULL;
         database->open();
         writer->open();
@@ -375,7 +392,7 @@ class MimirContext {
 
         uint64_t total_records = 0;
         MPI_Allreduce(&output_records, &total_records, 1,
-                      MPI_INT64_T, MPI_SUM, mimir_world_comm);
+                      MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
 
         LOG_PRINT(DBG_GEN, "MapReduce: output done\n");
 
@@ -393,12 +410,13 @@ class MimirContext {
 
     void print_record_count () {
         printf("%d[%d] input=%ld, kv=%ld, kmv=%ld, output=%ld\n",
-               mimir_world_rank, mimir_world_size, input_records,
+               mimir_ctx_rank, mimir_ctx_size, input_records,
                kv_records, kmv_records, output_records);
     }
 
   private:
-    void _init(MapCallback map_fn,
+    void _init(MPI_Comm ctx_comm,
+               MapCallback map_fn,
                ReduceCallback reduce_fn,
                CombineCallback combine_fn, 
                HashCallback partition_fn,
@@ -407,6 +425,10 @@ class MimirContext {
                std::vector<std::string> &input_dir,
                std::string output_dir,
                OUTPUT_MODE output_mode) {
+
+        MPI_Comm_dup(ctx_comm, &mimir_ctx_comm);
+        MPI_Comm_rank(mimir_ctx_comm, &mimir_ctx_rank);
+        MPI_Comm_size(mimir_ctx_comm, &mimir_ctx_size);
 
         this->user_map = map_fn;
         this->user_reduce = reduce_fn;
@@ -421,6 +443,10 @@ class MimirContext {
         database = user_database = NULL;
         input_records = output_records = 0;
         kv_records = kmv_records = 0;
+    }
+
+    void _uinit() {
+        MPI_Comm_free(&mimir_ctx_comm);
     }
 
     MapCallback         user_map;
@@ -442,7 +468,17 @@ class MimirContext {
     uint64_t    kv_records;
     uint64_t    kmv_records;
     uint64_t    output_records;
+
+    MPI_Comm    mimir_ctx_comm;
+    int         mimir_ctx_rank;
+    int         mimir_ctx_size;
+
+  private:
+    static int  mimir_ctx_count;
 };
+
+template<typename KeyType, typename ValType>
+int MimirContext<KeyType, ValType>::mimir_ctx_count = 0;
 
 }
 

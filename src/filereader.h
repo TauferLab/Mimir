@@ -34,12 +34,17 @@ class MPIFileReader;
 template<typename RecordFormat>
 class FileReader : public Readable {
   public:
-    static FileReader<RecordFormat> *getReader(ChunkManager *chunk_mgr,
+    static FileReader<RecordFormat> *getReader(MPI_Comm comm,
+                                               ChunkManager *chunk_mgr,
                                                RepartitionCallback repartition_fn);
     static FileReader<RecordFormat> *reader;
 
   public:
-    FileReader(ChunkManager *chunk_mgr, RepartitionCallback repartition_fn) {
+    FileReader(MPI_Comm comm, ChunkManager *chunk_mgr, RepartitionCallback repartition_fn) {
+        this->reader_comm = comm;
+        MPI_Comm_rank(reader_comm, &reader_rank);
+        MPI_Comm_size(reader_comm, &reader_size);
+
         this->chunk_mgr = chunk_mgr;
         this->repartition_fn = repartition_fn;
 
@@ -305,7 +310,7 @@ class FileReader : public Readable {
     void print_state(){
         if (state.cur_chunk.fileseg != NULL) {
             printf("%d[%d] file_name=%s:%ld+%ld (%ld<%d,%ld>), start_pos=%ld, win_size=%ld, has_tail=%d\n",
-               mimir_world_rank, mimir_world_size,
+               reader_rank, reader_size,
                state.cur_chunk.fileseg->filename.c_str(),
                state.cur_chunk.fileoff,
                state.cur_chunk.chunksize,
@@ -325,14 +330,18 @@ class FileReader : public Readable {
     BaseShuffler*   shuffler;
     uint64_t        record_count;
     RepartitionCallback repartition_fn;
+
+    MPI_Comm        reader_comm;
+    int             reader_rank;
+    int             reader_size;
 };
 
 template <typename RecordFormat>
 class DirectFileReader : public FileReader< RecordFormat >{
 
   public:
-    DirectFileReader(ChunkManager *chunk_mgr, RepartitionCallback repartition_cb) 
-        : FileReader<RecordFormat>(chunk_mgr, repartition_cb) {
+    DirectFileReader(MPI_Comm comm, ChunkManager *chunk_mgr, RepartitionCallback repartition_cb) 
+        : FileReader<RecordFormat>(comm, chunk_mgr, repartition_cb) {
     }
 
     ~DirectFileReader(){
@@ -423,8 +432,8 @@ template <typename RecordFormat>
 class MPIFileReader : public FileReader< RecordFormat >{
 
   public:
-    MPIFileReader(ChunkManager *chunk_mgr, RepartitionCallback repartition_cb) 
-        : FileReader<RecordFormat>(chunk_mgr, repartition_cb) {
+    MPIFileReader(MPI_Comm comm, ChunkManager *chunk_mgr, RepartitionCallback repartition_cb) 
+        : FileReader<RecordFormat>(comm, chunk_mgr, repartition_cb) {
     }
 
     ~MPIFileReader(){
@@ -748,14 +757,14 @@ FileReader<RecordFormat>* FileReader<RecordFormat>::reader = NULL;
 
 template<typename RecordFormat>
 FileReader<RecordFormat>* FileReader<RecordFormat>
-    ::getReader(ChunkManager *mgr, RepartitionCallback repartition_fn) {
+    ::getReader(MPI_Comm comm, ChunkManager *mgr, RepartitionCallback repartition_fn) {
     //if (reader != NULL) delete reader;
     if (READER_TYPE == 0) {
-        reader = new FileReader<RecordFormat>(mgr, repartition_fn);
+        reader = new FileReader<RecordFormat>(comm, mgr, repartition_fn);
     } else if (READER_TYPE == 1) {
-        reader = new DirectFileReader<RecordFormat>(mgr, repartition_fn);
+        reader = new DirectFileReader<RecordFormat>(comm, mgr, repartition_fn);
     } else if (READER_TYPE == 2) {
-        reader = new MPIFileReader<RecordFormat>(mgr, repartition_fn);
+        reader = new MPIFileReader<RecordFormat>(comm, mgr, repartition_fn);
     } else {
         LOG_ERROR("Error reader type %d\n", READER_TYPE);
     }

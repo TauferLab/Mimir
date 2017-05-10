@@ -17,8 +17,11 @@ namespace MIMIR_NS {
 
 class BaseShuffler : public Writable {
 public:
-    BaseShuffler(Writable *out, HashCallback user_hash = NULL) {
+    BaseShuffler(MPI_Comm comm, Writable *out, HashCallback user_hash = NULL) {
         if (out == NULL) LOG_ERROR("Output shuffler cannot be NULL!\n");
+        shuffle_comm = comm;
+        MPI_Comm_rank(shuffle_comm, &shuffle_rank);
+        MPI_Comm_size(shuffle_comm, &shuffle_size);
         this->out = out;
         this->user_hash = user_hash;
         done_flag = 0;
@@ -37,15 +40,15 @@ protected:
     int get_target_rank(const char *key, int keysize) {
         int target = 0;
         if (user_hash != NULL) {
-            target = user_hash(key, keysize) % mimir_world_size;
+            target = user_hash(key, keysize) % shuffle_size;
         }
         else {
             uint32_t hid = 0;
             hid = hashlittle(key, keysize, 0);
-            target = (int) (hid % (uint32_t) mimir_world_size);
+            target = (int) (hid % (uint32_t) shuffle_size);
         }
 
-        if (target < 0 || target >= mimir_world_size) {
+        if (target < 0 || target >= shuffle_size) {
             LOG_ERROR("Error: target process (%d) isn't correct!\n", target);
         }
 
@@ -58,6 +61,10 @@ protected:
     int done_flag, done_count;
 
     uint64_t kvcount;
+
+    MPI_Comm shuffle_comm;
+    int      shuffle_rank;
+    int      shuffle_size;
 };
 
 }

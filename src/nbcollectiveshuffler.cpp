@@ -18,22 +18,22 @@
 
 using namespace MIMIR_NS;
 
-NBCollectiveShuffler::NBCollectiveShuffler(Writable *out, HashCallback user_hash)
-    :  BaseShuffler(out, user_hash)
+NBCollectiveShuffler::NBCollectiveShuffler(MPI_Comm comm, Writable *out, HashCallback user_hash)
+    :  BaseShuffler(comm, out, user_hash)
 {
-    if (COMM_BUF_SIZE < (int64_t) COMM_UNIT_SIZE * (int64_t) mimir_world_size) {
-        LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n", COMM_BUF_SIZE, COMM_UNIT_SIZE, mimir_world_size);
+    if (COMM_BUF_SIZE < (int64_t) COMM_UNIT_SIZE * (int64_t) shuffle_size) {
+        LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n", COMM_BUF_SIZE, COMM_UNIT_SIZE, shuffle_size);
     }
-    buf_size = (COMM_BUF_SIZE / COMM_UNIT_SIZE / mimir_world_size) * COMM_UNIT_SIZE;
+    buf_size = (COMM_BUF_SIZE / COMM_UNIT_SIZE / shuffle_size) * COMM_UNIT_SIZE;
     type_log_bytes = 0;
     int type_bytes = 0x1;
     while ((int64_t) type_bytes * (int64_t) MAX_COMM_SIZE 
-           < buf_size * mimir_world_size) {
+           < buf_size * shuffle_size) {
         type_bytes <<= 1;
         type_log_bytes++;
     }
-    MPI_Comm_dup(mimir_world_comm, &a2a_comm);
-    MPI_Comm_dup(mimir_world_comm, &a2av_comm);
+    MPI_Comm_dup(shuffle_comm, &a2a_comm);
+    MPI_Comm_dup(shuffle_comm, &a2av_comm);
     buf_count = 0;
 }
 
@@ -54,15 +54,15 @@ bool NBCollectiveShuffler::open() {
     for (int i = 0; i < MIN_SBUF_COUNT; i++)
         insert_comm_buffer();
 
-    a2a_s_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
+    a2a_s_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * shuffle_size);
 ;
-    a2a_s_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
+    a2a_s_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * shuffle_size);
 ;
-    a2a_r_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
+    a2a_r_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * shuffle_size);
 ;
-    a2a_r_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
+    a2a_r_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * shuffle_size);
 ;
-    for (int i = 0; i < mimir_world_size; i++) {
+    for (int i = 0; i < shuffle_size; i++) {
         a2a_s_count[i] = 0;
         a2a_s_displs[i] = 0;
         a2a_r_count[i] = 0;
@@ -102,17 +102,17 @@ void NBCollectiveShuffler::close() {
 
 void NBCollectiveShuffler::insert_comm_buffer() {
     ShuffleMsgBuf buf;
-    buf.send_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * mimir_world_size);
-    buf.recv_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * mimir_world_size);
-    buf.send_offset = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
-    buf.recv_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
+    buf.send_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * shuffle_size);
+    buf.recv_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * shuffle_size);
+    buf.send_offset = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * shuffle_size);
+    buf.recv_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * shuffle_size);
     buf.a2a_req = MPI_REQUEST_NULL;
     buf.a2av_req = MPI_REQUEST_NULL;
     buf.send_bytes = 0;
     buf.recv_bytes = 0;
     buf.msg_state = ShuffleMsgComplete;
     msg_buffers.push_back(buf);
-    for (int i = 0; i < mimir_world_size; i++) {
+    for (int i = 0; i < shuffle_size; i++) {
         msg_buffers[buf_count].send_offset[i] = 0;
         msg_buffers[buf_count].recv_count[i] = 0;
     }
@@ -127,7 +127,7 @@ void NBCollectiveShuffler::write(BaseRecordFormat *record)
     int target = get_target_rank(((KVRecord*)record)->get_key(), 
                                  ((KVRecord*)record)->get_key_size());
 
-    if (target == mimir_world_rank) {
+    if (target == shuffle_rank) {
         out->write(record);
         return;
     }
@@ -158,7 +158,7 @@ void NBCollectiveShuffler::wait()
     MPI_Status st;
     int flag = 0;
 
-    for (int i = 0; i < mimir_world_size; i++)
+    for (int i = 0; i < shuffle_size; i++)
         msg_buffers[cur_idx].send_bytes += (uint64_t)msg_buffers[cur_idx].send_offset[i];
 
     if (msg_buffers[cur_idx].send_bytes > 0)
@@ -176,7 +176,7 @@ void NBCollectiveShuffler::wait()
         start_kv_exchange();
         wait_all();
         PROFILER_RECORD_TIME_END(TIMER_COMM_BLOCK);
-    } while (done_count < mimir_world_size);
+    } while (done_count < shuffle_size);
 
     TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
 
@@ -188,7 +188,7 @@ void NBCollectiveShuffler::save_data(int idx)
     KVRecord record;
     char *src_buf = msg_buffers[idx].recv_buffer;
     int k = 0;
-    for (k = 0; k < mimir_world_size; k++) {
+    for (k = 0; k < shuffle_size; k++) {
         int count = 0;
         while (count < msg_buffers[idx].recv_count[k]) {
             int kvsize = 0;
@@ -206,10 +206,10 @@ void NBCollectiveShuffler::save_data(int idx)
 void NBCollectiveShuffler::start_kv_exchange()
 {
     if (done_flag) {
-        for (int i = 0; i < mimir_world_size; i++)
+        for (int i = 0; i < shuffle_size; i++)
             msg_buffers[cur_idx].send_offset[i] = -1;
     } else {
-        for (int i = 0; i < mimir_world_size; i++)
+        for (int i = 0; i < shuffle_size; i++)
             msg_buffers[cur_idx].send_bytes += (uint64_t)msg_buffers[cur_idx].send_offset[i];
         PROFILER_RECORD_COUNT(COUNTER_SEND_BYTES, msg_buffers[cur_idx].send_bytes, OPSUM);
     }
@@ -274,7 +274,7 @@ void NBCollectiveShuffler::push_kv_exchange() {
 
                 if (flag) {
                     done_count = 0;
-                    for (int i = 0; i < mimir_world_size; i++) {
+                    for (int i = 0; i < shuffle_size; i++) {
                         if (msg_buffers[k].recv_count[i] == -1) done_count ++;
                         else
                             msg_buffers[k].recv_bytes += (int64_t) msg_buffers[k].recv_count[i];
@@ -285,20 +285,20 @@ void NBCollectiveShuffler::push_kv_exchange() {
                 }
             }
 
-            if (done_count > mimir_world_size)
+            if (done_count > shuffle_size)
                 LOG_ERROR("Done count %d is lager than process size %d!\n",
-                          done_count, mimir_world_size);
+                          done_count, shuffle_size);
 
-            if (done_count == mimir_world_size) {
+            if (done_count == shuffle_size) {
                 msg_buffers[k].msg_state = ShuffleMsgComplete;
                 pending_msg -= 1;
             }
 
             if (msg_buffers[k].msg_token == a2av_token 
                 && msg_buffers[k].a2a_req == MPI_REQUEST_NULL 
-                && done_count < mimir_world_size) {
+                && done_count < shuffle_size) {
 
-                for (int i = 0; i < mimir_world_size; i++) {
+                for (int i = 0; i < shuffle_size; i++) {
                     if (msg_buffers[k].send_offset[i] == -1)
                         msg_buffers[k].send_offset[i] = 0;
                     if (msg_buffers[k].recv_count[i] == -1)
@@ -310,7 +310,7 @@ void NBCollectiveShuffler::push_kv_exchange() {
                     a2a_s_displs[i] = (i * (int) buf_size) >> type_log_bytes;
                 }
                 a2a_r_displs[0] = 0;
-                for (int i = 1; i < mimir_world_size; i++)
+                for (int i = 1; i < shuffle_size; i++)
                     a2a_r_displs[i] = a2a_r_displs[i - 1] + a2a_r_count[i - 1];
 
                 LOG_PRINT(DBG_COMM, "Comm: MPI_Ialltoallv start (token=%ld,send=%ld,recv=%ld).\n",
@@ -338,7 +338,7 @@ void NBCollectiveShuffler::push_kv_exchange() {
                     msg_buffers[k].msg_token = 0;
                     msg_buffers[k].send_bytes = 0;
                     msg_buffers[k].recv_bytes = 0;
-                    for (int i = 0; i < mimir_world_size; i++) {
+                    for (int i = 0; i < shuffle_size; i++) {
                         msg_buffers[k].send_offset[i] = 0;
                         msg_buffers[k].recv_count[i] = 0;
                     }

@@ -21,7 +21,8 @@ namespace MIMIR_NS {
 class NBCombineCollectiveShuffler
     : public NBCollectiveShuffler, public Combinable {
 public:
-    NBCombineCollectiveShuffler(CombineCallback user_combine,
+    NBCombineCollectiveShuffler(MPI_Comm comm,
+                                CombineCallback user_combine,
                                 void *user_ptr,
                                 Writable *out,
                                 HashCallback user_hash);

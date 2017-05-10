@@ -19,9 +19,4 @@
 #include "mimircontext.h"
 #include "tools.h"
 
-void Mimir_Init(int*, char ***, MPI_Comm);
-void Mimir_Finalize();
-
-void Mimir_stat(const char*);
-
 #endif

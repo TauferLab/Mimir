@@ -47,29 +47,32 @@ struct BorderMsg {
 
 class ChunkManager {
   public:
-    ChunkManager(std::vector<std::string> input_dir, SplitPolicy policy = BYNAME) {
+    ChunkManager(MPI_Comm comm, std::vector<std::string> input_dir, SplitPolicy policy = BYNAME) {
+        chunk_mgr_comm = comm;
+        MPI_Comm_rank(chunk_mgr_comm, &chunk_mgr_rank);
+        MPI_Comm_size(chunk_mgr_comm, &chunk_mgr_size);
         // get file list
         InputSplit filelist;
-        if (mimir_world_rank == 0) {
+        if (chunk_mgr_rank == 0) {
             for (std::vector<std::string>::const_iterator iter = input_dir.begin();
                  iter != input_dir.end(); iter++) {
                 std::string file = *(iter);
                 filelist.add(file.c_str());
             }
         }
-        FileSplitter::getFileSplitter()->split(&filelist, file_list, policy);
-        file_list[mimir_world_rank].print();
+        FileSplitter::getFileSplitter(chunk_mgr_comm)->split(&filelist, file_list, policy);
+        file_list[chunk_mgr_rank].print();
         // get file chunk number
         total_chunk = 0;
-        chunk_nums = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * mimir_world_size);
-        for (int i = 0; i < mimir_world_size; i++) {
+        chunk_nums = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * chunk_mgr_size);
+        for (int i = 0; i < chunk_mgr_size; i++) {
             chunk_nums[i] = get_chunk_num(i);
             total_chunk += chunk_nums[i];
         }
         chunk_id = 0;
         shuffler = NULL;
         LOG_PRINT(DBG_CHUNK, "Chunk: chuck count=%d, total chucnks=%ld\n",
-                  chunk_nums[mimir_world_rank], total_chunk);
+                  chunk_nums[chunk_mgr_rank], total_chunk);
     }
 
     virtual ~ChunkManager() {
@@ -138,7 +141,7 @@ class ChunkManager {
                       bufsize, chunk.procrank, chunk.localid, msg_list[msg_idx].target_rank);
             MPI_Isend(msg_list[msg_idx].msg_buf, msg_list[msg_idx].msg_size, 
                       MPI_BYTE, msg_list[msg_idx].target_rank, CHUNK_TAIL_TAG,
-                      mimir_world_comm, &(msg_list[msg_idx].msg_req));
+                      chunk_mgr_comm, &(msg_list[msg_idx].msg_req));
             msg_list[msg_idx].msg_state = MsgPending;
         }
 
@@ -159,7 +162,7 @@ class ChunkManager {
         }
 
         MPI_Irecv(buffer, bufsize, MPI_BYTE, next_rank,
-                  CHUNK_TAIL_TAG, mimir_world_comm, &req);
+                  CHUNK_TAIL_TAG, chunk_mgr_comm, &req);
         while (!flag) {
             MPI_Test(&req, &flag, &st);
             make_progress();
@@ -175,18 +178,18 @@ class ChunkManager {
 
     virtual bool acquire_chunk(Chunk& chunk) {
         make_progress();
-        if (chunk_id >= chunk_nums[mimir_world_rank]) return false;
+        if (chunk_id >= chunk_nums[chunk_mgr_rank]) return false;
         int my_chunk_id = chunk_id;
         chunk_id ++;
-        return get_chunk(chunk, mimir_world_rank, my_chunk_id);
+        return get_chunk(chunk, chunk_mgr_rank, my_chunk_id);
     }
 
     virtual bool acquire_local_chunk(Chunk& chunk, int localid) {
         make_progress();
-        if (chunk_id >= chunk_nums[mimir_world_rank]) return false;
+        if (chunk_id >= chunk_nums[chunk_mgr_rank]) return false;
         if (chunk_id == localid) {
             chunk_id += 1;
-            return get_chunk(chunk, mimir_world_rank, localid);
+            return get_chunk(chunk, chunk_mgr_rank, localid);
         }
         return false;
     }
@@ -214,7 +217,7 @@ class ChunkManager {
                               msg_list[i].msg_chunk.localid, msg_list[i].target_rank);
                     MPI_Isend(msg_list[i].msg_buf, msg_list[i].msg_size, 
                               MPI_BYTE, msg_list[i].target_rank, CHUNK_TAIL_TAG,
-                              mimir_world_comm, &(msg_list[i].msg_req));
+                              chunk_mgr_comm, &(msg_list[i].msg_req));
                     msg_list[i].msg_state = MsgPending;
                 }
             }
@@ -232,7 +235,7 @@ class ChunkManager {
     }
 
     virtual int next_chunk_worker(Chunk &chunk) {
-        if (chunk.procrank < mimir_world_size - 1
+        if (chunk.procrank < chunk_mgr_size - 1
             && chunk.localid == chunk_nums[chunk.procrank] - 1)
             return chunk.procrank + 1;
         LOG_ERROR("Chunk (%ld: %d, %d) is not a border chunk!\n",
@@ -249,7 +252,7 @@ class ChunkManager {
     void GlobaltoLocal(int64_t globalid, int& procrank, int& localid) {
         int64_t startoff = 0;
         int64_t endoff = 0;
-        for (int i = 0; i < mimir_world_size; i++) {
+        for (int i = 0; i < chunk_mgr_size; i++) {
             endoff = startoff + chunk_nums[i];
             if (globalid >= startoff && globalid < endoff) {
                 procrank = i;
@@ -301,23 +304,26 @@ class ChunkManager {
     int64_t                      total_chunk;
     BaseShuffler*                shuffler;
     std::vector<BorderMsg>       msg_list;
+    MPI_Comm                     chunk_mgr_comm;
+    int                          chunk_mgr_rank;
+    int                          chunk_mgr_size;
 };
 
 class StealChunkManager : public ChunkManager {
   public:
-    StealChunkManager(std::vector<std::string> input_dir, SplitPolicy policy = BYNAME)
-        : ChunkManager(input_dir, policy) {
+    StealChunkManager(MPI_Comm comm, std::vector<std::string> input_dir, SplitPolicy policy = BYNAME)
+        : ChunkManager(comm, input_dir, policy) {
         steal_off = 0;
         chunk_map = (int*)mem_aligned_malloc(MEMPAGE_SIZE,
-                                             sizeof(int) * chunk_nums[mimir_world_rank]);
-        for (int i = 0; i < chunk_nums[mimir_world_rank]; i++)
+                                             sizeof(int) * chunk_nums[chunk_mgr_rank]);
+        for (int i = 0; i < chunk_nums[chunk_mgr_rank]; i++)
             chunk_map[i] = PROC_RANK_PENDING;
         MPI_Win_create(&chunk_id, sizeof(int), sizeof(int),
-                       MPI_INFO_NULL, mimir_world_comm, &chunk_id_win);
+                       MPI_INFO_NULL, chunk_mgr_comm, &chunk_id_win);
         MPI_Win_create(&steal_off, sizeof(int), sizeof(int),
-                       MPI_INFO_NULL, mimir_world_comm, &steal_off_win);
-        MPI_Win_create(chunk_map, sizeof(int) * chunk_nums[mimir_world_rank], 
-                       sizeof(int), MPI_INFO_NULL, mimir_world_comm, &chunk_map_win);
+                       MPI_INFO_NULL, chunk_mgr_comm, &steal_off_win);
+        MPI_Win_create(chunk_map, sizeof(int) * chunk_nums[chunk_mgr_rank], 
+                       sizeof(int), MPI_INFO_NULL, chunk_mgr_comm, &chunk_map_win);
     }
 
     virtual ~StealChunkManager() {
@@ -332,53 +338,53 @@ class StealChunkManager : public ChunkManager {
 
         make_progress();
 
-        if (chunk_id >= chunk_nums[mimir_world_rank])
+        if (chunk_id >= chunk_nums[chunk_mgr_rank])
             return steal_chunk(chunk);
 
-        MPI_Win_lock(MPI_LOCK_SHARED, mimir_world_rank, 0, chunk_id_win);
+        MPI_Win_lock(MPI_LOCK_SHARED, chunk_mgr_rank, 0, chunk_id_win);
 #ifdef MPI_FETCH_AND_OP
         MPI_Fetch_and_op(&one, &my_chunk_id,
-                         MPI_INT, mimir_world_rank, 0,
+                         MPI_INT, chunk_mgr_rank, 0,
                          MPI_SUM, chunk_id_win);
 #else
         MPI_Get_accumulate(&one, 1, MPI_INT, &my_chunk_id, 1, MPI_INT,
-                           mimir_world_rank, 0, 1, MPI_INT, MPI_SUM, chunk_id_win);
+                           chunk_mgr_rank, 0, 1, MPI_INT, MPI_SUM, chunk_id_win);
 #endif
-        MPI_Win_unlock(mimir_world_rank, chunk_id_win);
+        MPI_Win_unlock(chunk_mgr_rank, chunk_id_win);
 
-        if (my_chunk_id >= chunk_nums[mimir_world_rank])
+        if (my_chunk_id >= chunk_nums[chunk_mgr_rank])
             return steal_chunk(chunk);
 
-        MPI_Win_lock(MPI_LOCK_SHARED, mimir_world_rank, 0, chunk_map_win);
-        MPI_Accumulate(&mimir_world_rank, 1, MPI_INT,
-                       mimir_world_rank, my_chunk_id, 1, MPI_INT,
+        MPI_Win_lock(MPI_LOCK_SHARED, chunk_mgr_rank, 0, chunk_map_win);
+        MPI_Accumulate(&chunk_mgr_rank, 1, MPI_INT,
+                       chunk_mgr_rank, my_chunk_id, 1, MPI_INT,
                        MPI_REPLACE, chunk_map_win);
-        MPI_Win_unlock(mimir_world_rank, chunk_map_win);
+        MPI_Win_unlock(chunk_mgr_rank, chunk_map_win);
 
-        return get_chunk(chunk, mimir_world_rank, my_chunk_id);
+        return get_chunk(chunk, chunk_mgr_rank, my_chunk_id);
     }
 
     virtual bool acquire_local_chunk(Chunk& chunk, int localid) {
 
         make_progress();
 
-        if (chunk_id >= chunk_nums[mimir_world_rank]) {
+        if (chunk_id >= chunk_nums[chunk_mgr_rank]) {
             return false;
         }
 
         int add_idx = localid + 1, ret_idx = 0;
-        MPI_Win_lock(MPI_LOCK_SHARED, mimir_world_rank, 0, chunk_id_win);
+        MPI_Win_lock(MPI_LOCK_SHARED, chunk_mgr_rank, 0, chunk_id_win);
         MPI_Compare_and_swap(&add_idx, &localid, &ret_idx, MPI_INT,
-                             mimir_world_rank, 0, chunk_id_win);
-        MPI_Win_unlock(mimir_world_rank, chunk_id_win);
+                             chunk_mgr_rank, 0, chunk_id_win);
+        MPI_Win_unlock(chunk_mgr_rank, chunk_id_win);
         if (ret_idx == localid) {
 
-            MPI_Win_lock(MPI_LOCK_SHARED, mimir_world_rank, 0, chunk_map_win);
-            MPI_Accumulate(&mimir_world_rank, 1, MPI_INT, mimir_world_rank,
+            MPI_Win_lock(MPI_LOCK_SHARED, chunk_mgr_rank, 0, chunk_map_win);
+            MPI_Accumulate(&chunk_mgr_rank, 1, MPI_INT, chunk_mgr_rank,
                            localid, 1, MPI_INT, MPI_REPLACE, chunk_map_win);
-            MPI_Win_unlock(mimir_world_rank, chunk_map_win);
+            MPI_Win_unlock(chunk_mgr_rank, chunk_map_win);
 
-            return get_chunk(chunk, mimir_world_rank, localid);
+            return get_chunk(chunk, chunk_mgr_rank, localid);
         }
 
         return false;
@@ -390,9 +396,9 @@ class StealChunkManager : public ChunkManager {
         int one = 1;
         int local_chunk_id = 0;
         if (steal_off == 0) steal_off = 1;
-        while (steal_off < mimir_world_size) {
+        while (steal_off < chunk_mgr_size) {
 
-            int victim_rank = (mimir_world_rank + steal_off) % mimir_world_size;
+            int victim_rank = (chunk_mgr_rank + steal_off) % chunk_mgr_size;
             int victim_steal_off = 0;
             MPI_Win_lock(MPI_LOCK_SHARED, victim_rank, 0, steal_off_win);
             int tmp;
@@ -428,7 +434,7 @@ class StealChunkManager : public ChunkManager {
                     LOG_PRINT(DBG_CHUNK, "Chunk: steal chunk <%d,%d> from %d\n",
                               victim_rank, local_chunk_id, victim_rank);
                     MPI_Win_lock(MPI_LOCK_SHARED, victim_rank, 0, chunk_map_win);
-                    MPI_Accumulate(&mimir_world_rank, 1, MPI_INT, victim_rank,
+                    MPI_Accumulate(&chunk_mgr_rank, 1, MPI_INT, victim_rank,
                                    local_chunk_id, 1, MPI_INT, MPI_REPLACE,
                                    chunk_map_win);
                     MPI_Win_unlock(victim_rank, chunk_map_win);
@@ -476,9 +482,9 @@ class StealChunkManager : public ChunkManager {
     }
 
     void print_chunk_map() {
-        for (int i = 0; i < chunk_nums[mimir_world_rank]; i++) {
+        for (int i = 0; i < chunk_nums[chunk_mgr_rank]; i++) {
             printf("%d[%d] %d:%d\n",
-                   mimir_world_rank, mimir_world_size, i, chunk_map[i]);
+                   chunk_mgr_rank, chunk_mgr_size, i, chunk_map[i]);
         }
     }
 

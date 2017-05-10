@@ -18,11 +18,12 @@
 
 using namespace MIMIR_NS;
 
-NBCombineCollectiveShuffler::NBCombineCollectiveShuffler(CombineCallback user_combine,
+NBCombineCollectiveShuffler::NBCombineCollectiveShuffler(MPI_Comm comm,
+                                                         CombineCallback user_combine,
                                                          void *user_ptr,
                                                          Writable *out,
                                                          HashCallback user_hash)
-    : NBCollectiveShuffler(out, user_hash)
+    : NBCollectiveShuffler(comm, out, user_hash)
 {
     this->user_combine = user_combine;
     this->user_ptr = user_ptr;
@@ -51,7 +52,7 @@ void NBCombineCollectiveShuffler::write(BaseRecordFormat *record)
 {
     int target = get_target_rank(((KVRecord*)record)->get_key(),
                                  ((KVRecord*)record)->get_key_size());
-    if (target == mimir_world_rank) {
+    if (target == shuffle_rank) {
         out->write(record);
         return;
     }
@@ -172,7 +173,7 @@ void NBCombineCollectiveShuffler::garbage_collection()
         int dst_off = 0, src_off = 0;
         char *dst_buf = NULL, *src_buf = NULL;
 
-        for (int k = 0; k < mimir_world_size; k++) {
+        for (int k = 0; k < shuffle_size; k++) {
             src_buf = msg_buffers[cur_idx].send_buffer + k * (int64_t)buf_size;
             dst_buf = msg_buffers[cur_idx].send_buffer + k * (int64_t)buf_size;
 

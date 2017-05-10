@@ -12,28 +12,29 @@
 
 void get_default_values();
 
-void Mimir_Init(int *argc, char **argv[], MPI_Comm comm){
-    mimir_world_comm = comm;
-    MPI_Comm_rank(mimir_world_comm, &mimir_world_rank);
-    MPI_Comm_size(mimir_world_comm, &mimir_world_size);
+void mimir_init(){
+    //MPI_Comm_dup(comm, &mimir_world_comm);
+    mimir_world_comm = MPI_COMM_WORLD;
+    MPI_Comm_rank(MPI_COMM_WORLD, &mimir_world_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &mimir_world_size);
     INIT_STAT();
     get_default_values();
 }
 
-void Mimir_Finalize()
+void mimir_finalize()
 {
     if (OUTPUT_STAT) {
         const char *env = getenv("MIMIR_STAT_FILE");
         if (env) {
-            Mimir_stat(env);
+            mimir_stat(env);
         }
-        else Mimir_stat("Mimir");
+        else mimir_stat("Mimir");
     }
-
     UNINIT_STAT;
+    //MPI_Comm_free(&mimir_world_comm);
 }
 
-void Mimir_stat(const char* filename)
+void mimir_stat(const char* filename)
 {
     GET_CUR_TIME;
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
@@ -286,7 +287,7 @@ Library configuration:\n\
 \tdisk buffer size: %ld\n\
 \tbucket size (2^x): %d\n\
 \twork stealing: %d\n\
-\tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv; 2 - MPI_Isend)\n\
+\tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv)\n\
 \treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \tcomm buffer: min=%d, max=%d\n\
@@ -304,5 +305,3 @@ Library configuration:\n\
     //PROFILER_RECORD_COUNT(COUNTER_COMM_SIZE, (uint64_t) COMM_BUF_SIZE, OPMAX);
     //PROFILER_RECORD_COUNT(COUNTER_PAGE_SIZE, (uint64_t) DATA_PAGE_SIZE, OPMAX);
 }
-
-

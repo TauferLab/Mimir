@@ -18,7 +18,7 @@ namespace MIMIR_NS {
 
 class CollectiveShuffler : public BaseShuffler {
 public:
-    CollectiveShuffler(Writable *out, HashCallback user_hash);
+    CollectiveShuffler(MPI_Comm comm, Writable *out, HashCallback user_hash);
     virtual ~CollectiveShuffler();
 
     virtual bool open();

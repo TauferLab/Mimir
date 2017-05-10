@@ -6,16 +6,14 @@ libmimir_a_HEADERS = mimir.h interface.h recordformat.h globals.h hashbucket.h \
 		     filereader.h stat.h baseshuffler.h filewriter.h kvcontainer.h \
 		     container.h containeriter.h mimircontext.h tools.h memory.h \
 		     combinekvcontainer.h kmvcontainer.h collectiveshuffler.h  \
-		     nbcollectiveshuffler.h nbshuffler.h 		       \
-		     combinecollectiveshuffler.h config.h                      \
+		     nbcollectiveshuffler.h combinecollectiveshuffler.h config.h \
 		     nbcombinecollectiveshuffler.h chunkmanager.h
 libmimir_a_SOURCES = mimircontext.h                           		       \
 		     container.cpp container.h containeriter.h	       	       \
 		     kvcontainer.cpp kvcontainer.h		      	       \
 		     combinekvcontainer.cpp  combinekvcontainer.h	       \
 		     kmvcontainer.cpp kmvcontainer.h 		               \
-		     baseshuffler.h nbshuffler.cpp nbshuffler.h 	       \
-		     collectiveshuffler.cpp collectiveshuffler.h	       \
+		     baseshuffler.h collectiveshuffler.cpp collectiveshuffler.h\
 		     combinecollectiveshuffler.cpp combinecollectiveshuffler.h \
 		     nbcollectiveshuffler.cpp nbcollectiveshuffler.h	       \
 		     nbcombinecollectiveshuffler.cpp nbcombinecollectiveshuffler.h \

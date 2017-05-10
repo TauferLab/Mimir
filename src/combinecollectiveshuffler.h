@@ -19,7 +19,8 @@ class CombineCollectiveShuffler
     : public CollectiveShuffler, public Combinable 
 {
 public:
-    CombineCollectiveShuffler(CombineCallback user_combine,
+    CombineCollectiveShuffler(MPI_Comm comm,
+                              CombineCallback user_combine,
                               void *user_ptr,
                               Writable *out,
                               HashCallback user_hash);

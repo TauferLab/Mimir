@@ -19,9 +19,7 @@ void FileSplitter::bcast_file_list(InputSplit *input){
     char *tmp_buf = NULL;
     FileSeg *fileseg = NULL;
 
-    MPI_Barrier(mimir_world_comm);
-
-    if(mimir_world_rank == 0){
+    if(split_rank == 0){
         while((fileseg = input->get_next_file()) != NULL){
             total_count += (int)(fileseg->filename.size() + 1);
             total_count += (int)sizeof(uint64_t);
@@ -30,12 +28,12 @@ void FileSplitter::bcast_file_list(InputSplit *input){
         input->clear();
     }
 
-    MPI_Bcast( &total_count, 1, MPI_INT, 0, mimir_world_comm);
+    MPI_Bcast( &total_count, 1, MPI_INT, 0, split_comm);
 
     tmp_buf = new char[total_count];
 
     int off = 0;
-    if(mimir_world_rank == 0){
+    if(split_rank == 0){
         while((fileseg = input->get_next_file()) != NULL){
             memcpy(tmp_buf + off, fileseg->filename.c_str(),
                    (int)(fileseg->filename.size() + 1));
@@ -44,9 +42,9 @@ void FileSplitter::bcast_file_list(InputSplit *input){
             off += (int)sizeof(uint64_t);
         }
         if(off != total_count) LOG_ERROR("Error: broadcast file list!\n");
-        MPI_Bcast( tmp_buf, total_count, MPI_BYTE, 0, mimir_world_comm );
+        MPI_Bcast( tmp_buf, total_count, MPI_BYTE, 0, split_comm );
     }else{
-        MPI_Bcast( tmp_buf, total_count, MPI_BYTE, 0, mimir_world_comm );
+        MPI_Bcast( tmp_buf, total_count, MPI_BYTE, 0, split_comm );
         while (off < total_count){
             FileSeg tmp;
 
@@ -58,8 +56,8 @@ void FileSplitter::bcast_file_list(InputSplit *input){
             tmp.startpos = 0;
             tmp.segsize = tmp.filesize;
             tmp.maxsegsize = tmp.filesize;
-            tmp.startrank = mimir_world_rank;
-            tmp.endrank = mimir_world_rank;
+            tmp.startrank = split_rank;
+            tmp.endrank = split_rank;
             tmp.readorder = -1;
 
             input->add_seg_file(&tmp);
@@ -93,7 +91,7 @@ void FileSplitter::split_by_size(InputSplit* input, std::vector<InputSplit>& fil
     int max_rank = -1, proc_rank = 0;
     uint64_t proc_off = 0;
     uint64_t proc_blocks = get_proc_count(proc_rank, totalblocks);
-    uint64_t offsets[mimir_world_size + 1];
+    uint64_t offsets[split_size + 1];
 
     while((fileseg = input->get_next_file()) != NULL){
 
@@ -171,7 +169,7 @@ void FileSplitter::split_by_size(InputSplit* input, std::vector<InputSplit>& fil
     if(tmpsplit.get_file_count() > 0)
         LOG_ERROR("Split state error!\n");
 
-    for (int i = (int)files.size() ; i < mimir_world_size; i++) {
+    for (int i = (int)files.size() ; i < split_size; i++) {
         tmpsplit.clear();
         files.push_back(tmpsplit);
     }
@@ -204,7 +202,7 @@ void FileSplitter::split_by_name(InputSplit* input, std::vector<InputSplit>& fil
     }
 
     tmpsplit.clear();
-    for (int i = (int)files.size(); i < mimir_world_size; i++)
+    for (int i = (int)files.size(); i < split_size; i++)
         files.push_back(tmpsplit);
 }
 
@@ -213,8 +211,8 @@ void FileSplitter::split_by_name(InputSplit* input, std::vector<InputSplit>& fil
 //}
 
 uint64_t FileSplitter::get_proc_count(int rank, uint64_t totalcount){
-    uint64_t localcount = totalcount / mimir_world_size;
-    if(rank < (int)(totalcount % mimir_world_size)) localcount += 1;
+    uint64_t localcount = totalcount / split_size;
+    if(rank < (int)(totalcount % split_size)) localcount += 1;
 
     return localcount;
 }

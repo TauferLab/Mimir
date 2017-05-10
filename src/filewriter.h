@@ -32,16 +32,19 @@ namespace MIMIR_NS {
 
 class FileWriter : public Writable {
   public:
-    static FileWriter *getWriter(const char *filename);
+    static FileWriter *getWriter(MPI_Comm comm, const char *filename);
     static FileWriter *writer;
 
   public:
-    FileWriter(const char *filename, bool singlefile = false) {
+    FileWriter(MPI_Comm comm, const char *filename, bool singlefile = false) {
+        this->writer_comm = comm;
+        MPI_Comm_rank(writer_comm, &writer_rank);
+        MPI_Comm_size(writer_comm, &writer_size);
         this->filename = filename;
         this->singlefile = singlefile;
         if (!singlefile) {
             std::ostringstream oss;
-            oss << mimir_world_size << "." << mimir_world_rank;
+            oss << writer_size << "." << writer_rank;
             this->filename += oss.str();
         }
         shuffler = NULL;
@@ -162,12 +165,16 @@ class FileWriter : public Writable {
     uint64_t    bufsize;
     bool        singlefile;
     int         done_flag;
+
+    MPI_Comm    writer_comm;
+    int         writer_rank;
+    int         writer_size;
 };
 
 class DirectFileWriter : public FileWriter
 {
   public:
-    DirectFileWriter(const char *filename) : FileWriter(filename, false) {
+    DirectFileWriter(MPI_Comm comm, const char *filename) : FileWriter(comm, filename, false) {
     }
 
     virtual bool file_open() {
@@ -259,7 +266,7 @@ class DirectFileWriter : public FileWriter
 
 class MPIFileWriter : public FileWriter {
   public:
-    MPIFileWriter(const char *filename) : FileWriter(filename, true) {
+    MPIFileWriter(MPI_Comm comm, const char *filename) : FileWriter(comm, filename, true) {
     }
 
     virtual bool file_open() {
@@ -269,7 +276,7 @@ class MPIFileWriter : public FileWriter {
         MPI_Status st;
         if (this->shuffler) {
             //PROFILER_RECORD_TIME_START;
-            MPI_Ibarrier(mimir_world_comm, &req);
+            MPI_Ibarrier(writer_comm, &req);
             //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
             int flag = 0;
             while (!flag) {
@@ -283,7 +290,7 @@ class MPIFileWriter : public FileWriter {
 
         LOG_PRINT(DBG_IO, "Collective open output file %s.\n", filename.c_str());	
         PROFILER_RECORD_TIME_START;
-        MPI_CHECK(MPI_File_open(mimir_world_comm, filename.c_str(), 
+        MPI_CHECK(MPI_File_open(writer_comm, filename.c_str(), 
                                 MPI_MODE_WRONLY | MPI_MODE_CREATE,
                                 MPI_INFO_NULL, &(union_fp.mpi_fp)));
         if (union_fp.mpi_fp == MPI_FILE_NULL) {
@@ -303,13 +310,13 @@ class MPIFileWriter : public FileWriter {
         MPI_Request req;
         MPI_Status st;
         MPI_Offset fileoff = 0;
-        int sendcounts[mimir_world_size];
+        int sendcounts[writer_size];
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
         if (this->shuffler) {
             //PROFILER_RECORD_TIME_START;
-            MPI_Ibarrier(mimir_world_comm, &req);
+            MPI_Ibarrier(writer_comm, &req);
             //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
             int flag = 0;
             while (!flag) {
@@ -324,14 +331,14 @@ class MPIFileWriter : public FileWriter {
         //MPI_File_get_size(union_fp.mpi_fp, &filesize);
         PROFILER_RECORD_TIME_START;
         MPI_Allgather(&datasize, 1, MPI_INT,
-                      sendcounts, 1, MPI_INT, mimir_world_comm);
+                      sendcounts, 1, MPI_INT, writer_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_ALLGATHER);
 
         TRACKER_RECORD_EVENT(EVENT_COMM_ALLGATHER);
 
         fileoff = filesize;
-        for (int i = 0; i < mimir_world_rank; i++) fileoff += sendcounts[i];
-        for (int i = 0; i < mimir_world_size; i++) filesize += sendcounts[i];
+        for (int i = 0; i < writer_rank; i++) fileoff += sendcounts[i];
+        for (int i = 0; i < writer_size; i++) filesize += sendcounts[i];
 
         //if (mimir_world_rank == 0)
         //LOG_PRINT(DBG_IO, "Collective set output file %s:%lld\n", 
@@ -367,7 +374,7 @@ class MPIFileWriter : public FileWriter {
         //}
         PROFILER_RECORD_TIME_START;
         MPI_Allreduce(&done_flag, &done_count, 1, MPI_INT, MPI_SUM, 
-                       mimir_world_comm);
+                       writer_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
@@ -375,7 +382,7 @@ class MPIFileWriter : public FileWriter {
 
     virtual void file_close() {
         if (union_fp.mpi_fp) {
-            while (done_count < mimir_world_size) {
+            while (done_count < writer_size) {
                 file_write();
             }
 
@@ -385,7 +392,7 @@ class MPIFileWriter : public FileWriter {
             MPI_Status st;
             if (this->shuffler) {
                 //PROFILER_RECORD_TIME_START;
-                MPI_Ibarrier(mimir_world_comm, &req);
+                MPI_Ibarrier(writer_comm, &req);
                 //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
                 int flag = 0;
                 while (!flag) {
