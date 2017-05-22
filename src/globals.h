@@ -49,4 +49,6 @@ void mimir_init();
 void mimir_finalize();
 void mimir_stat(const char*);
 
+extern int mimir_ctx_count;
+
 #endif

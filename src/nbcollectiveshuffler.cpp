@@ -18,6 +18,8 @@
 
 using namespace MIMIR_NS;
 
+#if 0
+
 NBCollectiveShuffler::NBCollectiveShuffler(MPI_Comm comm, Writable *out, HashCallback user_hash)
     :  BaseShuffler(comm, out, user_hash)
 {
@@ -352,3 +354,5 @@ void NBCollectiveShuffler::push_kv_exchange() {
 
     return;
 }
+
+#endif

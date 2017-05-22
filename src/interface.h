@@ -13,36 +13,43 @@
 
 namespace MIMIR_NS {
 
+template <typename KeyType, typename ValType>
 class Base {
   public:
     virtual ~Base() {}
-    virtual bool open() = 0;
+    virtual int open() = 0;
     virtual void close() = 0;
     virtual uint64_t get_record_count() = 0; 
-    virtual std::string get_object_name() { 
-        return std::string("Unknown"); 
-    }
+    //virtual std::string get_object_name() { 
+    //    return std::string("Unknown"); 
+    //}
 };
 
-class Readable : public Base {
+template <typename KeyType, typename ValType>
+class Readable : public Base<KeyType, ValType> {
   public:
     virtual ~Readable() {}
-    virtual BaseRecordFormat* read() = 0;
+    virtual int read(KeyType*, ValType*) = 0;
 };
 
-class Writable : public Base {
+template <typename KeyType, typename ValType>
+class Writable : public Base<KeyType, ValType> {
   public:
     virtual ~Writable() {}
-    virtual void write(BaseRecordFormat *) = 0;
+    virtual int write(KeyType*, ValType*) = 0;
 };
 
+template <typename KeyType, typename ValType>
 class Combinable {
   public:
     virtual ~Combinable() {}
-    virtual void update(BaseRecordFormat *) = 0;
+    virtual void update(KeyType*, ValType*) = 0;
 };
 
-class BaseDatabase : virtual public Readable, virtual public Writable
+template <typename KeyType, typename ValType>
+class BaseDatabase : 
+    virtual public Readable<KeyType, ValType>,
+    virtual public Writable<KeyType, ValType>
 {
   public:
     BaseDatabase(bool if_inner_object = false) {
@@ -50,10 +57,10 @@ class BaseDatabase : virtual public Readable, virtual public Writable
         this->if_inner_object = if_inner_object;
     }
 
-    virtual bool open() = 0;
+    virtual int open() = 0;
     virtual void close() = 0;
-    virtual BaseRecordFormat* read() = 0;
-    virtual void write(BaseRecordFormat *) = 0;
+    virtual int read(KeyType *, ValType *) = 0;
+    virtual int write(KeyType *, ValType *) = 0;
 
     uint64_t getRef() {
         return ref;
@@ -92,9 +99,9 @@ class BaseDatabase : virtual public Readable, virtual public Writable
     bool        if_inner_object;
 };
 
-typedef void (*MapCallback) (Readable *input, Writable *output, void *ptr);
-typedef void (*ReduceCallback) (Readable *input, Writable *output, void *ptr);
-typedef void (*CombineCallback) (Combinable *output, KVRecord *kv1, KVRecord *kv2, void *ptr);
+//typedef void (*MapCallback) (Readable *input, Writable *output, void *ptr);
+//typedef void (*ReduceCallback) (Readable *input, Writable *output, void *ptr);
+//typedef void (*CombineCallback) (Combinable *output, KVRecord *kv1, KVRecord *kv2, void *ptr);
 typedef int (*HashCallback) (const char*, int);
 typedef int (*RepartitionCallback) (const char*, int, bool islast);
 

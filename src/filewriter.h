@@ -25,26 +25,30 @@
 #include "memory.h"
 #include "globals.h"
 #include "baseshuffler.h"
+#include "serializer.h"
 
 namespace MIMIR_NS {
 
 //class MPIFileWriter;
 
-class FileWriter : public Writable {
+template <typename KeyType, typename ValType>
+class FileWriter : public Writable<KeyType, ValType> {
   public:
     static FileWriter *getWriter(MPI_Comm comm, const char *filename);
     static FileWriter *writer;
 
   public:
-    FileWriter(MPI_Comm comm, const char *filename, bool singlefile = false) {
+    FileWriter(MPI_Comm comm, const char *filename, bool singlefile = false, int keycount = 1, int valcount = 1) {
         this->writer_comm = comm;
-        MPI_Comm_rank(writer_comm, &writer_rank);
-        MPI_Comm_size(writer_comm, &writer_size);
         this->filename = filename;
         this->singlefile = singlefile;
+        this->keycount = keycount;
+        this->valcount = valcount;
+        MPI_Comm_rank(writer_comm, &(this->writer_rank));
+        MPI_Comm_size(writer_comm, &(this->writer_size));
         if (!singlefile) {
             std::ostringstream oss;
-            oss << writer_size << "." << writer_rank;
+            oss << this->writer_size << "." << this->writer_rank;
             this->filename += oss.str();
         }
         shuffler = NULL;
@@ -53,7 +57,7 @@ class FileWriter : public Writable {
     std::string get_object_name() { return "FileWriter"; }
     std::string& get_file_name() { return filename; }
 
-    void set_shuffler(BaseShuffler *shuffler) {
+    void set_shuffler(BaseShuffler<KeyType,ValType> *shuffler) {
         this->shuffler = shuffler;
     }
 
@@ -61,42 +65,39 @@ class FileWriter : public Writable {
         return singlefile;
     }
 
-    virtual bool open() {
+    virtual int open() {
         bufsize = INPUT_BUF_SIZE;
-        datasize = 0;
+        this->datasize = 0;
         buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE,  bufsize);
         record_count = 0;
-        done_flag = 0;
+        this->done_flag = 0;
         return file_open();
     }
 
     virtual void close() {
-        done_flag = 1;
-        if (datasize > 0) file_write();
+        this->done_flag = 1;
+        if (this->datasize > 0) file_write();
         file_close();
         mem_aligned_free(buffer);
     }
 
-    virtual void write(BaseRecordFormat *record) {
-        if ((uint64_t)record->get_record_size() > bufsize) {
+    virtual int write(KeyType *key, ValType *val) {
+        int kvsize = Serializer::get_bytes<KeyType, ValType>(key, keycount, val, valcount);
+        if (kvsize > bufsize) {
             LOG_ERROR("The write record length is larger than the buffer size!\n");
         }
-        if (record->get_record_size() + datasize > bufsize) {
+        if (kvsize + datasize > bufsize) {
             file_write();
         }
-        //printf("record size=%d\n", record->get_record_size());
-        KVRecord kv;
-        kv.set_buffer(buffer + datasize);
-        kv.convert((KVRecord*)record);
-        //memcpy(buffer + datasize, record->get_record(),
-        //       record->get_record_size());
-        datasize += record->get_record_size();
+        Serializer::to_bytes<KeyType, ValType>
+            (key, keycount, val, valcount, buffer + datasize, bufsize - datasize);
+        datasize += kvsize;
         record_count++;
     }
 
     virtual uint64_t get_record_count() { return record_count; }
 
-    virtual bool file_open() {
+    virtual int file_open() {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
         //std::ostringstream oss;
@@ -105,16 +106,16 @@ class FileWriter : public Writable {
 
         PROFILER_RECORD_TIME_START;
 
-        union_fp.c_fp = fopen(filename.c_str(), "w+");
-        if (!union_fp.c_fp) {
-            LOG_ERROR("Open file %s error!\n", filename.c_str());
+        this->union_fp.c_fp = fopen(this->filename.c_str(), "w+");
+        if (!this->union_fp.c_fp) {
+            LOG_ERROR("Open file %s error!\n", this->filename.c_str());
         }
 
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
         TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
 
-        LOG_PRINT(DBG_IO, "Open output file %s.\n", filename.c_str());	
+        LOG_PRINT(DBG_IO, "Open output file %s.\n", this->filename.c_str());	
 
         return true;
     }
@@ -123,28 +124,28 @@ class FileWriter : public Writable {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
         LOG_PRINT(DBG_IO, "Write output file %s:%d\n", 
-                  filename.c_str(), (int)datasize);
+                  this->filename.c_str(), (int)(this->datasize));
 
         PROFILER_RECORD_TIME_START;
-        fwrite(buffer, datasize, 1, union_fp.c_fp);
+        fwrite(this->buffer, this->datasize, 1, this->union_fp.c_fp);
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
-        datasize = 0;
+        this->datasize = 0;
         TRACKER_RECORD_EVENT(EVENT_DISK_FWRITE);
     }
 
     virtual void file_close() {
-        if (union_fp.c_fp) {
+        if (this->union_fp.c_fp) {
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
             PROFILER_RECORD_TIME_START;
-            fclose(union_fp.c_fp);
+            fclose(this->union_fp.c_fp);
             PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
-            union_fp.c_fp = NULL;
+            this->union_fp.c_fp = NULL;
             TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
 
-            LOG_PRINT(DBG_IO, "Close output file %s.\n", filename.c_str());	
+            LOG_PRINT(DBG_IO, "Close output file %s.\n", this->filename.c_str());	
         }
     }
 
@@ -152,7 +153,7 @@ class FileWriter : public Writable {
     std::string filename;
     uint64_t record_count;
 
-    BaseShuffler     *shuffler;
+    BaseShuffler<KeyType,ValType> *shuffler;
 
     union FilePtr {
         FILE    *c_fp;
@@ -169,24 +170,28 @@ class FileWriter : public Writable {
     MPI_Comm    writer_comm;
     int         writer_rank;
     int         writer_size;
+
+    int     keycount, valcount;
 };
 
-class DirectFileWriter : public FileWriter
+template <typename KeyType, typename ValType>
+class DirectFileWriter : public FileWriter<KeyType, ValType>
 {
   public:
-    DirectFileWriter(MPI_Comm comm, const char *filename) : FileWriter(comm, filename, false) {
+    DirectFileWriter(MPI_Comm comm, const char *filename) 
+        : FileWriter<KeyType, ValType>(comm, filename, false) {
     }
 
-    virtual bool file_open() {
+    virtual int file_open() {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
         PROFILER_RECORD_TIME_START;
 
-        union_fp.posix_fd = ::open(filename.c_str(), O_CREAT | O_WRONLY | 
+        this->union_fp.posix_fd = ::open(this->filename.c_str(), O_CREAT | O_WRONLY | 
                                    O_DIRECT | O_LARGEFILE,
                                    S_IRUSR | S_IWUSR);
-        if (union_fp.posix_fd == -1) {
-            LOG_ERROR("Open file %s error %d!\n", filename.c_str(), errno);
+        if (this->union_fp.posix_fd == -1) {
+            LOG_ERROR("Open file %s error %d!\n", this->filename.c_str(), errno);
         }
 
         filesize = 0;
@@ -195,7 +200,7 @@ class DirectFileWriter : public FileWriter
 
         TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);
 
-        LOG_PRINT(DBG_IO, "Open (POSIX) output file %s.\n", filename.c_str());	
+        LOG_PRINT(DBG_IO, "Open (POSIX) output file %s.\n", this->filename.c_str());	
 
         return true;
     }
@@ -204,20 +209,20 @@ class DirectFileWriter : public FileWriter
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
         LOG_PRINT(DBG_IO, "Write (POSIX) output file %s:%d\n", 
-                  filename.c_str(), (int)datasize);
+                  this->filename.c_str(), (int)(this->datasize));
 
         PROFILER_RECORD_TIME_START;
         //::lseek64(union_fp.posix_fd, 0, SEEK_END);
         uint64_t total_bytes = 0;
-        if (done_flag) {
-            total_bytes = ROUNDUP(datasize, DISKPAGE_SIZE) * DISKPAGE_SIZE;
+        if (this->done_flag) {
+            total_bytes = ROUNDUP((this->datasize), DISKPAGE_SIZE) * DISKPAGE_SIZE;
         } else {
-            total_bytes = ROUNDDOWN(datasize, DISKPAGE_SIZE) * DISKPAGE_SIZE;
+            total_bytes = ROUNDDOWN((this->datasize), DISKPAGE_SIZE) * DISKPAGE_SIZE;
         }
         uint64_t remain_bytes = total_bytes;
-        char *remain_buffer = buffer;
+        char *remain_buffer = this->buffer;
         do {
-            ssize_t write_bytes = ::write(union_fp.posix_fd, remain_buffer, remain_bytes);
+            ssize_t write_bytes = ::write(this->union_fp.posix_fd, remain_buffer, remain_bytes);
             if (write_bytes == -1) {
                 LOG_ERROR("Write error, %d\n", errno);
             }
@@ -226,37 +231,37 @@ class DirectFileWriter : public FileWriter
         } while (remain_bytes > 0);
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
-        if (total_bytes < datasize) {
+        if (total_bytes < this->datasize) {
             filesize += total_bytes;
-            datasize = datasize - total_bytes;
-            for (size_t i = 0; i < datasize; i++) {
-                buffer[i] = buffer[total_bytes + i];
+            this->datasize = this->datasize - total_bytes;
+            for (size_t i = 0; i < this->datasize; i++) {
+                this->buffer[i] = this->buffer[total_bytes + i];
             }
-        } else if (total_bytes > datasize ) {
-            filesize += datasize;
-            datasize = 0;
+        } else if (total_bytes > this->datasize ) {
+            filesize += this->datasize;
+            this->datasize = 0;
             LOG_PRINT(DBG_IO, "Set (POSIX) output file %s:%ld\n", 
-                      filename.c_str(), filesize);
-            ::ftruncate64(union_fp.posix_fd, filesize);
+                      this->filename.c_str(), filesize);
+            ::ftruncate64(this->union_fp.posix_fd, filesize);
         } else {
-            filesize += datasize;
-            datasize = 0;
+            filesize += this->datasize;
+            this->datasize = 0;
         }
         TRACKER_RECORD_EVENT(EVENT_DISK_FWRITE);
     }
 
     virtual void file_close() {
-        if (union_fp.posix_fd != -1) {
+        if (this->union_fp.posix_fd != -1) {
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
             PROFILER_RECORD_TIME_START;
-            ::close(union_fp.posix_fd);
+            ::close(this->union_fp.posix_fd);
             PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
-            union_fp.posix_fd = -1;
+            this->union_fp.posix_fd = -1;
             TRACKER_RECORD_EVENT(EVENT_DISK_FCLOSE);
 
-            LOG_PRINT(DBG_IO, "Close (POSIX) output file %s.\n", filename.c_str());	
+            LOG_PRINT(DBG_IO, "Close (POSIX) output file %s.\n", this->filename.c_str());	
         }
     }
 
@@ -264,19 +269,21 @@ class DirectFileWriter : public FileWriter
     off64_t     filesize;
 };
 
-class MPIFileWriter : public FileWriter {
+template <typename KeyType, typename ValType>
+class MPIFileWriter : public FileWriter<KeyType, ValType> {
   public:
-    MPIFileWriter(MPI_Comm comm, const char *filename) : FileWriter(comm, filename, true) {
+    MPIFileWriter(MPI_Comm comm, const char *filename) : 
+        FileWriter<KeyType, ValType>(comm, filename, true) {
     }
 
-    virtual bool file_open() {
+    virtual int file_open() {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
         MPI_Request req;
         MPI_Status st;
         if (this->shuffler) {
             //PROFILER_RECORD_TIME_START;
-            MPI_Ibarrier(writer_comm, &req);
+            MPI_Ibarrier(this->writer_comm, &req);
             //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
             int flag = 0;
             while (!flag) {
@@ -288,13 +295,13 @@ class MPIFileWriter : public FileWriter {
             TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         }
 
-        LOG_PRINT(DBG_IO, "Collective open output file %s.\n", filename.c_str());	
+        LOG_PRINT(DBG_IO, "Collective open output file %s.\n", this->filename.c_str());	
         PROFILER_RECORD_TIME_START;
-        MPI_CHECK(MPI_File_open(writer_comm, filename.c_str(), 
+        MPI_CHECK(MPI_File_open(this->writer_comm, this->filename.c_str(), 
                                 MPI_MODE_WRONLY | MPI_MODE_CREATE,
-                                MPI_INFO_NULL, &(union_fp.mpi_fp)));
-        if (union_fp.mpi_fp == MPI_FILE_NULL) {
-            LOG_ERROR("Open file %s error!\n", filename.c_str());
+                                MPI_INFO_NULL, &(this->union_fp.mpi_fp)));
+        if (this->union_fp.mpi_fp == MPI_FILE_NULL) {
+            LOG_ERROR("Open file %s error!\n", this->filename.c_str());
         }
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
@@ -310,13 +317,13 @@ class MPIFileWriter : public FileWriter {
         MPI_Request req;
         MPI_Status st;
         MPI_Offset fileoff = 0;
-        int sendcounts[writer_size];
+        int sendcounts[this->writer_size];
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
         if (this->shuffler) {
             //PROFILER_RECORD_TIME_START;
-            MPI_Ibarrier(writer_comm, &req);
+            MPI_Ibarrier(this->writer_comm, &req);
             //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
             int flag = 0;
             while (!flag) {
@@ -330,15 +337,15 @@ class MPIFileWriter : public FileWriter {
 
         //MPI_File_get_size(union_fp.mpi_fp, &filesize);
         PROFILER_RECORD_TIME_START;
-        MPI_Allgather(&datasize, 1, MPI_INT,
-                      sendcounts, 1, MPI_INT, writer_comm);
+        MPI_Allgather(&(this->datasize), 1, MPI_INT,
+                      sendcounts, 1, MPI_INT, this->writer_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_ALLGATHER);
 
         TRACKER_RECORD_EVENT(EVENT_COMM_ALLGATHER);
 
         fileoff = filesize;
-        for (int i = 0; i < writer_rank; i++) fileoff += sendcounts[i];
-        for (int i = 0; i < writer_size; i++) filesize += sendcounts[i];
+        for (int i = 0; i < this->writer_rank; i++) fileoff += sendcounts[i];
+        for (int i = 0; i < this->writer_size; i++) filesize += sendcounts[i];
 
         //if (mimir_world_rank == 0)
         //LOG_PRINT(DBG_IO, "Collective set output file %s:%lld\n", 
@@ -356,12 +363,12 @@ class MPIFileWriter : public FileWriter {
         //}
 
         LOG_PRINT(DBG_IO, "Collective write output file %s:%lld+%d\n", 
-                  filename.c_str(), fileoff, (int)datasize);
+                  this->filename.c_str(), fileoff, (int)(this->datasize));
 
         PROFILER_RECORD_TIME_START;
-        MPI_CHECK(MPI_File_write_at_all(union_fp.mpi_fp, fileoff, buffer,
-                                        (int)datasize, MPI_BYTE, &st));
-        datasize = 0;
+        MPI_CHECK(MPI_File_write_at_all(this->union_fp.mpi_fp, fileoff, 
+                                        this->buffer, (int)(this->datasize), MPI_BYTE, &st));
+        this->datasize = 0;
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIWRITEATALL);
 
@@ -373,16 +380,16 @@ class MPIFileWriter : public FileWriter {
         //    if (this->shuffler) this->shuffler->make_progress();
         //}
         PROFILER_RECORD_TIME_START;
-        MPI_Allreduce(&done_flag, &done_count, 1, MPI_INT, MPI_SUM, 
-                       writer_comm);
+        MPI_Allreduce(&this->done_flag, &done_count, 1, MPI_INT, MPI_SUM, 
+                       this->writer_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
     }
 
     virtual void file_close() {
-        if (union_fp.mpi_fp) {
-            while (done_count < writer_size) {
+        if (this->union_fp.mpi_fp) {
+            while (done_count < this->writer_size) {
                 file_write();
             }
 
@@ -392,7 +399,7 @@ class MPIFileWriter : public FileWriter {
             MPI_Status st;
             if (this->shuffler) {
                 //PROFILER_RECORD_TIME_START;
-                MPI_Ibarrier(writer_comm, &req);
+                MPI_Ibarrier(this->writer_comm, &req);
                 //PROFILER_RECORD_TIME_END(TIMER_COMM_IBARRIER);
                 int flag = 0;
                 while (!flag) {
@@ -405,19 +412,37 @@ class MPIFileWriter : public FileWriter {
             }
 
             PROFILER_RECORD_TIME_START;
-            MPI_CHECK(MPI_File_close(&(union_fp.mpi_fp)));
-            union_fp.mpi_fp = MPI_FILE_NULL;
+            MPI_CHECK(MPI_File_close(&(this->union_fp.mpi_fp)));
+            this->union_fp.mpi_fp = MPI_FILE_NULL;
             PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
             TRACKER_RECORD_EVENT(EVENT_DISK_MPICLOSE);
 
-            LOG_PRINT(DBG_IO, "Collective close output file %s.\n", filename.c_str());	
+            LOG_PRINT(DBG_IO, "Collective close output file %s.\n", this->filename.c_str());	
         }
     }
   private:
     int done_count;
     MPI_Offset filesize;
 };
+
+template <typename KeyType, typename ValType>
+FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::writer = NULL;
+
+template <typename KeyType, typename ValType>
+FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::getWriter(MPI_Comm comm, const char *filename) {
+    //if (writer != NULL) delete writer;
+    if (WRITER_TYPE == 0) {
+        writer = new FileWriter<KeyType, ValType>(comm, filename);
+    } else if (WRITER_TYPE == 1) {
+        writer = new DirectFileWriter<KeyType, ValType>(comm, filename);
+    } else if (WRITER_TYPE == 2) {
+        writer = new MPIFileWriter<KeyType, ValType>(comm, filename); 
+    } else {
+        LOG_ERROR("Error writer type %d\n", WRITER_TYPE);
+    }
+    return writer;
+}
 
 }
 

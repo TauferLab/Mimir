@@ -9,7 +9,7 @@
 #include "kmvcontainer.h"
 
 using namespace MIMIR_NS;
-
+#if 0
 void KMVContainer::convert(Readable *kv) {
     const char *key, *value;
     int keybytes, valuebytes;
@@ -110,4 +110,4 @@ void KMVContainer::convert(Readable *kv) {
 
     LOG_PRINT(DBG_GEN, "MapReduce: convert end.\n");
 }
-
+#endif

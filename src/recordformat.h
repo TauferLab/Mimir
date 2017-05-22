@@ -14,7 +14,32 @@
 #include "baserecordformat.h"
 
 namespace MIMIR_NS {
+#if 0
+int text_file_line(char *buffer, int len, bool islast) {
 
+    if (len == 0) return -1;
+
+    int i = 0;
+    for (i = 0; i < len; i++) {
+        if(*(buffer + i) == '\n')
+            break;
+    }
+
+    if (i < len) {
+        buffer[i] = '\0';
+        return i + 1;
+    }
+
+    if (islast) {
+        buffer[len] = '\0';
+        return len + 1;
+    }
+
+    return -1;
+}
+#endif
+
+#if 0
 class StringRecord : public BaseRecordFormat {
   public:
     virtual int get_record_size() {
@@ -378,6 +403,7 @@ class KMVRecord : public KVRecord {
     ReducerUnique *ukey;
     ReducerSet *pset;
 };
+#endif
 
 }
 

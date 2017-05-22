@@ -12,6 +12,8 @@ MPI_Comm  mimir_world_comm;
 int mimir_world_rank = -1;
 int mimir_world_size = 0;
 
+int mimir_ctx_count = 0;
+
 char dump_buffer[MIMIR_MAX_LOG_LEN] = "";
 
 void handle_error(int errcode, const char *str)

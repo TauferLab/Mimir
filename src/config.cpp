@@ -37,9 +37,6 @@ int WORK_STEAL = 0;
 /// (0: collective; 1: point to point)
 int KV_EXCH_COMM = 0;
 
-/// Maximum number of pages
-int MAX_PAGE_COUNT = 1024;
-
 /// Number of set when converting KVs to KMVs (2^x)
 int SET_COUNT = 1024 * 1024;
 
@@ -55,7 +52,7 @@ int DBG_LEVEL = 0;
 /// Record peakmem
 int RECORD_PEAKMEM = 0;
 
-int KTYPE = -2, VTYPE = -2;
+//int KTYPE = -2, VTYPE = -2;
 
 // 0: POSIX interfaces
 // 1: MPIIO interfaces

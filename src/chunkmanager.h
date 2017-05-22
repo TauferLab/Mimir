@@ -45,6 +45,7 @@ struct BorderMsg {
     Chunk       msg_chunk;
 };
 
+template <typename KeyType, typename ValType>
 class ChunkManager {
   public:
     ChunkManager(MPI_Comm comm, std::vector<std::string> input_dir, SplitPolicy policy = BYNAME) {
@@ -63,24 +64,24 @@ class ChunkManager {
         FileSplitter::getFileSplitter(chunk_mgr_comm)->split(&filelist, file_list, policy);
         file_list[chunk_mgr_rank].print();
         // get file chunk number
-        total_chunk = 0;
-        chunk_nums = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * chunk_mgr_size);
+        this->total_chunk = 0;
+        this->chunk_nums = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * chunk_mgr_size);
         for (int i = 0; i < chunk_mgr_size; i++) {
-            chunk_nums[i] = get_chunk_num(i);
-            total_chunk += chunk_nums[i];
+            this->chunk_nums[i] = get_chunk_num(i);
+            this->total_chunk += this->chunk_nums[i];
         }
         chunk_id = 0;
         shuffler = NULL;
         LOG_PRINT(DBG_CHUNK, "Chunk: chuck count=%d, total chucnks=%ld\n",
-                  chunk_nums[chunk_mgr_rank], total_chunk);
+                  this->chunk_nums[chunk_mgr_rank], this->total_chunk);
     }
 
     virtual ~ChunkManager() {
-        mem_aligned_free(chunk_nums);
+        mem_aligned_free(this->chunk_nums);
         LOG_PRINT(DBG_CHUNK, "Chunk: uninit\n");
     }
 
-    virtual void set_shuffler(BaseShuffler *shuffler) {
+    virtual void set_shuffler(BaseShuffler<KeyType,ValType> *shuffler) {
         this->shuffler = shuffler;
     }
 
@@ -178,7 +179,7 @@ class ChunkManager {
 
     virtual bool acquire_chunk(Chunk& chunk) {
         make_progress();
-        if (chunk_id >= chunk_nums[chunk_mgr_rank]) return false;
+        if (chunk_id >= this->chunk_nums[chunk_mgr_rank]) return false;
         int my_chunk_id = chunk_id;
         chunk_id ++;
         return get_chunk(chunk, chunk_mgr_rank, my_chunk_id);
@@ -186,7 +187,7 @@ class ChunkManager {
 
     virtual bool acquire_local_chunk(Chunk& chunk, int localid) {
         make_progress();
-        if (chunk_id >= chunk_nums[chunk_mgr_rank]) return false;
+        if (chunk_id >= this->chunk_nums[chunk_mgr_rank]) return false;
         if (chunk_id == localid) {
             chunk_id += 1;
             return get_chunk(chunk, chunk_mgr_rank, localid);
@@ -236,7 +237,7 @@ class ChunkManager {
 
     virtual int next_chunk_worker(Chunk &chunk) {
         if (chunk.procrank < chunk_mgr_size - 1
-            && chunk.localid == chunk_nums[chunk.procrank] - 1)
+            && chunk.localid == this->chunk_nums[chunk.procrank] - 1)
             return chunk.procrank + 1;
         LOG_ERROR("Chunk (%ld: %d, %d) is not a border chunk!\n",
                   chunk.globalid, chunk.procrank, chunk.localid);
@@ -245,7 +246,7 @@ class ChunkManager {
 
     void LocaltoGlobal(int procrank, int localid, int64_t& globalid) {
         uint64_t localoff = 0;
-        for (int i = 0; i < procrank; i++) localoff += chunk_nums[i];
+        for (int i = 0; i < procrank; i++) localoff += this->chunk_nums[i];
         globalid = localoff + localid;
     }
 
@@ -253,7 +254,7 @@ class ChunkManager {
         int64_t startoff = 0;
         int64_t endoff = 0;
         for (int i = 0; i < chunk_mgr_size; i++) {
-            endoff = startoff + chunk_nums[i];
+            endoff = startoff + this->chunk_nums[i];
             if (globalid >= startoff && globalid < endoff) {
                 procrank = i;
                 localid = globalid - startoff;
@@ -302,28 +303,29 @@ class ChunkManager {
     int*                         chunk_nums;
     int                          chunk_id;
     int64_t                      total_chunk;
-    BaseShuffler*                shuffler;
+    BaseShuffler<KeyType,ValType>* shuffler;
     std::vector<BorderMsg>       msg_list;
     MPI_Comm                     chunk_mgr_comm;
     int                          chunk_mgr_rank;
     int                          chunk_mgr_size;
 };
 
-class StealChunkManager : public ChunkManager {
+template <typename KeyType, typename ValType>
+class StealChunkManager : public ChunkManager<KeyType,ValType> {
   public:
     StealChunkManager(MPI_Comm comm, std::vector<std::string> input_dir, SplitPolicy policy = BYNAME)
-        : ChunkManager(comm, input_dir, policy) {
+        : ChunkManager<KeyType,ValType>(comm, input_dir, policy) {
         steal_off = 0;
         chunk_map = (int*)mem_aligned_malloc(MEMPAGE_SIZE,
-                                             sizeof(int) * chunk_nums[chunk_mgr_rank]);
-        for (int i = 0; i < chunk_nums[chunk_mgr_rank]; i++)
+                                             sizeof(int) * this->chunk_nums[this->chunk_mgr_rank]);
+        for (int i = 0; i < this->chunk_nums[this->chunk_mgr_rank]; i++)
             chunk_map[i] = PROC_RANK_PENDING;
-        MPI_Win_create(&chunk_id, sizeof(int), sizeof(int),
-                       MPI_INFO_NULL, chunk_mgr_comm, &chunk_id_win);
+        MPI_Win_create(&(this->chunk_id), sizeof(int), sizeof(int),
+                       MPI_INFO_NULL, this->chunk_mgr_comm, &chunk_id_win);
         MPI_Win_create(&steal_off, sizeof(int), sizeof(int),
-                       MPI_INFO_NULL, chunk_mgr_comm, &steal_off_win);
-        MPI_Win_create(chunk_map, sizeof(int) * chunk_nums[chunk_mgr_rank], 
-                       sizeof(int), MPI_INFO_NULL, chunk_mgr_comm, &chunk_map_win);
+                       MPI_INFO_NULL, this->chunk_mgr_comm, &steal_off_win);
+        MPI_Win_create(chunk_map, sizeof(int) * this->chunk_nums[this->chunk_mgr_rank], 
+                       sizeof(int), MPI_INFO_NULL, this->chunk_mgr_comm, &chunk_map_win);
     }
 
     virtual ~StealChunkManager() {
@@ -336,55 +338,55 @@ class StealChunkManager : public ChunkManager {
     virtual bool acquire_chunk(Chunk& chunk) {
         int one = 1, my_chunk_id = 0;
 
-        make_progress();
+        this->make_progress();
 
-        if (chunk_id >= chunk_nums[chunk_mgr_rank])
+        if (this->chunk_id >= this->chunk_nums[this->chunk_mgr_rank])
             return steal_chunk(chunk);
 
-        MPI_Win_lock(MPI_LOCK_SHARED, chunk_mgr_rank, 0, chunk_id_win);
+        MPI_Win_lock(MPI_LOCK_SHARED, this->chunk_mgr_rank, 0, chunk_id_win);
 #ifdef MPI_FETCH_AND_OP
         MPI_Fetch_and_op(&one, &my_chunk_id,
-                         MPI_INT, chunk_mgr_rank, 0,
+                         MPI_INT, this->chunk_mgr_rank, 0,
                          MPI_SUM, chunk_id_win);
 #else
         MPI_Get_accumulate(&one, 1, MPI_INT, &my_chunk_id, 1, MPI_INT,
-                           chunk_mgr_rank, 0, 1, MPI_INT, MPI_SUM, chunk_id_win);
+                           this->chunk_mgr_rank, 0, 1, MPI_INT, MPI_SUM, chunk_id_win);
 #endif
-        MPI_Win_unlock(chunk_mgr_rank, chunk_id_win);
+        MPI_Win_unlock(this->chunk_mgr_rank, chunk_id_win);
 
-        if (my_chunk_id >= chunk_nums[chunk_mgr_rank])
+        if (my_chunk_id >= this->chunk_nums[this->chunk_mgr_rank])
             return steal_chunk(chunk);
 
-        MPI_Win_lock(MPI_LOCK_SHARED, chunk_mgr_rank, 0, chunk_map_win);
-        MPI_Accumulate(&chunk_mgr_rank, 1, MPI_INT,
-                       chunk_mgr_rank, my_chunk_id, 1, MPI_INT,
+        MPI_Win_lock(MPI_LOCK_SHARED, this->chunk_mgr_rank, 0, chunk_map_win);
+        MPI_Accumulate(&(this->chunk_mgr_rank), 1, MPI_INT,
+                       this->chunk_mgr_rank, my_chunk_id, 1, MPI_INT,
                        MPI_REPLACE, chunk_map_win);
-        MPI_Win_unlock(chunk_mgr_rank, chunk_map_win);
+        MPI_Win_unlock(this->chunk_mgr_rank, chunk_map_win);
 
-        return get_chunk(chunk, chunk_mgr_rank, my_chunk_id);
+        return this->get_chunk(chunk, this->chunk_mgr_rank, my_chunk_id);
     }
 
     virtual bool acquire_local_chunk(Chunk& chunk, int localid) {
 
-        make_progress();
+        this->make_progress();
 
-        if (chunk_id >= chunk_nums[chunk_mgr_rank]) {
+        if (this->chunk_id >= this->chunk_nums[this->chunk_mgr_rank]) {
             return false;
         }
 
         int add_idx = localid + 1, ret_idx = 0;
-        MPI_Win_lock(MPI_LOCK_SHARED, chunk_mgr_rank, 0, chunk_id_win);
+        MPI_Win_lock(MPI_LOCK_SHARED, this->chunk_mgr_rank, 0, chunk_id_win);
         MPI_Compare_and_swap(&add_idx, &localid, &ret_idx, MPI_INT,
-                             chunk_mgr_rank, 0, chunk_id_win);
-        MPI_Win_unlock(chunk_mgr_rank, chunk_id_win);
+                             this->chunk_mgr_rank, 0, chunk_id_win);
+        MPI_Win_unlock(this->chunk_mgr_rank, chunk_id_win);
         if (ret_idx == localid) {
 
-            MPI_Win_lock(MPI_LOCK_SHARED, chunk_mgr_rank, 0, chunk_map_win);
-            MPI_Accumulate(&chunk_mgr_rank, 1, MPI_INT, chunk_mgr_rank,
+            MPI_Win_lock(MPI_LOCK_SHARED, this->chunk_mgr_rank, 0, chunk_map_win);
+            MPI_Accumulate(&(this->chunk_mgr_rank), 1, MPI_INT, this->chunk_mgr_rank,
                            localid, 1, MPI_INT, MPI_REPLACE, chunk_map_win);
-            MPI_Win_unlock(chunk_mgr_rank, chunk_map_win);
+            MPI_Win_unlock(this->chunk_mgr_rank, chunk_map_win);
 
-            return get_chunk(chunk, chunk_mgr_rank, localid);
+            return this->get_chunk(chunk, this->chunk_mgr_rank, localid);
         }
 
         return false;
@@ -396,9 +398,9 @@ class StealChunkManager : public ChunkManager {
         int one = 1;
         int local_chunk_id = 0;
         if (steal_off == 0) steal_off = 1;
-        while (steal_off < chunk_mgr_size) {
+        while (steal_off < this->chunk_mgr_size) {
 
-            int victim_rank = (chunk_mgr_rank + steal_off) % chunk_mgr_size;
+            int victim_rank = (this->chunk_mgr_rank + steal_off) % this->chunk_mgr_size;
             int victim_steal_off = 0;
             MPI_Win_lock(MPI_LOCK_SHARED, victim_rank, 0, steal_off_win);
             int tmp;
@@ -429,16 +431,16 @@ class StealChunkManager : public ChunkManager {
                       victim_rank, local_chunk_id);
 
                 // steal success
-                if (local_chunk_id < chunk_nums[victim_rank]) {
+                if (local_chunk_id < this->chunk_nums[victim_rank]) {
                     // write
                     LOG_PRINT(DBG_CHUNK, "Chunk: steal chunk <%d,%d> from %d\n",
                               victim_rank, local_chunk_id, victim_rank);
                     MPI_Win_lock(MPI_LOCK_SHARED, victim_rank, 0, chunk_map_win);
-                    MPI_Accumulate(&chunk_mgr_rank, 1, MPI_INT, victim_rank,
+                    MPI_Accumulate(&(this->chunk_mgr_rank), 1, MPI_INT, victim_rank,
                                    local_chunk_id, 1, MPI_INT, MPI_REPLACE,
                                    chunk_map_win);
                     MPI_Win_unlock(victim_rank, chunk_map_win);
-                    return get_chunk(chunk, victim_rank, local_chunk_id);
+                    return this->get_chunk(chunk, victim_rank, local_chunk_id);
                 } else {
                     steal_off += 1;
                 }
@@ -460,16 +462,16 @@ class StealChunkManager : public ChunkManager {
     int get_chunk_worker(int64_t globalid) {
         int worker_rank = 0, chunk_owner_rank = 0, chunk_owner_id = 0;
 
-        if (globalid >= total_chunk)
+        if (globalid >= this->total_chunk)
             LOG_ERROR("Global id %ld is error!\n", globalid);
 
-        GlobaltoLocal(globalid, chunk_owner_rank, chunk_owner_id);
+        this->GlobaltoLocal(globalid, chunk_owner_rank, chunk_owner_id);
 
         MPI_Win_lock(MPI_LOCK_SHARED, chunk_owner_rank, 0, chunk_map_win);
         int tmp;
 #ifdef MPI_FETCH_AND_OP
         MPI_Fetch_and_op(&tmp, &worker_rank,
-                         MPI_INT, chunk_owner_rank, chunk_owner_id,
+    MPI_INT, chunk_owner_rank, chunk_owner_id,
                          MPI_NO_OP, chunk_map_win);
 #else
         MPI_Get_accumulate(&tmp, 1, MPI_INT, &worker_rank, 1, MPI_INT,
@@ -482,9 +484,9 @@ class StealChunkManager : public ChunkManager {
     }
 
     void print_chunk_map() {
-        for (int i = 0; i < chunk_nums[chunk_mgr_rank]; i++) {
+        for (int i = 0; i < this->chunk_nums[this->chunk_mgr_rank]; i++) {
             printf("%d[%d] %d:%d\n",
-                   chunk_mgr_rank, chunk_mgr_size, i, chunk_map[i]);
+                   this->chunk_mgr_rank, this->chunk_mgr_size, i, chunk_map[i]);
         }
     }
 

@@ -18,6 +18,7 @@
 
 using namespace MIMIR_NS;
 
+#if 0
 NBCombineCollectiveShuffler::NBCombineCollectiveShuffler(MPI_Comm comm,
                                                          CombineCallback user_combine,
                                                          void *user_ptr,
@@ -202,3 +203,4 @@ void NBCombineCollectiveShuffler::garbage_collection()
     }
     bucket->clear();
 }
+#endif

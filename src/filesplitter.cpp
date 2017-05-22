@@ -33,7 +33,7 @@ void FileSplitter::bcast_file_list(InputSplit *input){
     tmp_buf = new char[total_count];
 
     int off = 0;
-    if(split_rank == 0){
+    if (split_rank == 0) {
         while((fileseg = input->get_next_file()) != NULL){
             memcpy(tmp_buf + off, fileseg->filename.c_str(),
                    (int)(fileseg->filename.size() + 1));
@@ -93,7 +93,7 @@ void FileSplitter::split_by_size(InputSplit* input, std::vector<InputSplit>& fil
     uint64_t proc_blocks = get_proc_count(proc_rank, totalblocks);
     uint64_t offsets[split_size + 1];
 
-    while((fileseg = input->get_next_file()) != NULL){
+    while ( (fileseg = input->get_next_file()) != NULL){
 
         uint64_t maxsegsize = 0;
         uint64_t file_off = 0, file_blocks = 0;
@@ -129,38 +129,42 @@ void FileSplitter::split_by_size(InputSplit* input, std::vector<InputSplit>& fil
         // this is a share file
         if(end_rank > start_rank){
             for(int i = start_rank; i <= end_rank; i++){
-                FileSeg    tmpseg;
-                tmpseg.filename = fileseg->filename;
-                tmpseg.filesize = fileseg->filesize;
-                tmpseg.startpos = offsets[i - start_rank];
-                tmpseg.segsize = offsets[i - start_rank + 1] 
-                                - offsets[i - start_rank];
-                tmpseg.maxsegsize = maxsegsize;
-                tmpseg.startrank = start_rank;
-                tmpseg.endrank = end_rank;
-                if(start_rank > max_rank) tmpseg.readorder = 0;
-                else tmpseg.readorder = 1;
-                tmpsplit.add_seg_file(&tmpseg);
-                if(i < proc_rank){
-                    files.push_back(tmpsplit);
-                    tmpsplit.clear();
+                if (fileseg->filesize > 0) {
+                    FileSeg    tmpseg;
+                    tmpseg.filename = fileseg->filename;
+                    tmpseg.filesize = fileseg->filesize;
+                    tmpseg.startpos = offsets[i - start_rank];
+                    tmpseg.segsize = offsets[i - start_rank + 1] 
+                        - offsets[i - start_rank];
+                    tmpseg.maxsegsize = maxsegsize;
+                    tmpseg.startrank = start_rank;
+                    tmpseg.endrank = end_rank;
+                    if(start_rank > max_rank) tmpseg.readorder = 0;
+                    else tmpseg.readorder = 1;
+                    tmpsplit.add_seg_file(&tmpseg);
+                    if(i < proc_rank){
+                        files.push_back(tmpsplit);
+                        tmpsplit.clear();
+                    }
                 }
             }
             if(start_rank > max_rank) max_rank = end_rank;
         }else{
-            FileSeg    tmpseg;
-            tmpseg.filename = fileseg->filename;
-            tmpseg.filesize = fileseg->filesize;
-            tmpseg.startpos = 0;
-            tmpseg.segsize = fileseg->filesize;
-            tmpseg.maxsegsize = fileseg->filesize;
-            tmpseg.startrank = start_rank;
-            tmpseg.endrank = end_rank;
-            tmpseg.readorder = -1;
-            tmpsplit.add_seg_file(&tmpseg);
-            if(proc_rank > end_rank){
-                files.push_back(tmpsplit);
-                tmpsplit.clear();
+            if (fileseg->filesize > 0) {
+                FileSeg    tmpseg;
+                tmpseg.filename = fileseg->filename;
+                tmpseg.filesize = fileseg->filesize;
+                tmpseg.startpos = 0;
+                tmpseg.segsize = fileseg->filesize;
+                tmpseg.maxsegsize = fileseg->filesize;
+                tmpseg.startrank = start_rank;
+                tmpseg.endrank = end_rank;
+                tmpseg.readorder = -1;
+                tmpsplit.add_seg_file(&tmpseg);
+                if(proc_rank > end_rank){
+                    files.push_back(tmpsplit);
+                    tmpsplit.clear();
+                }
             }
         }
 

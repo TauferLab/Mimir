@@ -15,7 +15,6 @@
 //#define MPI_FETCH_AND_OP
 
 extern int KV_EXCH_COMM;
-extern int MAX_PAGE_COUNT;
 extern int BUCKET_COUNT;
 extern int SET_COUNT;
 extern int MAX_RECORD_SIZE;
@@ -36,7 +35,7 @@ extern int DBG_LEVEL;
 extern int COMM_UNIT_SIZE;
 extern int RECORD_PEAKMEM;
 
-extern int KTYPE, VTYPE;
+//extern int KTYPE, VTYPE;
 
 extern int READER_TYPE;
 extern int WRITER_TYPE;

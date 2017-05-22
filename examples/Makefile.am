@@ -1,15 +1,17 @@
-MIMIR_DIR=/home/taogao/install/mimir/
-AM_LDFLAGS = -L$(MIMIR_DIR)/lib -lmimir
-#AM_CPPFLAGS = -I../src -std=c++11 -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
-AM_CXXFLAGS = -I$(MIMIR_DIR)/src -std=c++11 -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
+AM_LDFLAGS = -L../src
+AM_CPPFLAGS = -I../src -std=c++11 -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
+AM_CXXFLAGS = -I../src -std=c++11 -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
 
-bin_PROGRAMS = wc
+bin_PROGRAMS = wc bfs oc
 
-wc_SOURCES = wordcount.cpp common.cpp
-wc_LDFLAGS = $(AM_LDFLAGS) $(STATIC_FLAGS)
+wc_SOURCES = wordcount.cpp
+wc_LDFLAGS = $(AM_LDFLAGS)
+wc_LDADD = -lmimir
 
-#bfs_SOURCES = bfs.cpp common.cpp
-#bfs_LDFLAGS = $(AM_LDFLAGS)
+bfs_SOURCES = bfs.cpp
+bfs_LDFLAGS = $(AM_LDFLAGS)
+bfs_LDADD = -lmimir
 
-#octree_SOURCES = octree_move_lg.cpp common.cpp
-#octree_LDFLAGS = $(AM_LDFLAGS)
+oc_SOURCES = octree_clustering.cpp
+oc_LDFLAGS = $(AM_LDFLAGS)
+oc_LDADD = -lmimir

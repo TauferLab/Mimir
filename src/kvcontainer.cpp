@@ -11,6 +11,7 @@
 #include "kvcontainer.h"
 #include "recordformat.h"
 
+#if 0
 using namespace MIMIR_NS;
 
 KVContainer::KVContainer() : BaseDatabase(true) {
@@ -76,4 +77,4 @@ void KVContainer::write(BaseRecordFormat *record) {
 
     kvcount += 1;
 }
-
+#endif

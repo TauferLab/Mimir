@@ -18,6 +18,8 @@
 
 using namespace MIMIR_NS;
 
+#if 0
+
 CollectiveShuffler::CollectiveShuffler(MPI_Comm comm, Writable *out, HashCallback user_hash)
     :  BaseShuffler(comm, out, user_hash)
 {
@@ -218,3 +220,4 @@ void CollectiveShuffler::exchange_kv()
 
     LOG_PRINT(DBG_COMM, "Comm: exchange KV. (send count=%ld, recv count=%ld, done count=%d)\n", sendcount, recvcount, done_count);
 }
+#endif

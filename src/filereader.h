@@ -22,36 +22,41 @@
 #include "chunkmanager.h"
 #include "interface.h"
 #include "baseshuffler.h"
-#include "baserecordformat.h"
+//#include "dataformat.h"
+#include "fileparser.h"
 
 namespace MIMIR_NS {
 
 class InputSplit;
 
-template <typename RecordFormat>
-class MPIFileReader;
+enum InputFileFormat {TextFileFormat};
 
-template<typename RecordFormat>
-class FileReader : public Readable {
+template <InputFileFormat FileFormat,
+         typename KeyType, typename ValType,
+         typename InKeyType = char*, typename InValType = void>
+class FileReader : public Readable<InKeyType, InValType> {
   public:
-    static FileReader<RecordFormat> *getReader(MPI_Comm comm,
-                                               ChunkManager *chunk_mgr,
-                                               RepartitionCallback repartition_fn);
-    static FileReader<RecordFormat> *reader;
+
+    static FileReader<FileFormat,KeyType,ValType,InKeyType,InValType> 
+        *getReader(MPI_Comm comm, ChunkManager<KeyType,ValType> *chunk_mgr,
+                   RepartitionCallback repartition_fn);
+    static FileReader<FileFormat,KeyType,ValType,InKeyType,InValType> *reader;
 
   public:
-    FileReader(MPI_Comm comm, ChunkManager *chunk_mgr, RepartitionCallback repartition_fn) {
+
+    FileReader(MPI_Comm comm,ChunkManager<KeyType,ValType> *chunk_mgr,
+               RepartitionCallback repartition_fn) {
+
         this->reader_comm = comm;
-        MPI_Comm_rank(reader_comm, &reader_rank);
-        MPI_Comm_size(reader_comm, &reader_size);
-
         this->chunk_mgr = chunk_mgr;
         this->repartition_fn = repartition_fn;
+
+        MPI_Comm_rank(reader_comm, &reader_rank);
+        MPI_Comm_size(reader_comm, &reader_size);
 
         buffer = NULL;
         bufsize = 0;
 
-        record = NULL;
         shuffler = NULL;
 
         record_count = 0;
@@ -62,12 +67,12 @@ class FileReader : public Readable {
 
     std::string get_object_name() { return "FileReader"; }
 
-    void set_shuffler(BaseShuffler *shuffler) {
+    void set_shuffler(BaseShuffler<KeyType,ValType> *shuffler) {
         this->shuffler = shuffler;
         chunk_mgr->set_shuffler(shuffler);
     }
 
-    virtual bool open() {
+    virtual int open() {
 
         LOG_PRINT(DBG_IO, "Filereader open.\n");
 
@@ -89,8 +94,6 @@ class FileReader : public Readable {
         state.win_size = 0;
         state.has_tail = false;
 
-        record = new RecordFormat();
-
         file_init();
         read_next_chunk();
 
@@ -102,8 +105,6 @@ class FileReader : public Readable {
         file_close();
         file_uninit();
 
-        delete record;
-
         mem_aligned_free(buffer);
 
         LOG_PRINT(DBG_IO, "Filereader close.\n");
@@ -111,25 +112,28 @@ class FileReader : public Readable {
 
     virtual uint64_t get_record_count() { return record_count; }
 
-    virtual RecordFormat* read() {
+    virtual int read(InKeyType *key, InValType *val) {
 
         if (state.cur_chunk.fileseg == NULL)
-            return NULL;
+            return -1;
 
         bool is_empty = false;
         while(!is_empty) {
 
             char *ptr = buffer + state.start_pos; 
-            int skip_count = record->get_skip_size(ptr, state.win_size);
-            state.start_pos += skip_count;
-            state.win_size -= skip_count;
+            //int skip_count = record->get_skip_size(ptr, state.win_size);
+            //state.start_pos += skip_count;
+            //state.win_size -= skip_count;
 
-            ptr = buffer + state.start_pos;
-            record->set_buffer(ptr);
+            //ptr = buffer + state.start_pos;
+            //record->set_buffer(ptr);
             bool islast = is_last_block();
-            if(state.win_size > 0
-               && record->get_next_record_size(ptr, state.win_size, islast) != -1) {
-                int move_count = record->get_record_size();
+            if (state.win_size > 0
+                && parser.to_line(ptr, state.win_size, islast) != -1) {
+                //&& record->get_next_record_size(ptr, state.win_size, islast) != -1) {
+                //int move_count = record->get_record_size();
+                *key = (InKeyType)ptr;
+                int move_count = strlen((const char*)(*key)) + 1;
                 if ((uint64_t)move_count >= state.win_size) {
                     state.win_size = 0;
                     state.start_pos = 0;
@@ -139,7 +143,8 @@ class FileReader : public Readable {
                     state.win_size -= move_count;
                 }
                 record_count ++;
-                return record;
+                //return record;
+                return 0;
             }
             else {
                 // read next chunk
@@ -150,7 +155,7 @@ class FileReader : public Readable {
         };
 
         chunk_mgr->wait();
-        return NULL;
+        return EOF;
     }
 
   protected:
@@ -325,9 +330,9 @@ class FileReader : public Readable {
 
     char*           buffer;
     int             bufsize;
-    ChunkManager*   chunk_mgr;
-    RecordFormat*   record;
-    BaseShuffler*   shuffler;
+    ChunkManager<KeyType,ValType> * chunk_mgr;
+    BaseShuffler<KeyType,ValType> * shuffler;
+    FileParser      parser;
     uint64_t        record_count;
     RepartitionCallback repartition_fn;
 
@@ -336,12 +341,19 @@ class FileReader : public Readable {
     int             reader_size;
 };
 
-template <typename RecordFormat>
-class DirectFileReader : public FileReader< RecordFormat >{
+template <InputFileFormat FileFormat,
+         typename KeyType, typename ValType,
+         typename InKeyType = char*, typename InValType = void>
+class DirectFileReader 
+    : public FileReader<FileFormat, KeyType, ValType,
+                        InKeyType, InValType> {
 
   public:
-    DirectFileReader(MPI_Comm comm, ChunkManager *chunk_mgr, RepartitionCallback repartition_cb) 
-        : FileReader<RecordFormat>(comm, chunk_mgr, repartition_cb) {
+    DirectFileReader(MPI_Comm comm,
+                     ChunkManager<KeyType, ValType> *chunk_mgr, 
+                     RepartitionCallback repartition_cb) 
+        : FileReader<FileFormat, KeyType, ValType, InKeyType, InValType> 
+        (comm, chunk_mgr, repartition_cb) {
     }
 
     ~DirectFileReader(){
@@ -428,12 +440,16 @@ class DirectFileReader : public FileReader< RecordFormat >{
 
 };
 
-template <typename RecordFormat>
-class MPIFileReader : public FileReader< RecordFormat >{
+template <InputFileFormat FileFormat,
+         typename KeyType, typename ValType,
+         typename InKeyType = char*, typename InValType = void>
+class MPIFileReader : public FileReader<FileFormat, KeyType, ValType, InKeyType,InValType>{
 
   public:
-    MPIFileReader(MPI_Comm comm, ChunkManager *chunk_mgr, RepartitionCallback repartition_cb) 
-        : FileReader<RecordFormat>(comm, chunk_mgr, repartition_cb) {
+    MPIFileReader(MPI_Comm comm,
+                  ChunkManager<KeyType,ValType> *chunk_mgr,
+                  RepartitionCallback repartition_cb) 
+        : FileReader<FileFormat, KeyType, ValType, InKeyType,InValType>(comm, chunk_mgr, repartition_cb) {
     }
 
     ~MPIFileReader(){
@@ -752,19 +768,25 @@ protected:
 };
 #endif
 
-template<typename RecordFormat>
-FileReader<RecordFormat>* FileReader<RecordFormat>::reader = NULL;
+template <InputFileFormat FileFormat,
+         typename KeyType, typename ValType,
+         typename InKeyType, typename InValType>
+FileReader<FileFormat, KeyType, ValType,InKeyType, InValType>*                 \
+    FileReader<FileFormat, KeyType, ValType,InKeyType, InValType>::reader = NULL;
 
-template<typename RecordFormat>
-FileReader<RecordFormat>* FileReader<RecordFormat>
-    ::getReader(MPI_Comm comm, ChunkManager *mgr, RepartitionCallback repartition_fn) {
-    //if (reader != NULL) delete reader;
+template <InputFileFormat FileFormat,
+         typename KeyType, typename ValType, typename InKeyType, typename InValType>
+FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>* 
+    FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>::getReader(
+        MPI_Comm comm,
+        ChunkManager<KeyType, ValType> *mgr, 
+        RepartitionCallback repartition_fn) {
     if (READER_TYPE == 0) {
-        reader = new FileReader<RecordFormat>(comm, mgr, repartition_fn);
+        reader = new FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
     } else if (READER_TYPE == 1) {
-        reader = new DirectFileReader<RecordFormat>(comm, mgr, repartition_fn);
+        reader = new DirectFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
     } else if (READER_TYPE == 2) {
-        reader = new MPIFileReader<RecordFormat>(comm, mgr, repartition_fn);
+        reader = new MPIFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
     } else {
         LOG_ERROR("Error reader type %d\n", READER_TYPE);
     }

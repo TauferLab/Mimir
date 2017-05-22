@@ -15,6 +15,7 @@
 
 using namespace MIMIR_NS;
 
+#if 0
 int64_t CombinerHashBucket::mem_bytes = 0;
 int64_t ReducerHashBucket::mem_bytes = 0;
 
@@ -243,3 +244,4 @@ int ReducerHashBucket::compare(const char *key, int keybytes, ReducerUnique *u)
 
     return 0;
 }
+#endif

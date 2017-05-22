@@ -14,6 +14,8 @@ void get_default_values();
 
 void mimir_init(){
     //MPI_Comm_dup(comm, &mimir_world_comm);
+    printf("%d[%d] Mimir Initialize...\n",
+           mimir_world_rank, mimir_world_size);
     mimir_world_comm = MPI_COMM_WORLD;
     MPI_Comm_rank(MPI_COMM_WORLD, &mimir_world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mimir_world_size);
@@ -32,6 +34,8 @@ void mimir_finalize()
     }
     UNINIT_STAT;
     //MPI_Comm_free(&mimir_world_comm);
+    printf("%d[%d] Mimir Finalize.\n",
+           mimir_world_rank, mimir_world_size);
 }
 
 void mimir_stat(const char* filename)
@@ -106,7 +110,7 @@ int64_t convert_to_int64(const char *_str)
 void get_default_values()
 {
     //kvtype = GeneralKV;
-    KTYPE = VTYPE = KVGeneral;
+    //KTYPE = VTYPE = KVGeneral;
 
     /// Configure main parameters
     char *env = NULL;

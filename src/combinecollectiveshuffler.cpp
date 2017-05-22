@@ -18,7 +18,7 @@
 #include "combinecollectiveshuffler.h"
 
 using namespace MIMIR_NS;
-
+#if 0
 CombineCollectiveShuffler::CombineCollectiveShuffler(MPI_Comm comm,
                                                      CombineCallback user_combine,
                                                      void *user_ptr,
@@ -198,3 +198,4 @@ void CombineCollectiveShuffler::garbage_collection()
     }
     bucket->clear();
 }
+#endif

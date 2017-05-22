@@ -17,6 +17,7 @@
 
 namespace MIMIR_NS {
 
+#if 0
 class BaseRecordFormat {
   public:
     BaseRecordFormat() {
@@ -78,6 +79,7 @@ class BaseRecordFormat {
         return ret;
     }
 };
+#endif
 
 }
 

@@ -13,6 +13,8 @@
 
 using namespace MIMIR_NS;
 
+#if 0
+
 CombineKVContainer::CombineKVContainer(CombineCallback user_combine,
                                        void *user_ptr)
     : KVContainer()
@@ -177,5 +179,4 @@ void CombineKVContainer::garbage_collection()
     }
     bucket->clear();
 }
-
-
+#endif

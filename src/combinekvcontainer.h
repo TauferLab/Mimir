@@ -16,28 +16,202 @@
 
 namespace MIMIR_NS {
 
-class CombinerHashBucket;
-struct CombinerUnique;
-
-class CombineKVContainer : public KVContainer, public Combinable {
+template <typename KeyType, typename ValType>
+class CombineKVContainer : public KVContainer<KeyType, ValType>,
+      public Combinable<KeyType, ValType> {
 public:
-    CombineKVContainer(CombineCallback user_combine,
-                       void *user_ptr);
-    ~CombineKVContainer();
+    CombineKVContainer(void (*user_combine)(Combinable<KeyType,ValType> *output,
+                                            KeyType *key,
+                                            ValType *val1, ValType *val2,
+                                            void *ptr),
+                       void *user_ptr, int keycount = 1, int valcount = 1)
+        : KVContainer<KeyType,ValType>(keycount, valcount) {
+        this->user_combine = user_combine;
+        this->user_ptr = user_ptr;
+        bucket = NULL;
+    }
 
-    virtual bool open();
-    virtual void close();
-    virtual void write(BaseRecordFormat *record);
-    virtual void update(BaseRecordFormat *record);
+    ~CombineKVContainer()
+    {
+    }
+
+    int open() {
+
+        bucket = new HashBucket<CombinerVal>();
+
+        KVContainer<KeyType,ValType>::open();
+
+        keyarray = (char*) mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
+
+        LOG_PRINT(DBG_GEN, "CombineKVContainer open!\n");
+
+        return 0;
+    }
+
+    void close() {
+
+        garbage_collection();
+
+        mem_aligned_free(keyarray);
+
+        delete bucket;
+
+        KVContainer<KeyType,ValType>::close();
+
+        LOG_PRINT(DBG_GEN, "CombineKVContainer close.\n");
+    }
+
+    int write(KeyType *key, ValType *val)
+    {
+        if (this->page == NULL) this->page = this->add_page();
+
+        int kvsize = Serializer::get_bytes<KeyType, ValType>(key, this->keycount, val, this->valcount);
+        if (kvsize > this->pagesize)
+            LOG_ERROR("Error: KV size (%d) is larger \
+                      than one page (%ld)\n", kvsize, this->pagesize);
+
+        keybytes = Serializer::to_bytes<KeyType>(key, this->keycount,
+                                                 keyarray, MAX_RECORD_SIZE);
+        u = bucket->findEntry(keyarray, keybytes);
+        if (u == NULL) {
+            CombinerVal tmp;
+
+            std::unordered_map < char *, int >::iterator iter;
+            for (iter = slices.begin(); iter != slices.end(); iter++) {
+                char *sbuf = iter->first;
+                int ssize = iter->second;
+
+                if (ssize >= kvsize) {
+                    tmp.kv = sbuf + (ssize - kvsize);
+                    Serializer::to_bytes<KeyType, ValType>
+                        (key, this->keycount, val, this->valcount, tmp.kv, kvsize);
+
+                    if (iter->second == kvsize)
+                        slices.erase(iter);
+                    else
+                        slices[iter->first] -= kvsize;
+
+                    break;
+                }
+            }
+            if (iter == slices.end()) {
+                if (kvsize + this->page->datasize > this->pagesize )
+                    this->page = this->add_page();
+                tmp.kv = this->page->buffer + this->page->datasize;
+                Serializer::to_bytes<KeyType, ValType>
+                    (key, this->keycount, val, this->valcount, tmp.kv, kvsize);
+                this->page->datasize += kvsize;
+            }
+            bucket->insertEntry(keyarray, keybytes, &tmp);
+            this->kvcount += 1;
+        }
+        else {
+            KeyType u_key[this->keycount];
+            ValType u_val[this->valcount];
+            Serializer::from_bytes<KeyType, ValType>
+                (u_key, this->keycount, u_val, this->valcount, u->kv, MAX_RECORD_SIZE);
+            user_combine(this, u_key, u_val, val, user_ptr);
+        }
+        return 0;
+    }
+
+    void update(KeyType *key, ValType *val)
+    {
+        KeyType u_key[this->keycount];
+        ValType u_val[this->valcount];
+        int ukvsize = Serializer::from_bytes<KeyType, ValType>
+            (u_key, this->keycount, u_val, this->valcount, u->kv, MAX_RECORD_SIZE);
+
+        int kvsize = Serializer::get_bytes<KeyType, ValType>(key, this->keycount, val, this->valcount);
+
+        if (Serializer::compare<KeyType>(key, u_key, this->keycount) != 0)
+            LOG_ERROR("Error: the result key of combiner is different!\n");
+
+        if (kvsize <= ukvsize) {
+            Serializer::to_bytes<KeyType, ValType>
+                (key, this->keycount, val, this->valcount, u->kv, kvsize);
+            if (kvsize < ukvsize) {
+                slices.insert(std::make_pair(u->kv + ukvsize - kvsize, ukvsize - kvsize));
+            }
+        }
+        else {
+            slices.insert(std::make_pair(u->kv, ukvsize));
+            if (kvsize + this->page->datasize > this->pagesize)
+                this->page = this->add_page();
+            u->kv = this->page->buffer + this->page->datasize;
+            Serializer::to_bytes<KeyType, ValType>
+                (key, this->keycount,  val, this->valcount, u->kv, kvsize);
+            this->page->datasize += kvsize;
+        }
+
+        return;
+    }
+
 
 private:
-    void garbage_collection();
+    void garbage_collection()
+    {
+        KeyType key[this->keycount];
+        ValType val[this->valcount];
+        ContainerIter dst_iter(this), src_iter(this);
+        Page *dst_page = NULL, *src_page = NULL;
+        int64_t dst_off = 0, src_off = 0;
+        int kvsize;
 
-    CombineCallback user_combine;
+        if (!slices.empty()) {
+
+            LOG_PRINT(DBG_GEN, "KVContainer garbage collection: slices=%ld\n",
+                      slices.size());
+
+            dst_page = dst_iter.next();
+            while ((src_page = src_iter.next()) != NULL) {
+                src_off = 0;
+                while (src_off < src_page->datasize) {
+                    char *src_buf = src_page->buffer + src_off;
+                    std::unordered_map < char *, int >::iterator iter = slices.find(src_buf);
+                    if (iter != slices.end()) {
+                        src_off += iter->second;
+                    }
+                    else {
+                        int kvsize = Serializer::from_bytes<KeyType, ValType>
+                            (key, this->keycount, val, this->valcount, 
+                             src_buf, src_page->datasize - src_off);
+                        if (dst_page != src_page || dst_off != src_off) {
+                            if (dst_off + kvsize > this->pagesize) {
+                                dst_page->datasize = dst_off;
+                                dst_page = dst_iter.next();
+                                dst_off = 0;
+                            }
+                            for (int kk = 0; kk < kvsize; kk++) {
+                                dst_page->buffer[dst_off + kk] = src_page->buffer[src_off + kk];
+                            }
+                        }
+                        src_off += kvsize;
+                        dst_off += kvsize;
+                    }
+                }
+                if (src_page == dst_page && src_off == dst_off) {
+                    dst_page = dst_iter.next();
+                    dst_off = 0;
+                }
+            }
+            if (dst_page != NULL) dst_page->datasize = dst_off;
+            while ((dst_page = dst_iter.next()) != NULL) {
+                dst_page->datasize = 0;
+            }
+            slices.clear();
+        }
+        bucket->clear();
+    }
+
+    void (*user_combine)(Combinable<KeyType,ValType> *output,
+                         KeyType *key, ValType *val1, ValType *val2, void *ptr);
     void *user_ptr;
     std::unordered_map<char*, int> slices;
-    CombinerHashBucket *bucket;
-    CombinerUnique *u;
+    HashBucket<CombinerVal> *bucket;
+    CombinerVal *u;
+    char* keyarray;
+    int keybytes;
 };
 
 }

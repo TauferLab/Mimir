@@ -9,5 +9,5 @@
 
 using namespace MIMIR_NS;
 
-std::string StringRecord::whitespaces = "";
-std::string ByteRecord::separators = "";
+//std::string StringRecord::whitespaces = "";
+//std::string ByteRecord::separators = "";
