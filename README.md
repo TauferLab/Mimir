@@ -7,3 +7,6 @@ T. Gao, Y. Guo, B. Zhang, P. Cicotti, Y. Lu, P. Balaji, and M. Taufer.
 Mimir: Memory-Efficient and Scalable MapReduce for Large Supercomputing Systems.
 The 31st IEEE International Parallel and Distributed Processing Symposium (IPDPS), 
 2017.
+
+The code is still under development. We call for challenge applications to
+use this library, please contact us at taogao@udel.edu.
