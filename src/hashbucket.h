@@ -20,7 +20,6 @@
 #include "stat.h"
 #include "hash.h"
 #include "memory.h"
-#include "recordformat.h"
 #include "hashbucket.h"
 #include "serializer.h"
 

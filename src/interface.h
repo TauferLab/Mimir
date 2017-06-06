@@ -9,7 +9,6 @@
 #define MIMIR_INTERFACE_H
 
 #include <string>
-#include "recordformat.h"
 
 namespace MIMIR_NS {
 

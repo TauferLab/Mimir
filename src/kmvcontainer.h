@@ -10,7 +10,6 @@
 
 #include "config.h"
 #include "hashbucket.h"
-#include "recordformat.h"
 #include "container.h"
 #include "interface.h"
 #include "serializer.h"

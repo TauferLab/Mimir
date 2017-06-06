@@ -10,7 +10,6 @@
 
 #include "interface.h"
 #include "memory.h"
-#include "recordformat.h"
 #include "inputsplit.h"
 #include "filesplitter.h"
 #include "filereader.h"

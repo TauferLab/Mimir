@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include "container.h"
 #include "containeriter.h"
-#include "recordformat.h"
 #include "interface.h"
 #include "serializer.h"
 
