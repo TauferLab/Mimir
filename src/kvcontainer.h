@@ -27,9 +27,11 @@ public:
         kvcount = 0;
         page = NULL;
         pageoff = 0;
+        ser = new Serializer<KeyType, ValType>(keycount, valcount);
     }
 
     ~KVContainer() {
+        delete ser;
     }
 
     virtual int open() {
@@ -61,8 +63,7 @@ public:
 
         ptr = page->buffer + pageoff;
 
-        kvsize = Serializer::from_bytes<KeyType, ValType>
-            (key, keycount, val, valcount, ptr, page->datasize - pageoff);
+        kvsize = this->ser->kv_from_bytes(key, val, ptr, page->datasize - pageoff);
 
         pageoff += kvsize;
 
@@ -74,7 +75,7 @@ public:
         if (page == NULL)
             page = add_page();
 
-        int kvsize = Serializer::get_bytes<KeyType, ValType>(key, keycount, val, valcount);
+        int kvsize = ser->get_kv_bytes(key, val);
         if (kvsize > pagesize)
             LOG_ERROR("Error: KV size (%d) is larger \
                       than one page (%ld)\n", kvsize, pagesize);
@@ -84,8 +85,7 @@ public:
 
         char *ptr = page->buffer + page->datasize;
 
-        Serializer::to_bytes<KeyType, ValType>
-            (key, keycount, val, valcount, ptr, pagesize - page->datasize);
+        this->ser->kv_to_bytes(key, val, ptr, pagesize - page->datasize);
 
         page->datasize += kvsize;
 
@@ -100,9 +100,10 @@ protected:
     ContainerIter *iter;
 
     uint64_t kvcount;
-
     int keycount;
     int valcount;
+
+    Serializer<KeyType, ValType> *ser;
 };
 
 }

@@ -81,8 +81,6 @@ class HashBucket {
         // Compute bucket index
         uint32_t ibucket = hashlittle(key, keysize, 0) % nbucket;
 
-        //printf("ibucket=%d\n", ibucket);
-
         // Search the key
         HashEntry* ptr = this->buckets[ibucket];
         while (ptr != NULL) {

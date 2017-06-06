@@ -133,8 +133,7 @@ public:
         }
 
         //int kvsize = record->get_record_size();
-        int kvsize = Serializer::get_bytes<KeyType,ValType>(key, this->keycount,
-                                                            val, this->valcount);
+        int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > buf_size)
             LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                       kvsize, buf_size);
@@ -147,8 +146,7 @@ public:
             + msg_buffers[cur_idx].send_offset[target];
         //kv.set_buffer(buffer);
         //kv.convert((KVRecord*)record);
-        kvsize = Serializer::to_bytes<KeyType,ValType>
-            (key, this->keycount, val, this->valcount, buffer, kvsize);
+        kvsize = this->ser->kv_to_bytes(key, val, buffer, kvsize);
         msg_buffers[cur_idx].send_offset[target] += kvsize;
 
         push_kv_exchange();
@@ -367,8 +365,7 @@ protected:
                 //kvsize = record.get_record_size();
                 KeyType key[this->keycount];
                 ValType val[this->valcount];
-                int kvsize = Serializer::from_bytes<KeyType,ValType>           \
-                    (&key[0], this->keycount, &val[0], this->valcount,
+                int kvsize = this->ser->kv_from_bytes(&key[0], &val[0],
                      src_buf, this->msg_buffers[idx].recv_count[k] - count);
                 this->out->write(key, val);
                 src_buf += kvsize;

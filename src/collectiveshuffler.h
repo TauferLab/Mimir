@@ -74,6 +74,8 @@ public:
         MPI_Type_contiguous((0x1 << type_log_bytes), MPI_BYTE, &comm_type);
         MPI_Type_commit(&comm_type);
 
+        PROFILER_RECORD_COUNT(COUNTER_COMM_BUFS, 1, OPMAX);
+
         LOG_PRINT(DBG_GEN, "CollectiveShuffler open: buf_size=%ld\n", buf_size);
 
         return true;
@@ -105,8 +107,7 @@ public:
             return 0;
         }
 
-        int kvsize = Serializer::get_bytes<KeyType,ValType>(key, this->keycount,
-                                                            val, this->valcount);
+        int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > buf_size)
             LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                       kvsize, buf_size);
@@ -117,8 +118,7 @@ public:
         }
 
         char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
-        kvsize = Serializer::to_bytes<KeyType,ValType>
-            (key, this->keycount, val, this->valcount, buffer, (int)buf_size - send_offset[target]);
+        kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
         //kv.set_buffer(buffer);
         //kv.convert((KVRecord*)record);
         send_offset[target] += kvsize;
@@ -161,8 +161,7 @@ protected:
         for (k = 0; k < this->shuffle_size; k++) {
             int count = 0;
             while (count < recv_count[k]) {
-                int kvsize = Serializer::from_bytes<KeyType,ValType>           \
-                    (&key[0], this->keycount, &val[0], this->valcount,
+                int kvsize = this->ser->kv_from_bytes(&key[0], &val[0],
                      src_buf, recv_count[k] - count);
                 this->out->write(key, val);
                 src_buf += kvsize;
@@ -247,6 +246,8 @@ protected:
         for (int i = 0; i < this->shuffle_size; i++) send_offset[i] = 0;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+
+        PROFILER_RECORD_COUNT(COUNTER_SHUFFLE_TIMES, 1, OPSUM);
 
         //PROFILER_RECORD_TIME_START;
         //MPI_Allreduce(&(this->done_flag), &(this->done_count), 1, MPI_INT, MPI_SUM, this->shuffle_comm);

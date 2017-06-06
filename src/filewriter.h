@@ -52,6 +52,11 @@ class FileWriter : public Writable<KeyType, ValType> {
             this->filename += oss.str();
         }
         shuffler = NULL;
+        ser = new Serializer<KeyType, ValType>(keycount, valcount);
+    }
+
+    virtual ~FileWriter() {
+        delete ser;
     }
 
     std::string get_object_name() { return "FileWriter"; }
@@ -82,15 +87,14 @@ class FileWriter : public Writable<KeyType, ValType> {
     }
 
     virtual int write(KeyType *key, ValType *val) {
-        int kvsize = Serializer::get_bytes<KeyType, ValType>(key, keycount, val, valcount);
+        int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > bufsize) {
             LOG_ERROR("The write record length is larger than the buffer size!\n");
         }
         if (kvsize + datasize > bufsize) {
             file_write();
         }
-        Serializer::to_bytes<KeyType, ValType>
-            (key, keycount, val, valcount, buffer + datasize, bufsize - datasize);
+        this->ser->kv_to_bytes(key, val, buffer + datasize, bufsize - datasize);
         datasize += kvsize;
         record_count++;
     }
@@ -172,6 +176,8 @@ class FileWriter : public Writable<KeyType, ValType> {
     int         writer_size;
 
     int     keycount, valcount;
+
+    Serializer<KeyType, ValType> *ser;
 };
 
 template <typename KeyType, typename ValType>

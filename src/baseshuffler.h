@@ -32,6 +32,8 @@ public:
         this->keycount = keycount;
         this->valcount = valcount;
 
+        ser = new Serializer<KeyType, ValType>(keycount, valcount);
+
         MPI_Comm_rank(shuffle_comm, &shuffle_rank);
         MPI_Comm_size(shuffle_comm, &shuffle_size);
 
@@ -41,6 +43,7 @@ public:
     }
 
     virtual ~BaseShuffler() {
+        delete ser;
     }
 
     virtual int open() = 0;
@@ -51,9 +54,9 @@ public:
 protected:
     int get_target_rank(KeyType *key) {
         char tmpkey[MAX_RECORD_SIZE];
-        int keysize = Serializer::get_bytes<KeyType>(key, keycount);
+        int keysize = ser->get_key_bytes(key);
         if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
-        Serializer::to_bytes<KeyType>(key, keycount, tmpkey, 1024);
+        ser->key_to_bytes(key, tmpkey, 1024);
 
         int target = 0;
         if (user_hash != NULL) {
@@ -74,6 +77,8 @@ protected:
 
     HashCallback user_hash;
     Writable<KeyType,ValType> *out;
+
+    Serializer<KeyType, ValType> *ser;
 
     int done_flag, done_count;
 

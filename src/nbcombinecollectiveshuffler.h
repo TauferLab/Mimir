@@ -64,14 +64,12 @@ public:
            return 0;
        }
 
-       int kvsize = Serializer::get_bytes<KeyType,ValType>(key, this->keycount,
-                                                           val, this->valcount);
+       int kvsize = this->ser->get_kv_bytes(key, val);
        if (kvsize > this->buf_size)
            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                      kvsize, this->buf_size);
 
-       keybytes = Serializer::to_bytes<KeyType>(key, this->keycount,
-                                                keyarray, MAX_RECORD_SIZE);
+       keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
 
        //u = bucket->findElem(((KVRecord*)record)->get_key(), 
        //                     ((KVRecord*)record)->get_key_size());
@@ -92,14 +90,13 @@ public:
                    tmp.kv = sbuf + (ssize - kvsize);
                    //kv.set_buffer(tmp.kv);
                    //kv.convert((KVRecord*)record);
-                   Serializer::to_bytes<KeyType,ValType>
-                       (key, this->keycount, val, this->valcount, tmp.kv, kvsize);
+                   this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
                    if (iter->second == kvsize)
                        slices.erase(iter);
                    else
                        slices[iter->first] -= kvsize;
 
-                   bucket->insertEntry(keyarray, keybytes, &tmp);
+                   bucket->insertEntry(tmp.kv, keybytes, &tmp);
 
                    break;
                }
@@ -114,12 +111,11 @@ public:
                    + this->msg_buffers[this->cur_idx].send_offset[target];
                //kv.set_buffer(tmp.kv);
                //kv.convert((KVRecord*)record);
-               Serializer::to_bytes<KeyType,ValType>
-                   (key, this->keycount, val, this->valcount, tmp.kv, kvsize);
+               this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
                this->msg_buffers[this->cur_idx].send_offset[target] += kvsize;
            }
 
-           bucket->insertEntry(keyarray, keybytes, &tmp);
+           bucket->insertEntry(tmp.kv, keybytes, &tmp);
            this->kvcount ++;
        }
        else {
@@ -127,8 +123,7 @@ public:
            //user_combine(this, &kv, (KVRecord*)record, user_ptr);
             KeyType u_key[this->keycount];
             ValType u_val[this->valcount];
-            int ukvsize = Serializer::from_bytes<KeyType, ValType>
-                (u_key, this->keycount, u_val, this->valcount, u->kv, MAX_RECORD_SIZE);
+            int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
             user_combine(this, u_key, u_val, val, user_ptr);
        }
 
@@ -149,10 +144,8 @@ public:
 
         KeyType u_key[this->keycount];
         ValType u_val[this->valcount];
-        int ukvsize = Serializer::from_bytes<KeyType, ValType>
-            (u_key, this->keycount, u_val, this->valcount, u->kv, MAX_RECORD_SIZE);
-
-        int kvsize = Serializer::get_bytes<KeyType, ValType>(key, this->keycount, val, this->valcount);
+        int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+        int kvsize = this->ser->get_kv_bytes(key, val);
 
        if (kvsize > this->buf_size)
            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
@@ -162,13 +155,12 @@ public:
        //    || memcmp(((KVRecord*)record)->get_key(), kv.get_key(), ksize) != 0)
        //    LOG_ERROR("Error: the result key of combiner is different!\n");
 
-        if (Serializer::compare<KeyType>(key, u_key, this->keycount) != 0)
+        if (this->ser->compare_key(key, u_key) != 0)
             LOG_ERROR("Error: the result key of combiner is different!\n");
 
        if (kvsize <= ukvsize) {
            //kv.convert((KVRecord*)record);
-           Serializer::to_bytes<KeyType,ValType>
-               (key, this->keycount, val, this->valcount, u->kv, kvsize);
+           this->ser->kv_to_bytes(key, val, u->kv, kvsize);
            if (kvsize < ukvsize)
                slices.insert(std::make_pair(u->kv + kvsize, 
                                             ukvsize - kvsize));
@@ -187,8 +179,7 @@ public:
                + this->msg_buffers[this->cur_idx].send_offset[target];
            //kv.set_buffer(gbuf);
            //kv.convert((KVRecord*)record);
-           Serializer::to_bytes<KeyType,ValType>
-               (key, this->keycount, val, this->valcount, gbuf, kvsize);
+           this->ser->kv_to_bytes(key, val, gbuf, kvsize);
            this->msg_buffers[this->cur_idx].send_offset[target] += kvsize;
            if (u != NULL) u->kv=gbuf;
        }
@@ -233,8 +224,7 @@ protected:
                    else {
                        //kv.set_buffer(tmp_buf);
                        //int kvsize = kv.get_record_size();
-                       int kvsize = Serializer::from_bytes<KeyType,ValType>
-                           (key, this->keycount, val, this->valcount,
+                       int kvsize = this->ser->kv_from_bytes(key, val,
                             tmp_buf, this->msg_buffers[this->cur_idx].send_offset[k] - src_off);
                        if (src_off != dst_off) {
                            for (int kk = 0; kk < kvsize; kk++)

@@ -13,6 +13,7 @@
 #include "recordformat.h"
 #include "container.h"
 #include "interface.h"
+#include "serializer.h"
 
 namespace MIMIR_NS {
 
@@ -30,9 +31,11 @@ class KMVContainer {
 
         keyarray = (char*) mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
         h = new HashBucket<ReducerVal>(true);
+        ser = new Serializer<KeyType, ValType>(keycount, valcount);
     }
 
     ~KMVContainer() {
+        delete ser;
         delete h;
         mem_aligned_free(keyarray);
     }
@@ -69,10 +72,9 @@ class KMVContainer {
 
         kv->open();
         while ((kv->read(key, val)) == 0) {
-            keybytes = Serializer::to_bytes<KeyType>(key, keycount,
-                                                     keyarray, MAX_RECORD_SIZE);
+            keybytes = ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
             if ((rdc_val = h->findEntry(keyarray, keybytes)) == NULL) {
-                valbytes = Serializer::get_bytes(val, valcount);
+                valbytes = ser->get_val_bytes(val);
                 ReducerVal tmpval;
                 tmpval.valbytes = valbytes;
                 h->insertEntry(keyarray, keybytes, &tmpval);
@@ -115,11 +117,9 @@ class KMVContainer {
 
         kv->open();
         while ((kv->read(key, val)) == 0) {
-            keybytes = Serializer::to_bytes<KeyType>(key, keycount,
-                                                     keyarray, MAX_RECORD_SIZE);
+            keybytes = ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
             if ((rdc_val = h->findEntry(keyarray, keybytes)) != NULL) {
-                int vsize = Serializer::to_bytes<ValType>(val, valcount,
-                    rdc_val->values_end,
+                int vsize = ser->val_to_bytes(val, rdc_val->values_end,
                     rdc_val->valbytes - (int)(rdc_val->values_end - rdc_val->values_start));
                 rdc_val->values_end += vsize;
             } else {
@@ -142,6 +142,8 @@ class KMVContainer {
     std::vector<char*> buffers;
 
     KMVItem<KeyType, ValType>* kmv;
+
+    Serializer<KeyType, ValType> *ser;
 };
 
 template <typename KeyType, typename ValType>
@@ -152,9 +154,11 @@ class KMVItem : public Readable<KeyType, ValType>   {
         this->valcount = valcount;
         this->entry = NULL;
         this->valptr = NULL;
+        ser = new Serializer<KeyType, ValType>(keycount, valcount);
     }
 
     ~KMVItem() {
+        delete ser;
     }
 
     void set_entry(HashBucket<ReducerVal>::HashEntry* entry) {
@@ -172,11 +176,9 @@ class KMVItem : public Readable<KeyType, ValType>   {
 
     int read(KeyType *key, ValType *val) {
         if (valptr == entry->val.values_end) return -1;
-        Serializer::from_bytes<KeyType>(key, keycount,
-                                        entry->key, entry->keysize);
-        int vsize = Serializer::from_bytes<ValType>(val, valcount,
-                                                    valptr, 
-                                                    (int)(entry->val.values_end - valptr));
+        ser->key_from_bytes(key, entry->key, entry->keysize);
+        int vsize = ser->val_from_bytes(val, valptr, 
+                                        (int)(entry->val.values_end - valptr));
         valptr += vsize;
         return 0;
     }
@@ -189,6 +191,7 @@ class KMVItem : public Readable<KeyType, ValType>   {
     HashBucket<ReducerVal>::HashEntry* entry;
     char *valptr;
     int keycount, valcount;
+    Serializer<KeyType, ValType> *ser;
 };
 
 }

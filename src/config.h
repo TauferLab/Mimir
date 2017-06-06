@@ -14,33 +14,26 @@
 
 //#define MPI_FETCH_AND_OP
 
-extern int KV_EXCH_COMM;
+// Buffer settings
 extern int BUCKET_COUNT;
-extern int SET_COUNT;
-extern int MAX_RECORD_SIZE;
-
-extern int MIN_SBUF_COUNT;
-extern int MAX_SBUF_COUNT;
-
 extern int64_t COMM_BUF_SIZE;
 extern int64_t DATA_PAGE_SIZE;
 extern int64_t INPUT_BUF_SIZE;
-
-//extern int64_t FILE_SPLIT_UNIT;
-extern int DISK_IO_TYPE;
-
-extern int WORK_STEAL;
-
-extern int DBG_LEVEL;
+extern int MAX_RECORD_SIZE;
+extern int MIN_SBUF_COUNT;
+extern int MAX_SBUF_COUNT;
 extern int COMM_UNIT_SIZE;
-extern int RECORD_PEAKMEM;
 
-//extern int KTYPE, VTYPE;
-
+// Settings
+extern int WORK_STEAL;
 extern int READER_TYPE;
 extern int WRITER_TYPE;
 extern int SHUFFLE_TYPE;
+extern int MAKE_PROGRESS;
 
+// Profile & Debug
+extern int DBG_LEVEL;
 extern int OUTPUT_STAT;
+extern int RECORD_PEAKMEM;
 
 #endif

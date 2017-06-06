@@ -170,7 +170,7 @@ class FileReader : public Readable<InKeyType, InValType> {
     bool read_next_chunk() {
 
         chunk_mgr->make_progress();
-        if (this->shuffler && state.cur_chunk.fileseg)
+        if (MAKE_PROGRESS && this->shuffler && state.cur_chunk.fileseg)
             this->shuffler->make_progress(true);
 
         //print_state();
@@ -506,7 +506,7 @@ class MPIFileReader : public FileReader<FileFormat, KeyType, ValType, InKeyType,
                 }
                 if (flag) break;
                 this->chunk_mgr->make_progress();
-                if (this->shuffler) this->shuffler->make_progress(true);
+                if (MAKE_PROGRESS && this->shuffler) this->shuffler->make_progress(true);
             }
             int count = 0;
             MPI_Get_count(&st, MPI_BYTE, &count);

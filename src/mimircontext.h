@@ -40,7 +40,8 @@ enum OUTPUT_MODE {IMPLICIT_OUTPUT, EXPLICIT_OUTPUT};
 //#define MIMIR_COPY (MapCallback)0x01
 
 template <typename KeyType, typename ValType,
-         typename InKeyType = KeyType, typename InValType = ValType>
+         typename InKeyType = KeyType, typename InValType = ValType,
+         typename OutKeyType= KeyType, typename OutValType = ValType>
 class MimirContext {
   public:
     MimirContext(MPI_Comm mimir_comm,
@@ -58,12 +59,12 @@ class MimirContext {
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
 
         if (repartition_fn == NULL) {
-            _init(1, 1, 1, 1, 
+            _init(1, 1, 1, 1, 1, 1,
                   mimir_comm, map_fn, reduce_fn, combine_fn,
                   hash_fn, text_file_repartition, do_shuffle,
                   input_dir, output_dir, output_mode);
         } else {
-            _init(1, 1, 1, 1, 
+            _init(1, 1, 1, 1, 1, 1,
                   mimir_comm, map_fn, reduce_fn, combine_fn,
                   hash_fn, repartition_fn, do_shuffle,
                   input_dir, output_dir, output_mode);
@@ -84,7 +85,7 @@ class MimirContext {
         std::vector<std::string> input_dir;
         std::string output_dir;
 
-        _init(1, 1, 1, 1, 
+        _init(1, 1, 1, 1, 1, 1,
               mimir_comm, map_fn, reduce_fn, combine_fn,
               hash_fn, NULL, do_shuffle,
               input_dir, output_dir, output_mode);
@@ -93,6 +94,7 @@ class MimirContext {
     MimirContext(MPI_Comm mimir_comm,
                  int keycount, int valcount,
                  int inkeycount, int invalcount,
+                 int outkeycount, int outvalcount,
                  void (*map_fn)(Readable<InKeyType,InValType> *input, 
                                 Writable<KeyType,ValType> *output, void *ptr),
                  void (*reduce_fn)(Readable<KeyType,ValType> *input, 
@@ -108,11 +110,13 @@ class MimirContext {
 
         if (repartition_fn == NULL) {
             _init(keycount, valcount, inkeycount, invalcount,
+                  outkeycount, outvalcount,
                   mimir_comm, map_fn, reduce_fn, combine_fn,
                   hash_fn, text_file_repartition, do_shuffle,
                   input_dir, output_dir, output_mode);
         } else {
             _init(keycount, valcount, inkeycount, invalcount,
+                  outkeycount, outvalcount,
                   mimir_comm, map_fn, reduce_fn, combine_fn,
                   hash_fn, repartition_fn, do_shuffle,
                   input_dir, output_dir, output_mode);
@@ -374,25 +378,32 @@ class MimirContext {
         return total_records;
     }
 
-    uint64_t output(void *ptr = NULL) {
+    uint64_t output(void (*output_fn)(Readable<KeyType,ValType> *input,
+                                      Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
+                    void *ptr = NULL) {
+
+        KeyType key[keycount];
+        ValType val[valcount];
+
         if (database == NULL)
             LOG_ERROR("No data to output!\n");
 
         LOG_PRINT(DBG_GEN, "MapReduce: output start\n");
-#if 0
-        FileWriter *writer = FileWriter::getWriter(mimir_ctx_comm, output_dir.c_str());
-        KVRecord *record = NULL;
+
+        FileWriter<OutKeyType, OutValType> *writer = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
         database->open();
         writer->open();
-        while ((record = (KVRecord*)(database->read())) != NULL) {
-            writer->write(record);
-        }
+        output_fn(database, writer, ptr);
+        //while (database->read(key, val) == 0) {
+        //    printf("key=%s, val=%ld\n", key[0], val[0]);
+            //writer->write(key, val);
+        //}
         writer->close();
         database->close();
         uint64_t output_records = writer->get_record_count();
         delete writer;
 
-        BaseDatabase<KeyType,ValType,KeyLen,ValLen>::subRef(database);
+        BaseDatabase<KeyType,ValType>::subRef(database);
         database = NULL;
 
         uint64_t total_records = 0;
@@ -402,8 +413,6 @@ class MimirContext {
         LOG_PRINT(DBG_GEN, "MapReduce: output done\n");
 
         return total_records;
-#endif
-        return 0;
     }
 
     uint64_t scan(void (*scan_fn)(KeyType *key, ValType *val, void *ptr),
@@ -446,6 +455,7 @@ class MimirContext {
   private:
     void _init(int keycount, int valcount,
                int inkeycount, int invalcount,
+               int outkeycount, int outvalcount,
                MPI_Comm ctx_comm,
                void (*map_fn)(Readable<InKeyType,InValType> *input, 
                               Writable<KeyType,ValType> *output, void *ptr),

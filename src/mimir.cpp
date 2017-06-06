@@ -14,11 +14,11 @@ void get_default_values();
 
 void mimir_init(){
     //MPI_Comm_dup(comm, &mimir_world_comm);
-    printf("%d[%d] Mimir Initialize...\n",
-           mimir_world_rank, mimir_world_size);
     mimir_world_comm = MPI_COMM_WORLD;
     MPI_Comm_rank(MPI_COMM_WORLD, &mimir_world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mimir_world_size);
+    printf("%d[%d] Mimir Initialize...\n",
+           mimir_world_rank, mimir_world_size);
     INIT_STAT();
     get_default_values();
 }
@@ -125,6 +125,10 @@ void get_default_values()
     env = getenv("MIMIR_WORK_STEAL");
     if (env) {
         WORK_STEAL = atoi(env);
+    }
+    env = getenv("MIMIR_MAKE_PROGRESS");
+    if (env) {
+        MAKE_PROGRESS = atoi(env);
     }
     env = getenv("MIMIR_COMM_SIZE");
     if (env) {
@@ -303,9 +307,4 @@ Library configuration:\n\
         DBG_LEVEL);
         fflush(stdout);
     }
-
-    //PROFILER_RECORD_COUNT(COUNTER_BUCKET_SIZE, (uint64_t) BUCKET_COUNT, OPMAX);
-    //PROFILER_RECORD_COUNT(COUNTER_INBUF_SIZE, (uint64_t) INPUT_BUF_SIZE, OPMAX);
-    //PROFILER_RECORD_COUNT(COUNTER_COMM_SIZE, (uint64_t) COMM_BUF_SIZE, OPMAX);
-    //PROFILER_RECORD_COUNT(COUNTER_PAGE_SIZE, (uint64_t) DATA_PAGE_SIZE, OPMAX);
 }
