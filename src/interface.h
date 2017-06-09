@@ -9,6 +9,7 @@
 #define MIMIR_INTERFACE_H
 
 #include <string>
+#include "log.h"
 
 namespace MIMIR_NS {
 
@@ -18,10 +19,7 @@ class Base {
     virtual ~Base() {}
     virtual int open() = 0;
     virtual void close() = 0;
-    virtual uint64_t get_record_count() = 0; 
-    //virtual std::string get_object_name() { 
-    //    return std::string("Unknown"); 
-    //}
+    virtual uint64_t get_record_count() = 0;
 };
 
 template <typename KeyType, typename ValType>
@@ -36,6 +34,16 @@ class Writable : public Base<KeyType, ValType> {
   public:
     virtual ~Writable() {}
     virtual int write(KeyType*, ValType*) = 0;
+};
+
+template <typename KeyType, typename ValType>
+class Removable {
+  public:
+    virtual ~Removable() {}
+    virtual int remove(KeyType*, ValType*, int, std::vector<int>&) {
+        LOG_ERROR("The object does not implement remove function!\n");
+        return 0;
+    }
 };
 
 template <typename KeyType, typename ValType>

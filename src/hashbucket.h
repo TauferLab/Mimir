@@ -95,41 +95,96 @@ class HashBucket {
         return NULL;
     }
 
+    virtual void removeEntry(char* key, int keysize) {
+        // Compute bucket index
+        uint32_t ibucket = hashlittle(key, keysize, 0) % nbucket;
+
+        // Search the key
+        HashEntry* ptr = this->buckets[ibucket];
+        while (ptr != NULL) {
+            if (ptr->keysize == keysize 
+                && memcmp(ptr->key, key, keysize) == 0) {
+                break;
+            }
+            ptr = ptr->next;
+        }
+        if (ptr) {
+            int ssize = sizeof(HashEntry) + sizeof(ValType);
+            if (iscopykey) ssize += ptr->keysize;
+            slices.insert(std::make_pair((char*)ptr, ssize));
+            nunique --;
+        }
+    }
+
     virtual void insertEntry(char *key, int keysize, ValType *val) {
 
-        // Add a new buffer
-        if (buf_idx == buffers.size()) {
-            char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
-            buffers.push_back(buffer);
-            buf_off = 0;
-        }
-
-        // Add a new buffer
+        HashEntry* entry = NULL;
         int entry_size = sizeof(HashEntry);
         if (iscopykey) entry_size += keysize;
-        if (entry_size > buf_size) LOG_ERROR("Entry is too long!\n");
-        if (buf_size - buf_off < entry_size) {
-            memset(buffers[buf_idx] + buf_off, 0, buf_size - buf_off);
-            buf_idx += 1;
-            buf_off = 0;
-            if (buf_idx == buffers.size()) {
-                char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
-                buffers.push_back(buffer);
+
+        // Find a slice to store the entry
+        std::unordered_map < char *, int >::iterator iter;
+        for (iter = this->slices.begin(); iter != this->slices.end(); iter++) {
+            char *sbuf = iter->first;
+            int ssize = iter->second;
+
+            if (ssize >= entry_size) {
+                entry = (HashEntry*)(sbuf + (ssize - entry_size));
+                entry->keysize = keysize;
+                entry->val = *val;
+                entry->next = NULL;
+
+                if (iscopykey) {
+                    memcpy((char*)entry + sizeof(HashEntry), key, keysize);
+                    entry->key = (char*)entry + sizeof(HashEntry);
+                } else {
+                    entry->key = key;
+                }
+
+                if (iter->second == entry_size)
+                    this->slices.erase(iter);
+                else
+                    this->slices[iter->first] -= entry_size;
+
+                break;
             }
         }
 
-        // Add entry
-        HashEntry* entry = (HashEntry*)(buffers[buf_idx] + buf_off);
-        entry->keysize = keysize;
-        entry->val = *val;
-        entry->next = NULL;
-        buf_off += sizeof(HashEntry);
-        if (iscopykey) {
-            memcpy(buffers[buf_idx] + buf_off, key, keysize);
-            entry->key = buffers[buf_idx] + buf_off;
-            buf_off += keysize;
-        } else {
-            entry->key = key;
+        // Insert a new entry
+        if (iter == this->slices.end()) {
+
+            // Add a new buffer
+            if (buf_idx == buffers.size()) {
+                char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
+                buffers.push_back(buffer);
+                buf_off = 0;
+            }
+
+            // Add a new buffer
+            if (entry_size > buf_size) LOG_ERROR("Entry is too long!\n");
+            if (buf_size - buf_off < entry_size) {
+                memset(buffers[buf_idx] + buf_off, 0, buf_size - buf_off);
+                buf_idx += 1;
+                buf_off = 0;
+                if (buf_idx == buffers.size()) {
+                    char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
+                    buffers.push_back(buffer);
+                }
+            }
+
+            // Add entry
+            entry = (HashEntry*)(buffers[buf_idx] + buf_off);
+            entry->keysize = keysize;
+            entry->val = *val;
+            entry->next = NULL;
+            buf_off += sizeof(HashEntry);
+            if (iscopykey) {
+                memcpy(buffers[buf_idx] + buf_off, key, keysize);
+                entry->key = buffers[buf_idx] + buf_off;
+                buf_off += keysize;
+            } else {
+                entry->key = key;
+            }
         }
 
         // Add to the list
@@ -161,19 +216,32 @@ class HashBucket {
         if (iter_buf_idx == buf_idx && iter_buf_off >= buf_off)
             return NULL;
 
-        if ((buf_size - iter_buf_off) < sizeof(HashEntry)) {
-            iter_buf_idx += 1;
-            iter_buf_off = 0;
-        } else {
-            HashEntry *entry = (HashEntry*)(buffers[iter_buf_idx] + iter_buf_off);
-            if (entry->key == NULL) {
+        while (1) {
+
+            auto iter = this->slices.find(buffers[iter_buf_idx]+iter_buf_off);
+            if (iter != this->slices.end()) {
+                iter_buf_off += iter->second;
+                continue;
+            }
+
+            if ((buf_size - iter_buf_off) < sizeof(HashEntry)) {
                 iter_buf_idx += 1;
                 iter_buf_off = 0;
+                continue;
+            } else {
+                HashEntry *entry = (HashEntry*)(buffers[iter_buf_idx] + iter_buf_off);
+                if (entry->key == NULL) {
+                    iter_buf_idx += 1;
+                    iter_buf_off = 0;
+                    continue;
+                }
             }
+            if (iter_buf_idx == buf_idx && iter_buf_off >= buf_off)
+                return NULL;
+
+            break;
         }
 
-        if (iter_buf_idx == buf_idx && iter_buf_off >= buf_off)
-            return NULL;
 
         HashEntry *entry = (HashEntry*)(buffers[iter_buf_idx] + iter_buf_off);
         if (iscopykey) iter_buf_off += (sizeof(HashEntry) + entry->keysize);
@@ -194,6 +262,7 @@ class HashBucket {
         nunique = 0;
         buf_idx = 0;
         buf_off = 0;
+        slices.clear();
     }
 
 protected:
@@ -208,6 +277,8 @@ protected:
     int iter_buf_idx, iter_buf_off;
 
     uint64_t iunique, nunique;
+
+    std::unordered_map<char*, int> slices;
 };
 
 }

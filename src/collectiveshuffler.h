@@ -103,7 +103,22 @@ public:
         int target = this->get_target_rank(key);
 
         if (target == this->shuffle_rank) {
-            this->out->write(key, val);
+            int ret = this->out->write(key, val);
+            if (BALANCE_LOAD && ret == 1) {
+                char tmpkey[MAX_RECORD_SIZE];
+                int keysize = this->ser->get_key_bytes(key);
+                if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
+                this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
+                uint32_t hid = hashlittle(tmpkey, keysize, 0);
+                int bidx = (int) (hid % (uint32_t) (this->shuffle_size * SAMPLE_COUNT));
+                auto iter = this->bin_table.find(bidx);
+                if (iter != this->bin_table.end()) {
+                    iter->second += 1;
+                    this->local_kv_count += 1;
+                } else {
+                    LOG_ERROR("Wrong bin index=%d\n", bidx);
+                }
+            }
             return 0;
         }
 
@@ -128,6 +143,7 @@ public:
     virtual void make_progress(bool issue_new = false) { exchange_kv(); }
 
 protected:
+
     void wait()
     {
         LOG_PRINT(DBG_COMM, "Comm: start wait.\n");
@@ -139,7 +155,12 @@ protected:
         for (int i = 0; i < this->shuffle_size; i++)
             sendcount += (uint64_t) send_offset[i];
 
-        if (sendcount > 0) exchange_kv();
+        while (sendcount > 0 || this->shuffle_times == 0) {
+            exchange_kv();
+            sendcount = 0;
+            for (int i = 0; i < this->shuffle_size; i++)
+                sendcount += (uint64_t) send_offset[i];
+        }
 
         this->done_flag = 1;
 
@@ -163,7 +184,19 @@ protected:
             while (count < recv_count[k]) {
                 int kvsize = this->ser->kv_from_bytes(&key[0], &val[0],
                      src_buf, recv_count[k] - count);
-                this->out->write(key, val);
+                int ret = this->out->write(key, val);
+                if (BALANCE_LOAD && ret == 1) {
+                    int keysize = this->ser->get_key_bytes(&key[0]);
+                    uint32_t hid = hashlittle(src_buf, keysize, 0);
+                    int bidx = (int) (hid % (uint32_t) (this->shuffle_size * SAMPLE_COUNT));
+                    auto iter = this->bin_table.find(bidx);
+                    if (iter != this->bin_table.end()) {
+                        iter->second += 1;
+                        this->local_kv_count += 1;
+                    } else {
+                        LOG_ERROR("Wrong bin index=%d\n", bidx);
+                    }
+                }
                 src_buf += kvsize;
                 count += kvsize;
             }
@@ -249,13 +282,15 @@ protected:
 
         PROFILER_RECORD_COUNT(COUNTER_SHUFFLE_TIMES, 1, OPSUM);
 
-        //PROFILER_RECORD_TIME_START;
-        //MPI_Allreduce(&(this->done_flag), &(this->done_count), 1, MPI_INT, MPI_SUM, this->shuffle_comm);
-        //PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
-
-        //TRACKER_RECORD_EVENT(EVENT_COMM_ALLREDUCE);
-
         LOG_PRINT(DBG_COMM, "Comm: exchange KV. (send count=%ld, recv count=%ld, done count=%d)\n", sendcount, recvcount, this->done_count);
+
+        if (BALANCE_LOAD && this->check_load_balance() == false) {
+            LOG_PRINT(DBG_REPAR, "Load balance start\n");
+            this->balance_load();
+            LOG_PRINT(DBG_REPAR, "Load balance end\n");
+        }
+
+        this->shuffle_times += 1;
     }
 
     int64_t buf_size;

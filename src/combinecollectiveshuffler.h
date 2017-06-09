@@ -54,11 +54,10 @@ public:
     virtual void close() {
 
         garbage_collection();
-        delete bucket;
-
-        mem_aligned_free(keyarray);
-
         CollectiveShuffler<KeyType,ValType>::close();
+
+        delete bucket;
+        mem_aligned_free(keyarray);
 
         LOG_PRINT(DBG_GEN, "CombineCollectiveShuffler close.\n");
     }
@@ -68,7 +67,22 @@ public:
         int target = this->get_target_rank(key);
 
         if (target == this->shuffle_rank) {
-            this->out->write(key, val);
+            int ret =  this->out->write(key, val);
+            if (BALANCE_LOAD && ret == 1) {
+                char tmpkey[MAX_RECORD_SIZE];
+                int keysize = this->ser->get_key_bytes(key);
+                if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
+                this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
+                uint32_t hid = hashlittle(tmpkey, keysize, 0);
+                int bidx = (int) (hid % (uint32_t) (this->shuffle_size * SAMPLE_COUNT));
+                auto iter = this->bin_table.find(bidx);
+                if (iter != this->bin_table.end()) {
+                    iter->second += 1;
+                    this->local_kv_count += 1;
+                } else {
+                    LOG_ERROR("Wrong bin index=%d\n", bidx);
+                }
+            }
             return 0;
         }
 
@@ -78,6 +92,7 @@ public:
                       kvsize, this->buf_size);
 
         keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
+
         u = bucket->findEntry(keyarray, keybytes);
 
         if (u == NULL) {

@@ -168,7 +168,8 @@ void get_default_values()
     if (env) {
         int flag = atoi(env);
         if (flag != 0) {
-            DBG_LEVEL |= (DBG_GEN | DBG_DATA | DBG_COMM | DBG_IO | DBG_MEM | DBG_CHUNK);
+            DBG_LEVEL |= (DBG_GEN | DBG_DATA | DBG_COMM 
+                          | DBG_IO | DBG_MEM | DBG_CHUNK | DBG_REPAR);
         }
     }
     env = getenv("MIMIR_DBG_GEN");

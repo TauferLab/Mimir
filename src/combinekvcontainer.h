@@ -51,7 +51,8 @@ public:
 
     void close() {
 
-        garbage_collection();
+        this->garbage_collection();
+        bucket->clear();
 
         mem_aligned_free(keyarray);
 
@@ -64,6 +65,8 @@ public:
 
     int write(KeyType *key, ValType *val)
     {
+        int ret = 0;
+
         if (this->page == NULL) this->page = this->add_page();
 
         int kvsize = this->ser->get_kv_bytes(key, val);
@@ -78,7 +81,7 @@ public:
             CombinerVal tmp;
 
             std::unordered_map < char *, int >::iterator iter;
-            for (iter = slices.begin(); iter != slices.end(); iter++) {
+            for (iter = this->slices.begin(); iter != this->slices.end(); iter++) {
                 char *sbuf = iter->first;
                 int ssize = iter->second;
 
@@ -87,14 +90,14 @@ public:
                     this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
 
                     if (iter->second == kvsize)
-                        slices.erase(iter);
+                        this->slices.erase(iter);
                     else
-                        slices[iter->first] -= kvsize;
+                        this->slices[iter->first] -= kvsize;
 
                     break;
                 }
             }
-            if (iter == slices.end()) {
+            if (iter == this->slices.end()) {
                 if (kvsize + this->page->datasize > this->pagesize )
                     this->page = this->add_page();
                 tmp.kv = this->page->buffer + this->page->datasize;
@@ -103,14 +106,16 @@ public:
             }
             bucket->insertEntry(tmp.kv, keybytes, &tmp);
             this->kvcount += 1;
+            ret = 1;
         }
         else {
             KeyType u_key[this->keycount];
             ValType u_val[this->valcount];
             this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
             user_combine(this, u_key, u_val, val, user_ptr);
+            ret = 0;
         }
-        return 0;
+        return ret;
     }
 
     void update(KeyType *key, ValType *val)
@@ -127,11 +132,11 @@ public:
         if (kvsize <= ukvsize) {
             this->ser->kv_to_bytes(key, val, u->kv, kvsize);
             if (kvsize < ukvsize) {
-                slices.insert(std::make_pair(u->kv + ukvsize - kvsize, ukvsize - kvsize));
+                this->slices.insert(std::make_pair(u->kv + ukvsize - kvsize, ukvsize - kvsize));
             }
         }
         else {
-            slices.insert(std::make_pair(u->kv, ukvsize));
+            this->slices.insert(std::make_pair(u->kv, ukvsize));
             if (kvsize + this->page->datasize > this->pagesize)
                 this->page = this->add_page();
             u->kv = this->page->buffer + this->page->datasize;
@@ -142,66 +147,22 @@ public:
         return;
     }
 
+    virtual int remove(KeyType *key, ValType *val,
+                       int divisor, std::vector<int>& remainders) {
 
-private:
-    void garbage_collection()
-    {
-        KeyType key[this->keycount];
-        ValType val[this->valcount];
-        ContainerIter dst_iter(this), src_iter(this);
-        Page *dst_page = NULL, *src_page = NULL;
-        int64_t dst_off = 0, src_off = 0;
-        int kvsize;
-
-        if (!slices.empty()) {
-
-            LOG_PRINT(DBG_GEN, "KVContainer garbage collection: slices=%ld\n",
-                      slices.size());
-
-            dst_page = dst_iter.next();
-            while ((src_page = src_iter.next()) != NULL) {
-                src_off = 0;
-                while (src_off < src_page->datasize) {
-                    char *src_buf = src_page->buffer + src_off;
-                    std::unordered_map < char *, int >::iterator iter = slices.find(src_buf);
-                    if (iter != slices.end()) {
-                        src_off += iter->second;
-                    }
-                    else {
-                        int kvsize = this->ser->kv_from_bytes(key, val,
-                                        src_buf, src_page->datasize - src_off);
-                        if (dst_page != src_page || dst_off != src_off) {
-                            if (dst_off + kvsize > this->pagesize) {
-                                dst_page->datasize = dst_off;
-                                dst_page = dst_iter.next();
-                                dst_off = 0;
-                            }
-                            for (int kk = 0; kk < kvsize; kk++) {
-                                dst_page->buffer[dst_off + kk] = src_page->buffer[src_off + kk];
-                            }
-                        }
-                        src_off += kvsize;
-                        dst_off += kvsize;
-                    }
-                }
-                if (src_page == dst_page && src_off == dst_off) {
-                    dst_page = dst_iter.next();
-                    dst_off = 0;
-                }
-            }
-            if (dst_page != NULL) dst_page->datasize = dst_off;
-            while ((dst_page = dst_iter.next()) != NULL) {
-                dst_page->datasize = 0;
-            }
-            slices.clear();
+        int ret = KVContainer<KeyType, ValType>::remove(key, val, divisor, remainders);
+        if (ret != -1) {
+            keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
+            bucket->removeEntry(keyarray, keybytes);
         }
-        bucket->clear();
+
+        return ret;
     }
 
+private:
     void (*user_combine)(Combinable<KeyType,ValType> *output,
                          KeyType *key, ValType *val1, ValType *val2, void *ptr);
     void *user_ptr;
-    std::unordered_map<char*, int> slices;
     HashBucket<CombinerVal> *bucket;
     CombinerVal *u;
     char* keyarray;

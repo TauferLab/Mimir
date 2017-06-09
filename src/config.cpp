@@ -23,6 +23,8 @@ int READER_TYPE = 0;
 int WRITER_TYPE = 0;
 int SHUFFLE_TYPE = 0;
 int MAKE_PROGRESS = 0;
+int SAMPLE_COUNT = 100;
+int BALANCE_LOAD = 1;
 
 // Profile & Debug
 int DBG_LEVEL = 0;
