@@ -9,6 +9,7 @@
 #define MIMIR_CONTEXT_H
 
 #include <typeinfo>
+#include <type_traits>
 
 #include "log.h"
 #include "mimir.h"
@@ -48,7 +49,7 @@ class MimirContext {
                  void (*map_fn)(Readable<InKeyType,InValType> *input, 
                                 Writable<KeyType,ValType> *output, void *ptr),
                  void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                   Writable<KeyType,ValType> *output, void *ptr),
+                                   Writable<OutKeyType,OutValType> *output, void *ptr),
                  std::vector<std::string> input_dir,
                  std::string output_dir,
                  RepartitionCallback repartition_fn = NULL,
@@ -75,7 +76,7 @@ class MimirContext {
                  void (*map_fn)(Readable<InKeyType,InValType> *input, 
                                 Writable<KeyType,ValType> *output, void *ptr),
                  void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                   Writable<KeyType,ValType> *output, void *ptr),
+                                   Writable<OutKeyType,OutValType> *output, void *ptr),
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                     KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
                  HashCallback hash_fn = NULL,
@@ -98,7 +99,7 @@ class MimirContext {
                  void (*map_fn)(Readable<InKeyType,InValType> *input, 
                                 Writable<KeyType,ValType> *output, void *ptr),
                  void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                   Writable<KeyType,ValType> *output, void *ptr),
+                                   Writable<OutKeyType,OutValType> *output, void *ptr),
                  std::vector<std::string> input_dir,
                  std::string output_dir,
                  RepartitionCallback repartition_fn = NULL,
@@ -168,7 +169,7 @@ class MimirContext {
         LOG_PRINT(DBG_GEN, "MapReduce: map start\n");
 
         // input from current database
-        if (database != NULL) input = (Readable<InKeyType,InValType>*)database;
+        if (database != NULL) input = dynamic_cast<Readable<InKeyType,InValType>*>(database);
         else if (in_database != NULL) input = in_database;
         // input from files
         else if (input_dir.size() > 0) {
@@ -298,11 +299,11 @@ class MimirContext {
     }
 
     uint64_t reduce(void *ptr = NULL) {
-        KVContainer<KeyType,ValType> *kv = NULL;
+        KVContainer<OutKeyType,OutValType> *kv = NULL;
         KMVContainer<KeyType,ValType> *kmv = NULL;
-        FileWriter<KeyType,ValType> *writer = NULL;
+        FileWriter<OutKeyType,OutValType> *writer = NULL;
         Readable<KeyType,ValType> *input = NULL;
-        Writable<KeyType,ValType> *output = NULL;
+        Writable<OutKeyType,OutValType> *output = NULL;
 
         if (user_reduce == NULL) {
             LOG_ERROR("Please set reduce callback!\n");
@@ -317,14 +318,14 @@ class MimirContext {
         input = database;
         // output to user database
         if (user_database != NULL) {
-            output = user_database;
+            output = dynamic_cast<Writable<OutKeyType,OutValType>*>(user_database);
         // output to stage area
         } else if (output_mode == EXPLICIT_OUTPUT) {
-            kv = new KVContainer<KeyType,ValType>(keycount, valcount);
+            kv = new KVContainer<OutKeyType,OutValType>(keycount, valcount);
             output = kv;
         // output to disk files
         } else {
-            writer = FileWriter<KeyType,ValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
+            writer = FileWriter<OutKeyType,OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
             output = writer;
         }
 
@@ -358,7 +359,7 @@ class MimirContext {
             BaseDatabase<KeyType,ValType>::addRef(database);
             user_database = NULL;
         } else if (output_mode == EXPLICIT_OUTPUT) {
-            database = kv;
+            database = dynamic_cast<BaseDatabase<KeyType,ValType>*>(kv);
             BaseDatabase<KeyType,ValType>::addRef(database);
             // output to disk files
         } else {
@@ -460,7 +461,7 @@ class MimirContext {
                void (*map_fn)(Readable<InKeyType,InValType> *input, 
                               Writable<KeyType,ValType> *output, void *ptr),
                void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                 Writable<KeyType,ValType> *output, void *ptr),
+                                 Writable<OutKeyType,OutValType> *output, void *ptr),
                void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                   KeyType* key, ValType* val1, ValType* val2, void *ptr),
                HashCallback partition_fn,
@@ -511,7 +512,7 @@ class MimirContext {
     void (*user_map)(Readable<InKeyType,InValType> *input, 
                      Writable<KeyType,ValType> *output, void *ptr);
     void (*user_reduce)(Readable<KeyType,ValType> *input, 
-                        Writable<KeyType,ValType> *output, void *ptr);
+                        Writable<OutKeyType,OutValType> *output, void *ptr);
     void (*user_combine)(Combinable<KeyType,ValType> *output,
                          KeyType* key, ValType* val1, ValType* val2, void *ptr);
 

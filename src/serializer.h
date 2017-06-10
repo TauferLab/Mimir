@@ -18,18 +18,141 @@
 
 namespace MIMIR_NS {
 
+template <typename Type>
+class bytestream {
+  public:
+    static int to_bytes (Type* obj, int count, char *buf) {
+        int bytesize = size(obj, count);
+        char* begin = reinterpret_cast<char*>(std::addressof(*obj));
+        memcpy(buf, begin, bytesize);
+        return bytesize;
+    }
+
+    static int from_bytes (Type* obj, int count, char *buf) {
+        int bytesize = size(obj, count);
+        char* begin = reinterpret_cast<char*>(std::addressof(*obj));
+        memcpy(begin, buf, bytesize);
+        return bytesize;
+    }
+
+    static int compare (Type* obj1, Type* obj2, int count) {
+        int bytesize = size(obj1, count);
+        return memcmp(obj1, obj2, bytesize);
+    }
+
+    static int size (Type* obj, int count) {
+        return (int)sizeof(Type) * count;
+    }
+};
+
+template <>
+class bytestream<const char*> {
+  public:
+    static int to_bytes (const char** obj, int count, char *buf) {
+
+        int bytesize = 0;
+        for (int i = 0; i < count; i++) {
+            int strsize = (int)strlen(obj[i]) + 1;
+            memcpy(buf, obj[i], strsize);
+            buf += strsize;
+            bytesize += strsize;
+        }
+
+        return bytesize;
+    }
+
+    static int from_bytes (const char** obj, int count, char *buf) {
+
+        int bytesize = 0;
+        for (int i = 0; i < count; i++) {
+            int strsize = (int)strlen(buf) + 1;
+            obj[i] = buf;
+            buf += strsize;
+            bytesize += strsize;
+        }
+
+        return bytesize;
+    }
+
+    static int compare(const char** obj1, const char** obj2, int count) {
+
+        int ret = 0;
+
+        for (int i = 0; i < count ; i++) {
+            if (strcmp(obj1[i], obj2[i]) != 0) {
+                ret = 1;
+                break;
+            }
+        }
+
+        return ret;
+    }
+
+    static int size (const char** obj, int count) {
+        int strsize = 0;
+        for (int i = 0; i < count; i++)
+            strsize += (int)strlen(obj[i]) + 1;
+        return strsize;
+    }
+};
+
+template <>
+class bytestream<char*> {
+  public:
+    static int to_bytes (char** obj, int count, char *buf) {
+
+        int bytesize = 0;
+        for (int i = 0; i < count; i++) {
+            int strsize = (int)strlen(obj[i]) + 1;
+            memcpy(buf, obj[i], strsize);
+            buf += strsize;
+            bytesize += strsize;
+        }
+
+        return bytesize;
+    }
+
+    static int from_bytes (char** obj, int count, char *buf) {
+
+        int bytesize = 0;
+        for (int i = 0; i < count; i++) {
+            int strsize = (int)strlen(buf) + 1;
+            obj[i] = buf;
+            buf += strsize;
+            bytesize += strsize;
+        }
+
+        return bytesize;
+    }
+
+    static int compare (char** obj1, char** obj2, int count) {
+
+        int ret = 0;
+
+        for (int i = 0; i < count ; i++) {
+            if (strcmp(obj1[i], obj2[i]) != 0) {
+                ret = 1;
+                break;
+            }
+        }
+
+        return ret;
+    }
+
+    static int size (char** obj, int count) {
+        int strsize = 0;
+        for (int i = 0; i < count; i++)
+            strsize += (int)strlen(obj[i]) + 1;
+        return strsize;
+    }
+};
+
 template <typename KeyType, typename ValType>
 class Serializer {
   public:
     Serializer(int keycount, int valcount) {
         this->keycount = keycount;
         this->valcount = valcount;
-        keysize = sizeof(KeyType) * keycount;
-        valsize = sizeof(ValType) * valcount;
-        keytype = type_mode<KeyType>();
-        valtype = type_mode<ValType>();
-        if (keytype == TypeNULL)
-            LOG_ERROR("The key type cannot be empty!\n");
     }
 
     ~Serializer() {
@@ -37,71 +160,20 @@ class Serializer {
 
     int compare_key(KeyType* key1, KeyType* key2) {
 
-        int ret = 0;
-        if (keytype == TypeFixed) {
-            ret = memcmp(key1, key2, keysize);
-        } else if (keytype == TypeString) {
-            for (int i = 0; i < keycount ; i++) {
-                if (strcmp((const char*)key1[i], (const char*)key2[i]) != 0) {
-                    ret = 1;
-                    break;
-                }
-            }
-        } else {
-            LOG_ERROR("Serializer Error!\n");
-        }
+        return bytestream<KeyType>::compare(key1, key2, keycount);
 
-        return ret;
     }
 
     int key_to_bytes (KeyType *key, char *buffer, int bufsize) {
 
-        int bytesize = 0;
+        return bytestream<KeyType>::to_bytes(key, keycount, buffer);
 
-        if (keytype == TypeFixed) {
-            char *begin = reinterpret_cast<char*>(std::addressof(*key)) ;
-            memcpy(buffer, begin, keysize);
-            bufsize -= keysize;
-            buffer += keysize;
-            bytesize = keysize;
-        } else if (keytype == TypeString) {
-            for (int i = 0; i < keycount; i++) {
-                int strsize = strlen(key[i]) + 1;
-                memcpy(buffer, key[i], strsize);
-                bufsize -= strsize;
-                buffer += strsize;
-                bytesize += strsize;
-            }
-        } else {
-            LOG_ERROR("Serializer Error!\n");
-        }
-
-        return bytesize;
     }
 
     int val_to_bytes (ValType *val, char *buffer, int bufsize) {
 
-        int bytesize = 0;
+        return bytestream<ValType>::to_bytes(val, valcount, buffer);
 
-        if (valtype == TypeFixed) {
-            char* begin = reinterpret_cast<char*>(std::addressof(*val));
-            memcpy(buffer, begin, valsize);
-            bufsize -= valsize;
-            buffer += valsize;
-            bytesize = valsize;
-        } else if (valtype == TypeString) {
-            for (int i = 0; i < valcount; i++) {
-                int strsize = strlen(val[i]) + 1;
-                memcpy(buffer, val[i], strsize);
-                bufsize -= strsize;
-                buffer += strsize;
-                bytesize += strsize;
-            }
-        } else {
-            LOG_ERROR("Serializer Error!\n");
-        }
-
-        return bytesize;
     }
 
     int kv_to_bytes (KeyType *key, ValType *val, char* buffer, int bufsize) {
@@ -118,54 +190,14 @@ class Serializer {
 
     int key_from_bytes (KeyType *key, char* buffer, int bufsize) {
 
-        int bytesize = 0;
+        return bytestream<KeyType>::from_bytes(key, keycount, buffer);
 
-        // get key
-        if (keytype == TypeFixed) {
-            char* begin = reinterpret_cast<char*>(std::addressof(*key)) ;
-            memcpy(begin, buffer, keysize);
-            bufsize -= keysize;
-            buffer += keysize;
-            bytesize = keysize;
-        } else if (keytype == TypeString) {
-            for (int i = 0; i < keycount; i++) {
-                int strsize = strlen(buffer) + 1;
-                key[i] = buffer;
-                bufsize -= strsize;
-                buffer += strsize;
-                bytesize += strsize;
-            }
-        } else {
-            LOG_ERROR("Serializer Error!\n");
-        }
-
-        return bytesize;
     }
 
     int val_from_bytes (ValType *val, char* buffer, int bufsize) {
 
-        int bytesize = 0;
+        return bytestream<ValType>::from_bytes(val, valcount, buffer);
 
-        // get val
-        if (valtype == TypeFixed) {
-            char* begin = reinterpret_cast<char*>( std::addressof(*val) );
-            memcpy(begin, buffer, valsize);
-            bufsize -= valsize;
-            buffer += valsize;
-            bytesize = valsize;
-        } else if (keytype == TypeString) {
-            for (int i = 0; i < valcount; i++) {
-                int strsize = strlen(buffer) + 1;
-                val[i] = buffer;
-                bufsize -= strsize;
-                buffer += strsize;
-                bytesize += strsize;
-            }
-        } else {
-            LOG_ERROR("Serializer Error!\n");
-        }
-
-        return bytesize;
     }
 
     int kv_from_bytes (KeyType *key, ValType *val,
@@ -184,36 +216,12 @@ class Serializer {
 
     int get_key_bytes (KeyType *key) {
 
-        int keybytes = 0;
+        return bytestream<KeyType>::size(key, keycount);
 
-        if (keytype == TypeFixed) {
-            keybytes = keysize;
-        } else if (keytype == TypeString) {
-            for (int i = 0; i < keycount; i++) {
-                int strsize = (int)strlen(key[i]) + 1;
-                keybytes += strsize;
-            }
-        } else {
-            LOG_ERROR("Serializer Error!\n");
-        }
-
-        return keybytes;
     }
 
     int get_val_bytes (ValType *val) {
-
-        int valbytes = 0;
-
-        if (valtype == TypeFixed) {
-            valbytes = valsize;
-        } else if (valtype == TypeString) {
-            for (int i = 0; i < valcount; i++) {
-                int strsize = (int)strlen(val[i]) + 1;
-                valbytes += strsize;
-            }
-        }
-
-        return valbytes;
+        return bytestream<ValType>::size(val, valcount);
     }
 
     int get_kv_bytes (KeyType *key, ValType *val) {
