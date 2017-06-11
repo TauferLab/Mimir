@@ -63,8 +63,8 @@ class KMVContainer {
 
     void convert(Readable<KeyType,ValType> *kv) {
         int valbytes = 0;
-        KeyType key[keycount];
-        ValType val[valcount];
+        typename SafeType<KeyType>::type key[keycount];
+        typename SafeType<ValType>::type val[valcount];
         ReducerVal *rdc_val = NULL;
 
         LOG_PRINT(DBG_GEN, "MapReduce: convert start.\n");

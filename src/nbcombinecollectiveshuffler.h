@@ -121,8 +121,8 @@ public:
        else {
            //kv.set_buffer(u->kv);
            //user_combine(this, &kv, (KVRecord*)record, user_ptr);
-            KeyType u_key[this->keycount];
-            ValType u_val[this->valcount];
+            typename SafeType<KeyType>::type u_key[this->keycount];
+            typename SafeType<ValType>::type u_val[this->valcount];
             int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
             user_combine(this, u_key, u_val, val, user_ptr);
        }
@@ -142,8 +142,8 @@ public:
        //int ukvsize = kv.get_record_size();
        //int ksize = kv.get_key_size();
 
-        KeyType u_key[this->keycount];
-        ValType u_val[this->valcount];
+        typename SafeType<KeyType>::type u_key[this->keycount];
+        typename SafeType<ValType>::type u_val[this->valcount];
         int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
         int kvsize = this->ser->get_kv_bytes(key, val);
 
@@ -198,8 +198,8 @@ protected:
    void garbage_collection()
    {
        if (!slices.empty()) {
-           KeyType key[this->keycount];
-           ValType val[this->valcount];
+           typename SafeType<KeyType>::type key[this->keycount];
+           typename SafeType<ValType>::type val[this->valcount];
 
            LOG_PRINT(DBG_GEN, "NBCollectiveShuffler garbage collection: slices=%ld\n",
                      slices.size());

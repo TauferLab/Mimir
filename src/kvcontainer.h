@@ -170,8 +170,8 @@ public:
 protected:
     void garbage_collection()
     {
-        KeyType key[this->keycount];
-        ValType val[this->valcount];
+        typename SafeType<KeyType>::type key[this->keycount];
+        typename SafeType<ValType>::type val[this->valcount];
         ContainerIter dst_iter(this), src_iter(this);
         Page *dst_page = NULL, *src_page = NULL;
         int64_t dst_off = 0, src_off = 0;

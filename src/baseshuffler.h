@@ -235,8 +235,8 @@ protected:
             reminders.push_back(iter.first);
         }
 
-        KeyType key[keycount];
-        ValType val[valcount];
+        typename SafeType<KeyType>::type key[keycount];
+        typename SafeType<ValType>::type val[valcount];
         int bid = 0;
 
         // Ensure no extrea repartition within repartition

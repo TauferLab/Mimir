@@ -18,6 +18,18 @@
 
 namespace MIMIR_NS {
 
+template<typename Type>
+    class SafeType {
+      public:
+        typedef Type type;
+    };
+
+template<>
+    class SafeType<void> {
+      public:
+        typedef char type;
+    };
+
 template <typename Type>
 class bytestream {
   public:
@@ -144,6 +156,30 @@ class bytestream<char*> {
         for (int i = 0; i < count; i++)
             strsize += (int)strlen(obj[i]) + 1;
         return strsize;
+    }
+};
+
+template <>
+class bytestream<void> {
+  public:
+    static int to_bytes (void* obj, int count, char *buf) {
+
+        return 0;
+    }
+
+    static int from_bytes (void* obj, int count, char *buf) {
+
+        return 0;
+    }
+
+    static int compare (void* obj1, void* obj2, int count) {
+
+        return 1;
+    }
+
+    static int size (void* obj, int count) {
+
+        return 0;
     }
 };
 

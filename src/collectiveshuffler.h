@@ -174,8 +174,8 @@ protected:
 
     void save_data()
     {
-        KeyType key[this->keycount];
-        ValType val[this->valcount];
+        typename SafeType<KeyType>::type key[this->keycount];
+        typename SafeType<ValType>::type val[this->valcount];
 
         char *src_buf = recv_buffer;
         int k = 0;

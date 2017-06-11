@@ -134,8 +134,8 @@ public:
             this->kvcount ++;
         }
         else {
-            KeyType u_key[this->keycount];
-            ValType u_val[this->valcount];
+            typename SafeType<KeyType>::type u_key[this->keycount];
+            typename SafeType<ValType>::type u_val[this->valcount];
             int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
             user_combine(this, u_key, u_val, val, user_ptr);
         }
@@ -145,8 +145,8 @@ public:
 
     virtual void update(KeyType *key, ValType *val)
     {
-        KeyType u_key[this->keycount];
-        ValType u_val[this->valcount];
+        typename SafeType<KeyType>::type u_key[this->keycount];
+        typename SafeType<ValType>::type u_val[this->valcount];
         int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
 
         int target = this->get_target_rank(key);
@@ -193,8 +193,8 @@ private:
     {
         if (!slices.empty()) {
 
-            KeyType key[this->keycount];
-            ValType val[this->valcount];
+            typename SafeType<KeyType>::type key[this->keycount];
+            typename SafeType<ValType>::type val[this->valcount];
 
             LOG_PRINT(DBG_GEN, "CollectiveShuffler garbage collection: slices=%ld\n",
                       slices.size());
