@@ -28,7 +28,7 @@ public:
                                                      KeyType *key, ValType *val1, ValType *val2, void *ptr),
                                 void *user_ptr,
                                 Writable<KeyType,ValType> *out,
-                                int (*user_hash)(KeyType* key),
+                                int (*user_hash)(KeyType* key, ValType* val, int npartition),
                                 int keycount, int valcount)
         : NBCollectiveShuffler<KeyType,ValType>(comm, out, user_hash, keycount, valcount)
     {
@@ -57,7 +57,7 @@ public:
 
    virtual int write(KeyType *key, ValType *val)
    {
-       int target = this->get_target_rank(key);
+       int target = this->get_target_rank(key, val);
 
        if (target == this->shuffle_rank) {
            this->out->write(key, val);
@@ -133,7 +133,7 @@ public:
     //virtual void update(BaseRecordFormat *);
    virtual void update(KeyType *key, ValType *val)
    {
-        int target = this->get_target_rank(key);
+        int target = this->get_target_rank(key, val);
 
        //int target = get_target_rank(((KVRecord*)record)->get_key(),
        //                             ((KVRecord*)record)->get_key_size());

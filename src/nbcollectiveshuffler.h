@@ -39,7 +39,7 @@ class NBCollectiveShuffler : public BaseShuffler<KeyType, ValType> {
 public:
   NBCollectiveShuffler(MPI_Comm comm,
                        Writable<KeyType, ValType> *out,
-                       int (*user_hash)(KeyType* key),
+                       int (*user_hash)(KeyType* key, ValType* val, int npartition),
                        int keycount, int valcount)
       :  BaseShuffler<KeyType, ValType>(comm, out, user_hash, keycount, valcount)
       {
@@ -125,7 +125,7 @@ public:
         //int target = get_target_rank(((KVRecord*)record)->get_key(), 
         //                             ((KVRecord*)record)->get_key_size());
 
-        int target = this->get_target_rank(key);
+        int target = this->get_target_rank(key, val);
 
         if (target == this->shuffle_rank) {
             this->out->write(key, val);

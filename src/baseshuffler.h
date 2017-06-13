@@ -23,7 +23,7 @@ class BaseShuffler : public Writable<KeyType, ValType> {
 public:
     BaseShuffler(MPI_Comm comm,
                  Writable<KeyType, ValType> *out,
-                 int (*user_hash)(KeyType* key),
+                 int (*user_hash)(KeyType* key, ValType* val, int npartition),
                  int keycount, int valcount) {
 
         if (out == NULL) LOG_ERROR("Output shuffler cannot be NULL!\n");
@@ -54,7 +54,7 @@ public:
             for (int i = 0; i < shuffle_size; i++) {
                 kv_per_proc[i] = 0;
             }
-            for (int i = 0; i < SAMPLE_COUNT; i++) {
+            for (int i = 0; i < BIN_COUNT; i++) {
                 bin_table.insert({shuffle_rank+i*shuffle_size, 0});
             }
             isrepartition = false;
@@ -76,7 +76,7 @@ public:
 
 protected:
 
-    int get_target_rank(KeyType *key) {
+    int get_target_rank(KeyType *key, ValType *val) {
 
         char tmpkey[MAX_RECORD_SIZE];
         int keysize = ser->get_key_bytes(key);
@@ -85,7 +85,7 @@ protected:
 
         int target = 0;
         if (user_hash != NULL) {
-            target = user_hash(key) % shuffle_size;
+            target = user_hash(key, val, shuffle_size) % shuffle_size;
         }
         else {
             uint32_t hid = hashlittle(tmpkey, keysize, 0);
@@ -93,7 +93,7 @@ protected:
                 target = (int) (hid % (uint32_t) shuffle_size);
             } else {
                 // search item in the redirect table
-                int bid = (int)(hid % (uint32_t) (shuffle_size * SAMPLE_COUNT));
+                int bid = (int)(hid % (uint32_t) (shuffle_size * BIN_COUNT));
                 std::unordered_map<int, int>::iterator iter = redirect_table.find(bid);
                 // find the item in the redirect table
                 if (iter != redirect_table.end()) {
@@ -242,14 +242,14 @@ protected:
         // Ensure no extrea repartition within repartition
         isrepartition = true;
         if (out_db == NULL) LOG_ERROR("Cannot convert to removable object!\n");
-        while ((bid = out_db->remove(key, val, SAMPLE_COUNT * shuffle_size, reminders)) != -1) {
+        while ((bid = out_db->remove(key, val, BIN_COUNT * shuffle_size, reminders)) != -1) {
             this->write(key, val);
             this->local_kv_count -= 1;
         }
         isrepartition = false;
     }
 
-    int (*user_hash)(KeyType* key);
+    int (*user_hash)(KeyType* key, ValType* val, int npartition);
     Writable<KeyType,ValType> *out;
 
     Serializer<KeyType, ValType> *ser;

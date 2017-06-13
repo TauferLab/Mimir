@@ -22,7 +22,7 @@ class CollectiveShuffler : public BaseShuffler<KeyType,ValType> {
 public:
   CollectiveShuffler(MPI_Comm comm,
                      Writable<KeyType, ValType> *out,
-                     int (*user_hash)(KeyType* key),
+                     int (*user_hash)(KeyType* key, ValType* val, int npartition),
                      int keycount, int valcount) 
       : BaseShuffler<KeyType, ValType>(comm, out, user_hash,
                                        keycount, valcount)
@@ -100,7 +100,7 @@ public:
 
     virtual int write(KeyType *key, ValType *val)
     {
-        int target = this->get_target_rank(key);
+        int target = this->get_target_rank(key, val);
 
         if (target == this->shuffle_rank) {
             int ret = this->out->write(key, val);
@@ -110,7 +110,7 @@ public:
                 if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
                 this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
                 uint32_t hid = hashlittle(tmpkey, keysize, 0);
-                int bidx = (int) (hid % (uint32_t) (this->shuffle_size * SAMPLE_COUNT));
+                int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
                 auto iter = this->bin_table.find(bidx);
                 if (iter != this->bin_table.end()) {
                     iter->second += 1;
@@ -188,7 +188,7 @@ protected:
                 if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
                     int keysize = this->ser->get_key_bytes(&key[0]);
                     uint32_t hid = hashlittle(src_buf, keysize, 0);
-                    int bidx = (int) (hid % (uint32_t) (this->shuffle_size * SAMPLE_COUNT));
+                    int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
                     auto iter = this->bin_table.find(bidx);
                     if (iter != this->bin_table.end()) {
                         iter->second += 1;

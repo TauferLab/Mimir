@@ -69,7 +69,7 @@ class FileWriter : public Writable<KeyType, ValType> {
         } else if (strcmp(format, "text") == 0) {
             output_format = TEXT_FORMAT;
         } else {
-            LOG_ERROR("Wrong output format!\n");
+            LOG_ERROR("Wrong output format (%s)!\n", format);
         }
     }
 

@@ -55,7 +55,7 @@ class MimirContext {
                  RepartitionCallback repartition_fn = NULL,
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                     KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
-                 int (*hash_fn)(KeyType* key) = NULL,
+                 int (*hash_fn)(KeyType* key, ValType *val, int npartition) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
 
@@ -79,7 +79,7 @@ class MimirContext {
                                    Writable<OutKeyType,OutValType> *output, void *ptr),
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                     KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
-                 int (*hash_fn)(KeyType* key) = NULL,
+                 int (*hash_fn)(KeyType* key, ValType *val, int npartition) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
 
@@ -105,7 +105,7 @@ class MimirContext {
                  RepartitionCallback repartition_fn = NULL,
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                     KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
-                 int (*hash_fn)(KeyType* key) = NULL,
+                 int (*hash_fn)(KeyType* key, ValType* val, int npartition) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
 
@@ -383,12 +383,10 @@ class MimirContext {
         return total_records;
     }
 
-    uint64_t output(void (*output_fn)(Readable<KeyType,ValType> *input,
-                                      Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
-                    void *ptr = NULL) {
+    uint64_t output(void *ptr = NULL) {
 
-        KeyType key[keycount];
-        ValType val[valcount];
+        typename SafeType<KeyType>::type key[keycount];
+        typename SafeType<ValType>::type val[valcount];
 
         if (database == NULL)
             LOG_ERROR("No data to output!\n");
@@ -399,11 +397,11 @@ class MimirContext {
         writer->set_file_format(outfile_format.c_str());
         database->open();
         writer->open();
-        output_fn(database, writer, ptr);
-        //while (database->read(key, val) == 0) {
-        //    printf("key=%s, val=%ld\n", key[0], val[0]);
-            //writer->write(key, val);
-        //}
+        //output_fn(database, writer, ptr);
+        while (database->read(key, val) == 0) {
+            //printf("key=%s, val=%ld\n", key[0], val[0]);
+            writer->write(key, val);
+        }
         writer->close();
         database->close();
         uint64_t output_records = writer->get_record_count();
@@ -473,7 +471,7 @@ class MimirContext {
                                  Writable<OutKeyType,OutValType> *output, void *ptr),
                void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                   KeyType* key, ValType* val1, ValType* val2, void *ptr),
-               int (*partition_fn)(KeyType* key),
+               int (*partition_fn)(KeyType* key, ValType* val, int npartition),
                RepartitionCallback repartition_fn,
                bool do_shuffle,
                std::vector<std::string> &input_dir,
@@ -526,7 +524,7 @@ class MimirContext {
                         Writable<OutKeyType,OutValType> *output, void *ptr);
     void (*user_combine)(Combinable<KeyType,ValType> *output,
                          KeyType* key, ValType* val1, ValType* val2, void *ptr);
-    int (*user_hash)(KeyType* key);
+    int (*user_hash)(KeyType* key, ValType *val, int npartition);
 
     RepartitionCallback user_repartition;
     bool                do_shuffle;
@@ -554,7 +552,7 @@ class MimirContext {
     int         outkeycount, outvalcount;
 
     // Configuration
-    std::string outfile_format;
+    std::string outfile_format="binary";
 };
 
 }

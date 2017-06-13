@@ -26,7 +26,7 @@ public:
                                                    KeyType *key, ValType *val1, ValType *val2, void *ptr),
                               void *user_ptr,
                               Writable<KeyType,ValType> *out,
-                              int (*user_hash)(KeyType* key),
+                              int (*user_hash)(KeyType* key, ValType* val, int npartition),
                               int keycount, int valcount)
         : CollectiveShuffler<KeyType,ValType>(comm, out, user_hash, keycount, valcount)
     {
@@ -64,7 +64,7 @@ public:
 
     virtual int write(KeyType *key, ValType *val)
     {
-        int target = this->get_target_rank(key);
+        int target = this->get_target_rank(key, val);
 
         if (target == this->shuffle_rank) {
             int ret =  this->out->write(key, val);
@@ -74,7 +74,7 @@ public:
                 if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
                 this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
                 uint32_t hid = hashlittle(tmpkey, keysize, 0);
-                int bidx = (int) (hid % (uint32_t) (this->shuffle_size * SAMPLE_COUNT));
+                int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
                 auto iter = this->bin_table.find(bidx);
                 if (iter != this->bin_table.end()) {
                     iter->second += 1;
@@ -149,7 +149,7 @@ public:
         typename SafeType<ValType>::type u_val[this->valcount];
         int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
 
-        int target = this->get_target_rank(key);
+        int target = this->get_target_rank(key, val);
 
         int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > this->buf_size)

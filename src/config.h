@@ -30,7 +30,7 @@ extern int READER_TYPE;
 extern int WRITER_TYPE;
 extern int SHUFFLE_TYPE;
 extern int MAKE_PROGRESS;
-extern int SAMPLE_COUNT;
+extern int BIN_COUNT;
 extern int BALANCE_LOAD;
 
 // Profile & Debug

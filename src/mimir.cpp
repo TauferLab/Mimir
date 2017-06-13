@@ -266,6 +266,21 @@ void get_default_values()
         MAX_SBUF_COUNT = atoi(env);
     }
 
+    env = getenv("MIMIR_BALANCE_LOAD");
+    if (env) {
+        int flag = atoi(env);
+        if (flag == 0) {
+            BALANCE_LOAD = 0;
+        } else {
+            BALANCE_LOAD = 1;
+        }
+    }
+
+    env = getenv("MIMIR_BIN_COUNT");
+    if (env) {
+        BIN_COUNT = atoi(env);
+    }
+
     env = getenv("MIMIR_OUTPUT_STAT");
     if (env) {
         int flag = atoi(env);
@@ -300,11 +315,13 @@ Library configuration:\n\
 \treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \tcomm buffer: min=%d, max=%d\n\
+\tload balance: balance=%d, bin count=%ld\n\
 \tdebug level: %x\n\
 ***********************************************************************\n",
-        COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, WORK_STEAL, 
-        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE, 
-        MIN_SBUF_COUNT, MAX_SBUF_COUNT, 
+        COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, WORK_STEAL,
+        SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE,
+        MIN_SBUF_COUNT, MAX_SBUF_COUNT,
+        BALANCE_LOAD, BIN_COUNT,
         DBG_LEVEL);
         fflush(stdout);
     }
