@@ -39,7 +39,7 @@ class NBCollectiveShuffler : public BaseShuffler<KeyType, ValType> {
 public:
   NBCollectiveShuffler(MPI_Comm comm,
                        Writable<KeyType, ValType> *out,
-                       HashCallback user_hash,
+                       int (*user_hash)(KeyType* key),
                        int keycount, int valcount)
       :  BaseShuffler<KeyType, ValType>(comm, out, user_hash, keycount, valcount)
       {

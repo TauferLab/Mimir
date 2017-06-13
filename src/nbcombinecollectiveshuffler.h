@@ -28,7 +28,7 @@ public:
                                                      KeyType *key, ValType *val1, ValType *val2, void *ptr),
                                 void *user_ptr,
                                 Writable<KeyType,ValType> *out,
-                                HashCallback user_hash,
+                                int (*user_hash)(KeyType* key),
                                 int keycount, int valcount)
         : NBCollectiveShuffler<KeyType,ValType>(comm, out, user_hash, keycount, valcount)
     {

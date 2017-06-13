@@ -22,7 +22,7 @@ class CollectiveShuffler : public BaseShuffler<KeyType,ValType> {
 public:
   CollectiveShuffler(MPI_Comm comm,
                      Writable<KeyType, ValType> *out,
-                     HashCallback user_hash,
+                     int (*user_hash)(KeyType* key),
                      int keycount, int valcount) 
       : BaseShuffler<KeyType, ValType>(comm, out, user_hash,
                                        keycount, valcount)
@@ -104,7 +104,7 @@ public:
 
         if (target == this->shuffle_rank) {
             int ret = this->out->write(key, val);
-            if (BALANCE_LOAD && ret == 1) {
+            if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
                 char tmpkey[MAX_RECORD_SIZE];
                 int keysize = this->ser->get_key_bytes(key);
                 if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
@@ -185,7 +185,7 @@ protected:
                 int kvsize = this->ser->kv_from_bytes(&key[0], &val[0],
                      src_buf, recv_count[k] - count);
                 int ret = this->out->write(key, val);
-                if (BALANCE_LOAD && ret == 1) {
+                if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
                     int keysize = this->ser->get_key_bytes(&key[0]);
                     uint32_t hid = hashlittle(src_buf, keysize, 0);
                     int bidx = (int) (hid % (uint32_t) (this->shuffle_size * SAMPLE_COUNT));
@@ -284,7 +284,7 @@ protected:
 
         LOG_PRINT(DBG_COMM, "Comm: exchange KV. (send count=%ld, recv count=%ld, done count=%d)\n", sendcount, recvcount, this->done_count);
 
-        if (BALANCE_LOAD && this->check_load_balance() == false) {
+        if (BALANCE_LOAD && !(this->user_hash) && this->check_load_balance() == false) {
             LOG_PRINT(DBG_REPAR, "Load balance start\n");
             this->balance_load();
             LOG_PRINT(DBG_REPAR, "Load balance end\n");

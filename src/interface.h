@@ -109,7 +109,7 @@ class BaseDatabase :
 //typedef void (*MapCallback) (Readable *input, Writable *output, void *ptr);
 //typedef void (*ReduceCallback) (Readable *input, Writable *output, void *ptr);
 //typedef void (*CombineCallback) (Combinable *output, KVRecord *kv1, KVRecord *kv2, void *ptr);
-typedef int (*HashCallback) (const char*, int);
+//typedef int (*HashCallback) (const char*, int);
 typedef int (*RepartitionCallback) (const char*, int, bool islast);
 
 }

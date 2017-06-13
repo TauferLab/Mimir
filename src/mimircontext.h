@@ -55,7 +55,7 @@ class MimirContext {
                  RepartitionCallback repartition_fn = NULL,
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                     KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
-                 HashCallback hash_fn = NULL,
+                 int (*hash_fn)(KeyType* key) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
 
@@ -79,7 +79,7 @@ class MimirContext {
                                    Writable<OutKeyType,OutValType> *output, void *ptr),
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                     KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
-                 HashCallback hash_fn = NULL,
+                 int (*hash_fn)(KeyType* key) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
 
@@ -105,7 +105,7 @@ class MimirContext {
                  RepartitionCallback repartition_fn = NULL,
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                     KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
-                 HashCallback hash_fn = NULL,
+                 int (*hash_fn)(KeyType* key) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
 
@@ -184,6 +184,8 @@ class MimirContext {
                 chunk_mgr = new ChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYNAME);
             reader = FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType>::getReader(mimir_ctx_comm, chunk_mgr, user_repartition);
             input = reader;
+        } else {
+            input = NULL;
         }
 
         // output to customized database
@@ -198,6 +200,7 @@ class MimirContext {
         // output to files
         } else {
             writer = FileWriter<KeyType,ValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
+            writer->set_file_format(outfile_format.c_str());
             output = writer;
         }
 
@@ -326,6 +329,7 @@ class MimirContext {
         // output to disk files
         } else {
             writer = FileWriter<OutKeyType,OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
+            writer->set_file_format(outfile_format.c_str());
             output = writer;
         }
 
@@ -392,6 +396,7 @@ class MimirContext {
         LOG_PRINT(DBG_GEN, "MapReduce: output start\n");
 
         FileWriter<OutKeyType, OutValType> *writer = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
+        writer->set_file_format(outfile_format.c_str());
         database->open();
         writer->open();
         output_fn(database, writer, ptr);
@@ -419,8 +424,8 @@ class MimirContext {
     uint64_t scan(void (*scan_fn)(KeyType *key, ValType *val, void *ptr),
                   void *ptr = NULL) {
 
-        KeyType key[keycount];
-        ValType val[valcount];
+        typename SafeType<KeyType>::type key[keycount];
+        typename SafeType<ValType>::type val[valcount];
 
         if (database == NULL)
             LOG_ERROR("No data to output!\n");
@@ -447,6 +452,10 @@ class MimirContext {
     uint64_t get_kv_record_count() { return kv_records; }
     uint64_t get_kmv_record_count() { return kmv_records; }
 
+    void set_outfile_format(const char *format) {
+        outfile_format = format;
+    }
+
     void print_record_count () {
         printf("%d[%d] input=%ld, kv=%ld, kmv=%ld, output=%ld\n",
                mimir_ctx_rank, mimir_ctx_size, input_records,
@@ -464,7 +473,7 @@ class MimirContext {
                                  Writable<OutKeyType,OutValType> *output, void *ptr),
                void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                   KeyType* key, ValType* val1, ValType* val2, void *ptr),
-               HashCallback partition_fn,
+               int (*partition_fn)(KeyType* key),
                RepartitionCallback repartition_fn,
                bool do_shuffle,
                std::vector<std::string> &input_dir,
@@ -475,6 +484,8 @@ class MimirContext {
         this->valcount = valcount;
         this->inkeycount = inkeycount;
         this->invalcount = invalcount;
+        this->outkeycount = outkeycount;
+        this->outvalcount = outvalcount;
 
         MPI_Comm_dup(ctx_comm, &mimir_ctx_comm);
         MPI_Comm_rank(mimir_ctx_comm, &mimir_ctx_rank);
@@ -515,8 +526,8 @@ class MimirContext {
                         Writable<OutKeyType,OutValType> *output, void *ptr);
     void (*user_combine)(Combinable<KeyType,ValType> *output,
                          KeyType* key, ValType* val1, ValType* val2, void *ptr);
+    int (*user_hash)(KeyType* key);
 
-    HashCallback        user_hash;
     RepartitionCallback user_repartition;
     bool                do_shuffle;
 
@@ -540,6 +551,10 @@ class MimirContext {
 
     int         keycount, valcount;
     int         inkeycount, invalcount;
+    int         outkeycount, outvalcount;
+
+    // Configuration
+    std::string outfile_format;
 };
 
 }

@@ -29,7 +29,7 @@
 
 namespace MIMIR_NS {
 
-//class MPIFileWriter;
+enum OUTPUT_FORMAT {BINARY_FORMAT, TEXT_FORMAT};
 
 template <typename KeyType, typename ValType>
 class FileWriter : public Writable<KeyType, ValType> {
@@ -53,6 +53,7 @@ class FileWriter : public Writable<KeyType, ValType> {
         }
         shuffler = NULL;
         ser = new Serializer<KeyType, ValType>(keycount, valcount);
+        output_format = BINARY_FORMAT;
     }
 
     virtual ~FileWriter() {
@@ -61,6 +62,16 @@ class FileWriter : public Writable<KeyType, ValType> {
 
     std::string get_object_name() { return "FileWriter"; }
     std::string& get_file_name() { return filename; }
+
+    void set_file_format(const char *format = "binary") {
+        if (strcmp(format, "binary") == 0) {
+            output_format = BINARY_FORMAT;
+        } else if (strcmp(format, "text") == 0) {
+            output_format = TEXT_FORMAT;
+        } else {
+            LOG_ERROR("Wrong output format!\n");
+        }
+    }
 
     void set_shuffler(BaseShuffler<KeyType,ValType> *shuffler) {
         this->shuffler = shuffler;
@@ -87,14 +98,28 @@ class FileWriter : public Writable<KeyType, ValType> {
     }
 
     virtual int write(KeyType *key, ValType *val) {
-        int kvsize = this->ser->get_kv_bytes(key, val);
-        if (kvsize > bufsize) {
-            LOG_ERROR("The write record length is larger than the buffer size!\n");
+        int kvsize = 0;
+        if (output_format == BINARY_FORMAT) {
+            kvsize = this->ser->get_kv_bytes(key, val);
+            if (kvsize > bufsize) {
+                LOG_ERROR("The write record length is larger than the buffer size!\n");
+            }
+            if (kvsize + datasize > bufsize) {
+                file_write();
+            }
+            this->ser->kv_to_bytes(key, val, buffer + datasize, bufsize - datasize);
+        } else if (output_format == TEXT_FORMAT) {
+            kvsize = this->ser->get_kv_txt_len(key, val);
+            kvsize += 1; // add \n
+            if (kvsize > bufsize) {
+                LOG_ERROR("The write record length is larger than the buffer size!\n");
+            }
+            if (kvsize + datasize > bufsize) {
+                file_write();
+            }
+            this->ser->kv_to_txt(key, val, buffer + datasize, bufsize - datasize);
+            *(buffer + datasize + kvsize - 1) = '\n';
         }
-        if (kvsize + datasize > bufsize) {
-            file_write();
-        }
-        this->ser->kv_to_bytes(key, val, buffer + datasize, bufsize - datasize);
         datasize += kvsize;
         record_count++;
     }
@@ -178,6 +203,8 @@ class FileWriter : public Writable<KeyType, ValType> {
     int     keycount, valcount;
 
     Serializer<KeyType, ValType> *ser;
+
+    OUTPUT_FORMAT  output_format;
 };
 
 template <typename KeyType, typename ValType>

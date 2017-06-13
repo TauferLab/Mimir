@@ -23,7 +23,7 @@ class BaseShuffler : public Writable<KeyType, ValType> {
 public:
     BaseShuffler(MPI_Comm comm,
                  Writable<KeyType, ValType> *out,
-                 HashCallback user_hash,
+                 int (*user_hash)(KeyType* key),
                  int keycount, int valcount) {
 
         if (out == NULL) LOG_ERROR("Output shuffler cannot be NULL!\n");
@@ -85,7 +85,7 @@ protected:
 
         int target = 0;
         if (user_hash != NULL) {
-            target = user_hash((const char*)key, keycount) % shuffle_size;
+            target = user_hash(key) % shuffle_size;
         }
         else {
             uint32_t hid = hashlittle(tmpkey, keysize, 0);
@@ -249,7 +249,7 @@ protected:
         isrepartition = false;
     }
 
-    HashCallback user_hash;
+    int (*user_hash)(KeyType* key);
     Writable<KeyType,ValType> *out;
 
     Serializer<KeyType, ValType> *ser;

@@ -45,11 +45,13 @@ class FileReader : public Readable<InKeyType, InValType> {
   public:
 
     FileReader(MPI_Comm comm,ChunkManager<KeyType,ValType> *chunk_mgr,
-               RepartitionCallback repartition_fn) {
+               RepartitionCallback repartition_fn, int keycount = 1, int valcount = 1) {
 
         this->reader_comm = comm;
         this->chunk_mgr = chunk_mgr;
         this->repartition_fn = repartition_fn;
+        this->keycount = keycount;
+        this->valcount = valcount;
 
         MPI_Comm_rank(reader_comm, &reader_rank);
         MPI_Comm_size(reader_comm, &reader_size);
@@ -60,9 +62,12 @@ class FileReader : public Readable<InKeyType, InValType> {
         shuffler = NULL;
 
         record_count = 0;
+
+        ser = new Serializer<InKeyType, InValType>(keycount, valcount);
     }
 
     virtual ~FileReader() {
+        delete ser;
     }
 
     std::string get_object_name() { return "FileReader"; }
@@ -132,8 +137,10 @@ class FileReader : public Readable<InKeyType, InValType> {
                 && parser.to_line(ptr, state.win_size, islast) != -1) {
                 //&& record->get_next_record_size(ptr, state.win_size, islast) != -1) {
                 //int move_count = record->get_record_size();
-                *key = (InKeyType)ptr;
-                int move_count = strlen((const char*)(*key)) + 1;
+                //*key = (InKeyType)ptr;
+                int move_count = ser->key_from_bytes(key, ptr, state.win_size);
+                //int move_count = strlen((const char*)(*key)) + 1;
+                //int move_count = ser->get_key_bytes(key);
                 if ((uint64_t)move_count >= state.win_size) {
                     state.win_size = 0;
                     state.start_pos = 0;
@@ -335,6 +342,9 @@ class FileReader : public Readable<InKeyType, InValType> {
     FileParser      parser;
     uint64_t        record_count;
     RepartitionCallback repartition_fn;
+
+    Serializer<InKeyType, InValType> *ser;
+    int            keycount, valcount;
 
     MPI_Comm        reader_comm;
     int             reader_rank;

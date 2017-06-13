@@ -14,6 +14,7 @@
 #include "typemode.h"
 #include <typeinfo>
 #include <memory>
+#include <sstream>
 #include <type_traits>
 
 namespace MIMIR_NS {
@@ -183,6 +184,64 @@ class bytestream<void> {
     }
 };
 
+template <typename Type, typename dummy = Type>
+class txtstream {
+  public:
+
+    static int size (Type *obj, int count) {
+        int bytesize = 0;
+        for (int i = 0; i < count; i++) {
+            std::stringstream ss;
+            ss << obj[i];
+            int strsize = (int)ss.str().size();
+            bytesize += strsize;
+        }
+        return bytesize;
+    }
+
+    static int to_txt (Type* obj, int count, char *buf) {
+        int bytesize = 0;
+        for (int i = 0; i < count; i++) {
+            std::stringstream ss;
+            ss << obj[i];
+            const char *strptr = ss.str().c_str();
+            int strsize = (int)ss.str().size();
+            memcpy(buf, strptr, strsize);
+            bytesize += strsize;
+        }
+        return bytesize;
+    }
+};
+
+// the type is a class type
+template <typename Type>
+class txtstream<Type,typename std::enable_if<std::is_class<Type>::value, Type>::type> {
+  public:
+    static int size (void *obj, int count) {
+        LOG_ERROR("Cannot convert a class to string!\n");
+        return 0;
+    }
+
+    static int to_txt (void* obj, int count, char *buf) {
+        LOG_ERROR("Cannot convert a class to string!\n");
+        return 0;
+    }
+};
+
+// the type is void
+template <>
+class txtstream<void,void> {
+  public:
+    static int size (void *obj, int count) {
+        return 0;
+    }
+
+    static int to_txt (void* obj, int count, char *buf) {
+        return 0;
+    }
+};
+
+
 template <typename KeyType, typename ValType>
 class Serializer {
   public:
@@ -263,6 +322,43 @@ class Serializer {
     int get_kv_bytes (KeyType *key, ValType *val) {
         return get_key_bytes(key) + get_val_bytes(val);
     }
+
+    int get_key_txt_len (KeyType *key) {
+        return txtstream<KeyType>::size(key, keycount);
+    }
+
+    int get_val_txt_len (ValType *val) {
+        return txtstream<ValType>::size(val, valcount);
+    }
+
+    int get_kv_txt_len (KeyType *key, ValType *val) {
+        return get_key_txt_len(key) + get_val_txt_len(val);
+    }
+
+    int key_to_txt (KeyType *key, char *buffer, int bufsize) {
+
+        return txtstream<KeyType>::to_txt(key, keycount, buffer);
+
+    }
+
+    int val_to_txt (ValType *val, char *buffer, int bufsize) {
+
+        return txtstream<ValType>::to_txt(val, valcount, buffer);
+
+    }
+
+    int kv_to_txt (KeyType *key, ValType *val, char* buffer, int bufsize) {
+
+        int keybytes = 0, valbytes = 0;
+
+        keybytes = key_to_txt(key, buffer, bufsize);
+        buffer += keybytes;
+        bufsize -= keybytes;
+        valbytes = val_to_txt(val, buffer, bufsize);
+
+        return keybytes + valbytes;
+    }
+
 
   private:
     int      keycount, valcount;
