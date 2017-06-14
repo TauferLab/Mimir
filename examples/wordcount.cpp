@@ -18,14 +18,14 @@ using namespace MIMIR_NS;
 
 int rank, size;
 
-void map (Readable<char*,uint64_t> *input,
+void map (Readable<char*,void> *input,
           Writable<char*,uint64_t> *output, void *ptr);
 void countword (Readable<char*,uint64_t> *input,
                 Writable<char*,uint64_t> *output, void *ptr);
 void combine (Combinable<char*,uint64_t> *combiner,
               char**, uint64_t*, uint64_t*, void *ptr);
 
-void printkv (char **key, uint64_t *val, void *ptr);
+uint64_t nwords = 0, nunique = 0;
 
 int main (int argc, char *argv[])
 {
@@ -45,8 +45,8 @@ int main (int argc, char *argv[])
     for (int i = 2; i < argc; i++) {
         input.push_back(argv[i]);
     }
-    MimirContext<char*,uint64_t>* ctx 
-        = new MimirContext<char*,uint64_t>(MPI_COMM_WORLD,
+    MimirContext<char*, uint64_t, char*, void>* ctx 
+        = new MimirContext<char*, uint64_t, char*, void>(MPI_COMM_WORLD,
                                            map, countword,
                                            input, output,
                                            NULL,
@@ -56,27 +56,27 @@ int main (int argc, char *argv[])
                                            NULL,
 #endif
                                            NULL,
-                                           true, IMPLICIT_OUTPUT);
+                                           true,
+                                           IMPLICIT_OUTPUT);
+    ctx->set_outfile_format("text");
     ctx->map();
-    //ctx->scan(printkv);
-    uint64_t nunique = ctx->reduce();
+    nunique = ctx->reduce();
     delete ctx;
-
-    if (rank == 0) printf("unique words=%ld\n", nunique);
 
     MPI_Finalize();
 }
 
-void map (Readable<char*,uint64_t> *input, Writable<char*,uint64_t> *output, void *ptr)
+void map (Readable<char*,void> *input, Writable<char*,uint64_t> *output, void *ptr)
 {
     char *line = NULL;
     while (input->read(&line, NULL) == 0) {
         char *saveptr = NULL;
         char *word = strtok_r(line, " ", &saveptr);
         while (word != NULL) {
-            if (strlen(word) <= 1024) {
+            if (strlen(word) < 1024) {
                 uint64_t one = 1;
                 output->write(&word, &one);
+                nwords += 1;
             }
             word = strtok_r(NULL, " ", &saveptr);
         }
@@ -100,8 +100,4 @@ void combine (Combinable<char*,uint64_t> *combiner,
 {
     uint64_t count = *val1 + *val2;
     combiner->update(key, &count);
-}
-
-void printkv (char **key, uint64_t *val, void *ptr) {
-    printf("<%s,%ld>\n", *key, *val);
 }

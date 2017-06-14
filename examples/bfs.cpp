@@ -30,7 +30,7 @@ using namespace MIMIR_NS;
 #define SET_VISITED(v, vis)                                                    \
     ((vis[(v) / LONG_BITS]) |= (1UL << ((v) % LONG_BITS)))
 
-int mypartition(const char *, int);
+int mypartition(int64_t *, int64_t *, int);
 void fileread (Readable<char*, void> *input,
                Writable<int64_t, int64_t> *output, void *ptr);
 void makegraph (int64_t *v0, int64_t *v1, void *ptr);
@@ -196,14 +196,14 @@ int main(int argc, char **argv)
 }
 
 // partiton <key,value> based on the key
-int mypartition(const char *key, int keybytes)
+int mypartition(int64_t *v, int64_t *v1, int partition)
 {
-    int64_t v = *(int64_t *) key;
+    //int64_t v = *(int64_t *) key;
     int v_rank = 0;
-    if (v < quot * rem + rem)
-        v_rank = (int) (v / (quot + 1));
+    if (*v < quot * rem + rem)
+        v_rank = (int) (*v / (quot + 1));
     else
-        v_rank = (int) ((v - rem) / quot);
+        v_rank = (int) ((*v - rem) / quot);
     return v_rank;
 }
 
@@ -255,7 +255,7 @@ void makegraph (int64_t *v0, int64_t *v1, void *ptr)
 void rootvisit(Readable<int64_t, int64_t> *input,
                Writable<int64_t, int64_t> *output, void *ptr)
 {
-    if (mypartition((char *) &root, sizeof(int64_t)) == rank) {
+    if (mypartition(&root, NULL, 0) == rank) {
         int64_t root_local = root - nvertoffset;
         pred[root_local] = root;
         SET_VISITED(root_local, vis);
@@ -304,7 +304,7 @@ int64_t getrootvert()
             myroot = rand() % nglobalverts;
         }
         MPI_Bcast((void *) &myroot, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
-        int64_t myroot_proc = mypartition((char *) &myroot, (int) sizeof(int64_t));
+        int64_t myroot_proc = mypartition(&myroot, NULL, 0);
         if (myroot_proc == rank) {
             int64_t root_local = myroot - nvertoffset;
             if (rowstarts[root_local + 1] - rowstarts[root_local] == 0) {

@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 
     MimirContext<char, uint64_t, char*, void> *ctx 
         = new MimirContext<char, uint64_t, char*, void>(MPI_COMM_WORLD,
-                                                        digits, 1, 1, 1,
+                                                        digits, 1, 1, 1, 1, 1,
                                                         generate_octkey, NULL,
                                                         input, output,
                                                         NULL, NULL, NULL, false);
@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 
         MimirContext<char, uint64_t, char, uint64_t> *level_ctx 
             = new MimirContext<char, uint64_t, char, uint64_t>(MPI_COMM_WORLD,
-                                               digits, 1, level, 1,
+                                               digits, 1, level, 1, level, 1,
                                                gen_leveled_octkey, sum,
                                                input, output);
 
