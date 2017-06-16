@@ -139,7 +139,7 @@ protected:
         return true;
     }
 
-    void compute_redierct_bins(std::vector<std::pair<int,int>> &redirect_bins) {
+    void compute_redirect_bins(std::vector<std::pair<int,int>> &redirect_bins) {
         // Get redirect bins
         double *freq_per_proc = (double*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(double) * shuffle_size);
         for (int i = 0; i < shuffle_size; i++) {
@@ -152,7 +152,7 @@ protected:
                 while (freq_per_proc[j] > 0.99 && j < shuffle_size) j++;
                 if (j >= shuffle_size) break;
                 double redirect_freq = 0.0;
-                if (1.0 - freq_per_proc[j] <= freq_per_proc[i] - 1.0) {
+                if (1.0 - freq_per_proc[j] < freq_per_proc[i] - 1.0) {
                     redirect_freq = 1.0 - freq_per_proc[j];
                     freq_per_proc[i] -= redirect_freq;
                     freq_per_proc[j] = 1.0;
@@ -171,6 +171,7 @@ protected:
                         double bin_freq = (double)iter->second / (double)local_kv_count * freq_per_proc[shuffle_rank];
                         if (bin_freq < redirect_freq) {
                             LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d\n", iter->first, j);
+                            iter->second = 0;
                             redirect_bins.push_back(std::make_pair(iter->first,j));
                             redirect_freq -= bin_freq;
                         }
@@ -188,7 +189,7 @@ protected:
 
         // Get redirect bins
         std::vector<std::pair<int,int>> redirect_bins;
-        compute_redierct_bins(redirect_bins);
+        compute_redirect_bins(redirect_bins);
 
         // Update redirect table
         int sendcount, recvcount;
@@ -214,6 +215,7 @@ protected:
             bin_table.erase(iter.first);
             k ++;
         }
+
         MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
                        recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
         for (int i = 0; i < recvcount/2; i++) {
@@ -222,12 +224,6 @@ protected:
             redirect_table[binid] = rankid;
             if (rankid == shuffle_rank) bin_table[binid] = 0;
         }
-
-        //if (shuffle_rank == 1) {
-        //for (auto iter : redirect_table) {
-        //    printf("%d %d-->%d\n", shuffle_rank, iter.first, iter.second);
-        //}
-        //}
 
         // Migrate data
         std::vector<int> reminders;
@@ -247,6 +243,7 @@ protected:
             this->local_kv_count -= 1;
         }
         isrepartition = false;
+
     }
 
     int (*user_hash)(KeyType* key, ValType* val, int npartition);

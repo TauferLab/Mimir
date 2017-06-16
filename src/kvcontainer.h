@@ -66,10 +66,10 @@ public:
 
             ptr = page->buffer + pageoff;
 
-            auto iter = this->slices.find(ptr);
-            if (iter == this->slices.end()) break;
+            auto slice = this->slices.find(ptr);
+            if (slice == this->slices.end()) break;
 
-            pageoff += iter->second;
+            pageoff += slice->second;
         }
 
         kvsize = this->ser->kv_from_bytes(key, val, ptr, page->datasize - pageoff);
@@ -81,8 +81,10 @@ public:
 
     virtual int write(KeyType *key, ValType *val) {
 
-        if (page == NULL)
+        if (page == NULL) {
             page = add_page();
+            pageoff = 0;
+        }
 
         int kvsize = ser->get_kv_bytes(key, val);
         if (kvsize > pagesize)
@@ -90,32 +92,35 @@ public:
                       than one page (%ld)\n", kvsize, pagesize);
 
         // Find a slice to store the <key,value>
-        std::unordered_map < char *, int >::iterator iter;
-        for (iter = this->slices.begin(); iter != this->slices.end(); iter++) {
-            char *sbuf = iter->first;
-            int ssize = iter->second;
+        std::unordered_map < char *, int >::iterator slice;
+        for (slice = this->slices.begin(); slice != this->slices.end(); slice++) {
+            char *sbuf = slice->first;
+            int ssize = slice->second;
 
             if (ssize >= kvsize) {
                 char *ptr = sbuf + (ssize - kvsize);
                 this->ser->kv_to_bytes(key, val, ptr, kvsize);
 
-                if (iter->second == kvsize)
-                    this->slices.erase(iter);
+                if (slice->second == kvsize)
+                    this->slices.erase(slice);
                 else
-                    this->slices[iter->first] -= kvsize;
+                    this->slices[slice->first] -= kvsize;
                 break;
             }
         }
 
         // Add at the tail
-        if (iter == this->slices.end()) {
+        if (slice == this->slices.end()) {
 
-            if (kvsize > (pagesize - page->datasize))
+            if (kvsize > (pagesize - page->datasize)) {
                 page = add_page();
+                pageoff = 0;
+            }
 
             char *ptr = page->buffer + page->datasize;
             this->ser->kv_to_bytes(key, val, ptr, pagesize - page->datasize);
             page->datasize += kvsize;
+            pageoff += kvsize;
         }
 
         kvcount += 1;
@@ -129,24 +134,44 @@ public:
         char *ptr;
         int kvsize, keysize, ret;
 
+        if (!isremove) {
+            scan_page = NULL;
+            scan_pageoff = 0;
+            if (iter != NULL) delete iter;
+            iter = new ContainerIter(this);
+            isremove = true;
+        }
+
         while (1) {
+            // Get pointer of next <key,value>
             while (1) {
-                if (page == NULL || pageoff >= page->datasize) {
-                    page = iter->next();
-                    pageoff = 0;
-                    if (page == NULL)
+                if (scan_page == NULL || scan_pageoff >= scan_page->datasize) {
+                    Page *prepage = scan_page;
+                    scan_page = iter->next();
+                    scan_pageoff = 0;
+                    if (scan_page == NULL) {
+                        scan_page = prepage;
+                        if (scan_page != NULL) {
+                            scan_pageoff = scan_page->datasize;
+                        } else {
+                            scan_pageoff = 0;
+                        }
+                        delete iter;
+                        iter = NULL;
+                        isremove = false;
                         return -1;
+                    }
                 }
 
-                ptr = page->buffer + pageoff;
+                ptr = scan_page->buffer + scan_pageoff;
 
-                auto iter = this->slices.find(ptr);
-                if (iter == this->slices.end()) break;
+                auto slice = this->slices.find(ptr);
+                if (slice == this->slices.end()) break;
 
-                pageoff += iter->second;
+                scan_pageoff += slice->second;
             }
 
-            kvsize = this->ser->kv_from_bytes(key, val, ptr, page->datasize - pageoff);
+            kvsize = this->ser->kv_from_bytes(key, val, ptr, scan_page->datasize - scan_pageoff);
             keysize = this->ser->get_key_bytes(key);
 
             uint32_t hid = hashlittle(ptr, keysize, 0);
@@ -159,7 +184,7 @@ public:
                 break;
             }
 
-            pageoff += kvsize;
+            scan_pageoff += kvsize;
         }
 
         return ret;
@@ -187,9 +212,9 @@ protected:
                 src_off = 0;
                 while (src_off < src_page->datasize) {
                     char *src_buf = src_page->buffer + src_off;
-                    std::unordered_map < char *, int >::iterator iter = this->slices.find(src_buf);
-                    if (iter != this->slices.end()) {
-                        src_off += iter->second;
+                    std::unordered_map < char *, int >::iterator slice = this->slices.find(src_buf);
+                    if (slice != this->slices.end()) {
+                        src_off += slice->second;
                     }
                     else {
                         int kvsize = this->ser->kv_from_bytes(key, val,
@@ -224,10 +249,14 @@ protected:
     Page *page;
     int64_t pageoff;
     ContainerIter *iter;
+    Page *scan_page;
+    int64_t scan_pageoff;
 
     uint64_t kvcount;
     int keycount;
     int valcount;
+
+    bool isremove;
 
     std::unordered_map<char*, int> slices;
 

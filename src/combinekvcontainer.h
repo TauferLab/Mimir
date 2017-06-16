@@ -67,7 +67,10 @@ public:
     {
         int ret = 0;
 
-        if (this->page == NULL) this->page = this->add_page();
+        if (this->page == NULL) {
+            this->page = this->add_page();
+            this->pageoff = 0;
+        }
 
         int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > this->pagesize)
@@ -98,8 +101,10 @@ public:
                 }
             }
             if (iter == this->slices.end()) {
-                if (kvsize + this->page->datasize > this->pagesize )
+                if (kvsize + this->page->datasize > this->pagesize ) {
                     this->page = this->add_page();
+                    this->pageoff = 0;
+                }
                 tmp.kv = this->page->buffer + this->page->datasize;
                 this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
                 this->page->datasize += kvsize;

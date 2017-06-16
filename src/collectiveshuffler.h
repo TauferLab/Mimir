@@ -100,44 +100,47 @@ public:
 
     virtual int write(KeyType *key, ValType *val)
     {
-        int target = this->get_target_rank(key, val);
+        while (1) {
 
-        if (target == this->shuffle_rank) {
-            int ret = this->out->write(key, val);
-            if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
-                char tmpkey[MAX_RECORD_SIZE];
-                int keysize = this->ser->get_key_bytes(key);
-                if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
-                this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
-                uint32_t hid = hashlittle(tmpkey, keysize, 0);
-                int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
-                auto iter = this->bin_table.find(bidx);
-                if (iter != this->bin_table.end()) {
-                    iter->second += 1;
-                    this->local_kv_count += 1;
-                } else {
-                    LOG_ERROR("Wrong bin index=%d\n", bidx);
+            int target = this->get_target_rank(key, val);
+
+            if (target == this->shuffle_rank) {
+                int ret = this->out->write(key, val);
+                if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
+                    char tmpkey[MAX_RECORD_SIZE];
+                    int keysize = this->ser->get_key_bytes(key);
+                    if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
+                    this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
+                    uint32_t hid = hashlittle(tmpkey, keysize, 0);
+                    int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
+                    auto iter = this->bin_table.find(bidx);
+                    if (iter != this->bin_table.end()) {
+                        iter->second += 1;
+                        this->local_kv_count += 1;
+                    } else {
+                        LOG_ERROR("Wrong bin index=%d\n", bidx);
+                    }
                 }
+                return 0;
             }
-            return 0;
+
+            int kvsize = this->ser->get_kv_bytes(key, val);
+            if (kvsize > buf_size)
+                LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
+                          kvsize, buf_size);
+
+            if ((int64_t)send_offset[target] + (int64_t)kvsize > buf_size) {
+                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+                exchange_kv();
+                continue;
+            }
+
+            char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
+            kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
+            send_offset[target] += kvsize;
+            this->kvcount++;
+            break;
         }
-
-        int kvsize = this->ser->get_kv_bytes(key, val);
-        if (kvsize > buf_size)
-            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
-                      kvsize, buf_size);
-
-        if ((int64_t)send_offset[target] + (int64_t)kvsize > buf_size) {
-            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-            exchange_kv();
-        }
-
-        char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
-        kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
-        //kv.set_buffer(buffer);
-        //kv.convert((KVRecord*)record);
-        send_offset[target] += kvsize;
-        this->kvcount++;
         return 0;
     }
     virtual void make_progress(bool issue_new = false) { exchange_kv(); }
@@ -215,7 +218,7 @@ protected:
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-        LOG_PRINT(DBG_COMM, "Comm: start alltoall\n");
+        LOG_PRINT(DBG_COMM, "Comm: start alltoall (isrepartition=%d)\n", this->isrepartition);
 
         if (this->done_flag) {
             for (int i = 0; i < this->shuffle_size; i++) {
