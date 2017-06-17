@@ -9,6 +9,7 @@
 #define MIMIR_INTERFACE_H
 
 #include <string>
+#include <set>
 #include "log.h"
 
 namespace MIMIR_NS {
@@ -40,7 +41,7 @@ template <typename KeyType, typename ValType>
 class Removable {
   public:
     virtual ~Removable() {}
-    virtual int remove(KeyType*, ValType*, int, std::vector<int>&) {
+    virtual int remove(KeyType*, ValType*, std::set<uint32_t>&) {
         LOG_ERROR("The object does not implement remove function!\n");
         return 0;
     }

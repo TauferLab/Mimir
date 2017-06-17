@@ -23,6 +23,8 @@
 #include "chunkmanager.h"
 #include "kvcontainer.h"
 #include "combinekvcontainer.h"
+#include "bincontainer.h"
+#include "combinebincontainer.h"
 #include "kmvcontainer.h"
 #include "collectiveshuffler.h"
 #include "nbcollectiveshuffler.h"
@@ -154,7 +156,7 @@ class MimirContext {
     uint64_t map(void *ptr = NULL) {
 
         BaseShuffler<KeyType,ValType> *c = NULL;
-        KVContainer<KeyType,ValType> *kv = NULL;
+        BaseDatabase<KeyType,ValType> *kv = NULL;
         Readable<InKeyType,InValType> *input = NULL;
         Writable<KeyType,ValType> *output = NULL;
         FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType> *reader = NULL;
@@ -194,8 +196,13 @@ class MimirContext {
         // output to stage area
         } else if (user_reduce != NULL 
                    || output_mode == EXPLICIT_OUTPUT) {
-            if (!user_combine) kv = new KVContainer<KeyType,ValType>(keycount, valcount);
-            else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, keycount, valcount);
+            if (BIN_CONTAINER) {
+                if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
+                else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+            } else {
+                if (!user_combine) kv = new KVContainer<KeyType,ValType>(bincount, keycount, valcount);
+                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+            }
             output = kv;
         // output to files
         } else {
@@ -324,7 +331,7 @@ class MimirContext {
             output = dynamic_cast<Writable<OutKeyType,OutValType>*>(user_database);
         // output to stage area
         } else if (output_mode == EXPLICIT_OUTPUT) {
-            kv = new KVContainer<OutKeyType,OutValType>(keycount, valcount);
+            kv = new KVContainer<OutKeyType,OutValType>(bincount, keycount, valcount);
             output = kv;
         // output to disk files
         } else {
@@ -489,6 +496,8 @@ class MimirContext {
         MPI_Comm_rank(mimir_ctx_comm, &mimir_ctx_rank);
         MPI_Comm_size(mimir_ctx_comm, &mimir_ctx_size);
 
+        this->bincount = mimir_ctx_size * BIN_COUNT;
+
         this->user_map = map_fn;
         this->user_reduce = reduce_fn;
         this->user_combine = combine_fn;
@@ -550,6 +559,8 @@ class MimirContext {
     int         keycount, valcount;
     int         inkeycount, invalcount;
     int         outkeycount, outvalcount;
+
+    uint32_t    bincount;
 
     // Configuration
     std::string outfile_format="binary";

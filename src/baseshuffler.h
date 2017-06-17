@@ -226,9 +226,9 @@ protected:
         }
 
         // Migrate data
-        std::vector<int> reminders;
+        std::set<uint32_t> reminders;
         for (auto iter : redirect_bins) {
-            reminders.push_back(iter.first);
+            reminders.insert(iter.first);
         }
 
         typename SafeType<KeyType>::type key[keycount];
@@ -238,7 +238,7 @@ protected:
         // Ensure no extrea repartition within repartition
         isrepartition = true;
         if (out_db == NULL) LOG_ERROR("Cannot convert to removable object!\n");
-        while ((bid = out_db->remove(key, val, BIN_COUNT * shuffle_size, reminders)) != -1) {
+        while ((bid = out_db->remove(key, val, reminders)) != -1) {
             this->write(key, val);
             this->local_kv_count -= 1;
         }

@@ -24,8 +24,10 @@ public:
                                             KeyType *key,
                                             ValType *val1, ValType *val2,
                                             void *ptr),
-                       void *user_ptr, int keycount = 1, int valcount = 1)
-        : KVContainer<KeyType,ValType>(keycount, valcount) {
+                       void *user_ptr,
+                       uint32_t bincount = 0,
+                       int keycount = 1, int valcount = 1)
+        : KVContainer<KeyType,ValType>(bincount, keycount, valcount) {
 
         this->user_combine = user_combine;
         this->user_ptr = user_ptr;
@@ -67,11 +69,6 @@ public:
     {
         int ret = 0;
 
-        if (this->page == NULL) {
-            this->page = this->add_page();
-            this->pageoff = 0;
-        }
-
         int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > this->pagesize)
             LOG_ERROR("Error: KV size (%d) is larger \
@@ -100,14 +97,21 @@ public:
                     break;
                 }
             }
+
             if (iter == this->slices.end()) {
-                if (kvsize + this->page->datasize > this->pagesize ) {
-                    this->page = this->add_page();
-                    this->pageoff = 0;
+
+                if (this->pageid >= this->pages.size() 
+                    || this->pagesize - this->pages[this->pageid].datasize < kvsize) {
+                    Page page;
+                    page.datasize = 0;
+                    page.buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, this->pagesize);
+                    this->pages.push_back(page);
+                    this->pageid = this->pages.size() - 1;
                 }
-                tmp.kv = this->page->buffer + this->page->datasize;
+
+                tmp.kv = this->pages[this->pageid].buffer + this->pages[this->pageid].datasize;
                 this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
-                this->page->datasize += kvsize;
+                this->pages[this->pageid].datasize += kvsize;
             }
             bucket->insertEntry(tmp.kv, keybytes, &tmp);
             this->kvcount += 1;
@@ -142,20 +146,19 @@ public:
         }
         else {
             this->slices.insert(std::make_pair(u->kv, ukvsize));
-            if (kvsize + this->page->datasize > this->pagesize)
-                this->page = this->add_page();
-            u->kv = this->page->buffer + this->page->datasize;
+            if (kvsize + this->pages[this->pageid].datasize > this->pagesize)
+                this->pageid = this->add_page();
+            u->kv = this->pages[this->pageid].buffer + this->pages[this->pageid].datasize;
             this->ser->kv_to_bytes(key, val, u->kv, kvsize);
-            this->page->datasize += kvsize;
+            this->pages[this->pageid].datasize += kvsize;
         }
 
         return;
     }
 
-    virtual int remove(KeyType *key, ValType *val,
-                       int divisor, std::vector<int>& remainders) {
+    virtual int remove(KeyType *key, ValType *val, std::set<uint32_t>& remainders) {
 
-        int ret = KVContainer<KeyType, ValType>::remove(key, val, divisor, remainders);
+        int ret = KVContainer<KeyType, ValType>::remove(key, val, remainders);
         if (ret != -1) {
             keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
             bucket->removeEntry(keyarray, keybytes);
