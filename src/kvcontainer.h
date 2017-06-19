@@ -132,7 +132,7 @@ public:
                                 ptr, pages[pageid].datasize - pageoff);
                 int keysize = this->ser->get_key_bytes(key);
                 pageoff += kvsize;
-                uint32_t bid = hashlittle(ptr, keysize, 0) % bincount;
+                uint32_t bid = this->ser->get_hash_code(key) % bincount;
                 if (removed_bins.find(bid) != removed_bins.end()) {
                     slices.insert(std::make_pair(ptr, kvsize));
                     hasfind = true;
@@ -159,8 +159,8 @@ protected:
 
     void garbage_collection()
     {
-        typename SafeType<KeyType>::type key[this->keycount];
-        typename SafeType<ValType>::type val[this->valcount];
+        typename SafeType<KeyType>::ptrtype key = NULL;
+        typename SafeType<ValType>::ptrtype val = NULL;
         size_t dst_pid = 0, src_pid = 0;
         Page *dst_page = NULL, *src_page = NULL;
         int64_t dst_off = 0, src_off = 0;
@@ -182,7 +182,7 @@ protected:
                         src_off += slice->second;
                     }
                     else {
-                        int kvsize = this->ser->kv_from_bytes(key, val,
+                        int kvsize = this->ser->kv_from_bytes(&key, &val,
                                         src_buf, src_page->datasize - src_off);
                         if (dst_page != src_page || dst_off != src_off) {
                             if (dst_off + kvsize > this->pagesize) {

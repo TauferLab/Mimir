@@ -118,9 +118,9 @@ public:
             ret = 1;
         }
         else {
-            typename SafeType<KeyType>::type u_key[this->keycount];
-            typename SafeType<ValType>::type u_val[this->valcount];
-            this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+            typename SafeType<KeyType>::ptrtype u_key = NULL;
+            typename SafeType<ValType>::ptrtype u_val = NULL;
+            this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
             user_combine(this, u_key, u_val, val, user_ptr);
             ret = 0;
         }
@@ -129,9 +129,9 @@ public:
 
     void update(KeyType *key, ValType *val)
     {
-        typename SafeType<KeyType>::type u_key[this->keycount];
-        typename SafeType<ValType>::type u_val[this->valcount];
-        int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+        typename SafeType<KeyType>::ptrtype u_key = NULL;
+        typename SafeType<ValType>::ptrtype u_val = NULL;
+        int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
 
         int kvsize = this->ser->get_kv_bytes(key, val);
 

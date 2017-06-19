@@ -69,11 +69,7 @@ public:
         if (target == this->shuffle_rank) {
             int ret =  this->out->write(key, val);
             if (BALANCE_LOAD && ret == 1) {
-                char tmpkey[MAX_RECORD_SIZE];
-                int keysize = this->ser->get_key_bytes(key);
-                if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
-                this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
-                uint32_t hid = hashlittle(tmpkey, keysize, 0);
+                uint32_t hid = this->ser->get_hash_code(key);
                 int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
                 auto iter = this->bin_table.find(bidx);
                 if (iter != this->bin_table.end()) {
@@ -134,9 +130,9 @@ public:
             this->kvcount ++;
         }
         else {
-            typename SafeType<KeyType>::type u_key[this->keycount];
-            typename SafeType<ValType>::type u_val[this->valcount];
-            int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+            typename SafeType<KeyType>::ptrtype u_key = NULL;
+            typename SafeType<ValType>::ptrtype u_val = NULL;
+            int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
             user_combine(this, u_key, u_val, val, user_ptr);
         }
 
@@ -145,9 +141,9 @@ public:
 
     virtual void update(KeyType *key, ValType *val)
     {
-        typename SafeType<KeyType>::type u_key[this->keycount];
-        typename SafeType<ValType>::type u_val[this->valcount];
-        int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+        typename SafeType<KeyType>::ptrtype u_key = NULL;
+        typename SafeType<ValType>::ptrtype u_val = NULL;
+        int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
 
         int target = this->get_target_rank(key, val);
 
@@ -193,8 +189,8 @@ private:
     {
         if (!slices.empty()) {
 
-            typename SafeType<KeyType>::type key[this->keycount];
-            typename SafeType<ValType>::type val[this->valcount];
+            typename SafeType<KeyType>::ptrtype key = NULL;
+            typename SafeType<ValType>::ptrtype val = NULL;
 
             LOG_PRINT(DBG_GEN, "CollectiveShuffler garbage collection: slices=%ld\n",
                       slices.size());
@@ -215,7 +211,7 @@ private:
                         src_off += iter->second;
                     }
                     else {
-                        int kvsize = this->ser->kv_from_bytes(key, val, tmp_buf, this->send_offset[k] - src_off);
+                        int kvsize = this->ser->kv_from_bytes(&key, &val, tmp_buf, this->send_offset[k] - src_off);
                         if (src_off != dst_off) {
                             for (int kk = 0; kk < kvsize; kk++)
                                 dst_buf[dst_off + kk] = src_buf[src_off + kk];

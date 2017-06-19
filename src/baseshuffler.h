@@ -78,23 +78,18 @@ protected:
 
     int get_target_rank(KeyType *key, ValType *val) {
 
-        char tmpkey[MAX_RECORD_SIZE];
-        int keysize = ser->get_key_bytes(key);
-        if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
-        ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
-
         int target = 0;
         if (user_hash != NULL) {
             target = user_hash(key, val, shuffle_size) % shuffle_size;
         }
         else {
-            uint32_t hid = hashlittle(tmpkey, keysize, 0);
+            uint32_t hid = ser->get_hash_code(key);
             if (!BALANCE_LOAD) {
                 target = (int) (hid % (uint32_t) shuffle_size);
             } else {
                 // search item in the redirect table
-                int bid = (int)(hid % (uint32_t) (shuffle_size * BIN_COUNT));
-                std::unordered_map<int, int>::iterator iter = redirect_table.find(bid);
+                uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
+                auto iter = redirect_table.find(bid);
                 // find the item in the redirect table
                 if (iter != redirect_table.end()) {
                     target = iter->second;
@@ -139,7 +134,7 @@ protected:
         return true;
     }
 
-    void compute_redirect_bins(std::vector<std::pair<int,int>> &redirect_bins) {
+    void compute_redirect_bins(std::vector<std::pair<uint32_t,int>> &redirect_bins) {
         // Get redirect bins
         double *freq_per_proc = (double*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(double) * shuffle_size);
         for (int i = 0; i < shuffle_size; i++) {
@@ -188,7 +183,7 @@ protected:
     void balance_load() {
 
         // Get redirect bins
-        std::vector<std::pair<int,int>> redirect_bins;
+        std::vector<std::pair<uint32_t,int>> redirect_bins;
         compute_redirect_bins(redirect_bins);
 
         // Update redirect table
@@ -219,7 +214,7 @@ protected:
         MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
                        recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
         for (int i = 0; i < recvcount/2; i++) {
-            int binid = recvbuf[2*i];
+            uint32_t binid = recvbuf[2*i];
             int rankid = recvbuf[2*i+1];
             redirect_table[binid] = rankid;
             if (rankid == shuffle_rank) bin_table[binid] = 0;
@@ -263,9 +258,9 @@ protected:
     int      keycount, valcount;
 
     // redirect <key,value> to other processes
-    Removable<KeyType,ValType>              *out_db;
-    std::unordered_map<int, int>            redirect_table;
-    std::unordered_map<int, uint64_t>       bin_table;
+    Removable<KeyType,ValType>             *out_db;
+    std::unordered_map<uint32_t, int>       redirect_table;
+    std::unordered_map<uint32_t, uint64_t>  bin_table;
     uint64_t                                global_kv_count;
     uint64_t                                local_kv_count;
     uint64_t                                *kv_per_proc;

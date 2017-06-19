@@ -127,7 +127,8 @@ class KMVContainer {
         }
         kv->close();
 
-        LOG_PRINT(DBG_GEN, "MapReduce: convert end (kmvs=%ld).\n", h->get_nunique());
+        PROFILER_RECORD_COUNT(COUNTER_MAX_KMVS, h->get_nunique(), OPMAX);
+        LOG_PRINT(DBG_GEN, "MapReduce: convert end (KMVs=%ld).\n", h->get_nunique());
     }
 
   private:

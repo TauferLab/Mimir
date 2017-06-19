@@ -38,6 +38,8 @@ const char *counter_str[COUNTER_NUM] = {
     "max_file",
     "send_tail",
     "recv_tail",
+    "max_kvs",
+    "max_kmvs",
     "max_pages",
     "reduce_bucket",
     "combine_bucket",

@@ -303,6 +303,8 @@ class MimirContext {
         MPI_Allreduce(&kv_records, &total_records, 1,
                       MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
 
+        PROFILER_RECORD_COUNT(COUNTER_MAX_KVS, kv_records, OPMAX);
+
         LOG_PRINT(DBG_GEN, "MapReduce: map done (KVs=%ld)\n", kv_records);
 
         return total_records;

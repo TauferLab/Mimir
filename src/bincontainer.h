@@ -89,6 +89,7 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
         // Get the <key,value>
         char *ptr = get_bin_ptr(cur_bin_idx) + cur_bin_off;
         int kvsize = this->ser->kv_from_bytes(key, val, ptr, bin_unit_size - cur_bin_off);
+
         cur_bin_off += kvsize;
         return 0;
     }
@@ -102,11 +103,7 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
                       than bin size (%ld)\n", kvsize, bin_unit_size);
 
         // Get bin index
-        char tmpkey[MAX_RECORD_SIZE];
-        int keysize = ser->get_key_bytes(key);
-        if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
-        ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
-        uint32_t bid = hashlittle(tmpkey, keysize, 0) % bincount;
+        uint32_t bid = ser->get_hash_code(key) % bincount;
 
         // Find a bin to insert the KV
         int bidx = 0;
@@ -126,6 +123,7 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
 
         // Store the <key,value>
         char *ptr = get_bin_ptr(bidx) + bins[bidx].datasize;
+
         this->ser->kv_to_bytes(key, val, ptr, bin_unit_size - bins[bidx].datasize);
         bins[bidx].datasize += kvsize;
 
@@ -202,7 +200,7 @@ protected:
 
     char *get_bin_ptr(int bin_idx) {
         return pages[bin_idx / bin_per_page].buffer                            \
-            + bin_idx % bin_per_page * bin_unit_size;
+            + (bin_idx % bin_per_page) * bin_unit_size;
     }
 
     uint64_t add_page() {
@@ -216,18 +214,16 @@ protected:
     int  get_empty_bin() {
 
         size_t idx = 0;
-        for (size_t idx = 0; idx < bins.size(); idx++) {
+        for (idx = 0; idx < bins.size(); idx++) {
             if (bins[idx].datasize == 0) {
                 return (int)idx;
             }
         }
 
-        Page page;
-        page.datasize = 0;
-        page.buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
-        pages.push_back(page);
+        add_page();
 
         Bin bin;
+        bin.bintag = 0;
         bin.datasize = 0;
         for (int i = 0; i < bin_per_page; i++) {
             bins.push_back(bin);
@@ -240,8 +236,8 @@ protected:
     {
         if (!(this->slices.empty())) {
 
-            typename SafeType<KeyType>::type key[this->keycount];
-            typename SafeType<ValType>::type val[this->valcount];
+            typename SafeType<KeyType>::ptrtype key = NULL;
+            typename SafeType<ValType>::ptrtype val = NULL;
 
             LOG_PRINT(DBG_GEN, "KVContainer garbage collection: slices=%ld\n",
                       this->slices.size());
@@ -264,7 +260,7 @@ protected:
                         src_off += iter->second.first;
                     }
                     else {
-                        int kvsize = this->ser->kv_from_bytes(key, val, tmp_buf, bins[i].datasize - src_off);
+                        int kvsize = this->ser->kv_from_bytes(&key, &val, tmp_buf, bins[i].datasize - src_off);
                         if (src_off != dst_off) {
                             for (int kk = 0; kk < kvsize; kk++)
                                 dst_buf[dst_off + kk] = src_buf[src_off + kk];

@@ -68,14 +68,11 @@ class CombineBinContainer : public BinContainer<KeyType, ValType>,
                       kvsize, this->bin_unit_size);
 
         // Get bin index
-        char tmpkey[MAX_RECORD_SIZE];
-        int keysize = this->ser->get_key_bytes(key);
-        if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
-        this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
-        uint32_t bid = hashlittle(tmpkey, keysize, 0) % (this->bincount);
+        uint32_t bid = this->ser->get_hash_code(key) % (this->bincount);
 
-        keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
-        u = bucket->findEntry(keyarray, keysize);
+        int keysize = this->ser->get_key_bytes(key);
+        char *keyptr = this->ser->get_key_ptr(key);
+        u = bucket->findEntry(keyptr, keysize);
 
         if (u == NULL) {
             // Find a slice to insert the KV
@@ -131,9 +128,9 @@ class CombineBinContainer : public BinContainer<KeyType, ValType>,
             ret = 1;
         }
         else {
-            typename SafeType<KeyType>::type u_key[this->keycount];
-            typename SafeType<ValType>::type u_val[this->valcount];
-            this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+            typename SafeType<KeyType>::ptrtype u_key = NULL;
+            typename SafeType<ValType>::ptrtype u_val = NULL;
+            this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
             user_combine(this, u_key, u_val, val, user_ptr);
             ret = 0;
         }
@@ -143,21 +140,17 @@ class CombineBinContainer : public BinContainer<KeyType, ValType>,
 
     void update(KeyType *key, ValType *val)
     {
-        typename SafeType<KeyType>::type u_key[this->keycount];
-        typename SafeType<ValType>::type u_val[this->valcount];
+        typename SafeType<KeyType>::ptrtype u_key = NULL;
+        typename SafeType<ValType>::ptrtype u_val = NULL;
 
-        int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+        int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
         int kvsize = this->ser->get_kv_bytes(key, val);
 
         if (this->ser->compare_key(key, u_key) != 0)
             LOG_ERROR("Error: the result key of combiner is different!\n");
 
         // Find a bin to insert the KV
-        char tmpkey[MAX_RECORD_SIZE];
-        int keysize = this->ser->get_key_bytes(key);
-        if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
-        this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
-        uint32_t bid = hashlittle(tmpkey, keysize, 0) % (this->bincount);
+        uint32_t bid = this->ser->get_hash_code(key) % (this->bincount);
 
         if (kvsize <= ukvsize) {
             this->ser->kv_to_bytes(key, val, u->kv, kvsize);

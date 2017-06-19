@@ -107,12 +107,8 @@ public:
             if (target == this->shuffle_rank) {
                 int ret = this->out->write(key, val);
                 if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
-                    char tmpkey[MAX_RECORD_SIZE];
-                    int keysize = this->ser->get_key_bytes(key);
-                    if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
-                    this->ser->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
-                    uint32_t hid = hashlittle(tmpkey, keysize, 0);
-                    int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
+                    uint32_t hid = this->ser->get_hash_code(key);
+                    uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
                     auto iter = this->bin_table.find(bidx);
                     if (iter != this->bin_table.end()) {
                         iter->second += 1;
@@ -177,21 +173,21 @@ protected:
 
     void save_data()
     {
-        typename SafeType<KeyType>::type key[this->keycount];
-        typename SafeType<ValType>::type val[this->valcount];
+        typename SafeType<KeyType>::ptrtype key = NULL;
+        typename SafeType<ValType>::ptrtype val = NULL;
 
         char *src_buf = recv_buffer;
         int k = 0;
         for (k = 0; k < this->shuffle_size; k++) {
             int count = 0;
             while (count < recv_count[k]) {
-                int kvsize = this->ser->kv_from_bytes(&key[0], &val[0],
+                int kvsize = this->ser->kv_from_bytes(&key, &val,
                      src_buf, recv_count[k] - count);
                 int ret = this->out->write(key, val);
                 if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
                     int keysize = this->ser->get_key_bytes(&key[0]);
-                    uint32_t hid = hashlittle(src_buf, keysize, 0);
-                    int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
+                    uint32_t hid = this->ser->get_hash_code(key);
+                    uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
                     auto iter = this->bin_table.find(bidx);
                     if (iter != this->bin_table.end()) {
                         iter->second += 1;

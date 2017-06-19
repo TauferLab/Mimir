@@ -11,6 +11,7 @@
 #include "log.h"
 #include "stat.h"
 #include "tools.h"
+#include "config.h"
 #include "typemode.h"
 #include <typeinfo>
 #include <memory>
@@ -23,12 +24,14 @@ template<typename Type>
     class SafeType {
       public:
         typedef Type type;
+        typedef Type* ptrtype;
     };
 
 template<>
     class SafeType<void> {
       public:
         typedef char type;
+        typedef void* ptrtype;
     };
 
 template <typename Type>
@@ -48,12 +51,24 @@ class bytestream {
         return bytesize;
     }
 
+    static char* get_ptr (Type *obj, int count) {
+        return reinterpret_cast<char*>(obj);
+    }
+
+    static Type* get_obj (char *buf) {
+        return reinterpret_cast<Type*>(buf);
+    }
+
     static int compare (Type* obj1, Type* obj2, int count) {
         int bytesize = size(obj1, count);
         return memcmp(obj1, obj2, bytesize);
     }
 
     static int size (Type* obj, int count) {
+        return (int)sizeof(Type) * count;
+    }
+
+    static int psize(int count) {
         return (int)sizeof(Type) * count;
     }
 };
@@ -87,6 +102,14 @@ class bytestream<const char*> {
         return bytesize;
     }
 
+    static char* get_ptr (const char** obj, int count) {
+        return (char*)(*obj);
+    }
+
+    static const char** get_obj (char *buf) {
+        return NULL;
+    }
+
     static int compare(const char** obj1, const char** obj2, int count) {
 
         int ret = 0;
@@ -106,6 +129,10 @@ class bytestream<const char*> {
         for (int i = 0; i < count; i++)
             strsize += (int)strlen(obj[i]) + 1;
         return strsize;
+    }
+
+    static int psize(int count) {
+        return (int)sizeof(const char*) * count;
     }
 };
 
@@ -138,6 +165,14 @@ class bytestream<char*> {
         return bytesize;
     }
 
+    static char* get_ptr (char** obj, int count) {
+        return reinterpret_cast<char*>(*obj);
+    }
+
+    static char** get_obj (char *buf) {
+        return NULL;
+    }
+
     static int compare (char** obj1, char** obj2, int count) {
 
         int ret = 0;
@@ -158,6 +193,10 @@ class bytestream<char*> {
             strsize += (int)strlen(obj[i]) + 1;
         return strsize;
     }
+
+    static int psize(int count) {
+        return (int)sizeof(char*) * count;
+    }
 };
 
 template <>
@@ -173,6 +212,14 @@ class bytestream<void> {
         return 0;
     }
 
+    static char* get_ptr (void *obj, int count) {
+        return NULL;
+    }
+
+    static void* get_obj (char *buf) {
+        return NULL;
+    }
+
     static int compare (void* obj1, void* obj2, int count) {
 
         return 1;
@@ -180,6 +227,10 @@ class bytestream<void> {
 
     static int size (void* obj, int count) {
 
+        return 0;
+    }
+
+    static int psize(int count) {
         return 0;
     }
 };
@@ -246,11 +297,39 @@ template <typename KeyType, typename ValType>
 class Serializer {
   public:
     Serializer(int keycount, int valcount) {
+
         this->keycount = keycount;
         this->valcount = valcount;
+
+        if (std::is_pointer<KeyType>::value) {
+            tmpkey = (char*)mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
+            int pkeysize = bytestream<KeyType>::psize(keycount);
+            bufkey = (KeyType*)mem_aligned_malloc(MEMPAGE_SIZE, pkeysize);
+        } else {
+            tmpkey = NULL;
+            bufkey = NULL;
+        }
+
+        if (std::is_pointer<ValType>::value) {
+            int pvalsize = bytestream<ValType>::psize(valcount);
+            bufval = (ValType*)mem_aligned_malloc(MEMPAGE_SIZE, pvalsize);
+        } else {
+            bufval = NULL;
+        }
+
     }
 
     ~Serializer() {
+
+        if (std::is_pointer<KeyType>::value) {
+            mem_aligned_free(tmpkey);
+            mem_aligned_free(bufkey);
+        }
+
+        if (std::is_pointer<ValType>::value) {
+            mem_aligned_free(bufval);
+        }
+
     }
 
     int compare_key(KeyType* key1, KeyType* key2) {
@@ -295,6 +374,32 @@ class Serializer {
 
     }
 
+    int kv_from_bytes (KeyType **key, ValType **val,
+                       char* buffer, int bufsize) {
+
+        int keybytes = 0, valbytes = 0;
+
+        if (std::is_pointer<KeyType>::value) {
+            keybytes = key_from_bytes(bufkey, buffer, bufsize);
+            *key = bufkey;
+        } else {
+            *key = bytestream<KeyType>::get_obj(buffer);
+            keybytes = get_key_bytes(*key);
+        }
+        buffer += keybytes;
+        bufsize -= keybytes;
+
+        if (std::is_pointer<ValType>::value) {
+            valbytes = val_from_bytes(bufval, buffer, bufsize);
+            *val = bufval;
+        } else {
+            *val = bytestream<ValType>::get_obj(buffer);
+            valbytes = get_val_bytes(*val);
+        }
+
+        return keybytes + valbytes;
+    }
+
     int kv_from_bytes (KeyType *key, ValType *val,
                        char* buffer, int bufsize) {
 
@@ -332,7 +437,7 @@ class Serializer {
     }
 
     int get_kv_txt_len (KeyType *key, ValType *val) {
-        return get_key_txt_len(key) + get_val_txt_len(val);
+        return get_key_txt_len(key) + get_val_txt_len(val) + 1;
     }
 
     int key_to_txt (KeyType *key, char *buffer, int bufsize) {
@@ -354,16 +459,44 @@ class Serializer {
         keybytes = key_to_txt(key, buffer, bufsize);
         buffer += keybytes;
         bufsize -= keybytes;
+        *buffer = ',';
+        buffer += 1;
+        bufsize -= 1;
         valbytes = val_to_txt(val, buffer, bufsize);
 
         return keybytes + valbytes;
     }
 
+    uint32_t get_hash_code(KeyType* key) {
+
+        int keysize = this->get_key_bytes(key);
+        if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
+
+        if (std::is_pointer<KeyType>::value) {
+            this->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
+        } else {
+            tmpkey = bytestream<KeyType>::get_ptr(key, keycount);
+        }
+
+        uint32_t hid = hashlittle(tmpkey, keysize, 0);
+        return hid;
+    }
+
+    char *get_key_ptr(KeyType *key) {
+        if (std::is_pointer<KeyType>::value) {
+            this->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
+        } else {
+            tmpkey = bytestream<KeyType>::get_ptr(key, keycount);
+        }
+        return tmpkey;
+    }
+
 
   private:
-    int      keycount, valcount;
-    int      keysize, valsize;
-    TypeMode keytype, valtype;
+    int         keycount, valcount;
+    char       *tmpkey;
+    KeyType    *bufkey;
+    ValType    *bufval;
 };
 
 }

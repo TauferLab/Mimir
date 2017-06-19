@@ -363,9 +363,9 @@ protected:
                 //int kvsize = 0;
                 //record.set_buffer(src_buf);
                 //kvsize = record.get_record_size();
-                typename SafeType<KeyType>::type key[this->keycount];
-                typename SafeType<ValType>::type val[this->valcount];
-                int kvsize = this->ser->kv_from_bytes(&key[0], &val[0],
+                typename SafeType<KeyType>::ptrtype key = NULL;
+                typename SafeType<ValType>::ptrtype val = NULL;
+                int kvsize = this->ser->kv_from_bytes(&key, &val,
                      src_buf, this->msg_buffers[idx].recv_count[k] - count);
                 this->out->write(key, val);
                 src_buf += kvsize;

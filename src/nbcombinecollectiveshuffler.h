@@ -121,9 +121,9 @@ public:
        else {
            //kv.set_buffer(u->kv);
            //user_combine(this, &kv, (KVRecord*)record, user_ptr);
-            typename SafeType<KeyType>::type u_key[this->keycount];
-            typename SafeType<ValType>::type u_val[this->valcount];
-            int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+            typename SafeType<KeyType>::ptrtype u_key = NULL;;
+            typename SafeType<ValType>::ptrtype u_val = NULL;
+            int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
             user_combine(this, u_key, u_val, val, user_ptr);
        }
 
@@ -142,9 +142,9 @@ public:
        //int ukvsize = kv.get_record_size();
        //int ksize = kv.get_key_size();
 
-        typename SafeType<KeyType>::type u_key[this->keycount];
-        typename SafeType<ValType>::type u_val[this->valcount];
-        int ukvsize = this->ser->kv_from_bytes(u_key, u_val, u->kv, MAX_RECORD_SIZE);
+        typename SafeType<KeyType>::ptrtype u_key = NULL;
+        typename SafeType<ValType>::ptrtype u_val = NULL;
+        int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
         int kvsize = this->ser->get_kv_bytes(key, val);
 
        if (kvsize > this->buf_size)
@@ -153,7 +153,7 @@ public:
 
        //if (((KVRecord*)record)->get_key_size() != kv.get_key_size()
        //    || memcmp(((KVRecord*)record)->get_key(), kv.get_key(), ksize) != 0)
-       //    LOG_ERROR("Error: the result key of combiner is different!\n");
+       //    LOG_ERROR("Error: the result key of combiner is different!\n"g);
 
         if (this->ser->compare_key(key, u_key) != 0)
             LOG_ERROR("Error: the result key of combiner is different!\n");
@@ -198,8 +198,8 @@ protected:
    void garbage_collection()
    {
        if (!slices.empty()) {
-           typename SafeType<KeyType>::type key[this->keycount];
-           typename SafeType<ValType>::type val[this->valcount];
+           typename SafeType<KeyType>::ptrtype key = NULL;
+           typename SafeType<ValType>::ptrtype val = NULL;
 
            LOG_PRINT(DBG_GEN, "NBCollectiveShuffler garbage collection: slices=%ld\n",
                      slices.size());
@@ -224,7 +224,7 @@ protected:
                    else {
                        //kv.set_buffer(tmp_buf);
                        //int kvsize = kv.get_record_size();
-                       int kvsize = this->ser->kv_from_bytes(key, val,
+                       int kvsize = this->ser->kv_from_bytes(&key, &val,
                             tmp_buf, this->msg_buffers[this->cur_idx].send_offset[k] - src_off);
                        if (src_off != dst_off) {
                            for (int kk = 0; kk < kvsize; kk++)
