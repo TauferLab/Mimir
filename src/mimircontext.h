@@ -56,7 +56,7 @@ class MimirContext {
                  std::string output_dir,
                  RepartitionCallback repartition_fn = NULL,
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                    KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
+                                    KeyType* key, ValType* val1, ValType* val2, ValType* val3, void *ptr) = NULL,
                  int (*hash_fn)(KeyType* key, ValType *val, int npartition) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
@@ -80,7 +80,7 @@ class MimirContext {
                  void (*reduce_fn)(Readable<KeyType,ValType> *input, 
                                    Writable<OutKeyType,OutValType> *output, void *ptr),
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                    KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
+                                    KeyType* key, ValType* val1, ValType* val2, ValType* val3, void *ptr) = NULL,
                  int (*hash_fn)(KeyType* key, ValType *val, int npartition) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
@@ -106,7 +106,7 @@ class MimirContext {
                  std::string output_dir,
                  RepartitionCallback repartition_fn = NULL,
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                    KeyType* key, ValType* val1, ValType* val2, void *ptr) = NULL,
+                                    KeyType* key, ValType* val1, ValType* val2, ValType *val3, void *ptr) = NULL,
                  int (*hash_fn)(KeyType* key, ValType* val, int npartition) = NULL,
                  bool do_shuffle = true,
                  OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
@@ -479,7 +479,7 @@ class MimirContext {
                void (*reduce_fn)(Readable<KeyType,ValType> *input, 
                                  Writable<OutKeyType,OutValType> *output, void *ptr),
                void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                  KeyType* key, ValType* val1, ValType* val2, void *ptr),
+                                  KeyType* key, ValType* val1, ValType* val2, ValType* val3, void *ptr),
                int (*partition_fn)(KeyType* key, ValType* val, int npartition),
                RepartitionCallback repartition_fn,
                bool do_shuffle,
@@ -534,7 +534,7 @@ class MimirContext {
     void (*user_reduce)(Readable<KeyType,ValType> *input, 
                         Writable<OutKeyType,OutValType> *output, void *ptr);
     void (*user_combine)(Combinable<KeyType,ValType> *output,
-                         KeyType* key, ValType* val1, ValType* val2, void *ptr);
+                         KeyType* key, ValType* val1, ValType* val2, ValType *val3, void *ptr);
     int (*user_hash)(KeyType* key, ValType *val, int npartition);
 
     RepartitionCallback user_repartition;

@@ -100,45 +100,43 @@ public:
 
     virtual int write(KeyType *key, ValType *val)
     {
-        while (1) {
+        int target = this->get_target_rank(key, val);
 
-            int target = this->get_target_rank(key, val);
-
-            if (target == this->shuffle_rank) {
-                int ret = this->out->write(key, val);
-                if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
-                    uint32_t hid = this->ser->get_hash_code(key);
-                    uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
-                    auto iter = this->bin_table.find(bidx);
-                    if (iter != this->bin_table.end()) {
-                        iter->second += 1;
-                        this->local_kv_count += 1;
-                    } else {
-                        LOG_ERROR("Wrong bin index=%d\n", bidx);
-                    }
+        if (target == this->shuffle_rank) {
+            int ret = this->out->write(key, val);
+            if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
+                uint32_t hid = this->ser->get_hash_code(key);
+                uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                auto iter = this->bin_table.find(bidx);
+                if (iter != this->bin_table.end()) {
+                    iter->second += 1;
+                    this->local_kv_count += 1;
+                } else {
+                    LOG_ERROR("Wrong bin index=%d\n", bidx);
                 }
-                return 0;
             }
-
-            int kvsize = this->ser->get_kv_bytes(key, val);
-            if (kvsize > buf_size)
-                LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
-                          kvsize, buf_size);
-
-            if ((int64_t)send_offset[target] + (int64_t)kvsize > buf_size) {
-                TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
-                exchange_kv();
-                continue;
-            }
-
-            char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
-            kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
-            send_offset[target] += kvsize;
-            this->kvcount++;
-            break;
+            return 0;
         }
+
+        int kvsize = this->ser->get_kv_bytes(key, val);
+        if (kvsize > buf_size)
+            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
+                      kvsize, buf_size);
+
+        if ((int64_t)send_offset[target] + (int64_t)kvsize > buf_size) {
+            TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+            exchange_kv();
+            target = this->get_target_rank(key, val);
+        }
+
+        char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
+        kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
+        send_offset[target] += kvsize;
+        this->kvcount++;
+
         return 0;
     }
+
     virtual void make_progress(bool issue_new = false) { exchange_kv(); }
 
 protected:

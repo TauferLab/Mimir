@@ -51,7 +51,7 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
         kvcount = 0;
     }
 
-    ~BinContainer() 
+    virtual ~BinContainer() 
     {
         delete ser;
 
@@ -60,19 +60,19 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
         }
     }
 
-    int open() 
+    virtual int open() 
     {
         cur_bin_idx = 0;
         LOG_PRINT(DBG_DATA, "BinContainer open.\n");
         return true;
     }
 
-    void close()
+    virtual void close()
     {
         LOG_PRINT(DBG_DATA, "BinContainer close.\n");
     }
 
-    int read(KeyType* key, ValType* val) 
+    virtual int read(KeyType* key, ValType* val) 
     {
         // Find next bin
         while (cur_bin_idx < (int)bins.size() 
@@ -94,7 +94,7 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
         return 0;
     }
 
-    int write(KeyType* key, ValType* val) 
+    virtual int write(KeyType* key, ValType* val) 
     {
         // Get <key,value> length
         int kvsize = ser->get_kv_bytes(key, val);
@@ -132,7 +132,7 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
         return 1;
     }
 
-    int remove(KeyType *key, ValType *val, std::set<uint32_t>& remove_bins)
+    virtual int remove(KeyType *key, ValType *val, std::set<uint32_t>& remove_bins)
     {
         // Find the first bin
         if (!isremove) {

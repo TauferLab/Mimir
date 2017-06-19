@@ -25,7 +25,7 @@ class NBCombineCollectiveShuffler
 public:
     NBCombineCollectiveShuffler(MPI_Comm comm,
                                 void (*user_combine)(Combinable<KeyType,ValType> *output,
-                                                     KeyType *key, ValType *val1, ValType *val2, void *ptr),
+                                                     KeyType *key, ValType *val1, ValType *val2, ValType *val3, void *ptr),
                                 void *user_ptr,
                                 Writable<KeyType,ValType> *out,
                                 int (*user_hash)(KeyType* key, ValType* val, int npartition),
@@ -48,7 +48,7 @@ public:
         return 0;
     }
 
-    void close() {
+    virtual void close() {
        garbage_collection();
        delete bucket;
 
@@ -69,11 +69,9 @@ public:
            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                      kvsize, this->buf_size);
 
-       keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
-
-       //u = bucket->findElem(((KVRecord*)record)->get_key(), 
-       //                     ((KVRecord*)record)->get_key_size());
-       u = bucket->findEntry(keyarray, keybytes);
+        int keysize = this->ser->get_key_bytes(key);
+        char *keyptr = this->ser->get_key_ptr(key);
+       u = bucket->findEntry(keyptr, keysize);
 
        if (u == NULL) {
            CombinerVal tmp;
@@ -96,8 +94,6 @@ public:
                    else
                        slices[iter->first] -= kvsize;
 
-                   bucket->insertEntry(tmp.kv, keybytes, &tmp);
-
                    break;
                }
            }
@@ -115,21 +111,49 @@ public:
                this->msg_buffers[this->cur_idx].send_offset[target] += kvsize;
            }
 
-           bucket->insertEntry(tmp.kv, keybytes, &tmp);
+           bucket->insertEntry(tmp.kv, keysize, &tmp);
            this->kvcount ++;
        }
        else {
-           //kv.set_buffer(u->kv);
-           //user_combine(this, &kv, (KVRecord*)record, user_ptr);
-            typename SafeType<KeyType>::ptrtype u_key = NULL;;
+            typename SafeType<KeyType>::ptrtype u_key = NULL;
             typename SafeType<ValType>::ptrtype u_val = NULL;
+            typename SafeType<ValType>::type r_val[this->valcount];
+
             int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
-            user_combine(this, u_key, u_val, val, user_ptr);
+
+            user_combine(this, u_key, u_val, val, r_val, user_ptr);
+
+            int ukeysize = this->ser->get_key_bytes(u_key);
+            int uvalsize = this->ser->get_val_bytes(u_val);
+            int rvalsize = this->ser->get_val_bytes(r_val);
+
+            if (rvalsize <= uvalsize) {
+                this->ser->val_to_bytes(r_val, u->kv + ukeysize, uvalsize);
+                if (rvalsize < uvalsize) {
+                    char *ptr = u->kv + ukvsize - (uvalsize - rvalsize);
+                    this->slices.insert(std::make_pair(ptr, uvalsize - rvalsize));
+                }
+           } else {
+                 slices.insert(std::make_pair(u->kv, ukvsize));
+                 if ((int64_t)this->msg_buffers[this->cur_idx].send_offset[target] 
+                     + (int64_t) (ukeysize + rvalsize) > this->buf_size) {
+                     garbage_collection();
+                     this->start_kv_exchange();
+                     target = this->get_target_rank(key, val);
+                     //u = NULL;
+                }
+                char *gbuf = this->msg_buffers[this->cur_idx].send_buffer + target * (int64_t) this->buf_size 
+                    + this->msg_buffers[this->cur_idx].send_offset[target];
+                this->ser->kv_to_bytes(u_key, r_val, gbuf, ukeysize + rvalsize);
+                this->msg_buffers[this->cur_idx].send_offset[target] += ukeysize + rvalsize;
+                if (u != NULL) u->kv=gbuf;
+           }
        }
 
        return 0;
    }
 
+#if 0
     //virtual void update(BaseRecordFormat *);
    virtual void update(KeyType *key, ValType *val)
    {
@@ -185,6 +209,7 @@ public:
        }
        return;
    }
+#endif
 
    virtual void make_progress(bool issue_new = false) {
         if(issue_new && this->pending_msg == 0) {
@@ -242,13 +267,11 @@ protected:
    }
 
    void (*user_combine)(Combinable<KeyType,ValType> *output,
-                         KeyType *key, ValType *val1, ValType *val2, void *ptr);
+                         KeyType *key, ValType *val1, ValType *val2, ValType *val3, void *ptr);
     void *user_ptr;
     std::unordered_map<char*, int> slices;
     HashBucket<CombinerVal> *bucket;
     CombinerVal *u;
-    char* keyarray;
-    int keybytes;
 };
 
 }

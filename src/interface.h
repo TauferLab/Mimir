@@ -51,7 +51,7 @@ template <typename KeyType, typename ValType>
 class Combinable {
   public:
     virtual ~Combinable() {}
-    virtual void update(KeyType*, ValType*) = 0;
+    //virtual void update(KeyType*, ValType*) = 0;
 };
 
 template <typename KeyType, typename ValType>

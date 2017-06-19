@@ -23,7 +23,7 @@ class CombineCollectiveShuffler
 public:
     CombineCollectiveShuffler(MPI_Comm comm,
                               void (*user_combine)(Combinable<KeyType,ValType> *output,
-                                                   KeyType *key, ValType *val1, ValType *val2, void *ptr),
+                                                   KeyType *key, ValType *val1, ValType *val2, ValType *val3, void *ptr),
                               void *user_ptr,
                               Writable<KeyType,ValType> *out,
                               int (*user_hash)(KeyType* key, ValType* val, int npartition),
@@ -35,7 +35,7 @@ public:
         bucket = NULL;
     }
 
-    ~CombineCollectiveShuffler () {
+    virtual ~CombineCollectiveShuffler () {
     }
 
     //virtual bool open();
@@ -43,8 +43,6 @@ public:
 
         CollectiveShuffler<KeyType,ValType>::open();
         bucket = new HashBucket<CombinerVal>();
-
-        keyarray = (char*) mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
 
         LOG_PRINT(DBG_GEN, "CombineCollectiveShuffler open!\n");
         return 0;
@@ -57,7 +55,6 @@ public:
         CollectiveShuffler<KeyType,ValType>::close();
 
         delete bucket;
-        mem_aligned_free(keyarray);
 
         LOG_PRINT(DBG_GEN, "CombineCollectiveShuffler close.\n");
     }
@@ -87,9 +84,9 @@ public:
             LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
                       kvsize, this->buf_size);
 
-        keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
-
-        u = bucket->findEntry(keyarray, keybytes);
+        int keysize = this->ser->get_key_bytes(key);
+        char *keyptr = this->ser->get_key_ptr(key);
+        u = bucket->findEntry(keyptr, keysize);
 
         if (u == NULL) {
             CombinerVal tmp;
@@ -109,7 +106,7 @@ public:
                     else
                         slices[iter->first] -= kvsize;
 
-                    bucket->insertEntry(tmp.kv, keybytes, &tmp);
+                    bucket->insertEntry(tmp.kv, keysize, &tmp);
 
                     break;
                 }
@@ -119,6 +116,7 @@ public:
                 if ((int64_t)this->send_offset[target] + (int64_t) kvsize > this->buf_size) {
                     garbage_collection();
                     this->exchange_kv();
+                    target = this->get_target_rank(key, val);
                 }
 
                 tmp.kv = this->send_buffer + target * (int64_t)this->buf_size + this->send_offset[target];
@@ -126,19 +124,49 @@ public:
                 this->send_offset[target] += kvsize;
             }
 
-            bucket->insertEntry(tmp.kv, keybytes, &tmp);
+            bucket->insertEntry(tmp.kv, keysize, &tmp);
             this->kvcount ++;
         }
         else {
             typename SafeType<KeyType>::ptrtype u_key = NULL;
             typename SafeType<ValType>::ptrtype u_val = NULL;
+            typename SafeType<ValType>::type r_val[this->valcount];
+
             int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
-            user_combine(this, u_key, u_val, val, user_ptr);
+
+            user_combine(this, u_key, u_val, val, r_val, user_ptr);
+
+            int ukeysize = this->ser->get_key_bytes(u_key);
+            int uvalsize = this->ser->get_val_bytes(u_val);
+            int rvalsize = this->ser->get_val_bytes(r_val);
+
+            if (rvalsize <= uvalsize) {
+                this->ser->val_to_bytes(r_val, u->kv + ukeysize, uvalsize);
+                if (rvalsize < uvalsize) {
+                    char *ptr = u->kv + ukvsize - (uvalsize - rvalsize);
+                    this->slices.insert(std::make_pair(ptr, uvalsize - rvalsize));
+                }
+            }
+            else {
+                slices.insert(std::make_pair(u->kv, ukvsize));
+                if ((int64_t)this->send_offset[target] + (int64_t) (ukeysize + rvalsize) > this->buf_size) {
+                    garbage_collection();
+                    this->exchange_kv();
+                    target = this->get_target_rank(key, val);
+                }
+                char *gbuf = this->send_buffer 
+                    + target * (int64_t) this->buf_size 
+                    + this->send_offset[target];
+                this->ser->kv_to_bytes(u_key, r_val, gbuf, (int)this->buf_size - this->send_offset[target]);
+                this->send_offset[target] += (ukeysize + rvalsize);
+            }
+
         }
 
         return 0;
     }
 
+#if 0
     virtual void update(KeyType *key, ValType *val)
     {
         typename SafeType<KeyType>::ptrtype u_key = NULL;
@@ -178,6 +206,7 @@ public:
 
         return;
     }
+#endif
 
     virtual void make_progress(bool issue_new = false) {
         garbage_collection();
@@ -228,13 +257,11 @@ private:
     }
 
     void (*user_combine)(Combinable<KeyType,ValType> *output,
-                         KeyType *key, ValType *val1, ValType *val2, void *ptr);
+                         KeyType *key, ValType *val1, ValType *val2, ValType *val3, void *ptr);
     void *user_ptr;
     std::unordered_map<char*, int> slices;
     HashBucket<CombinerVal> *bucket;
     CombinerVal *u;
-    char* keyarray;
-    int keybytes;
 };
 
 }

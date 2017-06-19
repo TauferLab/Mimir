@@ -22,7 +22,7 @@ class CombineKVContainer : public KVContainer<KeyType, ValType>,
 public:
     CombineKVContainer(void (*user_combine)(Combinable<KeyType,ValType> *output,
                                             KeyType *key,
-                                            ValType *val1, ValType *val2,
+                                            ValType *val1, ValType *val2, ValType *val3,
                                             void *ptr),
                        void *user_ptr,
                        uint32_t bincount = 0,
@@ -34,29 +34,25 @@ public:
         bucket = NULL;
     }
 
-    ~CombineKVContainer()
+    virtual ~CombineKVContainer()
     {
     }
 
-    int open() {
+    virtual int open() {
 
         bucket = new HashBucket<CombinerVal>();
 
         KVContainer<KeyType,ValType>::open();
-
-        keyarray = (char*) mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
 
         LOG_PRINT(DBG_GEN, "CombineKVContainer open!\n");
 
         return 0;
     }
 
-    void close() {
+    virtual void close() {
 
         this->garbage_collection();
         bucket->clear();
-
-        mem_aligned_free(keyarray);
 
         delete bucket;
 
@@ -65,7 +61,7 @@ public:
         LOG_PRINT(DBG_GEN, "CombineKVContainer close.\n");
     }
 
-    int write(KeyType *key, ValType *val)
+    virtual int write(KeyType *key, ValType *val)
     {
         int ret = 0;
 
@@ -74,8 +70,9 @@ public:
             LOG_ERROR("Error: KV size (%d) is larger \
                       than one page (%ld)\n", kvsize, this->pagesize);
 
-        keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
-        u = bucket->findEntry(keyarray, keybytes);
+        int keysize = this->ser->get_key_bytes(key);
+        char *keyptr = this->ser->get_key_ptr(key);
+        u = bucket->findEntry(keyptr, keysize);
 
         if (u == NULL) {
             CombinerVal tmp;
@@ -113,26 +110,45 @@ public:
                 this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
                 this->pages[this->pageid].datasize += kvsize;
             }
-            bucket->insertEntry(tmp.kv, keybytes, &tmp);
+            bucket->insertEntry(tmp.kv, keysize, &tmp);
             this->kvcount += 1;
             ret = 1;
         }
         else {
             typename SafeType<KeyType>::ptrtype u_key = NULL;
             typename SafeType<ValType>::ptrtype u_val = NULL;
-            this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
-            user_combine(this, u_key, u_val, val, user_ptr);
+            typename SafeType<ValType>::type r_val[this->valcount];
+
+            int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
+
+            user_combine(this, u_key, u_val, val, r_val, user_ptr);
+
+            int ukeysize = this->ser->get_key_bytes(u_key);
+            int uvalsize = this->ser->get_val_bytes(u_val);
+            int rvalsize = this->ser->get_val_bytes(r_val);
+
+            if (rvalsize <= uvalsize) {
+                this->ser->val_to_bytes(r_val, u->kv + ukeysize, uvalsize);
+                if (rvalsize < uvalsize) {
+                    char *ptr = u->kv + ukvsize - (uvalsize - rvalsize);
+                    this->slices.insert(std::make_pair(ptr, uvalsize - rvalsize));
+                }
+            } else {
+                this->slices.insert(std::make_pair(u->kv, ukvsize));
+                if (ukeysize + rvalsize + this->pages[this->pageid].datasize > this->pagesize)
+                    this->pageid = this->add_page();
+                u->kv = this->pages[this->pageid].buffer + this->pages[this->pageid].datasize;
+                this->ser->kv_to_bytes(u_key, r_val, u->kv, ukeysize + rvalsize);
+                this->pages[this->pageid].datasize += ukeysize + rvalsize;
+            }
             ret = 0;
         }
         return ret;
     }
 
+#if 0
     void update(KeyType *key, ValType *val)
     {
-        typename SafeType<KeyType>::ptrtype u_key = NULL;
-        typename SafeType<ValType>::ptrtype u_val = NULL;
-        int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
-
         int kvsize = this->ser->get_kv_bytes(key, val);
 
         if (this->ser->compare_key(key, u_key) != 0)
@@ -155,13 +171,15 @@ public:
 
         return;
     }
+#endif
 
     virtual int remove(KeyType *key, ValType *val, std::set<uint32_t>& remainders) {
 
         int ret = KVContainer<KeyType, ValType>::remove(key, val, remainders);
         if (ret != -1) {
-            keybytes = this->ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
-            bucket->removeEntry(keyarray, keybytes);
+            int keysize = this->ser->get_key_bytes(key);
+            char *keyptr = this->ser->get_key_ptr(key);
+            bucket->removeEntry(keyptr, keysize);
         }
 
         return ret;
@@ -169,12 +187,10 @@ public:
 
 private:
     void (*user_combine)(Combinable<KeyType,ValType> *output,
-                         KeyType *key, ValType *val1, ValType *val2, void *ptr);
+                         KeyType *key, ValType *val1, ValType *val2, ValType *val3, void *ptr);
     void *user_ptr;
     HashBucket<CombinerVal> *bucket;
     CombinerVal *u;
-    char* keyarray;
-    int keybytes;
 };
 
 }
