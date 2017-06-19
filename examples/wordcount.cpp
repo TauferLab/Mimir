@@ -23,7 +23,7 @@ void map (Readable<char*,void> *input,
 void countword (Readable<char*,uint64_t> *input,
                 Writable<char*,uint64_t> *output, void *ptr);
 void combine (Combinable<char*,uint64_t> *combiner,
-              char**, uint64_t*, uint64_t*, void *ptr);
+              char**, uint64_t*, uint64_t*, uint64_t*, void *ptr);
 
 uint64_t nwords = 0, nunique = 0;
 
@@ -63,6 +63,8 @@ int main (int argc, char *argv[])
     nunique = ctx->reduce();
     delete ctx;
 
+    if (rank == 0) printf("nunique=%ld\n", nunique);
+
     MPI_Finalize();
 }
 
@@ -96,8 +98,8 @@ void countword (Readable<char*,uint64_t> *input,
 }
 
 void combine (Combinable<char*,uint64_t> *combiner,
-              char **key, uint64_t *val1, uint64_t *val2, void *ptr)
+              char **key, uint64_t *val1, uint64_t *val2,
+              uint64_t *rval, void *ptr)
 {
-    uint64_t count = *val1 + *val2;
-    combiner->update(key, &count);
+    *rval = *val1 + *val2;
 }

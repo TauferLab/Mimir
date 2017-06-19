@@ -42,7 +42,8 @@ void rootvisit (Readable<int64_t, int64_t> *input,
 void expand (Readable<int64_t, int64_t> *input,
              Writable<int64_t, int64_t> *output, void *ptr);
 void combiner (Combinable<int64_t, int64_t> *combiner,
-               int64_t *key, int64_t *val1, int64_t *val2, void *ptr);
+               int64_t *key, int64_t *val1, int64_t *val2, 
+               int64_t *rval, void *ptr);
 
 int rank, size;
 int64_t nglobalverts;           // global vertex count
@@ -289,9 +290,11 @@ void expand(Readable<int64_t, int64_t> *input,
 }
 
 // compress KV with the rank key
-void combiner(Combinable<int64_t, int64_t> *combiner, int64_t *key, int64_t *val0, int64_t *val1, void *ptr)
+void combiner(Combinable<int64_t, int64_t> *combiner, int64_t *key,
+              int64_t *val0, int64_t *val1,
+              int64_t *rval, void *ptr)
 {
-    combiner->update(key, val0);
+    *rval = *val0 + *val1;
 }
 
 // rondom chosen a vertex in the CC part of the graph

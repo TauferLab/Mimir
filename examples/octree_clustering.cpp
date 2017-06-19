@@ -28,7 +28,8 @@ void generate_octkey (Readable<char*, void> *input,
 void gen_leveled_octkey (Readable<char, uint64_t> *input,
                          Writable<char, uint64_t> *output, void *ptr);
 void combine (Combinable<char, uint64_t> *combiner,
-              char *key, uint64_t *val1, uint64_t *val2, void *ptr);
+              char *key, uint64_t *val1, uint64_t *val2, 
+              uint64_t *rval, void *ptr);
 void sum (Readable<char, uint64_t> *input,
           Writable<char, uint64_t> *output, void *ptr);
 //double slope(double[], double[], int);
@@ -106,10 +107,10 @@ int main(int argc, char **argv)
 }
 
 void combine (Combinable<char, uint64_t> *combiner,
-              char *key, uint64_t *val1, uint64_t *val2, void *ptr)
+              char *key, uint64_t *val1, uint64_t *val2,
+              uint64_t *rval, void *ptr)
 {
-    uint64_t val = *(val1) + *(val2);
-    combiner->update(key, &val);
+    *rval = *(val1) + *(val2);
 }
 
 void sum (Readable<char, uint64_t> *input,
