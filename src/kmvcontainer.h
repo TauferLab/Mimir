@@ -31,12 +31,15 @@ class KMVContainer {
         keyarray = (char*) mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
         h = new HashBucket<ReducerVal>(true);
         ser = new Serializer<KeyType, ValType>(keycount, valcount);
+
+        mem_bytes = 0;
     }
 
     ~KMVContainer() {
         delete ser;
         delete h;
         mem_aligned_free(keyarray);
+        PROFILER_RECORD_COUNT(COUNTER_MAX_KMV_PAGES, this->mem_bytes, OPMAX);
     }
 
     virtual int open() {
@@ -92,6 +95,7 @@ class KMVContainer {
             entries.push_back(entry);
             if (totalsize >= DATA_PAGE_SIZE) {
                 char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, totalsize);
+                mem_bytes += totalsize;
                 buffers.push_back(buffer);
                 int bufoff = 0;
                 for (size_t i = 0; i < entries.size(); i++) {
@@ -106,6 +110,7 @@ class KMVContainer {
         h->close();
 
         char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, totalsize);
+        mem_bytes += totalsize;
         buffers.push_back(buffer);
         int bufoff = 0;
         for (size_t i = 0; i < entries.size(); i++) {
@@ -144,6 +149,8 @@ class KMVContainer {
     KMVItem<KeyType, ValType>* kmv;
 
     Serializer<KeyType, ValType> *ser;
+
+    uint64_t  mem_bytes;
 };
 
 template <typename KeyType, typename ValType>

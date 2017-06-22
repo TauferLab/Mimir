@@ -54,6 +54,10 @@ class HashBucket {
                                                    sizeof(HashEntry*) * nbucket);
         for (int i = 0; i < nbucket; i++) buckets[i] = NULL;
 
+        mem_bytes += sizeof(HashEntry*) * nbucket;
+
+        PROFILER_RECORD_COUNT(COUNTER_HASH_BUCKET, this->mem_bytes, OPMAX);
+
         buf_size = DATA_PAGE_SIZE;
         buf_idx = 0;
         buf_off = 0;
@@ -65,9 +69,12 @@ class HashBucket {
 
     virtual ~HashBucket() {
 
+        mem_bytes -= sizeof(HashEntry*) * nbucket;
+
         mem_aligned_free(buckets);
 
         for (size_t i = 0; i < buffers.size(); i++) {
+            mem_bytes -= buf_size;
             if (buffers[i] != NULL)
                 mem_aligned_free(buffers[i]);
         }
@@ -156,6 +163,8 @@ class HashBucket {
             // Add a new buffer
             if (buf_idx == buffers.size()) {
                 char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
+                mem_bytes += buf_size;
+                PROFILER_RECORD_COUNT(COUNTER_HASH_BUCKET, this->mem_bytes, OPMAX);
                 buffers.push_back(buffer);
                 buf_off = 0;
             }
@@ -168,6 +177,8 @@ class HashBucket {
                 buf_off = 0;
                 if (buf_idx == buffers.size()) {
                     char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
+                    mem_bytes += buf_size;
+                    PROFILER_RECORD_COUNT(COUNTER_HASH_BUCKET, this->mem_bytes, OPMAX);
                     buffers.push_back(buffer);
                 }
             }
@@ -279,7 +290,13 @@ protected:
     uint64_t iunique, nunique;
 
     std::unordered_map<char*, int> slices;
+
+public:
+    static uint64_t mem_bytes;
 };
+
+template <typename ValType>
+uint64_t HashBucket<ValType>::mem_bytes = 0;
 
 }
 

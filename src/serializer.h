@@ -38,14 +38,14 @@ template <typename Type>
 class bytestream {
   public:
     static int to_bytes (Type* obj, int count, char *buf) {
-        int bytesize = size(obj, count);
+        int bytesize = (int)sizeof(Type) * count;
         char* begin = reinterpret_cast<char*>(std::addressof(*obj));
         memcpy(buf, begin, bytesize);
         return bytesize;
     }
 
     static int from_bytes (Type* obj, int count, char *buf) {
-        int bytesize = size(obj, count);
+        int bytesize = (int)sizeof(Type) * count;
         char* begin = reinterpret_cast<char*>(std::addressof(*obj));
         memcpy(begin, buf, bytesize);
         return bytesize;
@@ -302,7 +302,8 @@ class Serializer {
         this->valcount = valcount;
 
         if (std::is_pointer<KeyType>::value) {
-            tmpkey = (char*)mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
+            if (keycount > 1)
+                tmpkey = (char*)mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
             int pkeysize = bytestream<KeyType>::psize(keycount);
             bufkey = (KeyType*)mem_aligned_malloc(MEMPAGE_SIZE, pkeysize);
         } else {
@@ -322,7 +323,7 @@ class Serializer {
     ~Serializer() {
 
         if (std::is_pointer<KeyType>::value) {
-            mem_aligned_free(tmpkey);
+            if (keycount > 1) mem_aligned_free(tmpkey);
             mem_aligned_free(bufkey);
         }
 
@@ -354,10 +355,10 @@ class Serializer {
 
         int keybytes = 0, valbytes = 0;
 
-        keybytes = key_to_bytes(key, buffer, bufsize);
+        keybytes = bytestream<KeyType>::to_bytes(key, keycount, buffer);
         buffer += keybytes;
         bufsize -= keybytes;
-        valbytes = val_to_bytes(val, buffer, bufsize);
+        valbytes = bytestream<ValType>::to_bytes(val, valcount, buffer);
 
         return keybytes + valbytes;
     }
@@ -380,7 +381,7 @@ class Serializer {
         int keybytes = 0, valbytes = 0;
 
         if (std::is_pointer<KeyType>::value) {
-            keybytes = key_from_bytes(bufkey, buffer, bufsize);
+            keybytes = bytestream<KeyType>::from_bytes(bufkey, keycount, buffer);
             *key = bufkey;
         } else {
             *key = bytestream<KeyType>::get_obj(buffer);
@@ -390,7 +391,7 @@ class Serializer {
         bufsize -= keybytes;
 
         if (std::is_pointer<ValType>::value) {
-            valbytes = val_from_bytes(bufval, buffer, bufsize);
+            valbytes = bytestream<ValType>::from_bytes(bufval, valcount, buffer);
             *val = bufval;
         } else {
             *val = bytestream<ValType>::get_obj(buffer);
@@ -405,11 +406,11 @@ class Serializer {
 
         int keybytes = 0, valbytes = 0;
 
-        keybytes = key_from_bytes(key, buffer, bufsize);
+        keybytes = bytestream<KeyType>::from_bytes(key, keycount, buffer);
         buffer += keybytes;
         bufsize -= keybytes;
 
-        valbytes = val_from_bytes(val, buffer, bufsize);
+        valbytes = bytestream<ValType>::from_bytes(val, valcount, buffer);
 
         return keybytes + valbytes;
     }
@@ -425,7 +426,8 @@ class Serializer {
     }
 
     int get_kv_bytes (KeyType *key, ValType *val) {
-        return get_key_bytes(key) + get_val_bytes(val);
+        return bytestream<KeyType>::size(key, keycount)                        \
+            + bytestream<ValType>::size(val, valcount);;
     }
 
     int get_key_txt_len (KeyType *key) {
@@ -447,22 +449,22 @@ class Serializer {
     }
 
     int val_to_txt (ValType *val, char *buffer, int bufsize) {
-
         return txtstream<ValType>::to_txt(val, valcount, buffer);
-
     }
 
     int kv_to_txt (KeyType *key, ValType *val, char* buffer, int bufsize) {
 
         int keybytes = 0, valbytes = 0;
 
-        keybytes = key_to_txt(key, buffer, bufsize);
+        keybytes = txtstream<KeyType>::to_txt(key, keycount, buffer);
         buffer += keybytes;
         bufsize -= keybytes;
-        *buffer = ',';
-        buffer += 1;
-        bufsize -= 1;
-        valbytes = val_to_txt(val, buffer, bufsize);
+        if (!std::is_void<ValType>::value) {
+            *buffer = ',';
+            buffer += 1;
+            bufsize -= 1;
+            valbytes = txtstream<ValType>::to_txt(val, valcount, buffer);
+        }
 
         return keybytes + valbytes;
     }
@@ -472,8 +474,8 @@ class Serializer {
         int keysize = this->get_key_bytes(key);
         if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
 
-        if (std::is_pointer<KeyType>::value) {
-            this->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
+        if (std::is_pointer<KeyType>::value && keycount > 1) {
+            bytestream<KeyType>::to_bytes(key, keycount, tmpkey);
         } else {
             tmpkey = bytestream<KeyType>::get_ptr(key, keycount);
         }
@@ -483,14 +485,13 @@ class Serializer {
     }
 
     char *get_key_ptr(KeyType *key) {
-        if (std::is_pointer<KeyType>::value) {
-            this->key_to_bytes(key, tmpkey, MAX_RECORD_SIZE);
+        if (std::is_pointer<KeyType>::value && keycount > 1) {
+            bytestream<KeyType>::to_bytes(key, keycount, tmpkey);
         } else {
             tmpkey = bytestream<KeyType>::get_ptr(key, keycount);
         }
         return tmpkey;
     }
-
 
   private:
     int         keycount, valcount;

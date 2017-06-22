@@ -220,6 +220,8 @@ void get_default_values()
         int flag = atoi(env);
         if (flag == 0) {
             RECORD_PEAKMEM = 0;
+        } else {
+            RECORD_PEAKMEM = 1;
         }
     }
 
@@ -301,6 +303,11 @@ void get_default_values()
         }
     }
 
+    env = getenv("MIMIR_BALANCE_FACTOR");
+    if (env) {
+        BALANCE_FACTOR = atof(env);
+    }
+
     //env = getenv("MIMIR_FILE_ALIGN");
     //if (env) {
     //    FILE_SPLIT_UNIT = convert_to_int64(env);
@@ -325,13 +332,13 @@ Library configuration:\n\
 \treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \tcomm buffer: min=%d, max=%d\n\
-\tload balance: balance=%d, bin count=%d, bin container=%d\n\
+\tload balance: balance=%d, balance factor=%.2lf, bin count=%d, bin container=%d\n\
 \tdebug level: %x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, WORK_STEAL,
         SHUFFLE_TYPE, READER_TYPE, WRITER_TYPE,
         MIN_SBUF_COUNT, MAX_SBUF_COUNT,
-        BALANCE_LOAD, BIN_COUNT, BIN_CONTAINER,
+        BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BIN_CONTAINER,
         DBG_LEVEL);
         fflush(stdout);
     }

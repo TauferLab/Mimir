@@ -282,9 +282,10 @@ protected:
         LOG_PRINT(DBG_COMM, "Comm: exchange KV. (send count=%ld, recv count=%ld, done count=%d)\n", sendcount, recvcount, this->done_count);
 
         if (BALANCE_LOAD && !(this->user_hash) && this->check_load_balance() == false) {
-            LOG_PRINT(DBG_REPAR, "Load balance start\n");
+            LOG_PRINT(DBG_REPAR, "shuffle index=%d: load balance start\n", this->shuffle_times);
             this->balance_load();
-            LOG_PRINT(DBG_REPAR, "Load balance end\n");
+            PROFILER_RECORD_COUNT(COUNTER_BALANCE_TIMES, 1, OPSUM);
+            LOG_PRINT(DBG_REPAR, "shuffle index=%d: load balance end\n", this->shuffle_times);
         }
 
         this->shuffle_times += 1;

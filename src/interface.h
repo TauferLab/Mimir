@@ -105,7 +105,13 @@ class BaseDatabase :
   private:
     uint64_t    ref;
     bool        if_inner_object;
+
+  public:
+    static uint64_t    mem_bytes;
 };
+
+template <typename KeyType, typename ValType>
+uint64_t BaseDatabase<KeyType, ValType>::mem_bytes = 0;
 
 //typedef void (*MapCallback) (Readable *input, Writable *output, void *ptr);
 //typedef void (*ReduceCallback) (Readable *input, Writable *output, void *ptr);

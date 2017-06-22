@@ -15,6 +15,7 @@
 #include "containeriter.h"
 #include "interface.h"
 #include "serializer.h"
+#include "stat.h"
 
 namespace MIMIR_NS {
 
@@ -37,8 +38,10 @@ public:
 
     virtual ~KVContainer() {
         delete ser;
+
         for (size_t i = 0; i < pages.size(); i++) {
             mem_aligned_free(pages[i].buffer);
+            BaseDatabase<KeyType, ValType>::mem_bytes -= pagesize;
         }
     }
 
@@ -154,6 +157,9 @@ protected:
         page.datasize = 0;
         page.buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
         pages.push_back(page);
+        BaseDatabase<KeyType, ValType>::mem_bytes  += pagesize;
+        PROFILER_RECORD_COUNT(COUNTER_MAX_KV_PAGES,
+                              this->mem_bytes, OPMAX);
         return pages.size() - 1;
     }
 

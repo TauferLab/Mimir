@@ -8,6 +8,7 @@
 #include "interface.h"
 #include "serializer.h"
 #include "config.h"
+#include "stat.h"
 
 namespace MIMIR_NS {
 
@@ -56,6 +57,7 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
         delete ser;
 
         for (size_t i = 0; i < pages.size(); i++) {
+            BaseDatabase<KeyType, ValType>::mem_bytes -= pagesize;
             mem_aligned_free(pages[i].buffer);
         }
     }
@@ -207,6 +209,9 @@ protected:
         Page page;
         page.datasize = 0;
         page.buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
+        BaseDatabase<KeyType, ValType>::mem_bytes  += pagesize;
+        PROFILER_RECORD_COUNT(COUNTER_MAX_KV_PAGES,
+                              this->mem_bytes, OPMAX);
         pages.push_back(page);
         return pages.size() - 1;
     }

@@ -61,7 +61,7 @@ public:
         page.datasize = 0;
         page.buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
 	Container::mem_bytes += pagesize;
-	PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, Container::mem_bytes, OPMAX);
+	//PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, Container::mem_bytes, OPMAX);
         groups[groupid].pages.push_back(page);
         pageid = (int)groups[groupid].pages.size() - 1;
         return &groups[groupid].pages[pageid];

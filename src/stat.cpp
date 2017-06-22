@@ -38,13 +38,15 @@ const char *counter_str[COUNTER_NUM] = {
     "max_file",
     "send_tail",
     "recv_tail",
+    "balance_times",
+    "redirect_bins",
+    "migrate_kvs",
     "max_kvs",
     "max_kmvs",
-    "max_pages",
-    "reduce_bucket",
-    "combine_bucket",
+    "max_kv_pages",
+    "max_kmv_pages",
+    "hash_bucket",
     "peakmem_use",
-    "max_unique_count",
 };
 
 Tracker_info tracker_info;

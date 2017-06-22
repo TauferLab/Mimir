@@ -57,8 +57,8 @@ public:
             for (int i = 0; i < BIN_COUNT; i++) {
                 bin_table.insert({shuffle_rank+i*shuffle_size, 0});
             }
-            isrepartition = false;
         }
+        isrepartition = false;
     }
 
     virtual ~BaseShuffler() {
@@ -129,7 +129,7 @@ protected:
         }
 
         // Need to be updated
-        if (max_val > 1.5 * min_val) return false;
+        if (max_val > BALANCE_FACTOR * min_val) return false;
 
         return true;
     }
@@ -220,6 +220,8 @@ protected:
             if (rankid == shuffle_rank) bin_table[binid] = 0;
         }
 
+        PROFILER_RECORD_COUNT(COUNTER_REDIRECT_BINS, redirect_table.size(), OPMAX);
+
         // Migrate data
         std::set<uint32_t> reminders;
         for (auto iter : redirect_bins) {
@@ -230,15 +232,17 @@ protected:
         typename SafeType<ValType>::type val[valcount];
         int bid = 0;
 
+        uint64_t migrate_kv_count = 0;
         // Ensure no extrea repartition within repartition
         isrepartition = true;
         if (out_db == NULL) LOG_ERROR("Cannot convert to removable object!\n");
         while ((bid = out_db->remove(key, val, reminders)) != -1) {
             this->write(key, val);
-            this->local_kv_count -= 1;
+            migrate_kv_count += 1;
         }
+        this->local_kv_count -= migrate_kv_count;
+        PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, migrate_kv_count, OPSUM);
         isrepartition = false;
-
     }
 
     int (*user_hash)(KeyType* key, ValType* val, int npartition);
