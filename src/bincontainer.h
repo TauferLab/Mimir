@@ -193,6 +193,8 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
         int kvsize = this->ser->kv_from_bytes(key, val, ptr, bin_unit_size - cur_bin_off);
         cur_bin_off += kvsize;
 
+        kvcount -= 1;
+
         return 0;
     }
 

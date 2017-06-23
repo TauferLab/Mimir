@@ -145,6 +145,8 @@ public:
             if (hasfind) break;
         }
 
+        kvcount -= 1;
+
         return 0;
     }
 

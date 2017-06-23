@@ -11,6 +11,7 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
+#include <cassert>
 #include "config.h"
 #include "interface.h"
 #include "hashbucket.h"
@@ -121,12 +122,15 @@ protected:
 
         global_kv_count = 0;
         uint64_t min_val = 0xffffffffffffffff, max_val = 0;
-        for (int i = 0 ; i < shuffle_size; i++) {
+        int i = 0;
+        for (i = 0 ; i < shuffle_size; i++) {
             if (kv_per_proc[i] == -1) break;
             global_kv_count += kv_per_proc[i];
             if (kv_per_proc[i] <= min_val) min_val = kv_per_proc[i];
             if (kv_per_proc[i] >= max_val) max_val = kv_per_proc[i];
         }
+
+        if (i < shuffle_size) return true;
 
         // Need to be updated
         if (max_val > BALANCE_FACTOR * min_val) return false;
@@ -233,6 +237,9 @@ protected:
         int bid = 0;
 
         uint64_t migrate_kv_count = 0;
+
+        assert(isrepartition == false);
+
         // Ensure no extrea repartition within repartition
         isrepartition = true;
         if (out_db == NULL) LOG_ERROR("Cannot convert to removable object!\n");
