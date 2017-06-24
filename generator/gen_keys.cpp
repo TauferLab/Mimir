@@ -11,7 +11,7 @@ void parse_cmd_line(int argc, char **argv);
 void map (Readable<const char*,void> *input,
           Writable<const char*,void> *output, void *ptr);
 void combine (Combinable<const char*,void> *combiner,
-              const char**, void*, void*, void *ptr);
+              const char**, void*, void*, void*, void *ptr);
 
 const char *cmdstr = "./cmd \t<number of unique words> <outfile> \n\
 \t--word-len-mean [val]\n\
@@ -102,9 +102,10 @@ void map (Readable<const char*,void> *input,
 }
 
 void combine (Combinable<const char*,void> *combiner,
-              const char **key, void *val1, void *val2, void *ptr)
+              const char **key, void *val1, void *val2,
+              void *rval, void *ptr)
 {
-    combiner->update(key, NULL);
+    return;
 }
 
 void parse_cmd_line(int argc, char **argv) {
