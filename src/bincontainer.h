@@ -99,10 +99,10 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
     virtual int write(KeyType* key, ValType* val) 
     {
         // Get <key,value> length
-        int kvsize = ser->get_kv_bytes(key, val);
-        if (kvsize > bin_unit_size)
-            LOG_ERROR("Error: KV size (%d) is larger \
-                      than bin size (%ld)\n", kvsize, bin_unit_size);
+        //int kvsize = ser->get_kv_bytes(key, val);
+        //if (kvsize > bin_unit_size)
+        //    LOG_ERROR("Error: KV size (%d) is larger \
+        //              than bin size (%ld)\n", kvsize, bin_unit_size);
 
         // Get bin index
         uint32_t bid = ser->get_hash_code(key) % bincount;
@@ -116,17 +116,26 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
             bin_insert_idx[bid] = bidx;
         } else {
             bidx = iter->second;
-            if (bin_unit_size - bins[bidx].datasize < kvsize) {
-                bidx = get_empty_bin();
-                bins[bidx].bintag = bid;
-                bin_insert_idx[bid] = bidx;
-            }
+            //if (bin_unit_size - bins[bidx].datasize < kvsize) {
+            //    bidx = get_empty_bin();
+            //    bins[bidx].bintag = bid;
+            //    bin_insert_idx[bid] = bidx;
+            //}
         }
 
         // Store the <key,value>
         char *ptr = get_bin_ptr(bidx) + bins[bidx].datasize;
-
-        this->ser->kv_to_bytes(key, val, ptr, bin_unit_size - bins[bidx].datasize);
+        int kvsize = this->ser->kv_to_bytes(key, val, ptr, bin_unit_size - bins[bidx].datasize);
+        if (kvsize == -1) {
+            bidx = get_empty_bin();
+            bins[bidx].bintag = bid;
+            bin_insert_idx[bid] = bidx;
+            ptr = get_bin_ptr(bidx) + bins[bidx].datasize;
+            kvsize = this->ser->kv_to_bytes(key, val, ptr, bin_unit_size - bins[bidx].datasize);
+            if (kvsize == -1)
+                LOG_ERROR("Error: KV size (%d) is larger \
+                          than bin size (%ld)\n", kvsize, bin_unit_size);
+        }
         bins[bidx].datasize += kvsize;
 
         kvcount += 1;

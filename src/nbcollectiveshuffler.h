@@ -133,20 +133,27 @@ public:
         }
 
         //int kvsize = record->get_record_size();
-        int kvsize = this->ser->get_kv_bytes(key, val);
-        if (kvsize > buf_size)
-            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
-                      kvsize, buf_size);
+        //int kvsize = this->ser->get_kv_bytes(key, val);
+        //if (kvsize > buf_size)
+        //    LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
+        //              kvsize, buf_size);
 
-        if ((int64_t)msg_buffers[cur_idx].send_offset[target] + (int64_t)kvsize > buf_size) {
-            start_kv_exchange();
-        }
+        //if ((int64_t)msg_buffers[cur_idx].send_offset[target] + (int64_t)kvsize > buf_size) {
+        //    start_kv_exchange();
+        //}
 
         char *buffer = msg_buffers[cur_idx].send_buffer + target * (int64_t)buf_size 
             + msg_buffers[cur_idx].send_offset[target];
-        //kv.set_buffer(buffer);
-        //kv.convert((KVRecord*)record);
-        kvsize = this->ser->kv_to_bytes(key, val, buffer, kvsize);
+        int kvsize = this->ser->kv_to_bytes(key, val, buffer,
+                                            (int)buf_size - msg_buffers[cur_idx].send_offset[target]);
+        if (kvsize == -1) {
+            start_kv_exchange();
+            target = this->get_target_rank(key, val);
+            buffer = msg_buffers[cur_idx].send_buffer + target * (int64_t)buf_size 
+                + msg_buffers[cur_idx].send_offset[target];
+            kvsize = this->ser->kv_to_bytes(key, val, buffer,
+                                            (int)buf_size - msg_buffers[cur_idx].send_offset[target]);
+        }
         msg_buffers[cur_idx].send_offset[target] += kvsize;
 
         push_kv_exchange();

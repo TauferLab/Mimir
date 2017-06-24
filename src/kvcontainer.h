@@ -82,19 +82,25 @@ public:
 
     virtual int write(KeyType *key, ValType *val) {
 
-        int kvsize = ser->get_kv_bytes(key, val);
-        if (kvsize > pagesize)
-            LOG_ERROR("Error: KV size (%d) is larger \
-                      than one page (%ld)\n", kvsize, pagesize);
+        //int kvsize = ser->get_kv_bytes(key, val);
+        //if (kvsize > pagesize)
+        //    LOG_ERROR("Error: KV size (%d) is larger \
+        //              than one page (%ld)\n", kvsize, pagesize);
 
-        if (pageid >= pages.size() 
-            || pagesize - pages[pageid].datasize < kvsize) {
+        if (pageid >= pages.size()) {
             pageid = add_page();
         }
 
         char *ptr = pages[pageid].buffer + pages[pageid].datasize;
+        int kvsize = this->ser->kv_to_bytes(key, val, ptr, pagesize - pages[pageid].datasize);
+        if (kvsize == -1) {
+            pageid = add_page();
+            ptr = pages[pageid].buffer + pages[pageid].datasize;
+            kvsize = this->ser->kv_to_bytes(key, val, ptr, pagesize - pages[pageid].datasize);
+            if (kvsize == -1)
+                LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n", kvsize, pagesize);
+        }
 
-        this->ser->kv_to_bytes(key, val, ptr, pagesize - pages[pageid].datasize);
         pages[pageid].datasize += kvsize;
 
         kvcount += 1;

@@ -37,8 +37,9 @@ template<>
 template <typename Type>
 class bytestream {
   public:
-    static int to_bytes (Type* obj, int count, char *buf) {
+    static int to_bytes (Type* obj, int count, char *buf, int bufsize) {
         int bytesize = (int)sizeof(Type) * count;
+        if (bufsize < bytesize) return -1;
         char* begin = reinterpret_cast<char*>(std::addressof(*obj));
         memcpy(buf, begin, bytesize);
         return bytesize;
@@ -76,14 +77,16 @@ class bytestream {
 template <>
 class bytestream<const char*> {
   public:
-    static int to_bytes (const char** obj, int count, char *buf) {
+    static int to_bytes (const char** obj, int count, char *buf, int bufsize) {
 
         int bytesize = 0;
         for (int i = 0; i < count; i++) {
             int strsize = (int)strlen(obj[i]) + 1;
+            if (bufsize < strsize) return -1;
             memcpy(buf, obj[i], strsize);
             buf += strsize;
             bytesize += strsize;
+            bufsize -= strsize;
         }
 
         return bytesize;
@@ -139,11 +142,12 @@ class bytestream<const char*> {
 template <>
 class bytestream<char*> {
   public:
-    static int to_bytes (char** obj, int count, char *buf) {
+    static int to_bytes (char** obj, int count, char *buf, int bufsize) {
 
         int bytesize = 0;
         for (int i = 0; i < count; i++) {
             int strsize = (int)strlen(obj[i]) + 1;
+            if (bufsize < strsize) return -1;
             memcpy(buf, obj[i], strsize);
             buf += strsize;
             bytesize += strsize;
@@ -202,7 +206,7 @@ class bytestream<char*> {
 template <>
 class bytestream<void> {
   public:
-    static int to_bytes (void* obj, int count, char *buf) {
+    static int to_bytes (void* obj, int count, char *buf, int bufsize) {
 
         return 0;
     }
@@ -238,7 +242,7 @@ class bytestream<void> {
 template <typename Type, typename dummy = Type>
 class txtstream {
   public:
-
+#if 0
     static int size (Type *obj, int count) {
         int bytesize = 0;
         for (int i = 0; i < count; i++) {
@@ -249,16 +253,20 @@ class txtstream {
         }
         return bytesize;
     }
+#endif
 
-    static int to_txt (Type* obj, int count, char *buf) {
+    static int to_txt (Type* obj, int count,
+                       char *buf, int bufsize) {
         int bytesize = 0;
         for (int i = 0; i < count; i++) {
             std::stringstream ss;
             ss << obj[i];
             const char *strptr = ss.str().c_str();
             int strsize = (int)ss.str().size();
+            if (bufsize < strsize) return -1;
             memcpy(buf, strptr, strsize);
             bytesize += strsize;
+            bufsize -= strsize;
         }
         return bytesize;
     }
@@ -268,12 +276,13 @@ class txtstream {
 template <typename Type>
 class txtstream<Type,typename std::enable_if<std::is_class<Type>::value, Type>::type> {
   public:
-    static int size (void *obj, int count) {
-        LOG_ERROR("Cannot convert a class to string!\n");
-        return 0;
-    }
+    //static int size (void *obj, int count) {
+    //    LOG_ERROR("Cannot convert a class to string!\n");
+    //    return 0;
+    //}
 
-    static int to_txt (void* obj, int count, char *buf) {
+    static int to_txt (void* obj, int count,
+                       char *buf, int bufsize) {
         LOG_ERROR("Cannot convert a class to string!\n");
         return 0;
     }
@@ -283,11 +292,12 @@ class txtstream<Type,typename std::enable_if<std::is_class<Type>::value, Type>::
 template <>
 class txtstream<void,void> {
   public:
-    static int size (void *obj, int count) {
-        return 0;
-    }
+    //static int size (void *obj, int count) {
+    //    return 0;
+    //}
 
-    static int to_txt (void* obj, int count, char *buf) {
+    static int to_txt (void* obj, int count,
+                       char *buf, int bufsize) {
         return 0;
     }
 };
@@ -317,7 +327,6 @@ class Serializer {
         } else {
             bufval = NULL;
         }
-
     }
 
     ~Serializer() {
@@ -341,13 +350,13 @@ class Serializer {
 
     int key_to_bytes (KeyType *key, char *buffer, int bufsize) {
 
-        return bytestream<KeyType>::to_bytes(key, keycount, buffer);
+        return bytestream<KeyType>::to_bytes(key, keycount, buffer, bufsize);
 
     }
 
     int val_to_bytes (ValType *val, char *buffer, int bufsize) {
 
-        return bytestream<ValType>::to_bytes(val, valcount, buffer);
+        return bytestream<ValType>::to_bytes(val, valcount, buffer, bufsize);
 
     }
 
@@ -355,10 +364,14 @@ class Serializer {
 
         int keybytes = 0, valbytes = 0;
 
-        keybytes = bytestream<KeyType>::to_bytes(key, keycount, buffer);
+        keybytes = bytestream<KeyType>::to_bytes(key, keycount, buffer, bufsize);
+        if (keybytes == -1) return -1;
+
         buffer += keybytes;
         bufsize -= keybytes;
-        valbytes = bytestream<ValType>::to_bytes(val, valcount, buffer);
+
+        valbytes = bytestream<ValType>::to_bytes(val, valcount, buffer, bufsize);
+        if (valbytes == -1) return -1;
 
         return keybytes + valbytes;
     }
@@ -430,6 +443,7 @@ class Serializer {
             + bytestream<ValType>::size(val, valcount);;
     }
 
+#if 0
     int get_key_txt_len (KeyType *key) {
         return txtstream<KeyType>::size(key, keycount);
     }
@@ -444,29 +458,43 @@ class Serializer {
 
     int key_to_txt (KeyType *key, char *buffer, int bufsize) {
 
-        return txtstream<KeyType>::to_txt(key, keycount, buffer);
+        return txtstream<KeyType>::to_txt(key, keycount, buffer, bufsize);
 
     }
 
     int val_to_txt (ValType *val, char *buffer, int bufsize) {
-        return txtstream<ValType>::to_txt(val, valcount, buffer);
+
+        return txtstream<ValType>::to_txt(val, valcount, buffer, bufsize);
+
     }
+#endif
 
     int kv_to_txt (KeyType *key, ValType *val, char* buffer, int bufsize) {
 
-        int keybytes = 0, valbytes = 0;
+        int keybytes = 0, valbytes = 0, sepsize = 0;
 
-        keybytes = txtstream<KeyType>::to_txt(key, keycount, buffer);
+        keybytes = txtstream<KeyType>::to_txt(key, keycount, buffer, bufsize);
+        if (keybytes == -1) return -1;
         buffer += keybytes;
         bufsize -= keybytes;
         if (!std::is_void<ValType>::value) {
+            if (bufsize < 1) return -1;
             *buffer = ',';
             buffer += 1;
             bufsize -= 1;
-            valbytes = txtstream<ValType>::to_txt(val, valcount, buffer);
+            sepsize += 1;
+            valbytes = txtstream<ValType>::to_txt(val, valcount, buffer, bufsize);
+            if (valbytes == -1) return -1;
+            buffer += valbytes;
+            bufsize -= valbytes;
         }
+        if (bufsize < 1) return -1;
+        *buffer = '\n';
+        buffer += 1;
+        bufsize -= 1;
+        sepsize += 1;
 
-        return keybytes + valbytes;
+        return keybytes + valbytes + sepsize;
     }
 
     uint32_t get_hash_code(KeyType* key) {
@@ -475,7 +503,8 @@ class Serializer {
         if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
 
         if (std::is_pointer<KeyType>::value && keycount > 1) {
-            bytestream<KeyType>::to_bytes(key, keycount, tmpkey);
+            int ret = bytestream<KeyType>::to_bytes(key, keycount, tmpkey, MAX_RECORD_SIZE);
+            assert(ret != -1);
         } else {
             tmpkey = bytestream<KeyType>::get_ptr(key, keycount);
         }
@@ -486,7 +515,8 @@ class Serializer {
 
     char *get_key_ptr(KeyType *key) {
         if (std::is_pointer<KeyType>::value && keycount > 1) {
-            bytestream<KeyType>::to_bytes(key, keycount, tmpkey);
+            bytestream<KeyType>::to_bytes(key, keycount, tmpkey, MAX_RECORD_SIZE);
+            assert(ret != -1);
         } else {
             tmpkey = bytestream<KeyType>::get_ptr(key, keycount);
         }

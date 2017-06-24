@@ -100,25 +100,32 @@ class FileWriter : public Writable<KeyType, ValType> {
     virtual int write(KeyType *key, ValType *val) {
         int kvsize = 0;
         if (output_format == BINARY_FORMAT) {
-            kvsize = this->ser->get_kv_bytes(key, val);
-            if (kvsize > bufsize) {
-                LOG_ERROR("The write record length is larger than the buffer size!\n");
-            }
-            if (kvsize + datasize > bufsize) {
+            //kvsize = this->ser->get_kv_bytes(key, val);
+            //if (kvsize > bufsize) {
+            //    LOG_ERROR("The write record length is larger than the buffer size!\n");
+            //}
+            kvsize = this->ser->kv_to_bytes(key, val, buffer + datasize, bufsize - datasize);
+            if (kvsize == -1) {
                 file_write();
+                kvsize = this->ser->kv_to_bytes(key, val, buffer + datasize, bufsize - datasize);
+                if (kvsize == -1)
+                    LOG_ERROR("The write record length is larger than the buffer size!\n");
             }
-            this->ser->kv_to_bytes(key, val, buffer + datasize, bufsize - datasize);
         } else if (output_format == TEXT_FORMAT) {
-            kvsize = this->ser->get_kv_txt_len(key, val);
-            kvsize += 1; // add \n
-            if (kvsize > bufsize) {
-                LOG_ERROR("The write record length is larger than the buffer size!\n");
-            }
-            if (kvsize + datasize > bufsize) {
+            //kvsize = this->ser->get_kv_txt_len(key, val);
+            //kvsize += 1; // add \n
+            //if (kvsize > bufsize) {
+            //    LOG_ERROR("The write record length is larger than the buffer size!\n");
+            //}
+            kvsize = this->ser->kv_to_txt(key, val, buffer + datasize, bufsize - datasize);
+            if (kvsize == -1) {
                 file_write();
+                kvsize = this->ser->kv_to_txt(key, val, buffer + datasize, bufsize - datasize);
+                if (kvsize == -1)
+                    LOG_ERROR("The write record length is larger than the buffer size!\n");
             }
-            this->ser->kv_to_txt(key, val, buffer + datasize, bufsize - datasize);
-            *(buffer + datasize + kvsize - 1) = '\n';
+            //this->ser->kv_to_txt(key, val, buffer + datasize, bufsize - datasize);
+            //*(buffer + datasize + kvsize - 1) = '\n';
         }
         datasize += kvsize;
         record_count++;

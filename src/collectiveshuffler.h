@@ -118,19 +118,28 @@ public:
             return 0;
         }
 
-        int kvsize = this->ser->get_kv_bytes(key, val);
-        if (kvsize > buf_size)
-            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
-                      kvsize, buf_size);
+        //int kvsize = this->ser->get_kv_bytes(key, val);
+        //if (kvsize > buf_size)
+        //    LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
+        //              kvsize, buf_size);
 
-        if ((int64_t)send_offset[target] + (int64_t)kvsize > buf_size) {
+        char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
+        int kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
+
+        if (kvsize == -1) {
             TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
             exchange_kv();
             target = this->get_target_rank(key, val);
+            buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
+            kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
+            if (kvsize == -1) {
+                LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
+                          kvsize, buf_size);
+            }
         }
 
-        char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
-        kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
+        //char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
+        //kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
         send_offset[target] += kvsize;
         this->kvcount++;
 
