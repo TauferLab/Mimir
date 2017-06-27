@@ -16,6 +16,7 @@
 #include "interface.h"
 #include "hashbucket.h"
 #include "serializer.h"
+#include "bincontainer.h"
 
 namespace MIMIR_NS {
 
@@ -35,7 +36,7 @@ public:
         this->keycount = keycount;
         this->valcount = valcount;
 
-        out_db = dynamic_cast<Removable<KeyType,ValType>*>(out);
+        out_db = dynamic_cast<BinContainer<KeyType,ValType>*>(out);
 
         ser = new Serializer<KeyType, ValType>(keycount, valcount);
 
@@ -50,6 +51,7 @@ public:
         if (BALANCE_LOAD) {
             kv_per_proc = (uint64_t*)mem_aligned_malloc(MEMPAGE_SIZE,
                                                         sizeof(uint64_t) * shuffle_size);
+            //bin_recv_buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
             this->local_kv_count = 0;
             this->global_kv_count = 0;
             for (int i = 0; i < shuffle_size; i++) {
@@ -66,6 +68,7 @@ public:
         delete ser;
         if (BALANCE_LOAD) {
             mem_aligned_free(kv_per_proc);
+            //mem_aligned_free(bin_recv_buf);
         }
     }
 
@@ -138,7 +141,11 @@ protected:
         return true;
     }
 
-    void compute_redirect_bins(std::vector<std::pair<uint32_t,int>> &redirect_bins) {
+    void compute_redirect_bins(std::map<uint32_t,int> &redirect_bins,
+                               std::set<int> &send_procs,
+                               std::set<int> &recv_procs,
+                               uint64_t &migrate_kv_count) {
+
         // Get redirect bins
         double *freq_per_proc = (double*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(double) * shuffle_size);
         for (int i = 0; i < shuffle_size; i++) {
@@ -169,26 +176,41 @@ protected:
                         }
                         double bin_freq = (double)iter->second / (double)local_kv_count * freq_per_proc[shuffle_rank];
                         if (bin_freq < redirect_freq) {
-                            LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d\n", iter->first, j);
+                            LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d (%ld, %.6lf)\n",
+                                      iter->first, j, iter->second, bin_freq);
+                            migrate_kv_count += iter->second;
                             iter->second = 0;
-                            redirect_bins.push_back(std::make_pair(iter->first,j));
+                            redirect_bins[iter->first] = j;
                             redirect_freq -= bin_freq;
                         }
                         if (redirect_freq < 0.01) break;
                         iter ++;
                     }
+                    printf("%d[%d] send to %d\n", shuffle_rank, shuffle_size, j);
+                    send_procs.insert(j);
+                }
+                if (j == shuffle_rank) {
+                    printf("%d[%d] recv from %d\n", shuffle_rank, shuffle_size, i);
+                    recv_procs.insert(i);
                 }
             }
             i ++;
         }
         mem_aligned_free(freq_per_proc);
+        this->local_kv_count -= migrate_kv_count;
+
+        PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, migrate_kv_count, OPSUM);
     }
 
     void balance_load() {
 
         // Get redirect bins
-        std::vector<std::pair<uint32_t,int>> redirect_bins;
-        compute_redirect_bins(redirect_bins);
+        std::map<uint32_t,int> redirect_bins;
+        std::set<int> send_procs, recv_procs;
+        uint64_t migrate_kv_count = 0;
+
+        compute_redirect_bins(redirect_bins, send_procs,
+                              recv_procs, migrate_kv_count);
 
         // Update redirect table
         int sendcount, recvcount;
@@ -226,29 +248,147 @@ protected:
 
         PROFILER_RECORD_COUNT(COUNTER_REDIRECT_BINS, redirect_table.size(), OPMAX);
 
-        // Migrate data
-        std::set<uint32_t> reminders;
-        for (auto iter : redirect_bins) {
-            reminders.insert(iter.first);
-        }
-
-        typename SafeType<KeyType>::type key[keycount];
-        typename SafeType<ValType>::type val[valcount];
-        int bid = 0;
-
-        uint64_t migrate_kv_count = 0;
-
         assert(isrepartition == false);
 
         // Ensure no extrea repartition within repartition
         isrepartition = true;
-        if (out_db == NULL) LOG_ERROR("Cannot convert to removable object!\n");
-        while ((bid = out_db->remove(key, val, reminders)) != -1) {
-            this->write(key, val);
-            migrate_kv_count += 1;
+        if (!out_db || (recv_procs.size() > 0 && send_procs.size() > 0)) {
+            LOG_ERROR("Cannot convert to removable object!\n");
         }
-        this->local_kv_count -= migrate_kv_count;
-        PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, migrate_kv_count, OPSUM);
+
+        printf("%d[%d] send counts=%ld, recv_counts=%ld\n",\
+               shuffle_rank, shuffle_size, 
+               send_procs.size(), recv_procs.size());
+
+        // receive message
+        int recv_count = (int)recv_procs.size();
+        while ( recv_count > 0) {
+            MPI_Request req;
+            MPI_Status st;
+            int flag;
+            int count;
+
+            int bidx = out_db->get_empty_bin();
+            char *ptr = out_db->get_bin_ptr(bidx);
+            int usize = out_db->get_unit_size();
+
+            MPI_Irecv(ptr, usize, MPI_BYTE, MPI_ANY_SOURCE, 
+                      LB_MIGRATE_TAG, shuffle_comm, &req);
+
+            flag = 0;
+            while (!flag) MPI_Test(&req, &flag, &st);
+
+            MPI_Get_count(&st, MPI_BYTE, &count);
+
+            if (recv_procs.find(st.MPI_SOURCE) == recv_procs.end()) {
+                LOG_ERROR("%d recv message from %d\n",
+                          shuffle_rank, st.MPI_SOURCE);
+            }
+
+            if (count == 0) {
+                recv_count --;
+                continue;
+            }
+
+            typename SafeType<KeyType>::ptrtype key = NULL;
+            typename SafeType<ValType>::ptrtype val = NULL;
+
+            int off = 0;
+            int kvcount = 0;
+            uint64_t bintag = 0;
+            while (off < count) {
+                int kvsize = this->ser->kv_from_bytes(&key, &val,
+                                                      ptr + off, count - off);
+                bintag = ser->get_hash_code(key) % (uint32_t) (shuffle_size * BIN_COUNT);
+
+                //int ret = this->out->write(key, val);
+                //if (ret == 1) {
+                auto iter = this->bin_table.find(bintag);
+                if (iter != this->bin_table.end()) {
+                    iter->second += 1;
+                    this->local_kv_count += 1;
+                } else {
+                    LOG_ERROR("Wrong bin index=%d\n", bintag);
+                }
+                //}
+
+                off += kvsize;
+                kvcount += 1;
+            }
+
+            if (off != count) {
+                LOG_ERROR("Error in processing the repartition KVs! off=%d, count=%d\n",
+                          off, count);
+            }
+
+            out_db->set_bin_info(bidx, bintag, count, kvcount);
+        }
+
+        if (send_procs.size() > 0) {
+            char *buffer = NULL;
+            uint32_t bintag = 0;
+            int bidx = 0, datasize = 0, kvcount = 0;
+            MPI_Request reqs[32];
+            MPI_Status sts[32];
+            int idx = 0;
+
+            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+
+            uint64_t total_kvcount = 0;
+
+            while ((bidx = out_db->get_next_bin(buffer, datasize, bintag, kvcount)) != -1) {
+                if (datasize == 0) continue;
+                auto iter = redirect_bins.find(bintag);
+                if (iter == redirect_bins.end()) continue;
+                int dst = iter->second;
+                out_db->set_bin_info(bidx, 0, 0, 0);
+
+                total_kvcount += kvcount;
+
+                if (bin_table.find(bintag) != bin_table.end()) {
+                    LOG_ERROR("Still can find bin %d in the send procs!\n", bintag);
+                }
+
+                MPI_Isend(buffer, datasize, MPI_BYTE, dst,
+                          LB_MIGRATE_TAG, shuffle_comm, &reqs[idx++]);
+
+                printf("%d[%d] %d Send: %d->%d %d bintag=%d, count=%d\n",
+                       shuffle_rank, shuffle_size, shuffle_times, 
+                       shuffle_rank, dst, datasize, bintag, kvcount);
+
+                if (idx % 32 == 0) {
+                    MPI_Waitall(32, reqs, sts);
+                    for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+                    idx = 0;
+                }
+            }
+            MPI_Waitall(32, reqs, sts);
+            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+
+            idx = 0;
+            for (auto iter : send_procs) {
+                int dst = iter;
+                MPI_Isend(buffer, 0, MPI_BYTE, dst,
+                          LB_MIGRATE_TAG, shuffle_comm, &reqs[idx++]);
+
+                printf("%d[%d] %d Send 0: %d->%d\n",
+                       shuffle_rank, shuffle_size, shuffle_times, shuffle_rank, dst);
+
+                if (idx % 32 == 0) {
+                    MPI_Waitall(32, reqs, sts);
+                    for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+                    idx = 0;
+                }
+            }
+            MPI_Waitall(32, reqs, sts);
+            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+
+            if (total_kvcount != migrate_kv_count) {
+                LOG_ERROR("total kvcount=%ld, migrate kvcount=%ld\n",
+                          total_kvcount, migrate_kv_count);
+            }
+        }
+
         isrepartition = false;
     }
 
@@ -269,13 +409,14 @@ protected:
     int      keycount, valcount;
 
     // redirect <key,value> to other processes
-    Removable<KeyType,ValType>             *out_db;
+    BinContainer<KeyType,ValType>          *out_db;
     std::unordered_map<uint32_t, int>       redirect_table;
     std::unordered_map<uint32_t, uint64_t>  bin_table;
     uint64_t                                global_kv_count;
     uint64_t                                local_kv_count;
-    uint64_t                                *kv_per_proc;
+    uint64_t                               *kv_per_proc;
     bool                                    isrepartition;
+    //char                                   *bin_recv_buf;
 };
 
 }

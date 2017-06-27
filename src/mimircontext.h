@@ -196,7 +196,7 @@ class MimirContext {
         // output to stage area
         } else if (user_reduce != NULL 
                    || output_mode == EXPLICIT_OUTPUT) {
-            if (BIN_CONTAINER) {
+            if (BALANCE_LOAD) {
                 if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
                 else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
             } else {

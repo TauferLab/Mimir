@@ -37,15 +37,17 @@ class Writable : public Base<KeyType, ValType> {
     virtual int write(KeyType*, ValType*) = 0;
 };
 
-template <typename KeyType, typename ValType>
-class Removable {
-  public:
-    virtual ~Removable() {}
-    virtual int remove(KeyType*, ValType*, std::set<uint32_t>&) {
-        LOG_ERROR("The object does not implement remove function!\n");
-        return 0;
-    }
-};
+//template <typename KeyType, typename ValType>
+//class Removable {
+//  public:
+//    virtual ~Removable() {}
+    //virtual int remove(KeyType*, ValType*, std::set<uint32_t>&) {
+    //    LOG_ERROR("The object does not implement remove function!\n");
+    //    return 0;
+    //}
+//    int get(char*&, int &);
+//    int put(char*, int);
+//};
 
 template <typename KeyType, typename ValType>
 class Combinable {

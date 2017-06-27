@@ -25,7 +25,7 @@ int SHUFFLE_TYPE = 0;
 int MAKE_PROGRESS = 0;
 int BIN_COUNT = 100;
 int BALANCE_LOAD = 0;
-int BIN_CONTAINER = 0;
+//int BIN_CONTAINER = 0;
 float BALANCE_FACTOR = 1.5;
 
 // Profile & Debug

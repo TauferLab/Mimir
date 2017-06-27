@@ -55,8 +55,9 @@ extern char timestr[];
 #define TIMER_COMM_BLOCK           6    // blocking time
 #define TIMER_COMM_ALLGATHER       7    // MPI_Allgather
 #define TIMER_MEM_ALLOCATE         8    // memory allocation
-#define TIMER_SERIALIZER           9    // serializer
-#define TIMER_NUM                 10
+#define TIMER_LB_CHECK             9    // check
+#define TIMER_LB_MIGRATE          10    // migrate
+#define TIMER_NUM                 11
 
 
 // Counters

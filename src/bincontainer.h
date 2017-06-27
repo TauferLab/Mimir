@@ -14,12 +14,12 @@ namespace MIMIR_NS {
 
 struct Bin {
     uint32_t  bintag;
-    int  datasize;
+    int       datasize;
+    int       kvcount;
 };
 
 template <typename KeyType, typename ValType>
-class BinContainer : virtual public Removable<KeyType, ValType>,
-      virtual public BaseDatabase<KeyType, ValType>
+class BinContainer : virtual public BaseDatabase<KeyType, ValType>
 {
   public:
     BinContainer(uint32_t bincount, int keycount, int valcount) 
@@ -93,17 +93,12 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
         int kvsize = this->ser->kv_from_bytes(key, val, ptr, bin_unit_size - cur_bin_off);
 
         cur_bin_off += kvsize;
+
         return 0;
     }
 
     virtual int write(KeyType* key, ValType* val) 
     {
-        // Get <key,value> length
-        //int kvsize = ser->get_kv_bytes(key, val);
-        //if (kvsize > bin_unit_size)
-        //    LOG_ERROR("Error: KV size (%d) is larger \
-        //              than bin size (%ld)\n", kvsize, bin_unit_size);
-
         // Get bin index
         uint32_t bid = ser->get_hash_code(key) % bincount;
 
@@ -116,12 +111,16 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
             bin_insert_idx[bid] = bidx;
         } else {
             bidx = iter->second;
-            //if (bin_unit_size - bins[bidx].datasize < kvsize) {
-            //    bidx = get_empty_bin();
-            //    bins[bidx].bintag = bid;
-            //    bin_insert_idx[bid] = bidx;
-            //}
+            if (bid != bins[bidx].bintag) {
+                LOG_ERROR("Bin error bid=%d, bidx=%d, bintag=%d\n",
+                          bid, bidx, bins[bidx].bintag);
+            }
         }
+        //if (bid == 2376) {
+        //    printf("%d[%d] hello bintag=%d, off=%d, key=%s, val=%ld, key=%p, bincount=%d, bidx=%d, bid=%d 1\n",
+        //           mimir_world_rank, mimir_world_size, bins[bidx].bintag,
+        //           bins[bidx].datasize, *key, *val, key, bincount, bidx, bid);
+        //}
 
         // Store the <key,value>
         char *ptr = get_bin_ptr(bidx) + bins[bidx].datasize;
@@ -136,13 +135,21 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
                 LOG_ERROR("Error: KV size (%d) is larger \
                           than bin size (%ld)\n", kvsize, bin_unit_size);
         }
+        //if (bid == 2376) {
+        //    printf("%d[%d] hello bintag=%d, off=%d, kvsize=%d, key=%s, val=%ld, key=%p, bincount=%d, bidx=%d, bid=%d 2\n",
+        //           mimir_world_rank, mimir_world_size, bins[bidx].bintag,
+        //           bins[bidx].datasize, kvsize, *key, *val, key, bincount, bidx, bid);
+        //}
+
         bins[bidx].datasize += kvsize;
+        bins[bidx].kvcount += 1;
 
         kvcount += 1;
 
         return 1;
     }
 
+#if 0
     virtual int remove(KeyType *key, ValType *val, std::set<uint32_t>& remove_bins)
     {
         // Find the first bin
@@ -206,10 +213,9 @@ class BinContainer : virtual public Removable<KeyType, ValType>,
 
         return 0;
     }
+#endif
 
     virtual uint64_t get_record_count() { return kvcount; }
-
-protected:
 
     char *get_bin_ptr(int bin_idx) {
         return pages[bin_idx / bin_per_page].buffer                            \
@@ -241,12 +247,59 @@ protected:
         Bin bin;
         bin.bintag = 0;
         bin.datasize = 0;
+        bin.kvcount = 0;
         for (int i = 0; i < bin_per_page; i++) {
             bins.push_back(bin);
         }
 
         return (int)idx;
     }
+
+    int get_unit_size() { return bin_unit_size; }
+
+    void set_bin_info(int bidx, uint32_t bintag, int datasize, int kvcount) {
+        bins[bidx].bintag = bintag;
+        bins[bidx].datasize = datasize;
+        if (bins[bidx].kvcount < kvcount) {
+            this->kvcount += (kvcount - bins[bidx].kvcount);
+        } else if (bins[bidx].kvcount > kvcount) {
+            this->kvcount -= (bins[bidx].kvcount - kvcount);
+        }
+        bins[bidx].kvcount = kvcount;
+    }
+
+    virtual int get_next_bin(char *&buffer, int &datasize, uint32_t &bintag, int &kvcount)
+    {
+        //printf("cur_bin_idx=%d, size=%ld\n",
+        //       cur_bin_idx, bins.size());
+
+        //if (cur_bin_idx == 0) {
+        //    printf("%d[%d] get next bin cur_bin_idx=%d, cur_bin_off=%d\n",
+        //           mimir_world_rank, mimir_world_size, cur_bin_idx, cur_bin_off);
+        //}
+
+        if (cur_bin_idx == 0) garbage_collection();
+
+        if (cur_bin_idx < (int)bins.size() ) {
+            buffer = get_bin_ptr(cur_bin_idx);
+            bintag = bins[cur_bin_idx].bintag;
+            datasize = bins[cur_bin_idx].datasize;
+            kvcount = bins[cur_bin_idx].kvcount;
+            if (bintag == 2376) {
+                printf("%d[%d] get next bintag=%d, count=%d\n",
+                       mimir_world_rank, mimir_world_size, bintag, kvcount);
+            }
+            //kvcount -= bins[cur_bin_idx].kvcount;
+            return cur_bin_idx++;
+        }
+
+        cur_bin_idx = 0;
+        cur_bin_off = 0;
+        return -1;
+    }
+
+
+protected:
 
     void garbage_collection()
     {
@@ -290,6 +343,7 @@ protected:
 
             this->slices.clear();
         }
+        bin_insert_idx.clear();
     }
 
     int keycount, valcount;

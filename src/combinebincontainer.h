@@ -217,18 +217,25 @@ class CombineBinContainer : public BinContainer<KeyType, ValType>,
     }
 #endif
 
-    virtual int remove(KeyType *key, ValType *val, std::set<uint32_t>& remove_bins)
+    //virtual int remove(KeyType *key, ValType *val, std::set<uint32_t>& remove_bins)
+    //{
+
+    //    int ret = BinContainer<KeyType, ValType>::remove(key, val, remove_bins);
+    //    if (ret != -1) {
+    //        int keysize = this->ser->get_key_bytes(key);
+    //        char *keyptr = this->ser->get_key_ptr(key);
+    //        bucket->removeEntry(keyptr, keysize);
+    //    }
+
+    //    return ret;
+    //}
+
+    virtual int get_next_bin(char *&buffer, int &datasize, uint32_t &bintag, int &kvcount)
     {
-
-        int ret = BinContainer<KeyType, ValType>::remove(key, val, remove_bins);
-        if (ret != -1) {
-            int keysize = this->ser->get_key_bytes(key);
-            char *keyptr = this->ser->get_key_ptr(key);
-            bucket->removeEntry(keyptr, keysize);
-        }
-
-        return ret;
+        return BinContainer<KeyType, ValType>::get_next_bin(buffer, datasize, bintag, kvcount);
     }
+
+
 
   private:
     void (*user_combine)(Combinable<KeyType,ValType> *output,

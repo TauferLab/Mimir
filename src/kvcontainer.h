@@ -20,8 +20,7 @@
 namespace MIMIR_NS {
 
 template <typename KeyType, typename ValType>
-class KVContainer : virtual public Removable<KeyType, ValType>,
-      virtual public BaseDatabase<KeyType, ValType> {
+class KVContainer : virtual public BaseDatabase<KeyType, ValType> {
 public:
     KVContainer(uint32_t bincount, int keycount, int valcount) 
         : BaseDatabase<KeyType, ValType>(true) {
