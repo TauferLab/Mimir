@@ -49,8 +49,8 @@ public:
 	kvcount = 0;
 
         if (BALANCE_LOAD) {
-            kv_per_proc = (uint64_t*)mem_aligned_malloc(MEMPAGE_SIZE,
-                                                        sizeof(uint64_t) * shuffle_size);
+            kv_per_proc = (int64_t*)mem_aligned_malloc(MEMPAGE_SIZE,
+                                                        sizeof(int64_t) * shuffle_size);
             //bin_recv_buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
             this->local_kv_count = 0;
             this->global_kv_count = 0;
@@ -90,6 +90,8 @@ protected:
             uint32_t hid = ser->get_hash_code(key);
             if (!BALANCE_LOAD) {
                 target = (int) (hid % (uint32_t) shuffle_size);
+                //printf("%d[%d] word=%s, partitioned rank=%d\n",
+                //       shuffle_rank, shuffle_size, *key, target);
             } else {
                 // search item in the redirect table
                 uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
@@ -115,16 +117,16 @@ protected:
 
         // Not allowed to perform load balance
         if (this->isrepartition || this->done_flag) {
-            uint64_t one = -1;
-            MPI_Allgather(&one, 1, MPI_UINT64_T,
-                          kv_per_proc, 1, MPI_UINT64_T, shuffle_comm);
+            int64_t one = -1;
+            MPI_Allgather(&one, 1, MPI_INT64_T,
+                          kv_per_proc, 1, MPI_INT64_T, shuffle_comm);
         } else {
-            MPI_Allgather(&(local_kv_count), 1, MPI_UINT64_T,
-                          kv_per_proc, 1, MPI_UINT64_T, shuffle_comm);
+            MPI_Allgather(&(local_kv_count), 1, MPI_INT64_T,
+                          kv_per_proc, 1, MPI_INT64_T, shuffle_comm);
         }
 
         global_kv_count = 0;
-        uint64_t min_val = 0xffffffffffffffff, max_val = 0;
+        int64_t min_val = 0xffffffffffffffff, max_val = 0;
         int i = 0;
         for (i = 0 ; i < shuffle_size; i++) {
             if (kv_per_proc[i] == -1) break;
@@ -136,7 +138,7 @@ protected:
         if (i < shuffle_size) return true;
 
         // Need to be updated
-        if (max_val > BALANCE_FACTOR * min_val) return false;
+        if ((double)max_val > BALANCE_FACTOR * (double)min_val) return false;
 
         return true;
     }
@@ -295,7 +297,7 @@ protected:
 
             int off = 0;
             int kvcount = 0;
-            uint64_t bintag = 0;
+            uint32_t bintag = 0;
             while (off < count) {
                 int kvsize = this->ser->kv_from_bytes(&key, &val,
                                                       ptr + off, count - off);
@@ -414,7 +416,7 @@ protected:
     std::unordered_map<uint32_t, uint64_t>  bin_table;
     uint64_t                                global_kv_count;
     uint64_t                                local_kv_count;
-    uint64_t                               *kv_per_proc;
+    int64_t                                *kv_per_proc;
     bool                                    isrepartition;
     //char                                   *bin_recv_buf;
 };

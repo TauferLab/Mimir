@@ -35,7 +35,7 @@ void sum (Readable<char, uint64_t> *input,
 //double slope(double[], double[], int);
 
 #define digits 15
-int64_t thresh = 5;
+uint64_t thresh = 5;
 bool realdata = false;
 int level;
 

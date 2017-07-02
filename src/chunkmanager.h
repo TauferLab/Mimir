@@ -257,7 +257,7 @@ class ChunkManager {
             endoff = startoff + this->chunk_nums[i];
             if (globalid >= startoff && globalid < endoff) {
                 procrank = i;
-                localid = globalid - startoff;
+                localid = (int)(globalid - startoff);
                 break;
             }
             startoff = endoff;
@@ -268,7 +268,7 @@ class ChunkManager {
         int64_t total_chunk = 0;
         std::vector<FileSeg>& filesegs = file_list[rank].get_file_segs();
         for (size_t i = 0; i < filesegs.size(); i++) {
-            int file_chunk = ROUNDUP(filesegs[i].segsize, INPUT_BUF_SIZE);
+            int file_chunk = (int)ROUNDUP(filesegs[i].segsize, INPUT_BUF_SIZE);
             if (total_chunk + file_chunk > chunk_id) {
                 chunk.fileoff = (chunk_id - total_chunk) * INPUT_BUF_SIZE 
                     + filesegs[i].startpos;
@@ -294,7 +294,7 @@ class ChunkManager {
         int total_chunk = 0;
         std::vector<FileSeg>& filesegs = file_list[rank].get_file_segs();
         for (size_t i = 0; i < filesegs.size(); i++) {
-            total_chunk += ROUNDUP(filesegs[i].segsize, INPUT_BUF_SIZE);
+            total_chunk += (int)ROUNDUP(filesegs[i].segsize, INPUT_BUF_SIZE);
         }
         return total_chunk;
     }

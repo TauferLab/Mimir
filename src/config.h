@@ -32,7 +32,7 @@ extern int SHUFFLE_TYPE;
 extern int MAKE_PROGRESS;
 extern int BALANCE_LOAD;
 extern int BIN_COUNT;
-extern float BALANCE_FACTOR;
+extern double BALANCE_FACTOR;
 //extern int BIN_CONTAINER;
 
 // Profile & Debug

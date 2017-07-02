@@ -86,7 +86,7 @@ class FileReader : public Readable<InKeyType, InValType> {
         //else
         //    bufsize = ROUNDUP(INPUT_BUF_SIZE, DISKPAGE_SIZE) * DISKPAGE_SIZE;
         //
-        bufsize = INPUT_BUF_SIZE;
+        bufsize = (int)INPUT_BUF_SIZE;
         if (bufsize % DISKPAGE_SIZE != 0)
             LOG_ERROR("The chunck size should be multiple times of disk sector size!\n");
 
@@ -134,11 +134,11 @@ class FileReader : public Readable<InKeyType, InValType> {
             //record->set_buffer(ptr);
             bool islast = is_last_block();
             if (state.win_size > 0
-                && parser.to_line(ptr, state.win_size, islast) != -1) {
+                && parser.to_line(ptr, (int)state.win_size, islast) != -1) {
                 //&& record->get_next_record_size(ptr, state.win_size, islast) != -1) {
                 //int move_count = record->get_record_size();
                 //*key = (InKeyType)ptr;
-                int move_count = ser->key_from_bytes(key, ptr, state.win_size);
+                int move_count = ser->key_from_bytes(key, ptr, (int)state.win_size);
                 //int move_count = strlen((const char*)(*key)) + 1;
                 //int move_count = ser->get_key_bytes(key);
                 if ((uint64_t)move_count >= state.win_size) {
@@ -232,7 +232,7 @@ class FileReader : public Readable<InKeyType, InValType> {
 
         if (chunk_mgr->has_head(state.cur_chunk) && cont_chunk == false) {
             int count = repartition_fn(buffer + state.start_pos,
-                                       state.win_size,
+                                       (int)state.win_size,
                                        chunk_mgr->is_file_end(state.cur_chunk));
             chunk_mgr->send_head(state.cur_chunk, buffer, count);
             state.start_pos += count;

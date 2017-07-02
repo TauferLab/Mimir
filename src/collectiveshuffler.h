@@ -193,7 +193,7 @@ protected:
                      src_buf, recv_count[k] - count);
                 int ret = this->out->write(key, val);
                 if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
-                    int keysize = this->ser->get_key_bytes(&key[0]);
+                    this->ser->get_key_bytes(&key[0]);
                     uint32_t hid = this->ser->get_hash_code(key);
                     uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
                     auto iter = this->bin_table.find(bidx);

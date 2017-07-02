@@ -1,6 +1,8 @@
 AM_LDFLAGS = -L../src
-AM_CPPFLAGS = -I../src -std=c++11 -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
-AM_CXXFLAGS = -I../src -std=c++11 -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
+AM_CPPFLAGS = -I../src -std=c++11 -g -Wno-write-strings -Wall -Wconversion     \
+	      -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
+AM_CXXFLAGS = -I../src -std=c++11 -g -Wno-write-strings -Wall -Wconversion     \
+	      -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
 
 bin_PROGRAMS = wc wc_cb bfs oc join
 

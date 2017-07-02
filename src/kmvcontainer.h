@@ -35,7 +35,7 @@ class KMVContainer {
         mem_bytes = 0;
     }
 
-    ~KMVContainer() {
+    virtual ~KMVContainer() {
         delete ser;
         delete h;
         mem_aligned_free(keyarray);
@@ -132,7 +132,7 @@ class KMVContainer {
         }
         kv->close();
 
-        PROFILER_RECORD_COUNT(COUNTER_MAX_KMVS, h->get_nunique(), OPMAX);
+        PROFILER_RECORD_COUNT(COUNTER_MAX_KMVS, (uint64_t)(h->get_nunique()), OPMAX);
         LOG_PRINT(DBG_GEN, "MapReduce: convert end (KMVs=%ld).\n", h->get_nunique());
     }
 

@@ -60,7 +60,7 @@ class CombineBinContainer : public BinContainer<KeyType, ValType>,
         // Get <key,value> length
         int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > this->bin_unit_size)
-            LOG_ERROR("Error: KV size (%d) is larger than bin size (%ld)\n", 
+            LOG_ERROR("Error: KV size (%d) is larger than bin size (%d)\n", 
                       kvsize, this->bin_unit_size);
 
         // Get bin index

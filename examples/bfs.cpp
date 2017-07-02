@@ -109,7 +109,7 @@ int main(int argc, char **argv)
                                             fileread, NULL,
                                             input, output, NULL, NULL,
                                             mypartition);
-    uint64_t nedges = mimir->map();
+    mimir->map();
 
     rowstarts = new size_t[nlocalverts + 1];
     rowinserts = new size_t[nlocalverts];
@@ -174,7 +174,6 @@ int main(int argc, char **argv)
 
     // BFS search
     int level = 0;
-    uint64_t active_vertexes = 0;
     do {
         nactives[level] = bfs_mimir->map();
         if (rank == 0)

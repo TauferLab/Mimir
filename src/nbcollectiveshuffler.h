@@ -101,7 +101,7 @@ public:
     virtual void close() {
         wait();
 
-        PROFILER_RECORD_COUNT(COUNTER_COMM_BUFS, buf_count, OPMAX);
+        PROFILER_RECORD_COUNT(COUNTER_COMM_BUFS, (uint64_t)buf_count, OPMAX);
 
         MPI_Type_free(&comm_type);
 
@@ -171,8 +171,8 @@ public:
 protected:
     void wait()
     {
-        MPI_Status st;
-        int flag = 0;
+        //MPI_Status st;
+        //int flag = 0;
 
         for (int i = 0; i < this->shuffle_size; i++)
             msg_buffers[cur_idx].send_bytes += (uint64_t)msg_buffers[cur_idx].send_offset[i];
@@ -254,7 +254,7 @@ protected:
     }
 
     void push_kv_exchange() {
-        uint64_t recvcount = 0;
+        //uint64_t recvcount = 0;
         int flag = 0;
         MPI_Status st;
 
@@ -400,7 +400,7 @@ protected:
             msg_buffers[buf_count].recv_count[i] = 0;
         }
         buf_count ++;
-        LOG_PRINT(DBG_COMM, "Comm: add a comm buffer. (count=%ld)\n",
+        LOG_PRINT(DBG_COMM, "Comm: add a comm buffer. (count=%d)\n",
                   buf_count);
     }
 

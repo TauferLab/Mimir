@@ -60,7 +60,7 @@ public:
     virtual int read(KeyType *key, ValType *val) {
 
         while (pageid < pages.size() 
-               && pageoff >= pages[pageid].datasize) {
+               && (int)pageoff >= (int)pages[pageid].datasize) {
             pageid ++;
             pageoff = 0;
         }
@@ -72,7 +72,7 @@ public:
         char* ptr = pages[pageid].buffer + pageoff;
 
         int kvsize = this->ser->kv_from_bytes(key, val,
-                        ptr, pages[pageid].datasize - pageoff);
+                        ptr, (int)(pages[pageid].datasize - pageoff));
 
         pageoff += kvsize;
 
@@ -81,21 +81,16 @@ public:
 
     virtual int write(KeyType *key, ValType *val) {
 
-        //int kvsize = ser->get_kv_bytes(key, val);
-        //if (kvsize > pagesize)
-        //    LOG_ERROR("Error: KV size (%d) is larger \
-        //              than one page (%ld)\n", kvsize, pagesize);
-
         if (pageid >= pages.size()) {
             pageid = add_page();
         }
 
         char *ptr = pages[pageid].buffer + pages[pageid].datasize;
-        int kvsize = this->ser->kv_to_bytes(key, val, ptr, pagesize - pages[pageid].datasize);
+        int kvsize = this->ser->kv_to_bytes(key, val, ptr, (int)(pagesize - pages[pageid].datasize));
         if (kvsize == -1) {
             pageid = add_page();
             ptr = pages[pageid].buffer + pages[pageid].datasize;
-            kvsize = this->ser->kv_to_bytes(key, val, ptr, pagesize - pages[pageid].datasize);
+            kvsize = this->ser->kv_to_bytes(key, val, ptr, (int)(pagesize - pages[pageid].datasize));
             if (kvsize == -1)
                 LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n", kvsize, pagesize);
         }
@@ -110,8 +105,8 @@ public:
     virtual int remove(KeyType *key, ValType *val,
                        std::set<uint32_t>& removed_bins) {
 
-        char *ptr = NULL;
-        int kvsize, keysize, ret;
+        //char *ptr = NULL;
+        //int kvsize, keysize, ret;
         bool hasfind = false;
 
         if (!isremove) {
@@ -123,7 +118,7 @@ public:
         while (1) {
 
             while (pageid < pages.size() 
-                   && pageoff >= pages[pageid].datasize) {
+                   && pageoff >= (uint64_t)pages[pageid].datasize) {
                 pageid ++;
                 pageoff = 0;
             }
@@ -134,11 +129,11 @@ public:
                 return -1;
             }
 
-            while (pageoff < pages[pageid].datasize) {
+            while (pageoff < (uint64_t)pages[pageid].datasize) {
                 char* ptr = pages[pageid].buffer + pageoff;
                 int kvsize = this->ser->kv_from_bytes(key, val,
-                                ptr, pages[pageid].datasize - pageoff);
-                int keysize = this->ser->get_key_bytes(key);
+                                ptr, (int)(pages[pageid].datasize - pageoff));
+                this->ser->get_key_bytes(key);
                 pageoff += kvsize;
                 uint32_t bid = this->ser->get_hash_code(key) % bincount;
                 if (removed_bins.find(bid) != removed_bins.end()) {
@@ -177,7 +172,6 @@ protected:
         size_t dst_pid = 0, src_pid = 0;
         Page *dst_page = NULL, *src_page = NULL;
         int64_t dst_off = 0, src_off = 0;
-        int kvsize;
 
         if (!(this->slices.empty())) {
 
@@ -196,7 +190,7 @@ protected:
                     }
                     else {
                         int kvsize = this->ser->kv_from_bytes(&key, &val,
-                                        src_buf, src_page->datasize - src_off);
+                                        src_buf, (int)(src_page->datasize - src_off));
                         if (dst_page != src_page || dst_off != src_off) {
                             if (dst_off + kvsize > this->pagesize) {
                                 dst_page->datasize = dst_off;

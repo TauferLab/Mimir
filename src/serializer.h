@@ -12,7 +12,7 @@
 #include "stat.h"
 #include "tools.h"
 #include "config.h"
-#include "typemode.h"
+//#include "typemode.h"
 #include <typeinfo>
 #include <memory>
 #include <sstream>
@@ -503,8 +503,8 @@ class Serializer {
         if (keysize > MAX_RECORD_SIZE) LOG_ERROR("The key is too long!\n");
 
         if (std::is_pointer<KeyType>::value && keycount > 1) {
-            int ret = bytestream<KeyType>::to_bytes(key, keycount, tmpkey, MAX_RECORD_SIZE);
-            assert(ret != -1);
+            bytestream<KeyType>::to_bytes(key, keycount, tmpkey, MAX_RECORD_SIZE);
+            //assert(ret != -1);
         } else {
             tmpkey = bytestream<KeyType>::get_ptr(key, keycount);
         }
@@ -516,7 +516,7 @@ class Serializer {
     char *get_key_ptr(KeyType *key) {
         if (std::is_pointer<KeyType>::value && keycount > 1) {
             bytestream<KeyType>::to_bytes(key, keycount, tmpkey, MAX_RECORD_SIZE);
-            assert(ret != -1);
+            //assert(ret != -1);
         } else {
             tmpkey = bytestream<KeyType>::get_ptr(key, keycount);
         }

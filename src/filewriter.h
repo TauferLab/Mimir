@@ -104,10 +104,10 @@ class FileWriter : public Writable<KeyType, ValType> {
             //if (kvsize > bufsize) {
             //    LOG_ERROR("The write record length is larger than the buffer size!\n");
             //}
-            kvsize = this->ser->kv_to_bytes(key, val, buffer + datasize, bufsize - datasize);
+            kvsize = this->ser->kv_to_bytes(key, val, buffer + datasize, (int)(bufsize - datasize));
             if (kvsize == -1) {
                 file_write();
-                kvsize = this->ser->kv_to_bytes(key, val, buffer + datasize, bufsize - datasize);
+                kvsize = this->ser->kv_to_bytes(key, val, buffer + datasize, (int)(bufsize - datasize));
                 if (kvsize == -1)
                     LOG_ERROR("The write record length is larger than the buffer size!\n");
             }
@@ -117,10 +117,10 @@ class FileWriter : public Writable<KeyType, ValType> {
             //if (kvsize > bufsize) {
             //    LOG_ERROR("The write record length is larger than the buffer size!\n");
             //}
-            kvsize = this->ser->kv_to_txt(key, val, buffer + datasize, bufsize - datasize);
+            kvsize = this->ser->kv_to_txt(key, val, buffer + datasize, (int)(bufsize - datasize));
             if (kvsize == -1) {
                 file_write();
-                kvsize = this->ser->kv_to_txt(key, val, buffer + datasize, bufsize - datasize);
+                kvsize = this->ser->kv_to_txt(key, val, buffer + datasize, (int)(bufsize - datasize));
                 if (kvsize == -1)
                     LOG_ERROR("The write record length is larger than the buffer size!\n");
             }
@@ -129,6 +129,7 @@ class FileWriter : public Writable<KeyType, ValType> {
         }
         datasize += kvsize;
         record_count++;
+        return 1;
     }
 
     virtual uint64_t get_record_count() { return record_count; }

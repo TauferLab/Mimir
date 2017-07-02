@@ -34,13 +34,13 @@ class BinContainer : virtual public BaseDatabase<KeyType, ValType>
         // Get bin size
         if (std::is_pointer<KeyType>::value || std::is_pointer<ValType>::value) {
             bin_unit_size = MAX_RECORD_SIZE;
-            bin_per_page = DATA_PAGE_SIZE / bin_unit_size;
+            bin_per_page = (int)(DATA_PAGE_SIZE / bin_unit_size);
         } else {
             typename SafeType<KeyType>::type key[keycount];
             typename SafeType<ValType>::type val[valcount];
             int record_size = ser->get_kv_bytes(key, val);
             bin_unit_size = (MEMPAGE_SIZE + record_size - 1) / MEMPAGE_SIZE * MEMPAGE_SIZE;
-            bin_per_page = DATA_PAGE_SIZE / bin_unit_size;
+            bin_per_page = (int)(DATA_PAGE_SIZE / bin_unit_size);
         }
 
         cur_bin_idx = 0;
@@ -116,11 +116,6 @@ class BinContainer : virtual public BaseDatabase<KeyType, ValType>
                           bid, bidx, bins[bidx].bintag);
             }
         }
-        //if (bid == 2376) {
-        //    printf("%d[%d] hello bintag=%d, off=%d, key=%s, val=%ld, key=%p, bincount=%d, bidx=%d, bid=%d 1\n",
-        //           mimir_world_rank, mimir_world_size, bins[bidx].bintag,
-        //           bins[bidx].datasize, *key, *val, key, bincount, bidx, bid);
-        //}
 
         // Store the <key,value>
         char *ptr = get_bin_ptr(bidx) + bins[bidx].datasize;
@@ -133,13 +128,8 @@ class BinContainer : virtual public BaseDatabase<KeyType, ValType>
             kvsize = this->ser->kv_to_bytes(key, val, ptr, bin_unit_size - bins[bidx].datasize);
             if (kvsize == -1)
                 LOG_ERROR("Error: KV size (%d) is larger \
-                          than bin size (%ld)\n", kvsize, bin_unit_size);
+                          than bin size (%d)\n", kvsize, bin_unit_size);
         }
-        //if (bid == 2376) {
-        //    printf("%d[%d] hello bintag=%d, off=%d, kvsize=%d, key=%s, val=%ld, key=%p, bincount=%d, bidx=%d, bid=%d 2\n",
-        //           mimir_world_rank, mimir_world_size, bins[bidx].bintag,
-        //           bins[bidx].datasize, kvsize, *key, *val, key, bincount, bidx, bid);
-        //}
 
         bins[bidx].datasize += kvsize;
         bins[bidx].kvcount += 1;

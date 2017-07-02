@@ -58,7 +58,7 @@ class HashBucket {
 
         PROFILER_RECORD_COUNT(COUNTER_HASH_BUCKET, this->mem_bytes, OPMAX);
 
-        buf_size = DATA_PAGE_SIZE;
+        buf_size = (int)DATA_PAGE_SIZE;
         buf_idx = 0;
         buf_off = 0;
 
@@ -161,7 +161,7 @@ class HashBucket {
         if (iter == this->slices.end()) {
 
             // Add a new buffer
-            if (buf_idx == buffers.size()) {
+            if (buf_idx == (int)buffers.size()) {
                 char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
                 mem_bytes += buf_size;
                 PROFILER_RECORD_COUNT(COUNTER_HASH_BUCKET, this->mem_bytes, OPMAX);
@@ -175,7 +175,7 @@ class HashBucket {
                 memset(buffers[buf_idx] + buf_off, 0, buf_size - buf_off);
                 buf_idx += 1;
                 buf_off = 0;
-                if (buf_idx == buffers.size()) {
+                if (buf_idx == (int)buffers.size()) {
                     char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
                     mem_bytes += buf_size;
                     PROFILER_RECORD_COUNT(COUNTER_HASH_BUCKET, this->mem_bytes, OPMAX);
@@ -188,7 +188,7 @@ class HashBucket {
             entry->keysize = keysize;
             entry->val = *val;
             entry->next = NULL;
-            buf_off += sizeof(HashEntry);
+            buf_off += (int)sizeof(HashEntry);
             if (iscopykey) {
                 memcpy(buffers[buf_idx] + buf_off, key, keysize);
                 entry->key = buffers[buf_idx] + buf_off;
@@ -235,7 +235,7 @@ class HashBucket {
                 continue;
             }
 
-            if ((buf_size - iter_buf_off) < sizeof(HashEntry)) {
+            if ((buf_size - iter_buf_off) < (int)sizeof(HashEntry)) {
                 iter_buf_idx += 1;
                 iter_buf_off = 0;
                 continue;
@@ -255,8 +255,8 @@ class HashBucket {
 
 
         HashEntry *entry = (HashEntry*)(buffers[iter_buf_idx] + iter_buf_off);
-        if (iscopykey) iter_buf_off += (sizeof(HashEntry) + entry->keysize);
-        else iter_buf_off += sizeof(HashEntry);
+        if (iscopykey) iter_buf_off += ((int)sizeof(HashEntry) + entry->keysize);
+        else iter_buf_off += (int)sizeof(HashEntry);
 
         iunique += 1;
 
