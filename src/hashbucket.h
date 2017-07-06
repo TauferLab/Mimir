@@ -30,7 +30,7 @@ struct CombinerVal {
 };
 
 struct ReducerVal {
-    int   valbytes;
+    int64_t  valbytes;
     char *values_start;
     char *values_end;
 };

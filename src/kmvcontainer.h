@@ -89,7 +89,7 @@ class KMVContainer {
         std::vector<HashBucket<ReducerVal>::HashEntry*> entries;
         h->open();
         HashBucket<ReducerVal>::HashEntry *entry = NULL;
-        int totalsize = 0;
+        int64_t totalsize = 0;
         while ((entry = h->next()) != NULL) {
             totalsize += entry->val.valbytes;
             entries.push_back(entry);
@@ -97,7 +97,7 @@ class KMVContainer {
                 char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, totalsize);
                 mem_bytes += totalsize;
                 buffers.push_back(buffer);
-                int bufoff = 0;
+                int64_t bufoff = 0;
                 for (size_t i = 0; i < entries.size(); i++) {
                     entries[i]->val.values_start = buffer + bufoff;
                     entries[i]->val.values_end = buffer + bufoff;
@@ -112,7 +112,7 @@ class KMVContainer {
         char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, totalsize);
         mem_bytes += totalsize;
         buffers.push_back(buffer);
-        int bufoff = 0;
+        int64_t bufoff = 0;
         for (size_t i = 0; i < entries.size(); i++) {
             entries[i]->val.values_start = buffer + bufoff;
             entries[i]->val.values_end = buffer + bufoff;
@@ -123,11 +123,10 @@ class KMVContainer {
         while ((kv->read(key, val)) == 0) {
             keybytes = ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
             if ((rdc_val = h->findEntry(keyarray, keybytes)) != NULL) {
-                int vsize = ser->val_to_bytes(val, rdc_val->values_end,
-                    rdc_val->valbytes - (int)(rdc_val->values_end - rdc_val->values_start));
+                int vsize = ser->val_to_bytes(val, rdc_val->values_end, MAX_RECORD_SIZE);
                 rdc_val->values_end += vsize;
             } else {
-                LOG_ERROR("Error in convert!\n");
+                LOG_ERROR("Cannot find key=%s in convert!\n", keyarray);
             }
         }
         kv->close();
