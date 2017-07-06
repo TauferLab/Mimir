@@ -14,30 +14,32 @@
 
 //#define MPI_FETCH_AND_OP
 
-// Buffer settings
+// Buffers
 extern int64_t COMM_BUF_SIZE;
 extern int64_t DATA_PAGE_SIZE;
 extern int64_t INPUT_BUF_SIZE;
 extern int BUCKET_COUNT;
 extern int MAX_RECORD_SIZE;
+
+// Settings
+extern int SHUFFLE_TYPE;
 extern int MIN_SBUF_COUNT;
 extern int MAX_SBUF_COUNT;
 extern int COMM_UNIT_SIZE;
+extern int READ_TYPE;
+extern int WRITE_TYPE;
 
-// Settings
+// Features
 extern int WORK_STEAL;
-extern int READER_TYPE;
-extern int WRITER_TYPE;
-extern int SHUFFLE_TYPE;
 extern int MAKE_PROGRESS;
 extern int BALANCE_LOAD;
 extern int BIN_COUNT;
 extern double BALANCE_FACTOR;
-//extern int BIN_CONTAINER;
 
 // Profile & Debug
-extern int DBG_LEVEL;
 extern int OUTPUT_STAT;
+extern const char *STAT_FILE;
 extern int RECORD_PEAKMEM;
+extern int DBG_LEVEL;
 
 #endif

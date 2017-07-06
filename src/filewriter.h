@@ -473,14 +473,14 @@ FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::writer = NULL;
 template <typename KeyType, typename ValType>
 FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::getWriter(MPI_Comm comm, const char *filename) {
     //if (writer != NULL) delete writer;
-    if (WRITER_TYPE == 0) {
+    if (WRITE_TYPE == 0) {
         writer = new FileWriter<KeyType, ValType>(comm, filename);
-    } else if (WRITER_TYPE == 1) {
+    } else if (WRITE_TYPE == 1) {
         writer = new DirectFileWriter<KeyType, ValType>(comm, filename);
-    } else if (WRITER_TYPE == 2) {
+    } else if (WRITE_TYPE == 2) {
         writer = new MPIFileWriter<KeyType, ValType>(comm, filename); 
     } else {
-        LOG_ERROR("Error writer type %d\n", WRITER_TYPE);
+        LOG_ERROR("Error writer type %d\n", WRITE_TYPE);
     }
     return writer;
 }

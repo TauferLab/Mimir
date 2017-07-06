@@ -791,14 +791,14 @@ FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>*
         MPI_Comm comm,
         ChunkManager<KeyType, ValType> *mgr, 
         RepartitionCallback repartition_fn) {
-    if (READER_TYPE == 0) {
+    if (READ_TYPE == 0) {
         reader = new FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
-    } else if (READER_TYPE == 1) {
+    } else if (READ_TYPE == 1) {
         reader = new DirectFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
-    } else if (READER_TYPE == 2) {
+    } else if (READ_TYPE == 2) {
         reader = new MPIFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
     } else {
-        LOG_ERROR("Error reader type %d\n", READER_TYPE);
+        LOG_ERROR("Error reader type %d\n", READ_TYPE);
     }
     return reader;
 }

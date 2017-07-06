@@ -49,7 +49,7 @@ class HashBucket {
 
         this->iscopykey = iscopykey;
 
-        nbucket = (uint32_t) pow(2, BUCKET_COUNT);
+        nbucket = BUCKET_COUNT;
         buckets = (HashEntry**) mem_aligned_malloc(MEMPAGE_SIZE,
                                                    sizeof(HashEntry*) * nbucket);
         for (int i = 0; i < nbucket; i++) buckets[i] = NULL;
