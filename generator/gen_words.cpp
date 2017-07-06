@@ -27,6 +27,7 @@ const char *cmdstr = "./cmd \t<itemcount> <outfile>\n\
 \t--zipf-alpha [val]\n\
 \t--stat-file [val]\n\
 \t-disorder\n\
+\t-exchange\n\
 \t-single-file\n";
 
 uint64_t itemcount = 0;
@@ -36,6 +37,7 @@ uint64_t zipf_n = 0;
 double zipf_alpha = 0.0;
 const char *statfile = NULL;
 bool disorder = false;
+bool exchange = false;
 bool singlefile = false;
 
 uint64_t total_unique = 0;
@@ -69,7 +71,12 @@ int parititon_num (double *num, void *null, int npartition) {
 
 int partition_word (const char **word, void* null, int npartition) {
 
-    return (*dis)(gen);
+    int rank = (*dis)(gen);
+
+    //printf("%d[%d] word=%s, partitioned rank=%d\n",
+    //       proc_rank, proc_size, *word, rank);
+
+    return rank;
 }
 
 double t_copy = 0.0, t_map = 0.0, t_cvt = 0.0;
@@ -141,6 +148,8 @@ int main(int argc, char **argv) {
 
     MIMIR_NS::MimirContext<const char*, void>* ctx_ptr = NULL;
 
+    printf("disorder=%d\n", disorder);
+
     if (disorder) {
         MIMIR_NS::MimirContext<const char*, void>* disorder_words_ctx 
             = new MIMIR_NS::MimirContext<const char*, void>(MPI_COMM_WORLD, map_copy, NULL,
@@ -163,8 +172,10 @@ int main(int argc, char **argv) {
 
     unique_words.clear();
     ctx_ptr->scan(scanedge);
+    if (exchange) random_exchange(unique_words);
 
     repartition_unique_words(unique_words, unique_new_words, div_idx_map);
+    unique_words.clear();
 
     double t6 = MPI_Wtime();
     if (proc_rank == 0) {
@@ -191,7 +202,6 @@ int main(int argc, char **argv) {
         = new MIMIR_NS::MimirContext<const char*, void, double, void>(
                 MPI_COMM_WORLD, map_words, NULL, input, output, 
                 NULL, NULL, partition_word);
-    word_ctx->set_outfile_format("text");
     word_ctx->insert_data(num_ctx->get_output_handle());
 
     word_ctx->map();
@@ -204,22 +214,31 @@ int main(int argc, char **argv) {
     delete num_ctx;
 
     output = outfile;
-    MIMIR_NS::MimirContext<const char*, void>* partition_ctx 
+    MIMIR_NS::MimirContext<const char*, void>* partition1_ctx 
+        = new MIMIR_NS::MimirContext<const char*, void>(
+                MPI_COMM_WORLD, map_copy, NULL, input, output, 
+                NULL, NULL, partition_word);
+    partition1_ctx->insert_data(word_ctx->get_output_handle());
+    partition1_ctx->map();
+
+    delete word_ctx;
+
+    MIMIR_NS::MimirContext<const char*, void>* partition2_ctx 
         = new MIMIR_NS::MimirContext<const char*, void>(
                 MPI_COMM_WORLD, map_copy, NULL, input, output, 
                 NULL, NULL, partition_word, true, IMPLICIT_OUTPUT);
-    partition_ctx->set_outfile_format("text");
-    partition_ctx->insert_data(word_ctx->get_output_handle());
+    partition2_ctx->set_outfile_format("text");
+    partition2_ctx->insert_data(partition1_ctx->get_output_handle());
 
-    partition_ctx->map();
+    partition2_ctx->map();
+
+    delete partition1_ctx;
+    delete partition2_ctx;
 
     double t9 = MPI_Wtime();
     if (proc_rank == 0) {
         fprintf(stdout, "disorder words (walltime=%lf)\n", t9 - t8);
     }
-
-    delete word_ctx;
-    delete partition_ctx;
 
     delete [] dist_new_map;
     delete [] div_dist_map;
@@ -406,7 +425,10 @@ void parse_cmd_line(int argc, char **argv) {
             statfile = *argv;
         }
         else if (!strcmp(*argv, "-disorder")) {
-            singlefile = true;
+            disorder = true;
+        }
+        else if (!strcmp(*argv, "-exchange")) {
+            exchange = true;
         }
         else if (!strcmp(*argv, "-singlefile")) {
             singlefile = true;

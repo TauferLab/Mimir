@@ -301,6 +301,19 @@ void repartition_dist_map(uint64_t zipf_n, double* dist_map,
     }
 }
 
+void random_exchange(std::vector<std::string>& unique_words) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, unique_words.size() - 1);
+    for (size_t i = 0; i < unique_words.size(); i++) {
+        size_t p0 = dis(gen);
+        size_t p1 = dis(gen);
+        std::string tmp = unique_words[p0];
+        unique_words[p0] = unique_words[p1];
+        unique_words[p1] = tmp;
+    }
+}
+
 void repartition_unique_words(std::vector<std::string>& unique_words,
                               std::vector<std::string>& unique_new_words,
                               uint64_t* div_idx_map) {

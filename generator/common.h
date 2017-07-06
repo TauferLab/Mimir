@@ -34,6 +34,7 @@ int generate_unique_words(uint64_t n_unique, std::vector<std::string>& output,
 void gen_dist_map(uint64_t zipf_n, double zipf_alpha,
                   double* dist_map, uint64_t* div_idx_map,
                   double *div_dist_map);
+void random_exchange(std::vector<std::string>& unique_words);
 void repartition_dist_map(uint64_t zipf_n, double* dist_map,
                           uint64_t* div_idx_map, double* dist_new_map);
 void repartition_unique_words(std::vector<std::string>& unique_words,
