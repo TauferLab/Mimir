@@ -24,7 +24,10 @@
 
 #include "log.h"
 
-void *mem_aligned_malloc(size_t, size_t);
+#define DRAM_ALLOCATE    0
+#define MCDRAM_ALLOCATE  1
+
+void *mem_aligned_malloc(size_t, size_t, int hint = 0);
 void *mem_aligned_free(void*);
 extern int64_t peakmem;
 

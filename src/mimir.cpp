@@ -9,6 +9,11 @@
 #include "stat.h"
 #include "mimir.h"
 #include "globals.h"
+#include "ac_config.h"
+
+#if HAVE_LIBMEMKIND 
+#include "hbwmalloc.h"
+#endif
 
 void get_default_values();
 
@@ -17,10 +22,13 @@ void mimir_init(){
     mimir_world_comm = MPI_COMM_WORLD;
     MPI_Comm_rank(MPI_COMM_WORLD, &mimir_world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mimir_world_size);
-    printf("%d[%d] Mimir Initialize...\n",
-           mimir_world_rank, mimir_world_size);
     INIT_STAT();
     get_default_values();
+#if HAVE_LIBMEMKIND
+    printf("%d[%d] set hbw policy\n",
+           mimir_world_rank, mimir_world_size);
+    hbw_set_policy(HBW_POLICY_BIND);   
+#endif
 }
 
 void mimir_finalize()
@@ -34,8 +42,8 @@ void mimir_finalize()
     }
     UNINIT_STAT;
     //MPI_Comm_free(&mimir_world_comm);
-    printf("%d[%d] Mimir Finalize.\n",
-           mimir_world_rank, mimir_world_size);
+    //printf("%d[%d] Mimir Finalize.\n",
+    //       mimir_world_rank, mimir_world_size);
 }
 
 void mimir_stat(const char* filename)
