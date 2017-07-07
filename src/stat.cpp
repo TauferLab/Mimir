@@ -41,6 +41,7 @@ const char *counter_str[COUNTER_NUM] = {
     "recv_tail",
     "balance_times",
     "redirect_bins",
+    "max_bin_size",
     "migrate_kvs",
     "max_kvs",
     "max_kmvs",

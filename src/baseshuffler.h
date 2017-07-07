@@ -51,7 +51,6 @@ public:
         if (BALANCE_LOAD) {
             kv_per_proc = (int64_t*)mem_aligned_malloc(MEMPAGE_SIZE,
                                                         sizeof(int64_t) * shuffle_size);
-            //bin_recv_buf = (char*)mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
             this->local_kv_count = 0;
             this->global_kv_count = 0;
             for (int i = 0; i < shuffle_size; i++) {
@@ -68,7 +67,6 @@ public:
         delete ser;
         if (BALANCE_LOAD) {
             mem_aligned_free(kv_per_proc);
-            //mem_aligned_free(bin_recv_buf);
         }
     }
 
@@ -90,8 +88,6 @@ protected:
             uint32_t hid = ser->get_hash_code(key);
             if (!BALANCE_LOAD) {
                 target = (int) (hid % (uint32_t) shuffle_size);
-                //printf("%d[%d] word=%s, partitioned rank=%d\n",
-                //       shuffle_rank, shuffle_size, *key, target);
             } else {
                 // search item in the redirect table
                 uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);

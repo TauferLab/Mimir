@@ -174,6 +174,12 @@ protected:
             exchange_kv();
         } while (this->done_count < this->shuffle_size);
 
+        auto iter = this->bin_table.begin();
+        while (iter != this->bin_table.end()) {
+            PROFILER_RECORD_COUNT(COUNTER_MAX_BIN_SIZE, iter->second, OPMAX);
+            iter ++;
+        }
+
         TRACKER_RECORD_EVENT(EVENT_SYN_COMM);
         LOG_PRINT(DBG_COMM, "Comm: finish wait.\n");
     }
