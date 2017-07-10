@@ -498,8 +498,6 @@ class MimirContext {
         MPI_Comm_rank(mimir_ctx_comm, &mimir_ctx_rank);
         MPI_Comm_size(mimir_ctx_comm, &mimir_ctx_size);
 
-        this->bincount = mimir_ctx_size * BIN_COUNT;
-
         this->user_map = map_fn;
         this->user_reduce = reduce_fn;
         this->user_combine = combine_fn;
@@ -519,6 +517,9 @@ class MimirContext {
             ::mimir_init();
         }
         mimir_ctx_count +=1;
+
+        // BIN_COUNT may be changed by mimir_init function
+        this->bincount = mimir_ctx_size * BIN_COUNT;
     }
 
     void _uinit() {

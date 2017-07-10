@@ -22,6 +22,10 @@ void mimir_init(){
     mimir_world_comm = MPI_COMM_WORLD;
     MPI_Comm_rank(MPI_COMM_WORLD, &mimir_world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mimir_world_size);
+    char hostname[1024];
+    gethostname(hostname, 1024);
+    printf("%d[%d] Mimir Initialize... (pid=%d,host=%s)\n",
+           mimir_world_rank, mimir_world_size, getpid(), hostname);
     INIT_STAT();
     get_default_values();
 #if HAVE_LIBMEMKIND
