@@ -35,6 +35,7 @@ extern int MAKE_PROGRESS;
 extern int BALANCE_LOAD;
 extern int BIN_COUNT;
 extern double BALANCE_FACTOR;
+extern int BALANCE_NODE;
 
 // Profile & Debug
 extern int OUTPUT_STAT;

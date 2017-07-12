@@ -46,11 +46,81 @@ public:
 
         done_flag = 0;
         done_count = 0;
-	kvcount = 0;
+        kvcount = 0;
 
         if (BALANCE_LOAD) {
-            kv_per_proc = (int64_t*)mem_aligned_malloc(MEMPAGE_SIZE,
-                                                        sizeof(int64_t) * shuffle_size);
+
+            // Split communicator on shared-memory node
+            MPI_Comm_split_type(shuffle_comm, MPI_COMM_TYPE_SHARED, shuffle_rank,
+                                MPI_INFO_NULL, &shared_comm);
+            MPI_Comm_rank(shared_comm, &shared_rank);
+            MPI_Comm_size(shared_comm, &shared_size);
+
+            // Get groups
+            MPI_Comm_group(shuffle_comm, &shuffle_group);
+            MPI_Comm_group(shared_comm, &shared_group);
+
+            // Get node communicator
+            MPI_Comm_split(shuffle_comm, shared_rank, shuffle_rank, &node_comm);
+            MPI_Comm_rank(node_comm, &node_rank);
+            MPI_Comm_size(node_comm, &node_size);
+            MPI_Bcast(&node_rank, 1, MPI_INT, 0, shared_comm);
+            MPI_Bcast(&node_size, 1, MPI_INT, 0, shared_comm);
+
+            // KV per proc
+            if (shared_rank == 0) {
+                MPI_Win_allocate_shared(sizeof(int64_t)*shuffle_size,
+                                        sizeof(int64_t), MPI_INFO_NULL,
+                                        shared_comm, &kv_per_proc, &kv_proc_win);
+                MPI_Win_allocate_shared(sizeof(int64_t)*shared_size,
+                                        sizeof(int64_t), MPI_INFO_NULL,
+                                        shared_comm, &kv_per_core, &kv_core_win);
+                MPI_Win_allocate_shared(sizeof(int)*(node_size+1),
+                                        sizeof(int), MPI_INFO_NULL,
+                                        shared_comm, &proc_map_off, &map_off_win);
+                MPI_Win_allocate_shared(sizeof(int)*node_size,
+                                        sizeof(int), MPI_INFO_NULL,
+                                        shared_comm, &proc_map_count, &map_count_win);
+                MPI_Win_allocate_shared(sizeof(int)*shuffle_size,
+                                        sizeof(int), MPI_INFO_NULL,
+                                        shared_comm, &proc_map_rank, &map_rank_win);
+            } else {
+                MPI_Aint tmp_size;
+                int tmp_unit;
+                MPI_Win_allocate_shared(0, sizeof(int64_t), MPI_INFO_NULL,
+                                        shared_comm, &kv_per_proc, &kv_proc_win);
+                MPI_Win_shared_query(kv_proc_win, 0, &tmp_size, &tmp_unit, &kv_per_proc);
+                MPI_Win_allocate_shared(0, sizeof(int64_t), MPI_INFO_NULL,
+                                        shared_comm, &kv_per_core, &kv_core_win);
+                MPI_Win_shared_query(kv_core_win, 0, &tmp_size, &tmp_unit, &kv_per_core);
+                MPI_Win_allocate_shared(0, sizeof(int), MPI_INFO_NULL,
+                                        shared_comm, &proc_map_off, &map_off_win);
+                MPI_Win_shared_query(map_off_win, 0, &tmp_size, &tmp_unit, &proc_map_off);
+                MPI_Win_allocate_shared(0, sizeof(int), MPI_INFO_NULL,
+                                        shared_comm, &proc_map_count, &map_count_win);
+                MPI_Win_shared_query(map_count_win, 0, &tmp_size, &tmp_unit, &proc_map_count);
+                MPI_Win_allocate_shared(0, sizeof(int), MPI_INFO_NULL,
+                                        shared_comm, &proc_map_rank, &map_rank_win);
+                MPI_Win_shared_query(map_rank_win, 0, &tmp_size, &tmp_unit, &proc_map_rank);
+            }
+
+            if (shared_rank == 0) {
+                MPI_Allgather(&shared_size, 1, MPI_INT,
+                              proc_map_count, 1, MPI_INT, node_comm);
+                proc_map_off[0] = 0;
+                for (int i = 0; i < node_size; i ++) {
+                    proc_map_off[i+1] = proc_map_off[i] + proc_map_count[i];
+                }
+                int shared_ranks[shared_size];
+                int shuffle_ranks[shared_size];
+                for (int i = 0; i < shared_size; i++) shared_ranks[i] = i;
+                MPI_Group_translate_ranks(shared_group, shared_size, shared_ranks,
+                                          shuffle_group, shuffle_ranks);
+                MPI_Allgatherv(shuffle_ranks, shared_size, MPI_INT,
+                               proc_map_rank, proc_map_count, proc_map_off,
+                               MPI_INT, node_comm);
+            }
+
             this->local_kv_count = 0;
             this->global_kv_count = 0;
             for (int i = 0; i < shuffle_size; i++) {
@@ -66,7 +136,15 @@ public:
     virtual ~BaseShuffler() {
         delete ser;
         if (BALANCE_LOAD) {
-            mem_aligned_free(kv_per_proc);
+            MPI_Group_free(&shared_group);
+            MPI_Group_free(&shuffle_group);
+            MPI_Comm_free(&node_comm);
+            MPI_Comm_free(&shared_comm);
+            MPI_Win_free(&map_off_win);
+            MPI_Win_free(&map_count_win);
+            MPI_Win_free(&map_rank_win);
+            MPI_Win_free(&kv_proc_win);
+            MPI_Win_free(&kv_core_win);
         }
     }
 
@@ -113,13 +191,23 @@ protected:
 
         // Not allowed to perform load balance
         if (this->isrepartition || this->done_flag) {
-            int64_t one = -1;
-            MPI_Allgather(&one, 1, MPI_INT64_T,
-                          kv_per_proc, 1, MPI_INT64_T, shuffle_comm);
+            kv_per_core[shared_rank] = -1;
+            MPI_Barrier(shared_comm);
+            if (shared_rank == 0) {
+                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
+                               kv_per_proc, proc_map_count, proc_map_off,
+                               MPI_INT64_T, node_comm);
+            }
         } else {
-            MPI_Allgather(&(local_kv_count), 1, MPI_INT64_T,
-                          kv_per_proc, 1, MPI_INT64_T, shuffle_comm);
+            kv_per_core[shared_rank] = local_kv_count;
+            MPI_Barrier(shared_comm);
+            if (shared_rank == 0) {
+                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
+                               kv_per_proc, proc_map_count, proc_map_off,
+                               MPI_INT64_T, node_comm);
+            }
         }
+        MPI_Barrier(shared_comm);
 
         global_kv_count = 0;
         int64_t min_val = 0xffffffffffffffff, max_val = 0;
@@ -139,64 +227,226 @@ protected:
         return true;
     }
 
+    int64_t get_node_count(int nodeid) {
+        int64_t node_kv_count = 0;
+        for (int i = 0; i < shared_size; i++) {
+            int proc_idx = proc_map_rank[proc_map_off[nodeid] + i];
+            node_kv_count += kv_per_proc[proc_idx];
+        }
+        return node_kv_count;
+    }
+
+    int64_t get_proc_count(int nodeid, int sharedid) {
+        int proc_idx = proc_map_rank[proc_map_off[nodeid] + sharedid];
+        return kv_per_proc[proc_idx];
+    }
+
+    int get_shuffle_rank(int nodeid, int sharedid) {
+        return proc_map_rank[proc_map_off[nodeid] + sharedid];
+    }
+
+    int get_node_size(int nodeid) {
+        return (proc_map_off[nodeid + 1] - proc_map_off[nodeid]);
+    }
+
+    void find_bins(std::map<uint32_t,int> &redirect_bins, uint64_t redirect_count,
+                   int target, uint64_t &migrate_kv_count) {
+
+        auto iter = bin_table.begin();
+        while (iter != bin_table.end()) {
+            if (iter->second == 0) {
+                iter++;
+                continue;
+            }
+            if (iter->second < redirect_count) {
+                LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d (%ld, %.6lf)\n",
+                          iter->first, target, iter->second,
+                          (double)iter->second/(double)global_kv_count);
+                migrate_kv_count += iter->second;
+                redirect_count -= iter->second;
+                iter->second = 0;
+                redirect_bins[iter->first] = target;
+            }
+            if (redirect_count <= 0) break;
+            iter ++;
+        }
+    }
+
     void compute_redirect_bins(std::map<uint32_t,int> &redirect_bins,
                                std::set<int> &send_procs,
                                std::set<int> &recv_procs,
                                uint64_t &migrate_kv_count) {
+        // balance among nodes
+        if (BALANCE_NODE) {
 
-        // Get redirect bins
-        double *freq_per_proc = (double*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(double) * shuffle_size);
-        for (int i = 0; i < shuffle_size; i++) {
-            double freq = (double)kv_per_proc[i] / (double)global_kv_count * shuffle_size;
-            freq_per_proc[i] = freq;
-        }
-        int i = 0, j = 0;
-        while (i < shuffle_size && j < shuffle_size) {
-            while (freq_per_proc[i] > 1.01) {
-                while (freq_per_proc[j] > 0.99 && j < shuffle_size) j++;
-                if (j >= shuffle_size) break;
-                double redirect_freq = 0.0;
-                if (1.0 - freq_per_proc[j] < freq_per_proc[i] - 1.0) {
-                    redirect_freq = 1.0 - freq_per_proc[j];
-                    freq_per_proc[i] -= redirect_freq;
-                    freq_per_proc[j] = 1.0;
-                } else {
-                    redirect_freq = freq_per_proc[i] - 1.0;
-                    freq_per_proc[j] += redirect_freq;
-                    freq_per_proc[i] = 1.0;
-                }
-                if (i == shuffle_rank) {
-                    auto iter = bin_table.begin();
-                    while (iter != bin_table.end()) {
-                        if (iter->second == 0) {
-                            iter++;
-                            continue;
-                        }
-                        double bin_freq = (double)iter->second / (double)local_kv_count * freq_per_proc[shuffle_rank];
-                        if (bin_freq < redirect_freq) {
-                            LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d (%ld, %.6lf)\n",
-                                      iter->first, j, iter->second, bin_freq);
-                            migrate_kv_count += iter->second;
-                            iter->second = 0;
-                            redirect_bins[iter->first] = j;
-                            redirect_freq -= bin_freq;
-                        }
-                        if (redirect_freq < 0.01) break;
-                        iter ++;
+            // Compute inter-node redirect
+            int64_t send_kv_count = 0;
+            int64_t node_kv_mean = global_kv_count / node_size;
+
+            int i = 0, j = 0;
+            int ni = 0, nj = 0;
+            while (i < node_size && j < node_size) {
+
+                int64_t kv_count_i = get_node_count(i);
+                int64_t kv_count_j = get_node_count(j);
+                while ((double)kv_count_i > (double)node_kv_mean * 1.01) {
+
+                    while ((double)kv_count_j > (double)node_kv_mean * 0.99 && j < node_size) {
+                        j ++;
+                        nj = 0;
+                        kv_count_j = get_node_count(j);
                     }
-                    printf("%d[%d] send to %d\n", shuffle_rank, shuffle_size, j);
-                    send_procs.insert(j);
-                }
-                if (j == shuffle_rank) {
-                    printf("%d[%d] recv from %d\n", shuffle_rank, shuffle_size, i);
-                    recv_procs.insert(i);
-                }
-            }
-            i ++;
-        }
-        mem_aligned_free(freq_per_proc);
-        this->local_kv_count -= migrate_kv_count;
+                    if (j >= node_size) break;
 
+                    int64_t node_redirect_count = 0;
+
+                    if (node_kv_mean - kv_count_j < kv_count_i - node_kv_mean) {
+                        node_redirect_count = node_kv_mean - kv_count_j;
+                        kv_count_i -= node_redirect_count;
+                        kv_count_j = node_kv_mean;
+                    } else {
+                        node_redirect_count = kv_count_i - node_kv_mean;
+                        kv_count_j += node_redirect_count;
+                        kv_count_i = node_kv_mean;
+                    }
+                    int64_t proc_kv_meani = get_node_count(i)/get_node_size(i);
+                    int64_t proc_kv_meanj = get_node_count(j)/get_node_size(j);
+
+                    while (node_redirect_count > 0 && ni < shared_size && nj < shared_size) {
+
+                        int64_t kv_count_ni = get_proc_count(i, ni);
+                        int64_t kv_count_nj = get_proc_count(j, nj);
+
+                        while ((double)kv_count_ni > (double)proc_kv_meani * 1.01) {
+
+                            if (node_redirect_count > kv_count_ni - proc_kv_meani) {
+                                node_redirect_count -= (kv_count_ni - proc_kv_meani);
+                            } else {
+                                kv_count_ni = proc_kv_meani + node_redirect_count;
+                                node_redirect_count = 0;
+                            }
+
+                            while ((double)kv_count_nj > (double)proc_kv_meanj * 0.99 && nj < shared_size) {
+                                nj ++;
+                                kv_count_nj = get_proc_count(j, nj);
+                            }
+
+                            int64_t proc_redirect_count = 0;
+                            if ((kv_count_ni - proc_kv_meani) < (proc_kv_meanj - kv_count_nj)) {
+                                proc_redirect_count = kv_count_ni - proc_kv_meani;
+                                kv_count_ni = proc_kv_meani;
+                                kv_count_nj += proc_redirect_count;
+                            } else {
+                                proc_redirect_count = proc_kv_meanj - kv_count_nj;
+                                kv_count_nj = proc_kv_meanj;
+                                kv_count_ni -= proc_redirect_count;
+                            }
+
+                            if (get_shuffle_rank(i, ni) == shuffle_rank) {
+                                find_bins(redirect_bins, proc_redirect_count,
+                                          get_shuffle_rank(j,nj), migrate_kv_count);
+                                printf("%d[%d] send to %d\n", shuffle_rank,
+                                       shuffle_size, get_shuffle_rank(j,nj));
+                                send_kv_count += proc_redirect_count;
+                                send_procs.insert(get_shuffle_rank(j,nj));
+                            }
+                            if (get_shuffle_rank(j, nj) == shuffle_rank) {
+                                printf("%d[%d] recv from %d\n", shuffle_rank,
+                                       shuffle_size, get_shuffle_rank(i, ni));
+                                send_kv_count -= proc_redirect_count;
+                                recv_procs.insert(get_shuffle_rank(i, ni));
+                            }
+                        }
+                        ni ++;
+                    }
+                }
+                i ++;
+                ni = 0;
+            }
+
+            // Compute intra-node redirect
+            MPI_Barrier(shared_comm);
+            kv_per_proc[get_shuffle_rank(node_rank, shared_rank)] += send_kv_count;
+            MPI_Barrier(shared_comm);
+
+            int64_t proc_kv_mean = get_node_count(node_rank)/node_size;
+            i = 0; j = 0;
+            while (i < shared_size && j < shared_size) {
+                int64_t kv_count_i = get_proc_count(node_rank, i);
+                int64_t kv_count_j = get_proc_count(node_rank, j);
+                while ((double)kv_count_i > 1.01 * (double)proc_kv_mean) {
+                    while ((double)kv_count_j > 0.99 * (double)proc_kv_mean && j < shared_size) {
+                        j ++;
+                        kv_count_j = get_proc_count(node_rank, j);
+                    }
+                    if (j >= shared_size) break;
+                    int64_t redirect_count = 0;
+                    if (kv_count_i - proc_kv_mean > proc_kv_mean - kv_count_j) {
+                        redirect_count = proc_kv_mean - kv_count_j;
+                        kv_count_j = proc_kv_mean;
+                        kv_count_i -= redirect_count;
+                    } else {
+                        redirect_count = kv_count_i - proc_kv_mean;
+                        kv_count_i = proc_kv_mean;
+                        kv_count_j += redirect_count;
+                    }
+                    if (i == shared_rank) {
+                        find_bins(redirect_bins, redirect_count,
+                                  get_shuffle_rank(node_rank,j), migrate_kv_count);
+                        printf("%d[%d] send to %d\n", shuffle_rank,
+                               shuffle_size, get_shuffle_rank(node_rank,j));
+                        send_kv_count += redirect_count;
+                        send_procs.insert(get_shuffle_rank(node_rank,j));
+                    }
+                    if (j == shared_rank) {
+                        printf("%d[%d] recv from %d\n", shuffle_rank,
+                               shuffle_size, get_shuffle_rank(node_rank, i));
+                        send_kv_count -= redirect_count;
+                        recv_procs.insert(get_shuffle_rank(node_rank, i));
+                    }
+                }
+                i ++;
+            }
+
+        } else {
+
+            int64_t proc_kv_mean = global_kv_count / shuffle_size;
+
+            int i = 0, j = 0;
+            while (i < shuffle_size && j < shuffle_size) {
+                int64_t kv_count_i = kv_per_proc[i];
+                int64_t kv_count_j = kv_per_proc[j];
+                while ((double)kv_count_i > (double)proc_kv_mean * 1.01) {
+                    while ((double)kv_count_j > (double)proc_kv_mean * 0.99 && j < shuffle_size) {
+                        j ++;
+                        kv_count_j = kv_per_proc[j];
+                    }
+                    if (j >= shuffle_size) break;
+
+                    int64_t redirect_count = 0.0;
+                    if (proc_kv_mean - kv_count_j < kv_count_i - proc_kv_mean) {
+                        redirect_count = proc_kv_mean - kv_count_j;
+                        kv_count_i -= redirect_count;
+                        kv_count_j = proc_kv_mean;
+                    } else {
+                        redirect_count = kv_count_i - proc_kv_mean;
+                        kv_count_j += redirect_count;
+                        kv_count_i = proc_kv_mean;
+                    }
+                    if (i == shuffle_rank) {
+                        find_bins(redirect_bins, redirect_count, j, migrate_kv_count);
+                        printf("%d[%d] send to %d\n", shuffle_rank, shuffle_size, j);
+                        send_procs.insert(j);
+                    }
+                    if (j == shuffle_rank) {
+                        printf("%d[%d] recv from %d\n", shuffle_rank, shuffle_size, i);
+                        recv_procs.insert(i);
+                    }
+                }
+                i ++;
+            }
+        }
+        this->local_kv_count -= migrate_kv_count;
         PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, migrate_kv_count, OPSUM);
     }
 
@@ -251,7 +501,8 @@ protected:
         // Ensure no extrea repartition within repartition
         isrepartition = true;
         if (!out_db || (recv_procs.size() > 0 && send_procs.size() > 0)) {
-            LOG_ERROR("Cannot convert to removable object!\n");
+            LOG_ERROR("Cannot convert to removable object! out_db=%p, recv count=%ld, send count=%ld\n", 
+                      out_db, recv_procs.size(), send_procs.size());
         }
 
         printf("%d[%d] send counts=%ld, recv_counts=%ld\n",\
@@ -308,7 +559,6 @@ protected:
                 } else {
                     LOG_ERROR("Wrong bin index=%d\n", bintag);
                 }
-                //}
 
                 off += kvsize;
                 kvcount += 1;
@@ -407,14 +657,20 @@ protected:
     int      keycount, valcount;
 
     // redirect <key,value> to other processes
+    MPI_Comm                      shared_comm, node_comm;
+    MPI_Group                shared_group, shuffle_group;
+    int    shared_rank, shared_size, node_rank, node_size;
+    int64_t                    *kv_per_proc, *kv_per_core;
+    int    *proc_map_off, *proc_map_count, *proc_map_rank;
+    MPI_Win                       kv_proc_win, kv_core_win;
+    MPI_Win      map_off_win, map_count_win, map_rank_win;
+
     BinContainer<KeyType,ValType>          *out_db;
     std::unordered_map<uint32_t, int>       redirect_table;
     std::unordered_map<uint32_t, uint64_t>  bin_table;
     uint64_t                                global_kv_count;
     uint64_t                                local_kv_count;
-    int64_t                                *kv_per_proc;
     bool                                    isrepartition;
-    //char                                   *bin_recv_buf;
 };
 
 }
