@@ -298,6 +298,11 @@ protected:
                     }
                     if (j >= node_size) break;
 
+                    //if (shuffle_rank == 0) {
+                    //    fprintf(stdout, "inter-node: %d[%ld]->%d[%ld]\n",
+                    //            i, kv_count_i, j, kv_count_j);
+                    //}
+
                     int64_t node_redirect_count = 0;
 
                     if (node_kv_mean - kv_count_j < kv_count_i - node_kv_mean) {
@@ -345,14 +350,14 @@ protected:
                             if (get_shuffle_rank(i, ni) == shuffle_rank) {
                                 find_bins(redirect_bins, proc_redirect_count,
                                           get_shuffle_rank(j,nj), migrate_kv_count);
-                                printf("%d[%d] send to %d\n", shuffle_rank,
-                                       shuffle_size, get_shuffle_rank(j,nj));
+                                //printf("%d[%d] inter-node send to %d\n", shuffle_rank,
+                                //       shuffle_size, get_shuffle_rank(j,nj));
                                 send_kv_count += proc_redirect_count;
                                 send_procs.insert(get_shuffle_rank(j,nj));
                             }
                             if (get_shuffle_rank(j, nj) == shuffle_rank) {
-                                printf("%d[%d] recv from %d\n", shuffle_rank,
-                                       shuffle_size, get_shuffle_rank(i, ni));
+                                //printf("%d[%d] inter-node recv from %d\n", shuffle_rank,
+                                //       shuffle_size, get_shuffle_rank(i, ni));
                                 send_kv_count -= proc_redirect_count;
                                 recv_procs.insert(get_shuffle_rank(i, ni));
                             }
@@ -366,20 +371,34 @@ protected:
 
             // Compute intra-node redirect
             MPI_Barrier(shared_comm);
-            kv_per_proc[get_shuffle_rank(node_rank, shared_rank)] += send_kv_count;
+            kv_per_proc[get_shuffle_rank(node_rank, shared_rank)] -= send_kv_count;
             MPI_Barrier(shared_comm);
 
-            int64_t proc_kv_mean = get_node_count(node_rank)/node_size;
+            int64_t proc_kv_mean = get_node_count(node_rank)/shared_size;
             i = 0; j = 0;
             while (i < shared_size && j < shared_size) {
                 int64_t kv_count_i = get_proc_count(node_rank, i);
                 int64_t kv_count_j = get_proc_count(node_rank, j);
+                //if (shuffle_rank == 0) {
+                //    fprintf(stdout, "intra-node: %d[%ld]->%d[%ld] proc_kv_mean=%ld\n",
+                //            i, kv_count_i, j, kv_count_j, proc_kv_mean);
+                //}
                 while ((double)kv_count_i > 1.01 * (double)proc_kv_mean) {
                     while ((double)kv_count_j > 0.99 * (double)proc_kv_mean && j < shared_size) {
                         j ++;
                         kv_count_j = get_proc_count(node_rank, j);
+                        //if (shuffle_rank == 0) {
+                        //    fprintf(stdout, "intra-node: %d[%ld]->%d[%ld]\n",
+                        //            i, kv_count_i, j, kv_count_j);
+                        //}
                     }
                     if (j >= shared_size) break;
+
+                    //if (shuffle_rank == 0) {
+                    //    fprintf(stdout, "intra-node: %d[%ld]->%d[%ld]\n",
+                    //            i, kv_count_i, j, kv_count_j);
+                    //}
+
                     int64_t redirect_count = 0;
                     if (kv_count_i - proc_kv_mean > proc_kv_mean - kv_count_j) {
                         redirect_count = proc_kv_mean - kv_count_j;
@@ -393,14 +412,14 @@ protected:
                     if (i == shared_rank) {
                         find_bins(redirect_bins, redirect_count,
                                   get_shuffle_rank(node_rank,j), migrate_kv_count);
-                        printf("%d[%d] send to %d\n", shuffle_rank,
-                               shuffle_size, get_shuffle_rank(node_rank,j));
+                        //printf("%d[%d] intra-node send to %d\n", shuffle_rank,
+                        //       shuffle_size, get_shuffle_rank(node_rank,j));
                         send_kv_count += redirect_count;
                         send_procs.insert(get_shuffle_rank(node_rank,j));
                     }
                     if (j == shared_rank) {
-                        printf("%d[%d] recv from %d\n", shuffle_rank,
-                               shuffle_size, get_shuffle_rank(node_rank, i));
+                        //printf("%d[%d] intra-node recv from %d\n", shuffle_rank,
+                        //       shuffle_size, get_shuffle_rank(node_rank, i));
                         send_kv_count -= redirect_count;
                         recv_procs.insert(get_shuffle_rank(node_rank, i));
                     }
@@ -435,11 +454,11 @@ protected:
                     }
                     if (i == shuffle_rank) {
                         find_bins(redirect_bins, redirect_count, j, migrate_kv_count);
-                        printf("%d[%d] send to %d\n", shuffle_rank, shuffle_size, j);
+                        //printf("%d[%d] send to %d\n", shuffle_rank, shuffle_size, j);
                         send_procs.insert(j);
                     }
                     if (j == shuffle_rank) {
-                        printf("%d[%d] recv from %d\n", shuffle_rank, shuffle_size, i);
+                        //printf("%d[%d] recv from %d\n", shuffle_rank, shuffle_size, i);
                         recv_procs.insert(i);
                     }
                 }
@@ -505,9 +524,9 @@ protected:
                       out_db, recv_procs.size(), send_procs.size());
         }
 
-        printf("%d[%d] send counts=%ld, recv_counts=%ld\n",\
-               shuffle_rank, shuffle_size, 
-               send_procs.size(), recv_procs.size());
+        //printf("%d[%d] send counts=%ld, recv_counts=%ld\n",\
+        //       shuffle_rank, shuffle_size, 
+        //       send_procs.size(), recv_procs.size());
 
         // receive message
         int recv_count = (int)recv_procs.size();
@@ -600,9 +619,9 @@ protected:
                 MPI_Isend(buffer, datasize, MPI_BYTE, dst,
                           LB_MIGRATE_TAG, shuffle_comm, &reqs[idx++]);
 
-                printf("%d[%d] %d Send: %d->%d %d bintag=%d, count=%d\n",
-                       shuffle_rank, shuffle_size, shuffle_times, 
-                       shuffle_rank, dst, datasize, bintag, kvcount);
+                //printf("%d[%d] %d Send: %d->%d %d bintag=%d, count=%d\n",
+                //       shuffle_rank, shuffle_size, shuffle_times, 
+                //       shuffle_rank, dst, datasize, bintag, kvcount);
 
                 if (idx % 32 == 0) {
                     MPI_Waitall(32, reqs, sts);
@@ -619,8 +638,8 @@ protected:
                 MPI_Isend(buffer, 0, MPI_BYTE, dst,
                           LB_MIGRATE_TAG, shuffle_comm, &reqs[idx++]);
 
-                printf("%d[%d] %d Send 0: %d->%d\n",
-                       shuffle_rank, shuffle_size, shuffle_times, shuffle_rank, dst);
+                //printf("%d[%d] %d Send 0: %d->%d\n",
+                //       shuffle_rank, shuffle_size, shuffle_times, shuffle_rank, dst);
 
                 if (idx % 32 == 0) {
                     MPI_Waitall(32, reqs, sts);
