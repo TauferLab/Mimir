@@ -524,7 +524,7 @@ protected:
                       out_db, recv_procs.size(), send_procs.size());
         }
 
-        //printf("%d[%d] send counts=%ld, recv_counts=%ld\n",\
+        //printf("%d[%d] send counts=%ld, recv_counts=%ld\n",
         //       shuffle_rank, shuffle_size, 
         //       send_procs.size(), recv_procs.size());
 
