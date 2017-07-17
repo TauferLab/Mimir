@@ -300,8 +300,10 @@ class MimirContext {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
         uint64_t total_records = 0;
-        MPI_Allreduce(&kv_records, &total_records, 1,
+        PROFILER_RECORD_TIME_START;
+	MPI_Allreduce(&kv_records, &total_records, 1,
                       MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         PROFILER_RECORD_COUNT(COUNTER_MAX_KVS, kv_records, OPMAX);
 
@@ -384,8 +386,10 @@ class MimirContext {
         LOG_PRINT(DBG_GEN, "MapReduce: done\n");
 
         uint64_t total_records = 0;
+	PROFILER_RECORD_TIME_START;
         MPI_Allreduce(&output_records, &total_records, 1,
                       MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         LOG_PRINT(DBG_GEN, "MapReduce: reduce done\n");
 
@@ -420,8 +424,10 @@ class MimirContext {
         database = NULL;
 
         uint64_t total_records = 0;
+	PROFILER_RECORD_TIME_START;
         MPI_Allreduce(&output_records, &total_records, 1,
                       MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
+        PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         LOG_PRINT(DBG_GEN, "MapReduce: output done\n");
 
