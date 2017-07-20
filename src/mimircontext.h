@@ -278,7 +278,12 @@ class MimirContext {
         if (database != NULL) {
             BaseDatabase<KeyType,ValType>::subRef(database);
             database = NULL;
-        } else {
+        }
+	else if (in_database != NULL) {
+            BaseDatabase<InKeyType,InValType>::subRef(in_database); 
+            in_database = NULL;
+	}
+        else {
             delete reader;
         }
 
@@ -530,7 +535,15 @@ class MimirContext {
 
     void _uinit() {
         MPI_Comm_free(&mimir_ctx_comm);
-        mimir_ctx_count -= 1;
+        if (database != NULL) {
+            BaseDatabase<KeyType,ValType>::subRef(database);
+            database = NULL;
+        }
+	else if (in_database != NULL) {
+            BaseDatabase<InKeyType,InValType>::subRef(in_database); 
+            in_database = NULL;
+	}
+	mimir_ctx_count -= 1;
         if (mimir_ctx_count == 0) {
             ::mimir_finalize();
         }
