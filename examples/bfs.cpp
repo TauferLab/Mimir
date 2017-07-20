@@ -149,8 +149,6 @@ int main(int argc, char **argv)
 
     if (rank == 0) fprintf(stdout, "make CSR graph end.\n");
 
-    delete mimir;
-
     // Make data structure
     int64_t bitmapsize = (nlocalverts + LONG_BITS - 1) / LONG_BITS;
     vis = new unsigned long[bitmapsize];
@@ -169,6 +167,10 @@ int main(int argc, char **argv)
 
     MimirContext<int64_t,int64_t>* bfs_mimir = new MimirContext<int64_t,int64_t>(MPI_COMM_WORLD,
                                               rootvisit, NULL, NULL, mypartition);
+
+    // Ensure stat file being a single file
+    delete mimir;
+
     bfs_mimir->map();
     bfs_mimir->set_map_callback(expand);
 

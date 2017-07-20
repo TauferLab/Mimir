@@ -33,6 +33,8 @@ public:
         pagesize = DATA_PAGE_SIZE;
 
         ser = new Serializer<KeyType, ValType>(keycount, valcount);
+
+        LOG_PRINT(DBG_DATA, "KVContainer create.\n");
     }
 
     virtual ~KVContainer() {
@@ -42,6 +44,8 @@ public:
             mem_aligned_free(pages[i].buffer);
             BaseDatabase<KeyType, ValType>::mem_bytes -= pagesize;
         }
+
+        LOG_PRINT(DBG_DATA, "KVContainer destory.\n");
     }
 
     virtual int open() {
@@ -162,7 +166,10 @@ protected:
         BaseDatabase<KeyType, ValType>::mem_bytes  += pagesize;
         PROFILER_RECORD_COUNT(COUNTER_MAX_KV_PAGES,
                               this->mem_bytes, OPMAX);
-        return pages.size() - 1;
+
+        LOG_PRINT(DBG_DATA, "Add a page: mem_bytes=%ld\n", BaseDatabase<KeyType, ValType>::mem_bytes);
+ 
+	return pages.size() - 1;
     }
 
     void garbage_collection()

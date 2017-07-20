@@ -51,7 +51,7 @@ class HashBucket {
 
         nbucket = BUCKET_COUNT;
         buckets = (HashEntry**) mem_aligned_malloc(MEMPAGE_SIZE,
-                                                   sizeof(HashEntry*) * nbucket, MCDRAM_ALLOCATE);
+                                                   sizeof(HashEntry*) * nbucket);
         for (int i = 0; i < nbucket; i++) buckets[i] = NULL;
 
         mem_bytes += sizeof(HashEntry*) * nbucket;
@@ -162,7 +162,7 @@ class HashBucket {
 
             // Add a new buffer
             if (buf_idx == (int)buffers.size()) {
-                char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size, MCDRAM_ALLOCATE);
+                char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
                 mem_bytes += buf_size;
                 PROFILER_RECORD_COUNT(COUNTER_HASH_BUCKET, this->mem_bytes, OPMAX);
                 buffers.push_back(buffer);
@@ -176,7 +176,7 @@ class HashBucket {
                 buf_idx += 1;
                 buf_off = 0;
                 if (buf_idx == (int)buffers.size()) {
-                    char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size, MCDRAM_ALLOCATE);
+                    char *buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, buf_size);
                     mem_bytes += buf_size;
                     PROFILER_RECORD_COUNT(COUNTER_HASH_BUCKET, this->mem_bytes, OPMAX);
                     buffers.push_back(buffer);
