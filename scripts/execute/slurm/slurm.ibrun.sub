@@ -1,0 +1,20 @@
+#!/bin/bash
+#----------------------------------------------------
+# Sample SLURM job script
+# Last revised: 21 July 2017
+#
+# Notes:
+#
+#   -- Launch this script by executing
+#      "slurm.ibrun.sub n job parameters"
+#
+#----------------------------------------------------
+
+pwd
+date
+
+# Launch MPI code...
+
+ibrun $2 $3         # Use ibrun instead of mpirun or mpiexec
+
+# ---------------------------------------------------
