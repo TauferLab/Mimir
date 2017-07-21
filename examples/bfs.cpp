@@ -83,6 +83,7 @@ int main(int argc, char **argv)
     }
 
     root         = strtoull(argv[1], NULL, 0);
+    if (root < 0) srand((unsigned)root);
     nglobalverts = strtoull(argv[2], NULL, 0);
     std::string output = argv[3];
     std::vector<std::string> input;
@@ -157,7 +158,7 @@ int main(int argc, char **argv)
     if (rank == 0) fprintf(stdout, "BFS traversal start.\n");
 
     // Choose the root vertex
-    root = getrootvert();
+    if (root < 0) root = getrootvert();
     memset(vis, 0, sizeof(unsigned long) * (bitmapsize));
     for (int64_t i = 0; i < nlocalverts; i++) {
         pred[i] = -1;
