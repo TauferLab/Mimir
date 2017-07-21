@@ -36,6 +36,7 @@ extern int BALANCE_LOAD;
 extern int BIN_COUNT;
 extern double BALANCE_FACTOR;
 extern int BALANCE_NODE;
+extern int USE_MCDRAM;
 
 // Profile & Debug
 extern int OUTPUT_STAT;

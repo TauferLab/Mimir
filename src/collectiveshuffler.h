@@ -50,17 +50,17 @@ public:
         this->done_flag = 0;
         this->done_count = 0;
 
-        send_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * this->shuffle_size);
-        recv_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * this->shuffle_size);
-        send_offset = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size);
-        recv_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size);
-        a2a_s_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size);
+        send_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * this->shuffle_size, MCDRAM_ALLOCATE);
+        recv_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * this->shuffle_size, MCDRAM_ALLOCATE);
+        send_offset = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size, MCDRAM_ALLOCATE);
+        recv_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size, MCDRAM_ALLOCATE);
+        a2a_s_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size, MCDRAM_ALLOCATE);
         ;
-        a2a_s_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size);
+        a2a_s_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size, MCDRAM_ALLOCATE);
         ;
-        a2a_r_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size);
+        a2a_r_count = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size, MCDRAM_ALLOCATE);
         ;
-        a2a_r_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size);
+        a2a_r_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size, MCDRAM_ALLOCATE);
         ;
         for (int i = 0; i < this->shuffle_size; i++) {
             send_offset[i] = 0;

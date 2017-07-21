@@ -41,22 +41,9 @@ void *mem_aligned_malloc(size_t alignment, size_t size, int hint)
     size_t align_size = (size + alignment - 1) / alignment * alignment;
 
 // has MCDRAM interfaces
-#if HAVE_LIBMEMKIND
-    // allocate on DRAM
-    if (hint == DRAM_ALLOCATE) {
-        int ret = posix_memalign(&ptr, alignment, align_size);
-        if (ptr == NULL) {
-            int64_t memsize = get_mem_usage();
-            LOG_ERROR("Error: malloc memory error %d (align=%ld; size=%ld; \
-                       aligned_size=%ld; memsize=%ld)\n", ret, alignment, size, align_size, memsize);
-            return NULL;
-        }
-    }
-    // allocate on MCDRAM    
-    else if (hint == MCDRAM_ALLOCATE) {
-        hbw_posix_memalign(&ptr, alignment, align_size);
-        // if failed, allocate on DRAM
-        if (ptr == NULL) {
+    if (HAVE_LIBMEMKIND && USE_MCDRAM) {
+        // allocate on DRAM
+        if (hint == DRAM_ALLOCATE) {
             int ret = posix_memalign(&ptr, alignment, align_size);
             if (ptr == NULL) {
                 int64_t memsize = get_mem_usage();
@@ -64,22 +51,35 @@ void *mem_aligned_malloc(size_t alignment, size_t size, int hint)
                            aligned_size=%ld; memsize=%ld)\n", ret, alignment, size, align_size, memsize);
                 return NULL;
             }
-        } else {
-            LOG_PRINT(DBG_MEM, "Allocate on MCDRAM size=%ld, policy=%d, %d\n",
-		align_size, hbw_get_policy(), HBW_POLICY_BIND);
-            mcdram_ptrs.insert(ptr);
+        }
+        // allocate on MCDRAM    
+        else if (hint == MCDRAM_ALLOCATE) {
+            hbw_posix_memalign(&ptr, alignment, align_size);
+            // if failed, allocate on DRAM
+            if (ptr == NULL) {
+                int ret = posix_memalign(&ptr, alignment, align_size);
+                if (ptr == NULL) {
+                    int64_t memsize = get_mem_usage();
+                    LOG_ERROR("Error: malloc memory error %d (align=%ld; size=%ld; \
+                               aligned_size=%ld; memsize=%ld)\n", ret, alignment, size, align_size, memsize);
+                    return NULL;
+                }
+            } else {
+                LOG_PRINT(DBG_MEM, "Allocate on MCDRAM size=%ld, policy=%d, %d\n",
+		    align_size, hbw_get_policy(), HBW_POLICY_BIND);
+                mcdram_ptrs.insert(ptr);
+            }
+        }
+    } else {
+// Allocate on DDRAM 
+        int ret = posix_memalign(&ptr, alignment, align_size);
+        if (ptr == NULL) {
+            int64_t memsize = get_mem_usage();
+            LOG_ERROR("Error: malloc memory error %d (align=%ld; size=%ld; \
+                aligned_size=%ld; memsize=%ld)\n", ret, alignment, size, align_size, memsize);
+            return NULL;
         }
     }
-// Allocate on DDRAM 
-#else
-    int ret = posix_memalign(&ptr, alignment, align_size);
-    if (ptr == NULL) {
-        int64_t memsize = get_mem_usage();
-        LOG_ERROR("Error: malloc memory error %d (align=%ld; size=%ld; \
-            aligned_size=%ld; memsize=%ld)\n", ret, alignment, size, align_size, memsize);
-        return NULL;
-    }
-#endif
 
     for (size_t i = 0; i < align_size; i += MEMPAGE_SIZE) {
         *((char*)ptr + i) = 0;

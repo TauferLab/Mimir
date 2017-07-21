@@ -92,7 +92,7 @@ class FileReader : public Readable<InKeyType, InValType> {
 
         PROFILER_RECORD_COUNT(COUNTER_MAX_FILE, (uint64_t) bufsize, OPMAX);
 
-        buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE, bufsize + MAX_RECORD_SIZE + 1);
+        buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE, bufsize + MAX_RECORD_SIZE + 1, MCDRAM_ALLOCATE);
 
         state.cur_chunk.fileseg = NULL;
         state.start_pos = 0;

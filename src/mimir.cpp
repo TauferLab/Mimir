@@ -256,6 +256,11 @@ void get_default_values()
     if (env) {
         BALANCE_NODE = atoi(env);
     }
+    // balance memory among nodes
+    env = getenv("MIMIR_USE_MCDRAM");
+    if (env) {
+        USE_MCDRAM = atoi(env);
+    }
 
     /// Profile & Debug
     // output stat file
@@ -361,13 +366,15 @@ Library configuration:\n\
 \twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twork stealing: %d (make progress=%d)\n\
 \tload balance: balance=%d, balance factor=%.2lf, bin count=%d, balance node=%d\n\
+\tMCDRAM: use_mcdram=%d\n\
 \tstat & debug: output stat=%d, stat file=%s, output peak mem=%d, debug level=%x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, MAX_RECORD_SIZE,
         SHUFFLE_TYPE, COMM_UNIT_SIZE, MIN_SBUF_COUNT, MAX_SBUF_COUNT, READ_TYPE, WRITE_TYPE, 
         WORK_STEAL, MAKE_PROGRESS,
         BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BALANCE_NODE,
-        OUTPUT_STAT, STAT_FILE, RECORD_PEAKMEM, DBG_LEVEL);
+        USE_MCDRAM,
+	OUTPUT_STAT, STAT_FILE, RECORD_PEAKMEM, DBG_LEVEL);
         fflush(stdout);
     }
 }

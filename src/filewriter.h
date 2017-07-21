@@ -84,7 +84,7 @@ class FileWriter : public Writable<KeyType, ValType> {
     virtual int open() {
         bufsize = INPUT_BUF_SIZE;
         this->datasize = 0;
-        buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE,  bufsize);
+        buffer =  (char*)mem_aligned_malloc(MEMPAGE_SIZE, bufsize, MCDRAM_ALLOCATE);
         record_count = 0;
         this->done_flag = 0;
         return file_open();
