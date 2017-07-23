@@ -1,3 +1,17 @@
 #/bin/hash
 
-./run_job.sh config.example.h slurm.mpiexec.sub mimir 1 1 $wc "test.output test.input" "1"
+scratchdir=/scratch/dir
+homedir=/home/dir
+benchmark=
+datatype=
+dataset=
+
+jobname=mimir
+nnodes=
+nprocs=
+label=$benchmark-$datatype-$dataset
+exe=wc
+params=
+statdir=
+
+../run.job.sh config.example.h $jobname $label $nnodes $nprocs $exe $params $statdir
