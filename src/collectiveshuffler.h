@@ -50,6 +50,8 @@ public:
         this->done_flag = 0;
         this->done_count = 0;
 
+        LOG_PRINT(DBG_GEN, "CollectiveShuffler open: allocation start\n");
+
         send_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * this->shuffle_size, MCDRAM_ALLOCATE);
         recv_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * this->shuffle_size, MCDRAM_ALLOCATE);
         send_offset = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size, MCDRAM_ALLOCATE);
@@ -62,6 +64,9 @@ public:
         ;
         a2a_r_displs = (int*)mem_aligned_malloc(MEMPAGE_SIZE, sizeof(int) * this->shuffle_size, MCDRAM_ALLOCATE);
         ;
+
+        LOG_PRINT(DBG_GEN, "CollectiveShuffler open: allocation end\n");
+
         for (int i = 0; i < this->shuffle_size; i++) {
             send_offset[i] = 0;
             recv_count[i] = 0;
