@@ -1,5 +1,5 @@
 lib_LIBRARIES = libmimir.a
-libmimir_a_CXXFLAGS = -std=c++11 -g -Wno-write-strings -Wall -Wconversion      \
+libmimir_a_CXXFLAGS = -g -Wno-write-strings -Wall -Wconversion      		\
 		      -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
 libmimir_adir = $(includedir)
 libmimir_a_HEADERS = mimir.h interface.h globals.h hashbucket.h 	       \
