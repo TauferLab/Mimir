@@ -40,14 +40,16 @@ class bytestream {
     static int to_bytes (Type* obj, int count, char *buf, int bufsize) {
         int bytesize = (int)sizeof(Type) * count;
         if (bufsize < bytesize) return -1;
-        char* begin = reinterpret_cast<char*>(std::addressof(*obj));
+        //char* begin = reinterpret_cast<char*>(std::addressof(*obj));
+        char* begin = reinterpret_cast<char*>(obj);
         memcpy(buf, begin, bytesize);
         return bytesize;
     }
 
     static int from_bytes (Type* obj, int count, char *buf) {
         int bytesize = (int)sizeof(Type) * count;
-        char* begin = reinterpret_cast<char*>(std::addressof(*obj));
+        //char* begin = reinterpret_cast<char*>(std::addressof(*obj));
+        char* begin = reinterpret_cast<char*>(obj);
         memcpy(begin, buf, bytesize);
         return bytesize;
     }

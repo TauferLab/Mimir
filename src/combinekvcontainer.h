@@ -27,7 +27,7 @@ public:
                        void *user_ptr,
                        uint32_t bincount = 0,
                        int keycount = 1, int valcount = 1)
-        : KVContainer<KeyType,ValType>(bincount, keycount, valcount), BaseDatabase<KeyType, ValType>(true) {
+        : BaseDatabase<KeyType, ValType>(true), KVContainer<KeyType,ValType>(bincount, keycount, valcount) {
 
         this->user_combine = user_combine;
         this->user_ptr = user_ptr;
