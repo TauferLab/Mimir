@@ -152,7 +152,7 @@ void generate_octkey (Readable<char*, void> *input,
 {
     char *word = NULL;
     char octkey[digits];
-    int count = 0;
+    uint64_t count = 0;
 
     while ((input->read(&word, NULL)) == 0) {
 
