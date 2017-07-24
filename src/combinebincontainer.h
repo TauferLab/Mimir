@@ -19,7 +19,7 @@ class CombineBinContainer : public BinContainer<KeyType, ValType>,
                                              void *ptr),
                         void *user_ptr, uint32_t bincount, 
                         int keycount = 1, int valcount = 1)
-        : BinContainer<KeyType,ValType>(bincount, keycount, valcount) {
+        : BinContainer<KeyType,ValType>(bincount, keycount, valcount), BaseDatabase<KeyType, ValType>(true) {
 
         this->user_combine = user_combine;
         this->user_ptr = user_ptr;

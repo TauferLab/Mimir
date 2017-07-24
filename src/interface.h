@@ -67,6 +67,9 @@ class BaseDatabase :
         this->if_inner_object = if_inner_object;
     }
 
+    virtual ~BaseDatabase() {
+    }
+
     virtual int open() = 0;
     virtual void close() = 0;
     virtual int read(KeyType *, ValType *) = 0;
@@ -95,7 +98,7 @@ class BaseDatabase :
     }
 
     static void subRef(BaseDatabase *d) {
-        if (d != NULL) {
+	 if (d != NULL) {
             d->subRef();
             if (d->getRef() == 0 
                 && d->is_inner_object() ) {
