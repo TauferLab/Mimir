@@ -32,11 +32,9 @@ void combine (Combinable<char, uint64_t> *combiner,
               uint64_t *rval, void *ptr);
 void sum (Readable<char, uint64_t> *input,
           Writable<char, uint64_t> *output, void *ptr);
-//double slope(double[], double[], int);
 
 #define digits 15
 uint64_t thresh = 5;
-bool realdata = false;
 int level;
 
 int main(int argc, char **argv)
@@ -69,23 +67,31 @@ int main(int argc, char **argv)
                                                         generate_octkey, NULL,
                                                         input, output,
                                                         NULL, NULL, NULL, false);
-    //uint64_t nwords = ctx->map<char*, void>();
+
     uint64_t nwords = ctx->map();
     thresh = (int64_t) ((float) nwords * density);
+
+    if (rank == 0) printf("nwords=%ld\n", nwords);
 
     while ((min_limit + 1) != max_limit) {
 
         MimirContext<char, uint64_t, char, uint64_t> *level_ctx 
             = new MimirContext<char, uint64_t, char, uint64_t>(MPI_COMM_WORLD,
-                                               digits, 1, level, 1, level, 1,
+                                               level, 1, digits, 1, level, 1,
                                                gen_leveled_octkey, sum,
-                                               input, output);
+                                               input, output, NULL,
+#ifdef COMBINER
+                                               combine
+#else
+                                               NULL
+#endif
+					       );
 
         level_ctx->insert_data(ctx->get_output_handle());
-        level_ctx->map();
+        uint64_t totalkv = level_ctx->map();
         uint64_t nkv = level_ctx->reduce();
 
-        printf("nkv=%ld\n", nkv);
+	if (rank == 0) printf("level=%d, totalkv=%ld, nkv=%ld\n", level, totalkv, nkv);
 
         if (nkv > 0) {
             min_limit = level;
@@ -137,7 +143,7 @@ void gen_leveled_octkey (Readable<char, uint64_t> *input,
     uint64_t val = 0;
     uint64_t count = 1;
     while ((input->read(key, &val)) == 0) {
-        output->write(key, &count);
+	output->write(key, &count);
     }
 }
 
@@ -146,22 +152,27 @@ void generate_octkey (Readable<char*, void> *input,
 {
     char *word = NULL;
     char octkey[digits];
-    uint64_t count = 0;
+    int count = 0;
+
     while ((input->read(&word, NULL)) == 0) {
+
         double range_up = 4.0, range_down = -4.0;
 
         double b0, b1, b2;
-        char *saveptr;
+        char *saveptr = NULL;
         char *token = strtok_r(word, " ", &saveptr);
-        b0 = atof(token);
-        token = strtok_r(word, " ", &saveptr);
+	b0 = atof(token);
+	token = strtok_r(NULL, " ", &saveptr);
         b1 = atof(token);
-        token = strtok_r(word, " ", &saveptr);
+        token = strtok_r(NULL, " ", &saveptr);
         b2 = atof(token);
 
         double minx = range_down, miny = range_down, minz = range_down;
         double maxx = range_up, maxy = range_up, maxz = range_up;
-        while (count < digits) {
+
+	count = 0;        
+	while (count < digits) {
+            
             int m0 = 0, m1 = 0, m2 = 0;
             double rankdx = minx + ((maxx - minx) / 2);
             if (b0 > rankdx) {
@@ -180,6 +191,7 @@ void generate_octkey (Readable<char*, void> *input,
             else {
                 maxy = rankdy;
             }
+
             double rankdz = minz + ((maxz - minz) / 2);
             if (b2 > rankdz) {
                 m2 = 1;
@@ -190,38 +202,13 @@ void generate_octkey (Readable<char*, void> *input,
             }
 
             int bit = m0 + (m1 * 2) + (m2 * 4);
-            octkey[count] = bit & 0x7f;
+	    octkey[count] = (char)(bit & 0x7f);
             ++count;
         }
         //octkey[digits+1] = '\0';
-        for (int i = 0; i < digits; i++)
-            printf("%x", octkey[i]);
-        printf("\n");
+        //for (int i = 0; i < digits; i++)
+        //    printf("%x", octkey[i]);
+        //printf("\n");
         output->write(octkey, &count);
     }
 }
-
-#if 0
-double slope(double x[], double y[], int num_atoms)
-{
-    double slope = 0.0;
-    double sumx = 0.0, sumy = 0.0;
-    for (int i = 0; i != num_atoms; ++i) {
-        sumx += x[i];
-        sumy += y[i];
-    }
-
-    double xbar = sumx / num_atoms;
-    double ybar = sumy / num_atoms;
-
-    double xxbar = 0.0, yybar = 0.0, xybar = 0.0;
-    for (int i = 0; i != num_atoms; ++i) {
-        xxbar += (x[i] - xbar) * (x[i] - xbar);
-        yybar += (y[i] - ybar) * (y[i] - ybar);
-        xybar += (x[i] - xbar) * (y[i] - ybar);
-    }
-
-    slope = xybar / xxbar;
-    return slope;
-}
-#endif
