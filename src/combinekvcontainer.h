@@ -99,12 +99,13 @@ public:
 
                 if (this->pageid >= this->pages.size() 
                     || this->pagesize - this->pages[this->pageid].datasize < kvsize) {
-                    Page page;
-                    page.datasize = 0;
-                    page.buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, this->pagesize);
-                    this->pages.push_back(page);
-                    this->pageid = this->pages.size() - 1;
-                }
+                    //Page page;
+                    //page.datasize = 0;
+                    //page.buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, this->pagesize);
+                    //this->pages.push_back(page);
+                    //this->pageid = this->pages.size() - 1;
+                    this->pageid = this->add_page(); 
+		}
 
                 tmp.kv = this->pages[this->pageid].buffer + this->pages[this->pageid].datasize;
                 this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);

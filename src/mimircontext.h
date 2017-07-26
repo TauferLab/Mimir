@@ -340,7 +340,7 @@ class MimirContext {
             output = dynamic_cast<Writable<OutKeyType,OutValType>*>(user_database);
         // output to stage area
         } else if (output_mode == EXPLICIT_OUTPUT) {
-            kv = new KVContainer<OutKeyType,OutValType>(bincount, keycount, valcount);
+            kv = new KVContainer<OutKeyType,OutValType>(bincount, outkeycount, outvalcount);
             output = kv;
         // output to disk files
         } else {
