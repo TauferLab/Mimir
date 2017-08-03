@@ -3,6 +3,7 @@
 *.output
 *.o
 *.a
+*.out
 *.pyc
 .*
 core.*
