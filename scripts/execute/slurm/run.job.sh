@@ -30,7 +30,7 @@ installdir=$INSTALLDIR/bin
 export MIMIR_OUTPUT_STAT=1
 export MIMIR_STAT_FILE=$statdir/$jobname-$label-$partition-$N-$n
 export MIMIR_RECORD_PEAKMEM=1
-export MIMIR_DBG_ALL=1         # always output debug message
+export MIMIR_DBG_ALL=0         # always output debug message
 
 echo $N,$n,$job,$params
 
@@ -39,4 +39,5 @@ do
     sbatch --job-name=$jobname --output=$jobname.o%j.out --error=$jobname.e%j.out \
     --partition=$partition -N $N -n $n --time=$timelimit --export=all             \
     $subscript $n $installdir/$job "$params"
+    #sleep 1
 done

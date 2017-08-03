@@ -13,7 +13,7 @@ indir=$1
 sumsize=$2
 ext=$3
 
-filelist=$(find $indir -type f -name "*."$ext -exec ls -ld {} +                \
+filelist=$(find $indir -type f -name "*"$ext -exec ls -ld {} +                \
             | awk -v sumsize="$sumsize"                                        \
               'BEGIN { total = 0; count = 0;}
               {
