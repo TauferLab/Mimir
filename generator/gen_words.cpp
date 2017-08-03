@@ -4,7 +4,7 @@
 using namespace MIMIR_NS;
 
 #define WORD_LEN_MEAN_DEFAULT 6
-#define WORD_LEN_SD_DEFAULT   1
+#define WORD_LEN_SD_DEFAULT   0
 
 void parse_cmd_line(int argc, char **argv);
 
@@ -26,6 +26,8 @@ const char *cmdstr = "./cmd \t<itemcount> <outfile>\n\
 \t--zipf-n [val]\n\
 \t--zipf-alpha [val]\n\
 \t--stat-file [val]\n\
+\t--len-mean [val]\n\
+\t--len-std [val]\n\
 \t-disorder\n\
 \t-exchange\n\
 \t-single-file\n";
@@ -423,6 +425,20 @@ void parse_cmd_line(int argc, char **argv) {
             assert(argc);
 
             statfile = *argv;
+        }
+        else if (!strcmp(*argv, "--len-mean")) {
+            --argc;
+            ++argv;
+            assert(argc);
+
+            len_mean = atoi(*argv);
+        }
+        else if (!strcmp(*argv, "--len-std")) {
+            --argc;
+            ++argv;
+            assert(argc);
+
+            len_std = atof(*argv);
         }
         else if (!strcmp(*argv, "-disorder")) {
             disorder = true;
