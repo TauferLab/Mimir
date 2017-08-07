@@ -198,13 +198,15 @@ void get_default_values()
         MAX_SBUF_COUNT = atoi(env);
     }
     // read type
-    env = getenv("MIMIR_READE_TYPE");
+    env = getenv("MIMIR_READ_TYPE");
     if (env) {
         if (strcmp(env, "posix") == 0) {
             READ_TYPE = 0;
-        }else if (strcmp(env, "direct") == 0) {
-            READ_TYPE = 1;
-        }else if (strcmp(env, "mpiio") == 0) {
+        }
+	//else if (strcmp(env, "direct") == 0) {
+        //    READ_TYPE = 1;
+        //}
+	else if (strcmp(env, "mpiio") == 0) {
             READ_TYPE = 2;
         }
     }
@@ -213,9 +215,11 @@ void get_default_values()
     if (env) {
         if (strcmp(env, "posix") == 0) {
             WRITE_TYPE = 0;
-        } else if (strcmp(env, "direct") == 0) {
-            WRITE_TYPE = 1;
-        }else if (strcmp(env, "mpiio") == 0) {
+        }
+	//else if (strcmp(env, "direct") == 0) {
+        //    WRITE_TYPE = 1;
+        //}
+	else if (strcmp(env, "mpiio") == 0) {
             WRITE_TYPE = 2;
         }
     }
