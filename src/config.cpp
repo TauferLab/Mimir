@@ -28,7 +28,7 @@ int MAKE_PROGRESS = 0;
 int BIN_COUNT = 100;
 int BALANCE_LOAD = 0;
 double BALANCE_FACTOR = 1.5;
-int BALANCE_NODE = 0;
+int BALANCE_ALG = 0;
 int USE_MCDRAM = 1;
 
 // Profile & Debug

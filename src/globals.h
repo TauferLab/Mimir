@@ -20,7 +20,8 @@
 
 #define SHUFFLER_KV_TAG      0xaa
 #define CHUNK_TAIL_TAG       0xbb
-#define LB_MIGRATE_TAG       0xcc
+#define LB_EXCH_TAG          0xcc
+#define LB_MIGRATE_TAG       0xdd
 
 #define NIN(A,B) ((A) < (B)) ? (A) : (B)
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)

@@ -26,20 +26,20 @@ public:
                      int keycount, int valcount) 
       : BaseShuffler<KeyType, ValType>(comm, out, user_hash,
                                        keycount, valcount)
-      {
-          if (COMM_BUF_SIZE < (int64_t) COMM_UNIT_SIZE * (int64_t) this->shuffle_size) {
-              LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n",
-                        COMM_BUF_SIZE, COMM_UNIT_SIZE, this->shuffle_size);
-          }
-          buf_size = (COMM_BUF_SIZE / COMM_UNIT_SIZE / this->shuffle_size) * COMM_UNIT_SIZE;
-          type_log_bytes = 0;
-          int type_bytes = 0x1;
-          while ((int64_t) type_bytes * (int64_t) MAX_COMM_SIZE 
-                 < buf_size * this->shuffle_size) {
-              type_bytes <<= 1;
-              type_log_bytes++;
-          }
-      }
+    {
+        if (COMM_BUF_SIZE < (int64_t) COMM_UNIT_SIZE * (int64_t) this->shuffle_size) {
+            LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n",
+                      COMM_BUF_SIZE, COMM_UNIT_SIZE, this->shuffle_size);
+        }
+        buf_size = (COMM_BUF_SIZE / COMM_UNIT_SIZE / this->shuffle_size) * COMM_UNIT_SIZE;
+        type_log_bytes = 0;
+        int type_bytes = 0x1;
+        while ((int64_t) type_bytes * (int64_t) MAX_COMM_SIZE 
+               < buf_size * this->shuffle_size) {
+            type_bytes <<= 1;
+            type_log_bytes++;
+        }
+    }
 
     virtual ~CollectiveShuffler()
     {
@@ -123,11 +123,6 @@ public:
             return 0;
         }
 
-        //int kvsize = this->ser->get_kv_bytes(key, val);
-        //if (kvsize > buf_size)
-        //    LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
-        //              kvsize, buf_size);
-
         char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
         int kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
 
@@ -143,8 +138,6 @@ public:
             }
         }
 
-        //char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
-        //kvsize = this->ser->kv_to_bytes(key, val, buffer, (int)buf_size - send_offset[target]);
         send_offset[target] += kvsize;
         this->kvcount++;
 

@@ -174,7 +174,7 @@ protected:
                 if (iter != redirect_table.end()) {
                     target = iter->second;
                 } else {
-                    target = (int) (hid % (uint32_t) shuffle_size);
+                    target = (int) (bid % (uint32_t) shuffle_size);
                 }
             }
         }
@@ -249,8 +249,21 @@ protected:
         return (proc_map_off[nodeid + 1] - proc_map_off[nodeid]);
     }
 
-    void find_bins(std::map<uint32_t,int> &redirect_bins, uint64_t redirect_count,
-                   int target, uint64_t &migrate_kv_count) {
+    int get_bin_target(uint32_t bid) {
+        int target = 0;
+        auto iter = redirect_table.find(bid);
+        if (iter != redirect_table.end()) {
+            target = iter->second;
+        } else {
+            target = (int) (bid % (uint32_t) shuffle_size);
+        }
+        return target;
+    }
+
+    uint64_t find_bins(std::map<uint32_t,int> &redirect_bins,
+                   uint64_t redirect_count, int target) {
+
+        uint64_t migrate_kv_count = 0;
 
         auto iter = bin_table.begin();
         while (iter != bin_table.end()) {
@@ -270,41 +283,71 @@ protected:
             if (redirect_count <= 0) break;
             iter ++;
         }
+
+        return migrate_kv_count;
     }
 
-    void compute_redirect_bins(std::map<uint32_t,int> &redirect_bins,
-                               std::set<int> &send_procs,
-                               std::set<int> &recv_procs,
-                               uint64_t &migrate_kv_count) {
+    uint64_t find_node_bins(std::map<uint32_t,uint64_t> &redirect_bins,
+                        uint64_t &redirect_count) {
+
+        uint64_t migrate_kv_count = 0;
+
+        auto iter = bin_table.begin();
+        while (iter != bin_table.end()) {
+            if (iter->second == 0) {
+                iter++;
+                continue;
+            }
+            if (iter->second < redirect_count) {
+                //LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d (%ld, %.6lf)\n",
+                //          iter->first, target, iter->second,
+                //          (double)iter->second/(double)global_kv_count);
+                redirect_bins[iter->first] = iter->second;
+                redirect_count -= iter->second;
+                migrate_kv_count += iter->second;
+                iter->second = 0;
+            }
+            if (redirect_count <= 0) break;
+            iter ++;
+        }
+
+        return migrate_kv_count;
+    }
+
+    uint64_t compute_redirect_bins(std::map<uint32_t,int> &redirect_bins) {
+
+        uint64_t migrate_kv_count = 0;
+
         // balance among nodes
-        if (BALANCE_NODE) {
+        if (BALANCE_ALG == 1) {
 
             // Compute inter-node redirect
-            int64_t send_kv_count = 0;
+            uint64_t migrate_inter_node = 0;
             int64_t node_kv_mean = global_kv_count / node_size;
 
             int i = 0, j = 0;
-            int ni = 0, nj = 0;
+            int64_t kv_count_i = get_node_count(i);
+            int64_t kv_count_j = get_node_count(j);
+
+            std::map<uint32_t,uint64_t> node_bins;
+            int unitsize = (int)sizeof(uint32_t) + (int)sizeof(uint64_t);
+
+            // Redirect KVs from Node i to Node j
             while (i < node_size && j < node_size) {
 
-                int64_t kv_count_i = get_node_count(i);
-                int64_t kv_count_j = get_node_count(j);
+                // Node i is a upper node
                 while ((double)kv_count_i > (double)node_kv_mean * 1.01) {
 
-                    while ((double)kv_count_j > (double)node_kv_mean * 0.99 && j < node_size) {
+                    // Find Node j to receive from Node i
+                    while ((double)kv_count_j > (double)node_kv_mean * 0.99
+                           && j < node_size) {
                         j ++;
-                        nj = 0;
-                        kv_count_j = get_node_count(j);
+                        if (j < node_size) kv_count_j = get_node_count(j);
                     }
                     if (j >= node_size) break;
 
-                    //if (shuffle_rank == 0) {
-                    //    fprintf(stdout, "inter-node: %d[%ld]->%d[%ld]\n",
-                    //            i, kv_count_i, j, kv_count_j);
-                    //}
-
-                    int64_t node_redirect_count = 0;
-
+                    // Redirect KVs from node i to node j
+                    uint64_t node_redirect_count = 0;
                     if (node_kv_mean - kv_count_j < kv_count_i - node_kv_mean) {
                         node_redirect_count = node_kv_mean - kv_count_j;
                         kv_count_i -= node_redirect_count;
@@ -314,90 +357,153 @@ protected:
                         kv_count_j += node_redirect_count;
                         kv_count_i = node_kv_mean;
                     }
-                    int64_t proc_kv_meani = get_node_count(i)/get_node_size(i);
-                    int64_t proc_kv_meanj = get_node_count(j)/get_node_size(j);
 
-                    while (node_redirect_count > 0 && ni < shared_size && nj < shared_size) {
+                    // This node send out
+                    if (i == node_rank) {
 
-                        int64_t kv_count_ni = get_proc_count(i, ni);
-                        int64_t kv_count_nj = get_proc_count(j, nj);
+                        char *sendbuf = NULL;
+                        int sendsize = 0, sendoff = 0, sendsum = 0;
+                        MPI_Win sendbuf_win = MPI_WIN_NULL;
 
-                        while ((double)kv_count_ni > (double)proc_kv_meani * 1.01) {
+                        // Select bins to send out
+                        if (shared_rank != 0) {
+                            MPI_Status st;
+                            MPI_Recv(&node_redirect_count, 1, MPI_UINT64_T,
+                                     shared_rank - 1, LB_EXCH_TAG, shared_comm, &st);
+                        }
+                        migrate_inter_node = find_node_bins(node_bins,
+                                                            node_redirect_count);
+                        migrate_kv_count += migrate_inter_node;
+                        if (shared_rank != shared_size - 1) {
+                            MPI_Send(&node_redirect_count, 1, MPI_UINT64_T,
+                                     shared_rank + 1, LB_EXCH_TAG, shared_comm);
+                        }
 
-                            if (node_redirect_count > kv_count_ni - proc_kv_meani) {
-                                node_redirect_count -= (kv_count_ni - proc_kv_meani);
-                            } else {
-                                kv_count_ni = proc_kv_meani + node_redirect_count;
-                                node_redirect_count = 0;
-                            }
+                        // Send out 
+                        sendsize = (int)node_bins.size() * unitsize;
+                        MPI_Reduce(&sendsize, &sendsum, 1, MPI_INT, MPI_SUM, 0, shared_comm);
+                        if (shared_rank == 0) {
+                            MPI_Send(&sendsum, 1, MPI_INT, j, LB_EXCH_TAG, node_comm);
+                            MPI_Win_allocate_shared(sendsum, sizeof(char),
+                                                    MPI_INFO_NULL, shared_comm,
+                                                    &sendbuf, &sendbuf_win);
+                        } else {
+                            MPI_Aint tmp_size;
+                            int tmp_unit;
+                            MPI_Win_allocate_shared(0, sizeof(char),
+                                                    MPI_INFO_NULL, shared_comm,
+                                                    &sendbuf, &sendbuf_win);
+                            MPI_Win_shared_query(sendbuf_win, 0, &tmp_size, &tmp_unit, &sendbuf);
+                        }
 
-                            while ((double)kv_count_nj > (double)proc_kv_meanj * 0.99 && nj < shared_size) {
-                                nj ++;
-                                kv_count_nj = get_proc_count(j, nj);
-                            }
+                        // Prepare send buffer
+                        if (shared_rank != 0) {
+                            MPI_Status st;
+                            MPI_Recv(&sendoff, 1, MPI_INT,
+                                     shared_rank - 1, LB_EXCH_TAG, shared_comm, &st);
+                        }
+                        for (auto iter : node_bins) {
+                            *(uint32_t*)(sendbuf + sendoff) = iter.first;
+                            sendoff += (int)sizeof(uint32_t);
+                            *(uint64_t*)(sendbuf + sendoff) = iter.second;
+                            sendoff += (int)sizeof(uint64_t);
+                        }
+                        if (shared_rank != shared_size - 1) {
+                            MPI_Send(&sendoff, 1, MPI_INT,
+                                     shared_rank + 1, LB_EXCH_TAG, shared_comm);
+                        }
 
-                            int64_t proc_redirect_count = 0;
-                            if ((kv_count_ni - proc_kv_meani) < (proc_kv_meanj - kv_count_nj)) {
-                                proc_redirect_count = kv_count_ni - proc_kv_meani;
-                                kv_count_ni = proc_kv_meani;
-                                kv_count_nj += proc_redirect_count;
-                            } else {
-                                proc_redirect_count = proc_kv_meanj - kv_count_nj;
-                                kv_count_nj = proc_kv_meanj;
-                                kv_count_ni -= proc_redirect_count;
-                            }
+                        MPI_Barrier(shared_comm);
 
-                            if (get_shuffle_rank(i, ni) == shuffle_rank) {
-                                find_bins(redirect_bins, proc_redirect_count,
-                                          get_shuffle_rank(j,nj), migrate_kv_count);
-                                //printf("%d[%d] inter-node send to %d\n", shuffle_rank,
-                                //       shuffle_size, get_shuffle_rank(j,nj));
-                                send_kv_count += proc_redirect_count;
-                                send_procs.insert(get_shuffle_rank(j,nj));
-                            }
-                            if (get_shuffle_rank(j, nj) == shuffle_rank) {
-                                //printf("%d[%d] inter-node recv from %d\n", shuffle_rank,
-                                //       shuffle_size, get_shuffle_rank(i, ni));
-                                send_kv_count -= proc_redirect_count;
-                                recv_procs.insert(get_shuffle_rank(i, ni));
+                        // Send the data
+                        if (shared_rank == 0) {
+                            MPI_Send(sendbuf, sendsum, MPI_BYTE,
+                                     j, LB_EXCH_TAG, node_comm);
+                        }
+                        MPI_Win_free(&sendbuf_win);
+                    }
+                    // This node receive from
+                    if (j == node_rank) {
+                        std::set<int> recv_procs;
+                        MPI_Win recvbuf_win = MPI_WIN_NULL;
+                        char *recvbuf = NULL;
+                        int recvsize = 0, recvoff = 0;
+
+                        if (shared_rank == 0) {
+                            MPI_Status st;
+                            MPI_Recv(&recvsize, 1, MPI_INT, i, LB_EXCH_TAG, node_comm, &st);
+                            MPI_Win_allocate_shared(recvsize, sizeof(char),
+                                                    MPI_INFO_NULL, shared_comm,
+                                                    &recvbuf, &recvbuf_win);
+                        } else {
+                            MPI_Aint tmp_size;
+                            int tmp_unit;
+                            MPI_Win_allocate_shared(0, sizeof(char),
+                                                    MPI_INFO_NULL, shared_comm,
+                                                    &recvbuf, &recvbuf_win);
+                            MPI_Win_shared_query(recvbuf_win, 0, &tmp_size, &tmp_unit, &recvbuf);
+                        }
+                        MPI_Bcast(&recvsize, 1, MPI_INT, 0, shared_comm);
+
+                        // Recv the data
+                        if (shared_rank == 0) {
+                            MPI_Status st;
+                            MPI_Recv(recvbuf, recvsize, MPI_BYTE, i, LB_EXCH_TAG, node_comm, &st);
+                        }
+
+                        MPI_Barrier(shared_comm);
+                        if (shared_rank != 0) {
+                            MPI_Status st;
+                            MPI_Recv(&recvoff, 1, MPI_INT,
+                                     shared_rank - 1, LB_EXCH_TAG, shared_comm, &st);
+                        }
+                        uint64_t total_num = 0;
+                        while (recvoff < recvsize) {
+                            uint32_t bidx = *(uint32_t*)(recvbuf + recvoff);
+                            recvoff += (int)sizeof(uint32_t);
+                            uint64_t bnum = *(uint64_t*)(recvbuf + recvoff);
+                            recvoff += (int)sizeof(uint64_t);
+                            int src = get_bin_target(bidx);
+                            recv_procs.insert(src);
+                            redirect_bins[bidx] = shuffle_rank;
+                            LOG_PRINT(DBG_REPAR, "Redirect bin %d %d-> P%d (%ld, %.6lf)\n",
+                                      bidx, get_bin_target(bidx), shuffle_rank, bnum, (double)bnum/(double)global_kv_count);
+                            migrate_inter_node -= bnum;
+                            total_num += bnum;
+                            if (shared_rank != shared_size - 1
+                                && total_num > node_redirect_count / shared_size) {
+                                break;
                             }
                         }
-                        ni ++;
+                        if (shared_rank != shared_size - 1) {
+                            MPI_Send(&recvoff, 1, MPI_INT,
+                                     shared_rank + 1, LB_EXCH_TAG, shared_comm);
+                        }
+                        MPI_Win_free(&recvbuf_win);
                     }
                 }
+                // Move to next node
                 i ++;
-                ni = 0;
+                if (i < node_size) kv_count_i = get_node_count(i);
             }
 
-            // Compute intra-node redirect
+           // Compute intra-node redirect
             MPI_Barrier(shared_comm);
-            kv_per_proc[get_shuffle_rank(node_rank, shared_rank)] -= send_kv_count;
+            kv_per_proc[get_shuffle_rank(node_rank, shared_rank)] -= migrate_inter_node;
             MPI_Barrier(shared_comm);
 
             int64_t proc_kv_mean = get_node_count(node_rank)/shared_size;
             i = 0; j = 0;
+            kv_count_i = get_proc_count(node_rank, i);
+            kv_count_j = get_proc_count(node_rank, j);
+
             while (i < shared_size && j < shared_size) {
-                int64_t kv_count_i = get_proc_count(node_rank, i);
-                int64_t kv_count_j = get_proc_count(node_rank, j);
-                //if (shuffle_rank == 0) {
-                //    fprintf(stdout, "intra-node: %d[%ld]->%d[%ld] proc_kv_mean=%ld\n",
-                //            i, kv_count_i, j, kv_count_j, proc_kv_mean);
-                //}
                 while ((double)kv_count_i > 1.01 * (double)proc_kv_mean) {
                     while ((double)kv_count_j > 0.99 * (double)proc_kv_mean && j < shared_size) {
                         j ++;
-                        kv_count_j = get_proc_count(node_rank, j);
-                        //if (shuffle_rank == 0) {
-                        //    fprintf(stdout, "intra-node: %d[%ld]->%d[%ld]\n",
-                        //            i, kv_count_i, j, kv_count_j);
-                        //}
+                        if (j < shared_size) kv_count_j = get_proc_count(node_rank, j);
                     }
                     if (j >= shared_size) break;
-
-                    //if (shuffle_rank == 0) {
-                    //    fprintf(stdout, "intra-node: %d[%ld]->%d[%ld]\n",
-                    //            i, kv_count_i, j, kv_count_j);
-                    //}
 
                     int64_t redirect_count = 0;
                     if (kv_count_i - proc_kv_mean > proc_kv_mean - kv_count_j) {
@@ -410,24 +516,17 @@ protected:
                         kv_count_j += redirect_count;
                     }
                     if (i == shared_rank) {
-                        find_bins(redirect_bins, redirect_count,
-                                  get_shuffle_rank(node_rank,j), migrate_kv_count);
-                        //printf("%d[%d] intra-node send to %d\n", shuffle_rank,
-                        //       shuffle_size, get_shuffle_rank(node_rank,j));
-                        send_kv_count += redirect_count;
-                        send_procs.insert(get_shuffle_rank(node_rank,j));
-                    }
-                    if (j == shared_rank) {
-                        //printf("%d[%d] intra-node recv from %d\n", shuffle_rank,
-                        //       shuffle_size, get_shuffle_rank(node_rank, i));
-                        send_kv_count -= redirect_count;
-                        recv_procs.insert(get_shuffle_rank(node_rank, i));
+                        migrate_kv_count += find_bins(redirect_bins,
+                                                      redirect_count,
+                                                      get_shuffle_rank(node_rank,j));
                     }
                 }
                 i ++;
+                if (i < shared_size) kv_count_i = get_proc_count(node_rank, i);
             }
 
-        } else {
+        } 
+        else if (BALANCE_ALG == 0){
 
             int64_t proc_kv_mean = global_kv_count / shuffle_size;
 
@@ -453,13 +552,7 @@ protected:
                         kv_count_i = proc_kv_mean;
                     }
                     if (i == shuffle_rank) {
-                        find_bins(redirect_bins, redirect_count, j, migrate_kv_count);
-                        //printf("%d[%d] send to %d\n", shuffle_rank, shuffle_size, j);
-                        send_procs.insert(j);
-                    }
-                    if (j == shuffle_rank) {
-                        //printf("%d[%d] recv from %d\n", shuffle_rank, shuffle_size, i);
-                        recv_procs.insert(i);
+                        migrate_kv_count += find_bins(redirect_bins, redirect_count, j);
                     }
                 }
                 i ++;
@@ -467,17 +560,15 @@ protected:
         }
         this->local_kv_count -= migrate_kv_count;
         PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, migrate_kv_count, OPSUM);
+
+        return migrate_kv_count;
     }
 
     void balance_load() {
 
         // Get redirect bins
         std::map<uint32_t,int> redirect_bins;
-        std::set<int> send_procs, recv_procs;
-        uint64_t migrate_kv_count = 0;
-
-        compute_redirect_bins(redirect_bins, send_procs,
-                              recv_procs, migrate_kv_count);
+        uint64_t migrate_kv_count = compute_redirect_bins(redirect_bins);
 
         // Update redirect table
         int sendcount, recvcount;
@@ -496,21 +587,32 @@ protected:
         }
 
         int sendbuf[sendcount], recvbuf[recvcount];
+        std::set<int> send_procs, recv_procs;
         int k = 0;
         for (auto iter : redirect_bins) {
             sendbuf[2*k] = iter.first;
             sendbuf[2*k+1] = iter.second;
-            bin_table.erase(iter.first);
             k ++;
         }
 
         MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
                        recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
-        for (int i = 0; i < recvcount/2; i++) {
+
+        redirect_bins.clear();
+        for (int i = 0; i < recvcount / 2; i++) {
             uint32_t binid = recvbuf[2*i];
             int rankid = recvbuf[2*i+1];
+            auto iter = bin_table.find(binid);
+            if (iter != bin_table.end()) {
+                send_procs.insert(rankid);
+                bin_table.erase(iter);
+                redirect_bins[binid] = rankid;
+            }
+            if (rankid == shuffle_rank) {
+                recv_procs.insert(get_bin_target(binid));
+                bin_table[binid] = 0;
+            }
             redirect_table[binid] = rankid;
-            if (rankid == shuffle_rank) bin_table[binid] = 0;
         }
 
         PROFILER_RECORD_COUNT(COUNTER_REDIRECT_BINS, redirect_table.size(), OPMAX);
@@ -519,14 +621,67 @@ protected:
 
         // Ensure no extrea repartition within repartition
         isrepartition = true;
-        if (!out_db || (recv_procs.size() > 0 && send_procs.size() > 0)) {
-            LOG_ERROR("Cannot convert to removable object! out_db=%p, recv count=%ld, send count=%ld\n", 
-                      out_db, recv_procs.size(), send_procs.size());
+        if (!out_db) {
+            LOG_ERROR("Cannot convert to removable object! out_db=%p\n", out_db);
         }
 
-        //printf("%d[%d] send counts=%ld, recv_counts=%ld\n",
-        //       shuffle_rank, shuffle_size, 
-        //       send_procs.size(), recv_procs.size());
+        if (send_procs.size() > 0) {
+            char *buffer = NULL;
+            uint32_t bintag = 0;
+            int bidx = 0, datasize = 0, kvcount = 0;
+            MPI_Request reqs[32];
+            MPI_Status sts[32];
+            int idx = 0;
+
+            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+
+            uint64_t total_kvcount = 0;
+
+            while ((bidx = out_db->get_next_bin(buffer, datasize, bintag, kvcount)) != -1) {
+                if (datasize == 0) continue;
+                auto iter = redirect_bins.find(bintag);
+                if (iter == redirect_bins.end()) continue;
+                int dst = iter->second;
+                out_db->set_bin_info(bidx, 0, 0, 0);
+
+                total_kvcount += kvcount;
+
+                if (bin_table.find(bintag) != bin_table.end()) {
+                    LOG_ERROR("Still can find bin %d in the send procs!\n", bintag);
+                }
+
+                MPI_Isend(buffer, datasize, MPI_BYTE, dst,
+                          LB_MIGRATE_TAG, shuffle_comm, &reqs[idx++]);
+
+                if (idx % 32 == 0) {
+                    MPI_Waitall(32, reqs, sts);
+                    for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+                    idx = 0;
+                }
+            }
+            MPI_Waitall(32, reqs, sts);
+            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+
+            idx = 0;
+            for (auto iter : send_procs) {
+                int dst = iter;
+                MPI_Isend(buffer, 0, MPI_BYTE, dst,
+                          LB_MIGRATE_TAG, shuffle_comm, &reqs[idx++]);
+
+                if (idx % 32 == 0) {
+                    MPI_Waitall(32, reqs, sts);
+                    for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+                    idx = 0;
+                }
+            }
+            MPI_Waitall(32, reqs, sts);
+            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
+
+            if (total_kvcount != migrate_kv_count) {
+                LOG_ERROR("total kvcount=%ld, migrate kvcount=%ld\n",
+                          total_kvcount, migrate_kv_count);
+            }
+        }
 
         // receive message
         int recv_count = (int)recv_procs.size();
@@ -569,8 +724,6 @@ protected:
                                                       ptr + off, count - off);
                 bintag = ser->get_hash_code(key) % (uint32_t) (shuffle_size * BIN_COUNT);
 
-                //int ret = this->out->write(key, val);
-                //if (ret == 1) {
                 auto iter = this->bin_table.find(bintag);
                 if (iter != this->bin_table.end()) {
                     iter->second += 1;
@@ -589,71 +742,6 @@ protected:
             }
 
             out_db->set_bin_info(bidx, bintag, count, kvcount);
-        }
-
-        if (send_procs.size() > 0) {
-            char *buffer = NULL;
-            uint32_t bintag = 0;
-            int bidx = 0, datasize = 0, kvcount = 0;
-            MPI_Request reqs[32];
-            MPI_Status sts[32];
-            int idx = 0;
-
-            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
-
-            uint64_t total_kvcount = 0;
-
-            while ((bidx = out_db->get_next_bin(buffer, datasize, bintag, kvcount)) != -1) {
-                if (datasize == 0) continue;
-                auto iter = redirect_bins.find(bintag);
-                if (iter == redirect_bins.end()) continue;
-                int dst = iter->second;
-                out_db->set_bin_info(bidx, 0, 0, 0);
-
-                total_kvcount += kvcount;
-
-                if (bin_table.find(bintag) != bin_table.end()) {
-                    LOG_ERROR("Still can find bin %d in the send procs!\n", bintag);
-                }
-
-                MPI_Isend(buffer, datasize, MPI_BYTE, dst,
-                          LB_MIGRATE_TAG, shuffle_comm, &reqs[idx++]);
-
-                //printf("%d[%d] %d Send: %d->%d %d bintag=%d, count=%d\n",
-                //       shuffle_rank, shuffle_size, shuffle_times, 
-                //       shuffle_rank, dst, datasize, bintag, kvcount);
-
-                if (idx % 32 == 0) {
-                    MPI_Waitall(32, reqs, sts);
-                    for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
-                    idx = 0;
-                }
-            }
-            MPI_Waitall(32, reqs, sts);
-            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
-
-            idx = 0;
-            for (auto iter : send_procs) {
-                int dst = iter;
-                MPI_Isend(buffer, 0, MPI_BYTE, dst,
-                          LB_MIGRATE_TAG, shuffle_comm, &reqs[idx++]);
-
-                //printf("%d[%d] %d Send 0: %d->%d\n",
-                //       shuffle_rank, shuffle_size, shuffle_times, shuffle_rank, dst);
-
-                if (idx % 32 == 0) {
-                    MPI_Waitall(32, reqs, sts);
-                    for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
-                    idx = 0;
-                }
-            }
-            MPI_Waitall(32, reqs, sts);
-            for (int i = 0; i < 32; i++) reqs[i] = MPI_REQUEST_NULL;
-
-            if (total_kvcount != migrate_kv_count) {
-                LOG_ERROR("total kvcount=%ld, migrate kvcount=%ld\n",
-                          total_kvcount, migrate_kv_count);
-            }
         }
 
         isrepartition = false;
