@@ -37,7 +37,7 @@ Mimir provides environment variables to tune the library parameters.
 * MIMIR_DISK_SIZE (default: 64M) --- disk I/O buffer size
 * MIMIR_BUCKET_SIZE (default: 1M) --- hash bucket size used by reduce and
 combine phases
-* MIMIR_MAX_RECORD_SIZE (default: 1M) --- the maximum length of any
+* MIMIR_MAX_RECORD_SIZE (default: 1M) --- maximum length of any
 <key,value> pair
 
 ## Settings
@@ -48,7 +48,7 @@ communication buffer
 * MIMIR_MIN_COMM_BUF (default: 2) --- if the shuffle type is ia2av, it sets
 the min communication buffer count
 * MIMIR_MAX_COMM_BUF (default: 5) --- if the suffle type is ia2av, it sets
-the amx communication buffer count
+the max communication buffer count
 * MIMIR_READ_TYPE (default: posix) --- read type
 * MIMIR_WRITE_TYPE (default: posix) --- write type
 
@@ -64,7 +64,7 @@ progress pushing during nonblocking communication
 * MIMIR_USE_MCDRAM (default: on) --- if use MCDRAM when there is MCDRAM
 
 ## Stat & Debug
-* MIMIR_OUTUT_STAT (default: off) --- output stat file
+* MIMIR_OUTPUT_STAT (default: off) --- output stat file
 * MIMIR_STAT_FILE (default: NULL) --- stat file name
-* MIMIR_RECORD_PEAKMEM --- enable/disable record peak memory usage
+* MIMIR_RECORD_PEAKMEM (default: off) --- enable/disable record peak memory usage
 * MIMIR_DBG_ALL (default: off) --- enable/disable debug message
