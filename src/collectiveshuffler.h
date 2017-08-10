@@ -295,7 +295,7 @@ protected:
 
         LOG_PRINT(DBG_COMM, "Comm: exchange KV. (send count=%ld, recv count=%ld, done count=%d)\n", sendcount, recvcount, this->done_count);
 
-        if (BALANCE_LOAD && !(this->user_hash)) {
+        if (BALANCE_LOAD && !(this->user_hash) && this->shuffle_times % BALANCE_FREQ == 0) {
             PROFILER_RECORD_TIME_START;
             bool flag = this->check_load_balance();
             PROFILER_RECORD_TIME_END(TIMER_LB_CHECK);

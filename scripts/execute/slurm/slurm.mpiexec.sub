@@ -14,6 +14,11 @@ date
 
 # Launch MPI code...
 
+#perf stat -e task-clock,cycles,instructions,branches,branch-misses \
+#          -e stalled-cycles-frontend,stalled-cycles-backend \
+#          -e cache-references,cache-misses \
+#          -e LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses \
+#          -e mem-loads,mem-stores \
 mpiexec -n $1 -bind-to core $2 $3
 
 # ---------------------------------------------------

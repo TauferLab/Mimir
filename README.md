@@ -56,11 +56,14 @@ the max communication buffer count
 * MIMIR_WORK_STEAL (default: off) --- enable/disable work stealing
 * MIMIR_MAKE_PROGRESS (default: off) --- enable/disable aggressive
 progress pushing during nonblocking communication
+* MIMIR_CONTAINER_TYPE (default: kv) --- KV-based container (kv);
+  Bin-based container (bin)
 * MIMIR_BALANCE_LOAD (default: off) --- enable/disable load balancing
 * MIMIR_BIN_COUNT (default: 100) --- number of bins per process
 * MIMIR_BALANCE_FACTOR (default: 1.5) --- the balance factor
 * MIMIR_BALANCE_ALG (default: proc) --- load balancing algorithm
   (proc; node)
+* MIMIR_BALANCE_FREQ (default: 5) --- load balancing frequency
 * MIMIR_USE_MCDRAM (default: on) --- if use MCDRAM when there is MCDRAM
 
 ## Stat & Debug

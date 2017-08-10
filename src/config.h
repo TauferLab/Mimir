@@ -32,9 +32,11 @@ extern int WRITE_TYPE;
 // Features
 extern int WORK_STEAL;
 extern int MAKE_PROGRESS;
+extern int CONTAINER_TYPE;
 extern int BALANCE_LOAD;
 extern int BIN_COUNT;
 extern double BALANCE_FACTOR;
+extern int BALANCE_FREQ;
 extern int BALANCE_ALG;
 extern int USE_MCDRAM;
 

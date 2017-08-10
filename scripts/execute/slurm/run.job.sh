@@ -27,10 +27,10 @@ timelimit=$TIMELIMIT
 installdir=$INSTALLDIR/bin
 
 # output stat files
-export MIMIR_OUTPUT_STAT=1
+#export MIMIR_OUTPUT_STAT=1
 export MIMIR_STAT_FILE=$statdir/$jobname-$label-$partition-$N-$n
 export MIMIR_RECORD_PEAKMEM=1
-export MIMIR_DBG_ALL=0         # always output debug message
+#export MIMIR_DBG_ALL=0         # always output debug message
 
 echo $N,$n,$job,$params
 

@@ -119,13 +119,13 @@ public:
                 MPI_Allgatherv(shuffle_ranks, shared_size, MPI_INT,
                                proc_map_rank, proc_map_count, proc_map_off,
                                MPI_INT, node_comm);
+                for (int i = 0; i < shuffle_size; i++) {
+                    kv_per_proc[i] = 0;
+                }
             }
 
             this->local_kv_count = 0;
             this->global_kv_count = 0;
-            for (int i = 0; i < shuffle_size; i++) {
-                kv_per_proc[i] = 0;
-            }
             for (int i = 0; i < BIN_COUNT; i++) {
                 bin_table.insert({shuffle_rank+i*shuffle_size, 0});
             }
@@ -189,23 +189,16 @@ protected:
 
         if (out_db == NULL) return true;
 
-        // Not allowed to perform load balance
+        int64_t send_kv_count = local_kv_count;
         if (this->isrepartition || this->done_flag) {
-            kv_per_core[shared_rank] = -1;
-            MPI_Barrier(shared_comm);
-            if (shared_rank == 0) {
-                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
-                               kv_per_proc, proc_map_count, proc_map_off,
-                               MPI_INT64_T, node_comm);
-            }
-        } else {
-            kv_per_core[shared_rank] = local_kv_count;
-            MPI_Barrier(shared_comm);
-            if (shared_rank == 0) {
-                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
-                               kv_per_proc, proc_map_count, proc_map_off,
-                               MPI_INT64_T, node_comm);
-            }
+            send_kv_count = -1;
+        }
+        MPI_Gather(&send_kv_count, 1, MPI_INT64_T,
+                   kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
+        if (shared_rank == 0) {
+            MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
+                           kv_per_proc, proc_map_count, proc_map_off,
+                           MPI_INT64_T, node_comm);
         }
         MPI_Barrier(shared_comm);
 
@@ -221,7 +214,6 @@ protected:
 
         if (i < shuffle_size) return true;
 
-        // Need to be updated
         if ((double)max_val > BALANCE_FACTOR * (double)min_val) return false;
 
         return true;
@@ -488,9 +480,14 @@ protected:
             }
 
            // Compute intra-node redirect
-            MPI_Barrier(shared_comm);
-            kv_per_proc[get_shuffle_rank(node_rank, shared_rank)] -= migrate_inter_node;
-            MPI_Barrier(shared_comm);
+            //MPI_Barrier(shared_comm);
+            //kv_per_proc[get_shuffle_rank(node_rank, shared_rank)] -= migrate_inter_node;
+            //MPI_Barrier(shared_comm);
+            int64_t send_kv_count = 
+                kv_per_proc[get_shuffle_rank(node_rank, shared_rank)]
+                - migrate_inter_node;
+            MPI_Gather(&send_kv_count, 1, MPI_INT64_T,
+                       kv_per_proc, 1, MPI_INT64_T, 0, shared_comm);
 
             int64_t proc_kv_mean = get_node_count(node_rank)/shared_size;
             i = 0; j = 0;

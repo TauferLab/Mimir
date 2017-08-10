@@ -200,8 +200,13 @@ class MimirContext {
                 if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
                 else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
             } else {
-                if (!user_combine) kv = new KVContainer<KeyType,ValType>(bincount, keycount, valcount);
-                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+                if (CONTAINER_TYPE == 0) {
+                    if (!user_combine) kv = new KVContainer<KeyType,ValType>(bincount, keycount, valcount);
+                    else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+                } else if (CONTAINER_TYPE == 1) {
+                    if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
+                    else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+                }
             }
             output = kv;
         // output to files

@@ -236,6 +236,15 @@ void get_default_values()
         MAKE_PROGRESS = atoi(env);
     }
     // balance load
+    env = getenv("MIMIR_CONTAINER_TYPE");
+    if (env) {
+        if (strcmp(env, "kv") == 0) {
+            CONTAINER_TYPE = 0;
+        } else if (strcmp(env, "bin") == 0){
+            CONTAINER_TYPE = 1;
+        }
+    }
+    // balance load
     env = getenv("MIMIR_BALANCE_LOAD");
     if (env) {
         int flag = atoi(env);
@@ -265,6 +274,12 @@ void get_default_values()
             BALANCE_ALG = 1;
         }
     } 
+    // balance memory among node
+    env = getenv("MIMIR_BALANCE_FREQ");
+    if (env) {
+        BALANCE_FREQ = atoi(env);
+    }
+
     // balance memory among nodes
     env = getenv("MIMIR_USE_MCDRAM");
     if (env) {
@@ -374,14 +389,16 @@ Library configuration:\n\
 \treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
 \twork stealing: %d (make progress=%d)\n\
-\tload balance: balance=%d, balance factor=%.2lf, bin count=%d, balance alg=%d (0 - proc; 1 - node)\n\
+\tcontainer type: %d (0 - kv; 1 - bin)\n\
+\tload balance: balance=%d, factor=%.2lf, bin=%d, freq=%d, alg=%d (0 - proc; 1 - node)\n\
 \tMCDRAM: use_mcdram=%d\n\
 \tstat & debug: output stat=%d, stat file=%s, output peak mem=%d, debug level=%x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, MAX_RECORD_SIZE,
         SHUFFLE_TYPE, COMM_UNIT_SIZE, MIN_SBUF_COUNT, MAX_SBUF_COUNT, READ_TYPE, WRITE_TYPE, 
         WORK_STEAL, MAKE_PROGRESS,
-        BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BALANCE_ALG,
+        CONTAINER_TYPE,
+        BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BALANCE_FREQ, BALANCE_ALG,
         USE_MCDRAM,
 	OUTPUT_STAT, STAT_FILE, RECORD_PEAKMEM, DBG_LEVEL);
         fflush(stdout);
