@@ -181,7 +181,10 @@ class KMVItem : public Readable<KeyType, ValType>   {
     }
 
     int read(KeyType *key, ValType *val) {
-        if (valptr == entry->val.values_end) return -1;
+        if (valptr == entry->val.values_end) {
+            valptr = entry->val.values_start;
+            return -1;
+        }
         ser->key_from_bytes(key, entry->key, entry->keysize);
         int vsize = ser->val_from_bytes(val, valptr, 
                                         (int)(entry->val.values_end - valptr));

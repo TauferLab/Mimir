@@ -283,10 +283,22 @@ class txtstream<Type,typename std::enable_if<std::is_class<Type>::value, Type>::
     //    return 0;
     //}
 
-    static int to_txt (void* obj, int count,
+    static int to_txt (Type* obj, int count,
                        char *buf, int bufsize) {
-        LOG_ERROR("Cannot convert a class to string!\n");
-        return 0;
+        //LOG_ERROR("Cannot convert a class to string!\n");
+        //return 0;
+        int bytesize = 0;
+        for (int i = 0; i < count; i++) {
+            std::stringstream ss;
+            obj[i] >> ss;
+            const char *strptr = ss.str().c_str();
+            int strsize = (int)ss.str().size();
+            if (bufsize < strsize) return -1;
+            memcpy(buf, strptr, strsize);
+            bytesize += strsize;
+            bufsize -= strsize;
+        }
+        return bytesize;
     }
 };
 
@@ -481,7 +493,7 @@ class Serializer {
         bufsize -= keybytes;
         if (!std::is_void<ValType>::value) {
             if (bufsize < 1) return -1;
-            *buffer = ',';
+            *buffer = ' ';
             buffer += 1;
             bufsize -= 1;
             sepsize += 1;

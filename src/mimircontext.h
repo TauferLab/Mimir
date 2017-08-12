@@ -26,6 +26,7 @@
 #include "bincontainer.h"
 #include "combinebincontainer.h"
 #include "kmvcontainer.h"
+#include "uniteddataset.h"
 #include "collectiveshuffler.h"
 #include "nbcollectiveshuffler.h"
 #include "combinecollectiveshuffler.h"
@@ -74,11 +75,11 @@ class MimirContext {
         }
     }
 
-    MimirContext(MPI_Comm mimir_comm,
+    MimirContext(MPI_Comm mimir_comm = MPI_COMM_WORLD,
                  void (*map_fn)(Readable<InKeyType,InValType> *input, 
-                                Writable<KeyType,ValType> *output, void *ptr),
+                                Writable<KeyType,ValType> *output, void *ptr) = NULL,
                  void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                   Writable<OutKeyType,OutValType> *output, void *ptr),
+                                   Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
                  void (*combine_fn)(Combinable<KeyType,ValType> *output,
                                     KeyType* key, ValType* val1, ValType* val2, ValType* val3, void *ptr) = NULL,
                  int (*hash_fn)(KeyType* key, ValType *val, int npartition) = NULL,
@@ -136,8 +137,29 @@ class MimirContext {
         this->user_map = map_fn;
     }
 
+    void set_reduce_callback(void (*reduce_fn)(Readable<KeyType,ValType> *input, 
+                                               Writable<OutKeyType,OutValType> *output, void *ptr)) {
+        this->user_reduce = reduce_fn;
+    }
+
     void set_user_database(void *database) {
         user_database = (BaseDatabase<KeyType,ValType>*)database;
+    }
+
+    void set_outfile_format(const char *format) {
+        outfile_format = format;
+    }
+
+    void set_input_files(std::vector<std::string>& input) {
+        input_dir = input;
+    }
+
+    void set_input_files(std::string& input) {
+        input_dir.push_back(input);
+    }
+
+    void set_output_files(std::string& output) {
+        output_dir = output;
     }
 
     void *get_output_handle() {
@@ -145,19 +167,26 @@ class MimirContext {
     }
 
     void insert_data(void *handle) {
-        if (database != NULL) {
-            BaseDatabase<KeyType,ValType>::subRef(database);
-            database = NULL;
-        }
-        in_database = (BaseDatabase<InKeyType,InValType>*)handle;
+        //if (database != NULL) {
+        //    BaseDatabase<KeyType,ValType>::subRef(database);
+        //    database = NULL;
+        //}
+        if (handle == NULL) LOG_ERROR("The handle inserted is not valid!\n");
+        BaseDatabase<InKeyType,InValType>* in_database = (BaseDatabase<InKeyType,InValType>*)handle;
         BaseDatabase<InKeyType,InValType>::addRef(in_database);
+        in_databases.push_back(in_database);
     }
 
-    uint64_t map(void *ptr = NULL) {
-
+    uint64_t map(void (*map_fn)(Readable<InKeyType,InValType> *input, 
+                                Writable<KeyType,ValType> *output, void *ptr) = NULL,
+                 void *ptr = NULL)
+    {
+        if (map_fn != NULL) user_map = map_fn;
         BaseShuffler<KeyType,ValType> *c = NULL;
         BaseDatabase<KeyType,ValType> *kv = NULL;
-        Readable<InKeyType,InValType> *input = NULL;
+        //Readable<InKeyType,InValType> *input = NULL;
+        std::vector<Readable<InKeyType,InValType>*> inputs;
+        UnitedDataset<InKeyType,InValType> *united_input = NULL;
         Writable<KeyType,ValType> *output = NULL;
         FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType> *reader = NULL;
         FileWriter<KeyType,ValType> *writer = NULL;
@@ -170,11 +199,23 @@ class MimirContext {
 
         LOG_PRINT(DBG_GEN, "MapReduce: map start\n");
 
-        // input from current database
-        if (database != NULL) input = dynamic_cast<Readable<InKeyType,InValType>*>(database);
-        else if (in_database != NULL) input = in_database;
-        // input from files
-        else if (input_dir.size() > 0) {
+        //printf("in_database size=%ld, database=%p\n",
+        //       in_databases.size(), database);
+
+        // Input from outside
+        if (in_databases.size() != 0) {
+            for (auto iter : in_databases) {
+                inputs.push_back(iter);
+            }
+        }
+        // Input from this context
+        if (database != NULL) {
+            Readable<InKeyType,InValType>* input = dynamic_cast<Readable<InKeyType,InValType>*>(database);
+            if (input == NULL) LOG_ERROR("Dynamic cast error!\n");
+            inputs.push_back(input);
+        }
+        // Input from files
+        if (input_dir.size() > 0) {
             if (user_repartition != NULL) {
                 if (WORK_STEAL) {
                     chunk_mgr = new StealChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYSIZE);
@@ -185,16 +226,19 @@ class MimirContext {
             else
                 chunk_mgr = new ChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYNAME);
             reader = FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType>::getReader(mimir_ctx_comm, chunk_mgr, user_repartition);
-            input = reader;
-        } else {
-            input = NULL;
+            inputs.push_back(reader);
         }
+        // Empty
+        //else {
+        //    inputs.clear();
+        //}
 
-        // output to customized database
+        // Output to customized database
         if (user_database != NULL) {
             output = user_database;
-        // output to stage area
-        } else if (user_reduce != NULL 
+        }
+        // Output to this context
+        else if (user_reduce != NULL 
                    || output_mode == EXPLICIT_OUTPUT) {
             if (BALANCE_LOAD) {
                 if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
@@ -209,27 +253,32 @@ class MimirContext {
                 }
             }
             output = kv;
-        // output to files
-        } else {
+        }
+        // Output to files
+        else {
             writer = FileWriter<KeyType,ValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
             writer->set_file_format(outfile_format.c_str());
             output = writer;
         }
 
-        // map with shuffle
+        // Map with shuffle
         if (do_shuffle) {
+            // Map with combiner
             if (!user_combine) {
+                // MPI_Alltoallv shuffler
                 if (SHUFFLE_TYPE == 0)
                     c = new CollectiveShuffler<KeyType,ValType>(mimir_ctx_comm, output, user_hash, keycount, valcount);
+                // MPI_Ialltoallv shuffler
                 else if (SHUFFLE_TYPE == 1)
                     c = new NBCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm, output, user_hash, keycount, valcount);
-                //else if (SHUFFLE_TYPE == 2)
-                //    c = new NBShuffler(output, user_hash);
                 else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
+            // Map without combiner
             } else {
+                // MPI_Alltoallv shuffler
                 if (SHUFFLE_TYPE == 0)
                     c = new CombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm, user_combine, ptr,
                                                       output, user_hash, keycount, valcount);
+                // MPI_Ialltoallv shuffler
                 else if (SHUFFLE_TYPE == 1)
                     c = new NBCombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm, user_combine, ptr,
                                                         output, user_hash, keycount, valcount);
@@ -245,34 +294,53 @@ class MimirContext {
             if (reader != NULL) {
                 reader->set_shuffler(c);
             }
-            if (input) input->open();
+            if (inputs.size() != 0) {
+                united_input = new UnitedDataset<InKeyType,InValType>(inputs);
+                united_input->open();
+            }
+            //if (input) input->open();
             //if (user_map == (MapCallback)MIMIR_COPY) {
             //  ::mimir_copy(input, c, NULL);
             //} else {
-            user_map(input, c, ptr);
+            user_map(united_input, c, ptr);
             //}
             c->close();
-            if (input) {
-                input->close();
-                input_records = input->get_record_count();
+            //if (input) {
+            //    input->close();
+            //    input_records = input->get_record_count();
+            //}
+            if (inputs.size() != 0) {
+                united_input->close();
+                input_records = united_input->get_record_count();
+                delete united_input;
             }
             if (output) {
                 output->close();
                 kv_records = output->get_record_count();
             }
             delete c;
-            // map without shuffle
-        } else {
+        }
+        // Map without shuffler
+        else {
             if (output) output->open();
-            if (input) input->open();
+            //if (input) input->open();
+            if (inputs.size() != 0) {
+                united_input = new UnitedDataset<InKeyType,InValType>(inputs);
+                united_input->open();
+            }
             //if (user_map == (MapCallback)MIMIR_COPY) {
             //  ::mimir_copy(input, output, NULL);
             //} else {
-                user_map(input, output, ptr);
+                user_map(united_input, output, ptr);
             //}
-            if (input) {
-                input->close();
-                input_records = input->get_record_count();
+            //if (input) {
+            //    input->close();
+            //    input_records = input->get_record_count();
+            //}
+            if (inputs.size() != 0) {
+                united_input->close();
+                input_records = united_input->get_record_count();
+                delete united_input;
             }
             if (output) {
                 output->close();
@@ -280,18 +348,22 @@ class MimirContext {
             }
         }
 
+        // Cleanup input objects
+        if (in_databases.size() != 0) {
+            for (auto iter : in_databases) {
+                BaseDatabase<InKeyType,InValType>::subRef(iter);
+            }
+            in_databases.clear();
+	}
         if (database != NULL) {
             BaseDatabase<KeyType,ValType>::subRef(database);
             database = NULL;
         }
-	else if (in_database != NULL) {
-            BaseDatabase<InKeyType,InValType>::subRef(in_database); 
-            in_database = NULL;
-	}
-        else {
+        if (reader != NULL) {
             delete reader;
         }
 
+        // Cleanup output objects
         if (user_database != NULL) {
             database = user_database;
             BaseDatabase<KeyType,ValType>::addRef(database);
@@ -322,7 +394,10 @@ class MimirContext {
         return total_records;
     }
 
-    uint64_t reduce(void *ptr = NULL) {
+    uint64_t reduce(void (*reduce_fn)(Readable<KeyType,ValType> *input,
+                                      Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
+                    void *ptr = NULL) {
+        if (reduce_fn != NULL) user_reduce = reduce_fn;
         KVContainer<OutKeyType,OutValType> *kv = NULL;
         KMVContainer<KeyType,ValType> *kmv = NULL;
         FileWriter<OutKeyType,OutValType> *writer = NULL;
@@ -343,6 +418,7 @@ class MimirContext {
         // output to user database
         if (user_database != NULL) {
             output = dynamic_cast<Writable<OutKeyType,OutValType>*>(user_database);
+            if (output == NULL) LOG_ERROR("Dynamic cast error!\n");
         // output to stage area
         } else if (output_mode == EXPLICIT_OUTPUT) {
             kv = new KVContainer<OutKeyType,OutValType>(bincount, outkeycount, outvalcount);
@@ -385,8 +461,10 @@ class MimirContext {
             user_database = NULL;
         } else if (output_mode == EXPLICIT_OUTPUT) {
             database = dynamic_cast<BaseDatabase<KeyType,ValType>*>(kv);
+            if (database == NULL) LOG_ERROR("Dynamic cast error!\n");
             BaseDatabase<KeyType,ValType>::addRef(database);
-            // output to disk files
+            //printf("haha, database=%p\n", database);
+        // output to disk files
         } else {
             delete writer;
             database = NULL;
@@ -408,8 +486,9 @@ class MimirContext {
 
     uint64_t output(void *ptr = NULL) {
 
-        typename SafeType<KeyType>::type key[keycount];
-        typename SafeType<ValType>::type val[valcount];
+        typename SafeType<OutKeyType>::type key[keycount];
+        typename SafeType<OutValType>::type val[valcount];
+        Readable<OutKeyType,OutValType> *output = NULL;
 
         if (database == NULL)
             LOG_ERROR("No data to output!\n");
@@ -418,15 +497,17 @@ class MimirContext {
 
         FileWriter<OutKeyType, OutValType> *writer = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
         writer->set_file_format(outfile_format.c_str());
-        database->open();
+        output = dynamic_cast<Readable<OutKeyType,OutValType>*>(database);
+        if (output == NULL) LOG_ERROR("Dynamic cast error!\n");
+        output->open();
         writer->open();
         //output_fn(database, writer, ptr);
-        while (database->read(key, val) == 0) {
+        while (output->read(key, val) == 0) {
             //printf("key=%s, val=%ld\n", key[0], val[0]);
             writer->write(key, val);
         }
         writer->close();
-        database->close();
+        output->close();
         uint64_t output_records = writer->get_record_count();
         delete writer;
 
@@ -475,10 +556,6 @@ class MimirContext {
     uint64_t get_kv_record_count() { return kv_records; }
     uint64_t get_kmv_record_count() { return kmv_records; }
 
-    void set_outfile_format(const char *format) {
-        outfile_format = format;
-    }
-
     void print_record_count () {
         printf("%d[%d] input=%ld, kv=%ld, kmv=%ld, output=%ld\n",
                mimir_ctx_rank, mimir_ctx_size, input_records,
@@ -525,7 +602,8 @@ class MimirContext {
         this->output_mode = output_mode;
 
         database = user_database = NULL;
-        in_database = NULL;
+        //in_database = NULL;
+        in_databases.clear();
         input_records = output_records = 0;
         kv_records = kmv_records = 0;
 
@@ -544,9 +622,12 @@ class MimirContext {
             BaseDatabase<KeyType,ValType>::subRef(database);
             database = NULL;
         }
-	else if (in_database != NULL) {
-            BaseDatabase<InKeyType,InValType>::subRef(in_database); 
-            in_database = NULL;
+	else if (in_databases.size() != 0) {
+            for (auto iter : in_databases) {
+                BaseDatabase<InKeyType,InValType>::subRef(iter);
+            }
+            in_databases.clear();
+            //in_database = NULL;
 	}
 	mimir_ctx_count -= 1;
         if (mimir_ctx_count == 0) {
@@ -569,7 +650,9 @@ class MimirContext {
     std::string              output_dir;
 
     BaseDatabase<KeyType,ValType>*         database;
-    BaseDatabase<InKeyType,InValType>*     in_database;
+    //BaseDatabase<InKeyType,InValType>*     in_database;
+    // Input can have multiple databases
+    std::vector<BaseDatabase<InKeyType, InValType>*> in_databases;
     BaseDatabase<KeyType,ValType>*         user_database;
 
     OUTPUT_MODE   output_mode;
