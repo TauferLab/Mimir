@@ -45,6 +45,8 @@ void combiner (Combinable<int64_t, int64_t> *combiner,
                int64_t *key, int64_t *val1, int64_t *val2, 
                int64_t *rval, void *ptr);
 
+void printresult(FILE* fp, int64_t * pred, size_t nlocalverts);
+
 int rank, size;
 int64_t nglobalverts;           // global vertex count
 int64_t nglobaledges;           // global edge count
@@ -186,6 +188,16 @@ int main(int argc, char **argv)
 
     delete bfs_mimir;
 
+    char filename[1024];
+    sprintf(filename, "%s%d.%d", output.c_str(), size, rank);
+    FILE *fp = fopen(filename, "w");
+    if (!fp) {
+        fprintf(stderr, "Output error!\n");
+        exit(1);
+    }
+    printresult(fp, pred, nlocalverts);
+    fclose(fp);
+
     if (rank == 0) fprintf(stdout, "BFS traversal end.\n");
 
     delete[] vis;
@@ -321,10 +333,10 @@ int64_t getrootvert()
     return myroot;
 }
 
-void printresult(int64_t * pred, size_t nlocalverts)
+void printresult(FILE* fp, int64_t * pred, size_t nlocalverts)
 {
     for (size_t i = 0; i < nlocalverts; i++) {
-        size_t v = nlocalverts * rank + i;
-        printf("%ld:%ld\n", v, pred[i]);
+        size_t v = nvertoffset + i;
+        fprintf(fp, "%ld %ld\n", v, pred[i]);
     }
 }

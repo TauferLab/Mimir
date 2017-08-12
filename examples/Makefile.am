@@ -4,7 +4,7 @@ AM_CPPFLAGS = -I../src -g -Wno-write-strings -Wall -Wconversion     \
 AM_CXXFLAGS = -I../src -g -Wno-write-strings -Wall -Wconversion     \
 	      -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
 
-bin_PROGRAMS = wc wc_cb bfs oc oc_cb join
+bin_PROGRAMS = wc wc_cb bfs bfs_join oc oc_cb join
 
 wc_SOURCES = wordcount.cpp
 wc_LDFLAGS = $(AM_LDFLAGS)
@@ -19,6 +19,10 @@ wc_cb_LDADD = -lmimir
 bfs_SOURCES = bfs.cpp
 bfs_LDFLAGS = $(AM_LDFLAGS)
 bfs_LDADD = -lmimir
+
+bfs_join_SOURCES = bfs_join.cpp
+bfs_join_LDFLAGS = $(AM_LDFLAGS)
+bfs_join_LDADD = -lmimir
 
 oc_SOURCES = octree_clustering.cpp
 oc_LDFLAGS = $(AM_LDFLAGS)
