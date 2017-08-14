@@ -39,152 +39,70 @@
 
 namespace MIMIR_NS {
 
-enum OUTPUT_MODE {IMPLICIT_OUTPUT, EXPLICIT_OUTPUT};
-
+//enum OUTPUT_MODE {IMPLICIT_OUTPUT, EXPLICIT_OUTPUT};
 //#define MIMIR_COPY (MapCallback)0x01
 
 template <typename KeyType, typename ValType,
          typename InKeyType = KeyType, typename InValType = ValType,
-         typename OutKeyType= KeyType, typename OutValType = ValType>
+         typename OutKeyType = KeyType, typename OutValType = ValType>
 class MimirContext {
   public:
-    MimirContext(MPI_Comm mimir_comm,
-                 void (*map_fn)(Readable<InKeyType,InValType> *input, 
-                                Writable<KeyType,ValType> *output, void *ptr),
-                 void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                   Writable<OutKeyType,OutValType> *output, void *ptr),
-                 std::vector<std::string> input_dir,
-                 std::string output_dir,
-                 RepartitionCallback repartition_fn = NULL,
-                 void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                    KeyType* key, ValType* val1, ValType* val2, ValType* val3, void *ptr) = NULL,
-                 int (*hash_fn)(KeyType* key, ValType *val, int npartition) = NULL,
-                 bool do_shuffle = true,
-                 OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
 
-        if (repartition_fn == NULL) {
-            _init(1, 1, 1, 1, 1, 1,
-                  mimir_comm, map_fn, reduce_fn, combine_fn,
-                  hash_fn, text_file_repartition, do_shuffle,
-                  input_dir, output_dir, output_mode);
-        } else {
-            _init(1, 1, 1, 1, 1, 1,
-                  mimir_comm, map_fn, reduce_fn, combine_fn,
-                  hash_fn, repartition_fn, do_shuffle,
-                  input_dir, output_dir, output_mode);
-        }
+    // Initialize Mimir Context
+    MimirContext(std::vector<std::string> input_files = std::vector<std::string>(),
+                 std::string output_files = std::string(),
+                 MPI_Comm mimir_comm = MPI_COMM_WORLD,
+                 void (*combine_fn)(Combinable<KeyType,ValType> *output,
+                                    KeyType* key,
+                                    ValType* val1, ValType* val2, ValType* val3,
+                                    void *ptr) = NULL,
+                 int (*partition_fn)(KeyType* key, ValType *val,
+                                     int npartition) = NULL,
+                 int (*padding_fn)(const char* buf, int buflen,
+                                   bool islast) = NULL,
+                 int keycount = 1, int valcount = 1,
+                 int inkeycount = 1, int invalcount = 1,
+                 int outkeycount = 1, int outvalcount = 1) {
+        _init(input_files, output_files,
+              mimir_comm,
+              combine_fn, partition_fn, padding_fn,
+              keycount, valcount,
+              inkeycount, invalcount,
+              outkeycount, outvalcount);
     }
 
-    MimirContext(MPI_Comm mimir_comm = MPI_COMM_WORLD,
-                 void (*map_fn)(Readable<InKeyType,InValType> *input, 
-                                Writable<KeyType,ValType> *output, void *ptr) = NULL,
-                 void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                   Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
-                 void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                    KeyType* key, ValType* val1, ValType* val2, ValType* val3, void *ptr) = NULL,
-                 int (*hash_fn)(KeyType* key, ValType *val, int npartition) = NULL,
-                 bool do_shuffle = true,
-                 OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
-
-        std::vector<std::string> input_dir;
-        std::string output_dir;
-
-        _init(1, 1, 1, 1, 1, 1,
-              mimir_comm, map_fn, reduce_fn, combine_fn,
-              hash_fn, NULL, do_shuffle,
-              input_dir, output_dir, output_mode);
-    }
-
-    MimirContext(MPI_Comm mimir_comm,
-                 int keycount, int valcount,
-                 int inkeycount, int invalcount,
-                 int outkeycount, int outvalcount,
-                 void (*map_fn)(Readable<InKeyType,InValType> *input, 
-                                Writable<KeyType,ValType> *output, void *ptr),
-                 void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                   Writable<OutKeyType,OutValType> *output, void *ptr),
-                 std::vector<std::string> input_dir,
-                 std::string output_dir,
-                 RepartitionCallback repartition_fn = NULL,
-                 void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                    KeyType* key, ValType* val1, ValType* val2, ValType *val3, void *ptr) = NULL,
-                 int (*hash_fn)(KeyType* key, ValType* val, int npartition) = NULL,
-                 bool do_shuffle = true,
-                 OUTPUT_MODE output_mode = EXPLICIT_OUTPUT) {
-
-        if (repartition_fn == NULL) {
-            _init(keycount, valcount, inkeycount, invalcount,
-                  outkeycount, outvalcount,
-                  mimir_comm, map_fn, reduce_fn, combine_fn,
-                  hash_fn, text_file_repartition, do_shuffle,
-                  input_dir, output_dir, output_mode);
-        } else {
-            _init(keycount, valcount, inkeycount, invalcount,
-                  outkeycount, outvalcount,
-                  mimir_comm, map_fn, reduce_fn, combine_fn,
-                  hash_fn, repartition_fn, do_shuffle,
-                  input_dir, output_dir, output_mode);
-        }
-    }
-
-
+    // Destory Mimir Context
     ~MimirContext() {
         _uinit();
     }
 
-    void set_map_callback(void (*map_fn)(Readable<InKeyType,InValType> *input, 
-                                         Writable<KeyType,ValType> *output, void *ptr)) {
-        this->user_map = map_fn;
-    }
-
-    void set_reduce_callback(void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                               Writable<OutKeyType,OutValType> *output, void *ptr)) {
-        this->user_reduce = reduce_fn;
-    }
-
+    // Set customized database
     void set_user_database(void *database) {
-        user_database = (BaseDatabase<KeyType,ValType>*)database;
+        this->user_database = (BaseDatabase<KeyType,ValType>*)database;
     }
 
-    void set_outfile_format(const char *format) {
-        outfile_format = format;
-    }
-
-    void set_input_files(std::vector<std::string>& input) {
-        input_dir = input;
-    }
-
-    void set_input_files(std::string& input) {
-        input_dir.push_back(input);
-    }
-
-    void set_output_files(std::string& output) {
-        output_dir = output;
-    }
-
-    void *get_output_handle() {
+    // Get data handle
+    void *get_data_handle() {
         return database;
     }
 
-    void insert_data(void *handle) {
-        //if (database != NULL) {
-        //    BaseDatabase<KeyType,ValType>::subRef(database);
-        //    database = NULL;
-        //}
+    // Insert data handle
+    void insert_data_handle(void *handle) {
         if (handle == NULL) LOG_ERROR("The handle inserted is not valid!\n");
-        BaseDatabase<InKeyType,InValType>* in_database = (BaseDatabase<InKeyType,InValType>*)handle;
-        BaseDatabase<InKeyType,InValType>::addRef(in_database);
-        in_databases.push_back(in_database);
+        BaseDatabase<InKeyType,InValType>::addRef((BaseDatabase<InKeyType,InValType>*)handle);
+        in_databases.push_back((BaseDatabase<InKeyType,InValType>*)handle);
     }
 
-    uint64_t map(void (*map_fn)(Readable<InKeyType,InValType> *input, 
-                                Writable<KeyType,ValType> *output, void *ptr) = NULL,
-                 void *ptr = NULL)
+    // Map
+    uint64_t map(void (*user_map)(Readable<InKeyType,InValType> *input, 
+                                  Writable<KeyType,ValType> *output, void *ptr),
+                 void *ptr = NULL,
+                 bool do_shuffle = true,
+                 bool output_file = false,
+                 std::string outfile_format = "binary")
     {
-        if (map_fn != NULL) user_map = map_fn;
         BaseShuffler<KeyType,ValType> *c = NULL;
         BaseDatabase<KeyType,ValType> *kv = NULL;
-        //Readable<InKeyType,InValType> *input = NULL;
         std::vector<Readable<InKeyType,InValType>*> inputs;
         UnitedDataset<InKeyType,InValType> *united_input = NULL;
         Writable<KeyType,ValType> *output = NULL;
@@ -199,9 +117,7 @@ class MimirContext {
 
         LOG_PRINT(DBG_GEN, "MapReduce: map start\n");
 
-        //printf("in_database size=%ld, database=%p\n",
-        //       in_databases.size(), database);
-
+        /////////////// get input objects ////////////////////
         // Input from outside
         if (in_databases.size() != 0) {
             for (auto iter : in_databases) {
@@ -210,13 +126,12 @@ class MimirContext {
         }
         // Input from this context
         if (database != NULL) {
-            Readable<InKeyType,InValType>* input = dynamic_cast<Readable<InKeyType,InValType>*>(database);
-            if (input == NULL) LOG_ERROR("Dynamic cast error!\n");
+            Readable<InKeyType,InValType>* input = (Readable<InKeyType,InValType>*)(database);
             inputs.push_back(input);
         }
         // Input from files
         if (input_dir.size() > 0) {
-            if (user_repartition != NULL) {
+            if (user_padding != NULL) {
                 if (WORK_STEAL) {
                     chunk_mgr = new StealChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYSIZE);
                 } else {
@@ -225,21 +140,18 @@ class MimirContext {
             }
             else
                 chunk_mgr = new ChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYNAME);
-            reader = FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType>::getReader(mimir_ctx_comm, chunk_mgr, user_repartition);
+            reader = FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType>::getReader(mimir_ctx_comm,
+                                                                                               chunk_mgr, user_padding);
             inputs.push_back(reader);
         }
-        // Empty
-        //else {
-        //    inputs.clear();
-        //}
 
+        ///////////////////// get output objects ////////////////////////
         // Output to customized database
         if (user_database != NULL) {
-            output = user_database;
+            output = (Writable<KeyType,ValType>*)user_database;
         }
         // Output to this context
-        else if (user_reduce != NULL 
-                   || output_mode == EXPLICIT_OUTPUT) {
+        else if (!output_file) {
             if (BALANCE_LOAD) {
                 if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
                 else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
@@ -267,21 +179,39 @@ class MimirContext {
             if (!user_combine) {
                 // MPI_Alltoallv shuffler
                 if (SHUFFLE_TYPE == 0)
-                    c = new CollectiveShuffler<KeyType,ValType>(mimir_ctx_comm, output, user_hash, keycount, valcount);
+                    c = new CollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
+                                                                output,
+                                                                user_partition,
+                                                                keycount,
+                                                                valcount);
                 // MPI_Ialltoallv shuffler
                 else if (SHUFFLE_TYPE == 1)
-                    c = new NBCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm, output, user_hash, keycount, valcount);
+                    c = new NBCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
+                                                                  output,
+                                                                  user_partition,
+                                                                  keycount,
+                                                                  valcount);
                 else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
             // Map without combiner
             } else {
                 // MPI_Alltoallv shuffler
                 if (SHUFFLE_TYPE == 0)
-                    c = new CombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm, user_combine, ptr,
-                                                      output, user_hash, keycount, valcount);
+                    c = new CombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
+                                                                       user_combine,
+                                                                       ptr,
+                                                                       output,
+                                                                       user_partition,
+                                                                       keycount,
+                                                                       valcount);
                 // MPI_Ialltoallv shuffler
                 else if (SHUFFLE_TYPE == 1)
-                    c = new NBCombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm, user_combine, ptr,
-                                                        output, user_hash, keycount, valcount);
+                    c = new NBCombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
+                                                                         user_combine,
+                                                                         ptr,
+                                                                         output,
+                                                                         user_partition,
+                                                                         keycount,
+                                                                         valcount);
                 else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
             }
             if (output) {
@@ -356,7 +286,7 @@ class MimirContext {
             in_databases.clear();
 	}
         if (database != NULL) {
-            BaseDatabase<KeyType,ValType>::subRef(database);
+            BaseDatabase<InKeyType,InValType>::subRef((BaseDatabase<InKeyType,InValType>*)database);
             database = NULL;
         }
         if (reader != NULL) {
@@ -366,12 +296,12 @@ class MimirContext {
         // Cleanup output objects
         if (user_database != NULL) {
             database = user_database;
-            BaseDatabase<KeyType,ValType>::addRef(database);
+            BaseDatabase<KeyType,ValType>::addRef((BaseDatabase<KeyType,ValType>*)database);
             user_database = NULL;
-        } else if (user_reduce != NULL 
-                   || output_mode == EXPLICIT_OUTPUT) {
+        } else if (!output_file) {
             database = kv;
-            BaseDatabase<KeyType,ValType>::addRef(database);
+            isoutkv = false;
+            BaseDatabase<KeyType,ValType>::addRef((BaseDatabase<KeyType,ValType>*)database);
         } else {
             database = NULL;
             delete writer;
@@ -383,21 +313,23 @@ class MimirContext {
 
         uint64_t total_records = 0;
         PROFILER_RECORD_TIME_START;
-	MPI_Allreduce(&kv_records, &total_records, 1,
+        MPI_Allreduce(&kv_records, &total_records, 1,
                       MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         PROFILER_RECORD_COUNT(COUNTER_MAX_KVS, kv_records, OPMAX);
 
-        LOG_PRINT(DBG_GEN, "MapReduce: map done (KVs=%ld)\n", kv_records);
+        LOG_PRINT(DBG_GEN, "MapReduce: map done (KVs=%ld, peakmem=%ld)\n", kv_records, peakmem);
 
         return total_records;
     }
 
-    uint64_t reduce(void (*reduce_fn)(Readable<KeyType,ValType> *input,
-                                      Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
-                    void *ptr = NULL) {
-        if (reduce_fn != NULL) user_reduce = reduce_fn;
+    uint64_t reduce(void (*user_reduce)(Readable<KeyType,ValType> *input,
+                                        Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
+                    void *ptr = NULL,
+                    bool output_file = true,
+                    std::string outfile_format = "binary") {
+
         KVContainer<OutKeyType,OutValType> *kv = NULL;
         KMVContainer<KeyType,ValType> *kmv = NULL;
         FileWriter<OutKeyType,OutValType> *writer = NULL;
@@ -407,21 +339,19 @@ class MimirContext {
         if (user_reduce == NULL) {
             LOG_ERROR("Please set reduce callback!\n");
         }
-
         if (database == NULL) {
             LOG_ERROR("No data to reduce!\n");
         }
 
         LOG_PRINT(DBG_GEN, "MapReduce: reduce start, %ld\n", Container::mem_bytes);
 
-        input = database;
+        input = (Readable<KeyType,ValType>*)database;
         // output to user database
         if (user_database != NULL) {
-            output = dynamic_cast<Writable<OutKeyType,OutValType>*>(user_database);
-            if (output == NULL) LOG_ERROR("Dynamic cast error!\n");
+            output = (Writable<OutKeyType,OutValType>*)(user_database);
         // output to stage area
-        } else if (output_mode == EXPLICIT_OUTPUT) {
-            kv = new KVContainer<OutKeyType,OutValType>(bincount, outkeycount, outvalcount);
+        } else if (!output_file) {
+            kv = new KVContainer<OutKeyType,OutValType>(bincount, keycount, valcount);
             output = kv;
         // output to disk files
         } else {
@@ -432,7 +362,7 @@ class MimirContext {
 
         kmv = new KMVContainer<KeyType,ValType>(keycount, valcount);
         kmv->convert(input);
-        BaseDatabase<KeyType,ValType>::subRef(database);
+        BaseDatabase<KeyType,ValType>::subRef((BaseDatabase<KeyType,ValType>*)database);
         database = NULL;
 
         kmv_records = kmv->get_record_count();
@@ -457,13 +387,12 @@ class MimirContext {
 
         if (user_database != NULL) {
             database = user_database;
-            BaseDatabase<KeyType,ValType>::addRef(database);
+            BaseDatabase<OutKeyType,OutValType>::addRef((BaseDatabase<OutKeyType,OutValType>*)database);
             user_database = NULL;
-        } else if (output_mode == EXPLICIT_OUTPUT) {
-            database = dynamic_cast<BaseDatabase<KeyType,ValType>*>(kv);
-            if (database == NULL) LOG_ERROR("Dynamic cast error!\n");
-            BaseDatabase<KeyType,ValType>::addRef(database);
-            //printf("haha, database=%p\n", database);
+        } else if (!output_file) {
+            BaseDatabase<OutKeyType,OutValType>::addRef(kv);
+            database = kv;
+            isoutkv = true;
         // output to disk files
         } else {
             delete writer;
@@ -484,7 +413,7 @@ class MimirContext {
         return total_records;
     }
 
-    uint64_t output(void *ptr = NULL) {
+    uint64_t output(std::string outfile_format = "binary") {
 
         typename SafeType<OutKeyType>::type key[keycount];
         typename SafeType<OutValType>::type val[valcount];
@@ -495,15 +424,13 @@ class MimirContext {
 
         LOG_PRINT(DBG_GEN, "MapReduce: output start\n");
 
-        FileWriter<OutKeyType, OutValType> *writer = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
+        FileWriter<OutKeyType, OutValType> *writer 
+            = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
         writer->set_file_format(outfile_format.c_str());
-        output = dynamic_cast<Readable<OutKeyType,OutValType>*>(database);
-        if (output == NULL) LOG_ERROR("Dynamic cast error!\n");
+        output = (Readable<OutKeyType,OutValType>*)(database);
         output->open();
         writer->open();
-        //output_fn(database, writer, ptr);
         while (output->read(key, val) == 0) {
-            //printf("key=%s, val=%ld\n", key[0], val[0]);
             writer->write(key, val);
         }
         writer->close();
@@ -511,7 +438,7 @@ class MimirContext {
         uint64_t output_records = writer->get_record_count();
         delete writer;
 
-        BaseDatabase<KeyType,ValType>::subRef(database);
+        BaseDatabase<OutKeyType,OutValType>::subRef((BaseDatabase<OutKeyType,OutValType>*)database);
         database = NULL;
 
         uint64_t total_records = 0;
@@ -530,26 +457,48 @@ class MimirContext {
 
         typename SafeType<KeyType>::type key[keycount];
         typename SafeType<ValType>::type val[valcount];
+        Readable<KeyType,ValType> *db = NULL;
 
         if (database == NULL)
-            LOG_ERROR("No data to output!\n");
+            LOG_ERROR("No data to scan!\n");
+
+        db = (BaseDatabase<KeyType,ValType>*)(database);
 
         LOG_PRINT(DBG_GEN, "MapReduce: scan start\n");
 
-        database->open();
-        while (database->read(key, val) == 0) {
+        db->open();
+        while (db->read(key, val) == 0) {
             scan_fn(key, val, ptr);
         }
-        database->close();
+        db->close();
 
         LOG_PRINT(DBG_GEN, "MapReduce: scan done\n");
 
         return 0;
     }
 
-    //uint64_t reduce(void *ptr = NULL);
-    //uint64_t output(void *ptr = NULL);
-    //uint64_t mapreduce(Readable *input, Writable *output, void *ptr = NULL);
+    uint64_t scan_output(void (*scan_fn)(OutKeyType *key, OutValType *val, void *ptr),
+                         void *ptr = NULL) {
+
+        typename SafeType<OutKeyType>::type key[keycount];
+        typename SafeType<OutValType>::type val[valcount];
+        Readable<OutKeyType,OutValType> *db = NULL;
+
+        if (database == NULL)
+            LOG_ERROR("No data to scan!\n");
+
+        db = (BaseDatabase<OutKeyType,OutValType>*)(database);
+
+        LOG_PRINT(DBG_GEN, "MapReduce: scan start\n");
+
+        db->open();
+        while (db->read(key, val) == 0) {
+            scan_fn(key, val, ptr);
+        }
+        db->close();
+
+        return 0;
+    }
 
     uint64_t get_input_record_count() { return input_records; }
     uint64_t get_output_record_count() { return output_records; }
@@ -563,22 +512,18 @@ class MimirContext {
     }
 
   private:
-    void _init(int keycount, int valcount,
-               int inkeycount, int invalcount,
-               int outkeycount, int outvalcount,
+    void _init(std::vector<std::string> &input_dir,
+               std::string &output_dir,
                MPI_Comm ctx_comm,
-               void (*map_fn)(Readable<InKeyType,InValType> *input, 
-                              Writable<KeyType,ValType> *output, void *ptr),
-               void (*reduce_fn)(Readable<KeyType,ValType> *input, 
-                                 Writable<OutKeyType,OutValType> *output, void *ptr),
                void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                  KeyType* key, ValType* val1, ValType* val2, ValType* val3, void *ptr),
+                                  KeyType* key,
+                                  ValType* val1, ValType* val2, ValType* val3,
+                                  void *ptr),
                int (*partition_fn)(KeyType* key, ValType* val, int npartition),
-               RepartitionCallback repartition_fn,
-               bool do_shuffle,
-               std::vector<std::string> &input_dir,
-               std::string output_dir,
-               OUTPUT_MODE output_mode) {
+               int (*padding_fn)(const char* buf, int buflen, bool islast),
+               int keycount, int valcount,
+               int inkeycount, int invalcount,
+               int outkeycount, int outvalcount) {
 
         this->keycount = keycount;
         this->valcount = valcount;
@@ -591,19 +536,16 @@ class MimirContext {
         MPI_Comm_rank(mimir_ctx_comm, &mimir_ctx_rank);
         MPI_Comm_size(mimir_ctx_comm, &mimir_ctx_size);
 
-        this->user_map = map_fn;
-        this->user_reduce = reduce_fn;
         this->user_combine = combine_fn;
-        this->user_hash = partition_fn;
-        this->user_repartition = repartition_fn;
-        this->do_shuffle = do_shuffle;
+        this->user_partition = partition_fn;
+        if (padding_fn == NULL) padding_fn = text_file_repartition;
+        this->user_padding = padding_fn;
         this->input_dir = input_dir;
         this->output_dir = output_dir;
-        this->output_mode = output_mode;
 
         database = user_database = NULL;
-        //in_database = NULL;
         in_databases.clear();
+
         input_records = output_records = 0;
         kv_records = kmv_records = 0;
 
@@ -614,12 +556,15 @@ class MimirContext {
 
         // BIN_COUNT may be changed by mimir_init function
         this->bincount = mimir_ctx_size * BIN_COUNT;
+
+        isoutkv = false;
     }
 
     void _uinit() {
         MPI_Comm_free(&mimir_ctx_comm);
         if (database != NULL) {
-            BaseDatabase<KeyType,ValType>::subRef(database);
+            if (!isoutkv) BaseDatabase<KeyType,ValType>::subRef((BaseDatabase<KeyType,ValType>*)database);
+            else BaseDatabase<OutKeyType,OutValType>::subRef((BaseDatabase<OutKeyType,OutValType>*)database);
             database = NULL;
         }
 	else if (in_databases.size() != 0) {
@@ -627,7 +572,6 @@ class MimirContext {
                 BaseDatabase<InKeyType,InValType>::subRef(iter);
             }
             in_databases.clear();
-            //in_database = NULL;
 	}
 	mimir_ctx_count -= 1;
         if (mimir_ctx_count == 0) {
@@ -635,27 +579,27 @@ class MimirContext {
         }
     }
 
-    void (*user_map)(Readable<InKeyType,InValType> *input, 
-                     Writable<KeyType,ValType> *output, void *ptr);
-    void (*user_reduce)(Readable<KeyType,ValType> *input, 
-                        Writable<OutKeyType,OutValType> *output, void *ptr);
+    // Callbacks
     void (*user_combine)(Combinable<KeyType,ValType> *output,
                          KeyType* key, ValType* val1, ValType* val2, ValType *val3, void *ptr);
-    int (*user_hash)(KeyType* key, ValType *val, int npartition);
+    int (*user_partition)(KeyType* key, ValType *val, int npartition);
+    int (*user_padding)(const char* buf, int buflen, bool islast);
 
-    RepartitionCallback user_repartition;
-    bool                do_shuffle;
+    // Configurations
+    std::vector<std::string> input_dir;    // Input files
+    std::string              output_dir;   // Output files
 
-    std::vector<std::string> input_dir;
-    std::string              output_dir;
+    // Count for <Key,Value>
+    int         keycount, valcount;
+    int         inkeycount, invalcount;
+    int         outkeycount, outvalcount;
 
-    BaseDatabase<KeyType,ValType>*         database;
-    //BaseDatabase<InKeyType,InValType>*     in_database;
-    // Input can have multiple databases
+    ////////////////////////////////////////////////////////////////////////
+    // Internal Structure
+    void*         database;
+    bool          isoutkv;
+    void*         user_database;
     std::vector<BaseDatabase<InKeyType, InValType>*> in_databases;
-    BaseDatabase<KeyType,ValType>*         user_database;
-
-    OUTPUT_MODE   output_mode;
 
     uint64_t    input_records;
     uint64_t    kv_records;
@@ -666,14 +610,7 @@ class MimirContext {
     int         mimir_ctx_rank;
     int         mimir_ctx_size;
 
-    int         keycount, valcount;
-    int         inkeycount, invalcount;
-    int         outkeycount, outvalcount;
-
     uint32_t    bincount;
-
-    // Configuration
-    std::string outfile_format="binary";
 };
 
 }

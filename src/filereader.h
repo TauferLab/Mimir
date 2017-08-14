@@ -39,17 +39,18 @@ class FileReader : public Readable<InKeyType, InValType> {
 
     static FileReader<FileFormat,KeyType,ValType,InKeyType,InValType> 
         *getReader(MPI_Comm comm, ChunkManager<KeyType,ValType> *chunk_mgr,
-                   RepartitionCallback repartition_fn);
+                   int (*padding_fn)(const char* buf, int buflen, bool islast));
     static FileReader<FileFormat,KeyType,ValType,InKeyType,InValType> *reader;
 
   public:
 
     FileReader(MPI_Comm comm,ChunkManager<KeyType,ValType> *chunk_mgr,
-               RepartitionCallback repartition_fn, int keycount = 1, int valcount = 1) {
+               int (*padding_fn)(const char* buf, int buflen, bool islast),
+               int keycount = 1, int valcount = 1) {
 
         this->reader_comm = comm;
         this->chunk_mgr = chunk_mgr;
-        this->repartition_fn = repartition_fn;
+        this->padding_fn = padding_fn;
         this->keycount = keycount;
         this->valcount = valcount;
 
@@ -231,7 +232,7 @@ class FileReader : public Readable<InKeyType, InValType> {
         PROFILER_RECORD_COUNT(COUNTER_FILE_SIZE, new_chunk.chunksize, OPSUM);
 
         if (chunk_mgr->has_head(state.cur_chunk) && cont_chunk == false) {
-            int count = repartition_fn(buffer + state.start_pos,
+            int count = padding_fn(buffer + state.start_pos,
                                        (int)state.win_size,
                                        chunk_mgr->is_file_end(state.cur_chunk));
             chunk_mgr->send_head(state.cur_chunk, buffer, count);
@@ -341,7 +342,7 @@ class FileReader : public Readable<InKeyType, InValType> {
     BaseShuffler<KeyType,ValType> * shuffler;
     FileParser      parser;
     uint64_t        record_count;
-    RepartitionCallback repartition_fn;
+    int (*padding_fn)(const char* buf, int buflen, bool islast);
 
     Serializer<InKeyType, InValType> *ser;
     int            keycount, valcount;
@@ -361,9 +362,9 @@ class DirectFileReader
   public:
     DirectFileReader(MPI_Comm comm,
                      ChunkManager<KeyType, ValType> *chunk_mgr, 
-                     RepartitionCallback repartition_cb) 
+                     int (*padding_fn)(const char* buf, int buflen, bool islast)) 
         : FileReader<FileFormat, KeyType, ValType, InKeyType, InValType> 
-        (comm, chunk_mgr, repartition_cb) {
+        (comm, chunk_mgr, padding_fn) {
     }
 
     ~DirectFileReader(){
@@ -458,8 +459,8 @@ class MPIFileReader : public FileReader<FileFormat, KeyType, ValType, InKeyType,
   public:
     MPIFileReader(MPI_Comm comm,
                   ChunkManager<KeyType,ValType> *chunk_mgr,
-                  RepartitionCallback repartition_cb) 
-        : FileReader<FileFormat, KeyType, ValType, InKeyType,InValType>(comm, chunk_mgr, repartition_cb) {
+                  int (*padding_fn)(const char* buf, int buflen, bool islast)) 
+        : FileReader<FileFormat, KeyType, ValType, InKeyType,InValType>(comm, chunk_mgr, padding_fn) {
     }
 
     ~MPIFileReader(){
@@ -790,13 +791,13 @@ FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>*
     FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>::getReader(
         MPI_Comm comm,
         ChunkManager<KeyType, ValType> *mgr, 
-        RepartitionCallback repartition_fn) {
+        int (*padding_fn)(const char* buf, int buflen, bool islast)) {
     if (READ_TYPE == 0) {
-        reader = new FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
+        reader = new FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
     } else if (READ_TYPE == 1) {
-        reader = new DirectFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
+        reader = new DirectFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
     } else if (READ_TYPE == 2) {
-        reader = new MPIFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, repartition_fn);
+        reader = new MPIFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
     } else {
         LOG_ERROR("Error reader type %d\n", READ_TYPE);
     }

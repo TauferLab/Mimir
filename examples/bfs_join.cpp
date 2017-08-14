@@ -76,7 +76,6 @@ int main(int argc, char **argv)
     }
 
     root         = strtoull(argv[1], NULL, 0);
-    //if (root < 0) srand((unsigned)root);
     nglobalverts = strtoull(argv[2], NULL, 0);
     std::string output = argv[3];
     std::vector<std::string> input;
@@ -86,14 +85,10 @@ int main(int argc, char **argv)
 
     // Load graphs
     MimirContext<int64_t,ValType,char*,void> *graph_loader
-        = new MimirContext<int64_t,ValType,char*,void>();
-    graph_loader->set_input_files(input);
+        = new MimirContext<int64_t,ValType,char*,void>(input);
     graph_loader->map(fileread);
 
     MimirContext<int64_t,ValType> *edge_list = new MimirContext<int64_t,ValType>();
-    edge_list->insert_data(graph_loader->get_output_handle());
-    edge_list->map(map_copy);
-    delete graph_loader;
 
     // Initialize root
     int tag = 0;
@@ -101,37 +96,44 @@ int main(int argc, char **argv)
     tag = ACTIVE_EDGE_TAG;
     active_edge->map(init_root, &tag);
 
-    MimirContext<int64_t,ValType>* span_tree = new MimirContext<int64_t,ValType>();
-    span_tree->set_output_files(output);
+    MimirContext<int64_t,ValType>* span_tree = new MimirContext<int64_t,ValType>(
+                                                 std::vector<std::string>(),
+                                                 output);
     tag = SPAN_TREE_TAG;
     span_tree->map(init_root, &tag);
 
     int level = 0;
     do {
         // Join with edge list
-        active_edge->insert_data(edge_list->get_output_handle());
+        if (level == 0) {
+            active_edge->insert_data_handle(graph_loader->get_data_handle());
+        } else {
+            active_edge->insert_data_handle(edge_list->get_data_handle());
+        }
         active_edge->map(map_copy);
         nactives[level] = active_edge->reduce(join_edge_list_reduce);
         if (rank == 0) {
             fprintf(stdout, "level=%d, nactives=%ld\n", level, nactives[level]);
         }
         // Join with span tree
-        active_edge->insert_data(span_tree->get_output_handle());
+        active_edge->insert_data_handle(span_tree->get_data_handle());
         active_edge->map(map_copy);
         nactives[level] = active_edge->reduce(deduplicate);
         // Add active edges to span tree
-        span_tree->insert_data(active_edge->get_output_handle());
+        span_tree->insert_data_handle(active_edge->get_data_handle());
         span_tree->map(add_span_tree);
         // Cut visited edges
-        edge_list->insert_data(active_edge->get_output_handle());
+        if (level == 0)
+            edge_list->insert_data_handle(graph_loader->get_data_handle());
+        edge_list->insert_data_handle(active_edge->get_data_handle());
         edge_list->map(add_active_vertex);
+        if (level == 0) delete graph_loader;
         edge_list->reduce(cut_edge_list);
         level ++;
     } while(nactives[level - 1]);
 
     // Output span tree
-    span_tree->set_outfile_format("text");
-    span_tree->output();
+    span_tree->output("text");
 
     delete edge_list;
     delete active_edge;

@@ -82,42 +82,27 @@ int main (int argc, char *argv[])
     // Get Dataset1
     int datatag = 0;
     MimirContext<KeyType, SingleVal, char*, void>* data1 
-        = new MimirContext<KeyType, SingleVal, char*, void>(MPI_COMM_WORLD,
-                                                            read_dataset,NULL,
-                                                            input1,output,
-                                                            NULL, NULL, NULL,
-                                                            false);
+        = new MimirContext<KeyType, SingleVal, char*, void>(input1);
     datatag = DATA1_TAG;
-    data1->map(NULL, &datatag);
+    data1->map(read_dataset, &datatag, false);
 
     // Get Dataset2
     MimirContext<KeyType, SingleVal, char*, void>* data2 
-        = new MimirContext<KeyType, SingleVal, char*, void>(MPI_COMM_WORLD,
-                                                            read_dataset, NULL,
-                                                            input2, output,
-                                                            NULL, NULL, NULL,
-                                                            false);
+        = new MimirContext<KeyType, SingleVal, char*, void>(input2);
     datatag = DATA2_TAG;
-    data2->map(NULL, &datatag);
+    data2->map(read_dataset, &datatag, false);
 
     // Merge Dataset1 and Dataset2
     MimirContext<KeyType, SingleVal, KeyType, SingleVal, KeyType, JoinedVal>* ctx 
-        = new MimirContext<KeyType, SingleVal, KeyType, SingleVal, KeyType, JoinedVal>(MPI_COMM_WORLD,
-            map, reduce,
-            input1, output,
-            NULL,
-            NULL,
-            NULL,
-            true,
-            IMPLICIT_OUTPUT);
-    ctx->set_outfile_format("text");
-    ctx->insert_data(data1->get_output_handle());
-    ctx->insert_data(data2->get_output_handle());
-    ctx->map();
+        = new MimirContext<KeyType, SingleVal, KeyType, SingleVal, KeyType, JoinedVal>(
+            std::vector<std::string>(), output, MPI_COMM_WORLD);
+    ctx->insert_data_handle(data1->get_data_handle());
+    ctx->insert_data_handle(data2->get_data_handle());
+    ctx->map(map);
     delete data1;
     delete data2;
 
-    ctx->reduce();
+    ctx->reduce(reduce, NULL, true, "text");
     delete ctx;
 
     MPI_Finalize();

@@ -46,21 +46,16 @@ int main (int argc, char *argv[])
         input.push_back(argv[i]);
     }
     MimirContext<char*, uint64_t, char*, void>* ctx 
-        = new MimirContext<char*, uint64_t, char*, void>(MPI_COMM_WORLD,
-                                           map, countword,
-                                           input, output,
-                                           NULL,
+        = new MimirContext<char*, uint64_t, char*, void>(
+                                           input, output, MPI_COMM_WORLD,
 #ifdef COMBINER
-                                           combine,
+                                           combine
 #else
-                                           NULL,
+                                           NULL
 #endif
-                                           NULL,
-                                           true,
-                                           IMPLICIT_OUTPUT);
-    ctx->set_outfile_format("text");
-    ctx->map();
-    nunique = ctx->reduce();
+                                           );
+    ctx->map(map);
+    nunique = ctx->reduce(countword, NULL, true, "text");
     delete ctx;
 
     if (rank == 0) printf("nunique=%ld\n", nunique);

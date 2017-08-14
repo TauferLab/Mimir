@@ -45,13 +45,14 @@ int main(int argc, char **argv) {
     fprintf(stdout, "start rank=%d, pid=%ld\n", proc_rank, pid);
 
     MIMIR_NS::MimirContext<const char*, void>* ctx 
-        = new MIMIR_NS::MimirContext<const char*, void>(MPI_COMM_WORLD, map, NULL,
-                                        input, output, NULL, combine);
+        = new MIMIR_NS::MimirContext<const char*, void>(input, output,
+                                                        MPI_COMM_WORLD,
+                                                        combine);
 
     // Generate remain_unique words
     remain_unique = total_unique;
     while (1) {
-        uint64_t nunique = ctx->map();
+        uint64_t nunique = ctx->map(map);
         remain_unique = total_unique - nunique;
         if (proc_rank == 0) {
             fprintf(stdout, "generate %ld unique words\n",
@@ -61,8 +62,7 @@ int main(int argc, char **argv) {
     }
 
     // Output words to files
-    ctx->set_outfile_format("text");
-    ctx->output();
+    ctx->output("text");
     delete ctx;
 
     if (proc_rank == 0) {

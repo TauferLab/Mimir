@@ -3,8 +3,9 @@
 
 using namespace MIMIR_NS;
 
-#define WORD_LEN_MEAN_DEFAULT 6
+#define WORD_LEN_MEAN_DEFAULT 5
 #define WORD_LEN_SD_DEFAULT   0
+#define VALUE_LEN             4
 
 void parse_cmd_line(int argc, char **argv);
 
@@ -22,15 +23,18 @@ void combine (Combinable<const char*,void> *combiner,
               const char**, void*, void*, void*, void *ptr);
 void scanedge (const char ** word, void *val, void* ptr);
 
+void output_kv(const char **word, void *val, void *ptr);
+
 const char *cmdstr = "./cmd \t<itemcount> <outfile>\n\
 \t--zipf-n [val]\n\
 \t--zipf-alpha [val]\n\
 \t--stat-file [val]\n\
 \t--len-mean [val]\n\
 \t--len-std [val]\n\
+\t--val-len [val]\n\
 \t-disorder\n\
 \t-exchange\n\
-\t-single-file\n";
+\t-withvalue\n";
 
 uint64_t itemcount = 0;
 const char *outfile = NULL;
@@ -40,12 +44,14 @@ double zipf_alpha = 0.0;
 const char *statfile = NULL;
 bool disorder = false;
 bool exchange = false;
+bool withvalue = false;
 bool singlefile = false;
 
 uint64_t total_unique = 0;
 uint64_t remain_unique = 0;
 int len_mean = WORD_LEN_MEAN_DEFAULT;
 double len_std = WORD_LEN_SD_DEFAULT;
+int val_len = VALUE_LEN;
 
 int proc_rank, proc_size;
 double    *dist_map = NULL;
@@ -128,13 +134,14 @@ int main(int argc, char **argv) {
     std::vector<std::string> input;
 
     MIMIR_NS::MimirContext<const char*, void>* unique_words_ctx 
-        = new MIMIR_NS::MimirContext<const char*, void>(MPI_COMM_WORLD, map_uniques, NULL,
-                                        input, output, NULL, combine);
+        = new MIMIR_NS::MimirContext<const char*, void>(input, output,
+                                                        MPI_COMM_WORLD,
+                                                        combine);
 
     // Generate remain_unique words
     remain_unique = total_unique;
     while (1) {
-        uint64_t nunique = unique_words_ctx->map();
+        uint64_t nunique = unique_words_ctx->map(map_uniques);
         remain_unique = total_unique - nunique;
         if (proc_rank == 0) {
             fprintf(stdout, "generate %ld unique words\n",
@@ -154,10 +161,11 @@ int main(int argc, char **argv) {
 
     if (disorder) {
         MIMIR_NS::MimirContext<const char*, void>* disorder_words_ctx 
-            = new MIMIR_NS::MimirContext<const char*, void>(MPI_COMM_WORLD, map_copy, NULL,
-                                            input, output, NULL, NULL, partition_word);
-        disorder_words_ctx->insert_data(unique_words_ctx->get_output_handle());
-        disorder_words_ctx->map();
+            = new MIMIR_NS::MimirContext<const char*, void>(input, output,
+                                                            MPI_COMM_WORLD,
+                                                            NULL, partition_word);
+        disorder_words_ctx->insert_data_handle(unique_words_ctx->get_data_handle());
+        disorder_words_ctx->map(map_copy);
 
         delete unique_words_ctx;
 
@@ -185,15 +193,16 @@ int main(int argc, char **argv) {
     }
 
     MIMIR_NS::MimirContext<double, void>* num_ctx 
-        = new MIMIR_NS::MimirContext<double, void>(MPI_COMM_WORLD, map_nums, NULL,
-                                                   input, output, NULL, NULL, parititon_num);
+        = new MIMIR_NS::MimirContext<double, void>(input, output, 
+                                                   MPI_COMM_WORLD,
+                                                   NULL, parititon_num);
     delete ctx_ptr;
 
     if (proc_rank == 0) {
         fprintf(stdout, "start generate numbers\n");
     }
 
-    num_ctx->map();
+    num_ctx->map(map_nums);
 
     double t7 = MPI_Wtime();
     if (proc_rank == 0) {
@@ -202,11 +211,11 @@ int main(int argc, char **argv) {
 
     MIMIR_NS::MimirContext<const char*, void, double, void>* word_ctx 
         = new MIMIR_NS::MimirContext<const char*, void, double, void>(
-                MPI_COMM_WORLD, map_words, NULL, input, output, 
-                NULL, NULL, partition_word);
-    word_ctx->insert_data(num_ctx->get_output_handle());
+                input, output, MPI_COMM_WORLD,
+                NULL, partition_word);
+    word_ctx->insert_data_handle(num_ctx->get_data_handle());
 
-    word_ctx->map();
+    word_ctx->map(map_words);
 
     double t8 = MPI_Wtime();
     if (proc_rank == 0) {
@@ -218,21 +227,27 @@ int main(int argc, char **argv) {
     output = outfile;
     MIMIR_NS::MimirContext<const char*, void>* partition1_ctx 
         = new MIMIR_NS::MimirContext<const char*, void>(
-                MPI_COMM_WORLD, map_copy, NULL, input, output, 
-                NULL, NULL, partition_word);
-    partition1_ctx->insert_data(word_ctx->get_output_handle());
-    partition1_ctx->map();
+                input, output, MPI_COMM_WORLD, NULL, partition_word);
+    partition1_ctx->insert_data_handle(word_ctx->get_data_handle());
+    partition1_ctx->map(map_copy);
 
     delete word_ctx;
 
     MIMIR_NS::MimirContext<const char*, void>* partition2_ctx 
         = new MIMIR_NS::MimirContext<const char*, void>(
-                MPI_COMM_WORLD, map_copy, NULL, input, output, 
-                NULL, NULL, partition_word, true, IMPLICIT_OUTPUT);
-    partition2_ctx->set_outfile_format("text");
-    partition2_ctx->insert_data(partition1_ctx->get_output_handle());
+                input, output, MPI_COMM_WORLD, NULL, partition_word);
+    partition2_ctx->insert_data_handle(partition1_ctx->get_data_handle());
 
-    partition2_ctx->map();
+    partition2_ctx->map(map_copy);
+    char filename[1024];
+    sprintf(filename, "%s%d.%d", output.c_str(), proc_size, proc_rank);
+    FILE *fp = fopen(filename, "w");
+    if (!fp) {
+        fprintf(stderr, "Output error!\n");
+        exit(1);
+    }
+    partition2_ctx->scan(output_kv, fp);
+    fclose(fp);
 
     delete partition1_ctx;
     delete partition2_ctx;
@@ -253,7 +268,7 @@ int main(int argc, char **argv) {
         std::ofstream outfile;
         outfile.open(filename);
         for (uint64_t i = 0; i < div_size; i++) {
-            outfile << unique_new_words[i] << "," << word_counts[i] << std::endl;
+            outfile << unique_new_words[i] << " " << word_counts[i] << std::endl;
         }
         outfile.close();
     }
@@ -382,6 +397,21 @@ void scanedge (const char ** word, void *val, void* ptr) {
     unique_words.push_back(*word);
 }
 
+void output_kv(const char **word, void *val, void *ptr) {
+    FILE *fp = (FILE*)ptr;
+    if (withvalue) {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        int64_t min = pow(10, (val_len - 1));
+        int64_t max = pow(10, val_len) - 1;
+        std::uniform_int_distribution<> dis(min, max);
+        int64_t value = round(dis(gen));
+        fprintf(fp, "%s %ld\n", *word, value);
+    } else {
+        fprintf(fp, "%s\n", *word);
+    }
+}
+
 void parse_cmd_line(int argc, char **argv) {
 
     if (argc < 4) { printf("%s", cmdstr); exit(1); }
@@ -440,11 +470,21 @@ void parse_cmd_line(int argc, char **argv) {
 
             len_std = atof(*argv);
         }
+        else if (!strcmp(*argv, "--val-len")) {
+            --argc;
+            ++argv;
+            assert(argc);
+
+            val_len = atoi(*argv);
+        }
         else if (!strcmp(*argv, "-disorder")) {
             disorder = true;
         }
         else if (!strcmp(*argv, "-exchange")) {
             exchange = true;
+        }
+        else if (!strcmp(*argv, "-withvalue")) {
+            withvalue = true;
         }
         else if (!strcmp(*argv, "-singlefile")) {
             singlefile = true;

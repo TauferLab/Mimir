@@ -62,13 +62,12 @@ int main(int argc, char **argv)
     level = (int) floor((max_limit + min_limit) / 2);
 
     MimirContext<char, uint64_t, char*, void> *ctx 
-        = new MimirContext<char, uint64_t, char*, void>(MPI_COMM_WORLD,
-                                                        digits, 1, 1, 1, 1, 1,
-                                                        generate_octkey, NULL,
-                                                        input, output,
-                                                        NULL, NULL, NULL, false);
+        = new MimirContext<char, uint64_t, char*, void>(input, output,
+                                                        MPI_COMM_WORLD,
+                                                        NULL, NULL, NULL,
+                                                        digits, 1, 1, 1);
 
-    uint64_t nwords = ctx->map();
+    uint64_t nwords = ctx->map(generate_octkey, NULL, false);
     thresh = (int64_t) ((float) nwords * density);
 
     if (rank == 0) printf("nwords=%ld\n", nwords);
@@ -76,20 +75,21 @@ int main(int argc, char **argv)
     while ((min_limit + 1) != max_limit) {
 
         MimirContext<char, uint64_t, char, uint64_t> *level_ctx 
-            = new MimirContext<char, uint64_t, char, uint64_t>(MPI_COMM_WORLD,
-                                               level, 1, digits, 1, level, 1,
-                                               gen_leveled_octkey, sum,
-                                               input, output, NULL,
+            = new MimirContext<char, uint64_t, char, uint64_t>(std::vector<std::string>(),
+                                                               std::string(),
+                                                               MPI_COMM_WORLD,
 #ifdef COMBINER
-                                               combine
+                                                               combine,
 #else
-                                               NULL
+                                                               NULL,
 #endif
-					       );
+                                                               NULL, NULL,
+                                                               level, 1,
+                                                               digits, 1);
 
-        level_ctx->insert_data(ctx->get_output_handle());
-        uint64_t totalkv = level_ctx->map();
-        uint64_t nkv = level_ctx->reduce();
+        level_ctx->insert_data_handle(ctx->get_data_handle());
+        uint64_t totalkv = level_ctx->map(gen_leveled_octkey);
+        uint64_t nkv = level_ctx->reduce(sum);
 
 	if (rank == 0) printf("level=%d, totalkv=%ld, nkv=%ld\n", level, totalkv, nkv);
 

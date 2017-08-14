@@ -108,11 +108,12 @@ int main(int argc, char **argv)
 
     // partition edges
     MimirContext<int64_t,int64_t,char*,void> *mimir 
-        = new MimirContext<int64_t,int64_t,char*,void>(MPI_COMM_WORLD, 
-                                            fileread, NULL,
-                                            input, output, NULL, NULL,
-                                            mypartition);
-    mimir->map();
+        = new MimirContext<int64_t,int64_t,char*,void>(
+                                                       input, output,
+                                                       MPI_COMM_WORLD, 
+                                                       NULL,
+                                                       mypartition);
+    mimir->map(fileread);
 
     rowstarts = new size_t[nlocalverts + 1];
     rowinserts = new size_t[nlocalverts];
@@ -168,19 +169,20 @@ int main(int argc, char **argv)
 
     if (rank == 0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
 
-    MimirContext<int64_t,int64_t>* bfs_mimir = new MimirContext<int64_t,int64_t>(MPI_COMM_WORLD,
-                                              rootvisit, NULL, NULL, mypartition);
+    MimirContext<int64_t,int64_t>* bfs_mimir = new MimirContext<int64_t,int64_t>(
+                                                 std::vector<std::string>(),
+                                                 std::string(), MPI_COMM_WORLD,
+                                                 NULL, mypartition);
 
     // Ensure stat file being a single file
     delete mimir;
 
-    bfs_mimir->map();
-    bfs_mimir->set_map_callback(expand);
+    bfs_mimir->map(rootvisit);
 
     // BFS search
     int level = 0;
     do {
-        nactives[level] = bfs_mimir->map();
+        nactives[level] = bfs_mimir->map(expand);
         if (rank == 0)
             fprintf(stdout, "level=%d, nactives=%ld\n", level, nactives[level]);
         level++;
