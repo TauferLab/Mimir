@@ -97,6 +97,11 @@ class FileWriter : public Writable<KeyType, ValType> {
         mem_aligned_free(buffer);
     }
 
+    virtual int seek(DB_POS pos) {
+        LOG_WARNING("FileWritter doesnot support seek methods!\n");
+        return 0;
+    }
+
     virtual int write(KeyType *key, ValType *val) {
         int kvsize = 0;
         if (output_format == BINARY_FORMAT) {
@@ -129,7 +134,7 @@ class FileWriter : public Writable<KeyType, ValType> {
         }
         datasize += kvsize;
         record_count++;
-        return 1;
+        return true;
     }
 
     virtual uint64_t get_record_count() { return record_count; }

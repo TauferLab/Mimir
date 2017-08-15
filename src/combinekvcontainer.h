@@ -26,7 +26,8 @@ public:
                                             void *ptr),
                        void *user_ptr,
                        uint32_t bincount = 0,
-                       int keycount = 1, int valcount = 1)
+                       int keycount = 1, int valcount = 1,
+                       bool isremove = false)
         : BaseDatabase<KeyType, ValType>(true), KVContainer<KeyType,ValType>(bincount, keycount, valcount) {
 
         this->user_combine = user_combine;
@@ -46,7 +47,7 @@ public:
 
         LOG_PRINT(DBG_GEN, "CombineKVContainer open!\n");
 
-        return 0;
+        return true;
     }
 
     virtual void close() {
@@ -63,8 +64,6 @@ public:
 
     virtual int write(KeyType *key, ValType *val)
     {
-        int ret = 0;
-
         int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > this->pagesize)
             LOG_ERROR("Error: KV size (%d) is larger \
@@ -113,7 +112,6 @@ public:
             }
             bucket->insertEntry(tmp.kv, keysize, &tmp);
             this->kvcount += 1;
-            ret = 1;
         }
         else {
             typename SafeType<KeyType>::ptrtype u_key = NULL;
@@ -142,9 +140,8 @@ public:
                 this->ser->kv_to_bytes(u_key, r_val, u->kv, ukeysize + rvalsize);
                 this->pages[this->pageid].datasize += ukeysize + rvalsize;
             }
-            ret = 0;
         }
-        return ret;
+        return true;
     }
 
 #if 0
@@ -174,10 +171,14 @@ public:
     }
 #endif
 
-    virtual int remove(KeyType *key, ValType *val, std::set<uint32_t>& remainders) {
+    virtual int remove() {
+        typename SafeType<KeyType>::ptrtype key = NULL;
+        typename SafeType<ValType>::ptrtype val = NULL;
 
-        int ret = KVContainer<KeyType, ValType>::remove(key, val, remainders);
-        if (ret != -1) {
+        this->ser->kv_from_bytes(key, val, this->ptr, this->kvsize);
+
+        int ret = KVContainer<KeyType, ValType>::remove();
+        if (ret) {
             int keysize = this->ser->get_key_bytes(key);
             char *keyptr = this->ser->get_key_ptr(key);
             bucket->removeEntry(keyptr, keysize);

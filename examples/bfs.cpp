@@ -236,7 +236,7 @@ void fileread(Readable<char*, void> *input,
               Writable<int64_t, int64_t> *output, void *ptr)
 {
     char *word;
-    while (input->read(&word, NULL) == 0) {
+    while (input->read(&word, NULL) == true) {
         char sep[10] = " ";
         char *v0, *v1;
         char *saveptr = NULL;
@@ -289,7 +289,7 @@ void expand(Readable<int64_t, int64_t> *input,
             Writable<int64_t, int64_t> *output, void *ptr)
 {
     int64_t v, v0;
-    while (input->read(&v, &v0) == 0) {
+    while (input->read(&v, &v0) == true) {
 
         int64_t v_local = v - nvertoffset;
 

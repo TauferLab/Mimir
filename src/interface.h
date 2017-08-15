@@ -14,12 +14,15 @@
 
 namespace MIMIR_NS {
 
+enum DB_POS {DB_START, DB_END};
+
 template <typename KeyType, typename ValType>
 class Base {
   public:
     virtual ~Base() {}
     virtual int open() = 0;
     virtual void close() = 0;
+    virtual int seek(DB_POS pos) = 0;
     virtual uint64_t get_record_count() = 0;
 };
 
@@ -31,35 +34,31 @@ class Readable : public Base<KeyType, ValType> {
 };
 
 template <typename KeyType, typename ValType>
+class Removable : public Base<KeyType, ValType> {
+  public:
+    virtual ~Removable() {}
+    // return 1 if success, otherwise return 0
+    virtual int remove() = 0;
+};
+
+template <typename KeyType, typename ValType>
 class Writable : public Base<KeyType, ValType> {
   public:
     virtual ~Writable() {}
     virtual int write(KeyType*, ValType*) = 0;
 };
 
-//template <typename KeyType, typename ValType>
-//class Removable {
-//  public:
-//    virtual ~Removable() {}
-    //virtual int remove(KeyType*, ValType*, std::set<uint32_t>&) {
-    //    LOG_ERROR("The object does not implement remove function!\n");
-    //    return 0;
-    //}
-//    int get(char*&, int &);
-//    int put(char*, int);
-//};
-
 template <typename KeyType, typename ValType>
 class Combinable {
   public:
     virtual ~Combinable() {}
-    //virtual void update(KeyType*, ValType*) = 0;
 };
 
 template <typename KeyType, typename ValType>
 class BaseDatabase : 
     virtual public Readable<KeyType, ValType>,
-    virtual public Writable<KeyType, ValType>
+    virtual public Writable<KeyType, ValType>,
+    virtual public Removable<KeyType, ValType>
 {
   public:
     BaseDatabase(bool if_inner_object = false) {
@@ -73,7 +72,9 @@ class BaseDatabase :
     virtual int open() = 0;
     virtual void close() = 0;
     virtual int read(KeyType *, ValType *) = 0;
+    virtual int seek(DB_POS pos) = 0;
     virtual int write(KeyType *, ValType *) = 0;
+    virtual int remove() = 0;
 
     uint64_t getRef() {
         return ref;
@@ -117,12 +118,6 @@ class BaseDatabase :
 
 template <typename KeyType, typename ValType>
 uint64_t BaseDatabase<KeyType, ValType>::mem_bytes = 0;
-
-//typedef void (*MapCallback) (Readable *input, Writable *output, void *ptr);
-//typedef void (*ReduceCallback) (Readable *input, Writable *output, void *ptr);
-//typedef void (*CombineCallback) (Combinable *output, KVRecord *kv1, KVRecord *kv2, void *ptr);
-//typedef int (*HashCallback) (const char*, int);
-typedef int (*RepartitionCallback) (const char*, int, bool islast);
 
 }
 

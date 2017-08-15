@@ -31,13 +31,30 @@ class UnitedDataset : public Readable<KeyType, ValType> {
             iter->open();
         }
         dataset_idx = 0;
-        return 0;
+        return true;
     }
 
     virtual void close() {
         for (auto iter : datasets) {
             iter->close();
         }
+    }
+
+    virtual int seek(DB_POS pos) {
+        int ret = 0;
+        if (pos == DB_START) {
+            dataset_idx = 0;
+            for (auto iter : datasets) {
+                ret = iter->seek(DB_START);
+                if (ret != true) return false;
+            }
+        } else if (pos == DB_END) {
+            dataset_idx = (int)datasets.size() - 1;
+            ret = datasets[dataset_idx]->seek(DB_END);
+            if (ret != true) return false;
+        }
+
+        return true;
     }
 
     virtual uint64_t get_record_count() {
@@ -52,10 +69,10 @@ class UnitedDataset : public Readable<KeyType, ValType> {
         int ret = 0;
         while (dataset_idx < datasets.size()) {
             ret = datasets[dataset_idx]->read(key, val);
-            if (ret == 0) return 0;
+            if (ret == true) return true;
             dataset_idx ++;
         }
-        return -1;
+        return false;
     }
 
   private:

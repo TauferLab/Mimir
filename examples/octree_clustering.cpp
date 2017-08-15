@@ -126,7 +126,7 @@ void sum (Readable<char, uint64_t> *input,
     uint64_t val = 0;
     uint64_t sum = 0;
 
-    while ((input->read(key, &val)) == 0) {
+    while ((input->read(key, &val)) == true) {
         sum += val;
     }
 
@@ -142,7 +142,7 @@ void gen_leveled_octkey (Readable<char, uint64_t> *input,
     char key[digits];;
     uint64_t val = 0;
     uint64_t count = 1;
-    while ((input->read(key, &val)) == 0) {
+    while ((input->read(key, &val)) == true) {
 	output->write(key, &count);
     }
 }
@@ -154,7 +154,7 @@ void generate_octkey (Readable<char*, void> *input,
     char octkey[digits];
     uint64_t count = 0;
 
-    while ((input->read(&word, NULL)) == 0) {
+    while ((input->read(&word, NULL)) == true) {
 
         double range_up = 4.0, range_down = -4.0;
 

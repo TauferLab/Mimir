@@ -168,6 +168,12 @@ public:
         push_kv_exchange();
     }
 
+    virtual void migrate_kvs(std::map<uint32_t,int> redirect_bins,
+                             std::set<int> send_procs,
+                             std::set<int> recv_procs) {
+        LOG_ERROR("Don't support!\n");
+    }
+
 protected:
     void wait()
     {

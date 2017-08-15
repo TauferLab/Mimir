@@ -23,38 +23,31 @@
 
 using namespace MIMIR_NS;
 
-#define EDGE_LIST_TAG   0xaa
-#define ACTIVE_EDGE_TAG 0xbb
-#define SPAN_TREE_TAG   0xcc
+#define SPAN_TREE_TAG   0x00
+#define EDGE_LIST_TAG   0x01
+#define ACTIVE_EDGE_TAG 0x10
 
-struct ValType {
-    int      tag;
-    int64_t  val;
-
-    std::stringstream& operator>>(std::stringstream& ss)
-    {
-        ss << this->val;
-        return ss;
-    }
-};
+#define GET_TAG(v)      (((v & 0xc000000000000000) >> 62) & 0x11UL)
+#define GET_VAL(v)        (v & 0x3fffffffffffffff)
+#define SET_VAL(v,tag)  (((tag & 0x11UL) << 62) | (v & 0x3fffffffffffffff))
 
 void fileread (Readable<char*, void> *input,
-               Writable<int64_t, ValType> *output, void *ptr);
-void init_root(Readable<int64_t, ValType> *input,
-               Writable<int64_t, ValType> *output, void *ptr);
-void map_copy(Readable<int64_t, ValType> *input,
-              Writable<int64_t, ValType> *output, void *ptr);
-void join_edge_list_reduce(Readable<int64_t, ValType> *input,
-                           Writable<int64_t, ValType> *output, void *ptr);
-void add_span_tree(Readable<int64_t, ValType> *input,
-                   Writable<int64_t, ValType> *output, void *ptr);
-void add_active_vertex(Readable<int64_t, ValType> *input,
-                       Writable<int64_t, ValType> *output, void *ptr);
-void deduplicate(Readable<int64_t, ValType> *input,
-                 Writable<int64_t, ValType> *output, void *ptr);
-void cut_edge_list(Readable<int64_t, ValType> *input,
-                   Writable<int64_t, ValType> *output, void *ptr);
-void print_kv (int64_t *v0, ValType *v1, void *ptr);
+               Writable<int64_t, int64_t> *output, void *ptr);
+void init_root(Readable<int64_t, int64_t> *input,
+               Writable<int64_t, int64_t> *output, void *ptr);
+void map_copy(Readable<int64_t, int64_t> *input,
+              Writable<int64_t, int64_t> *output, void *ptr);
+void join_edge_list_reduce(Readable<int64_t, int64_t> *input,
+                           Writable<int64_t, int64_t> *output, void *ptr);
+void add_span_tree(Readable<int64_t, int64_t> *input,
+                   Writable<int64_t, int64_t> *output, void *ptr);
+void add_active_vertex(Readable<int64_t, int64_t> *input,
+                       Writable<int64_t, int64_t> *output, void *ptr);
+void deduplicate(Readable<int64_t, int64_t> *input,
+                 Writable<int64_t, int64_t> *output, void *ptr);
+void cut_edge_list(Readable<int64_t, int64_t> *input,
+                   Writable<int64_t, int64_t> *output, void *ptr);
+void print_kv (int64_t *v0, int64_t *v1, void *ptr);
 
 int rank, size;
 int64_t nglobalverts;
@@ -84,19 +77,19 @@ int main(int argc, char **argv)
     }
 
     // Load graphs
-    MimirContext<int64_t,ValType,char*,void> *graph_loader
-        = new MimirContext<int64_t,ValType,char*,void>(input);
+    MimirContext<int64_t,int64_t,char*,void> *graph_loader
+        = new MimirContext<int64_t,int64_t,char*,void>(input);
     graph_loader->map(fileread);
 
-    MimirContext<int64_t,ValType> *edge_list = new MimirContext<int64_t,ValType>();
+    MimirContext<int64_t,int64_t> *edge_list = new MimirContext<int64_t,int64_t>();
 
     // Initialize root
     int tag = 0;
-    MimirContext<int64_t,ValType>* active_edge = new MimirContext<int64_t,ValType>();
+    MimirContext<int64_t,int64_t>* active_edge = new MimirContext<int64_t,int64_t>();
     tag = ACTIVE_EDGE_TAG;
     active_edge->map(init_root, &tag);
 
-    MimirContext<int64_t,ValType>* span_tree = new MimirContext<int64_t,ValType>(
+    MimirContext<int64_t,int64_t>* span_tree = new MimirContext<int64_t,int64_t>(
                                                  std::vector<std::string>(),
                                                  output);
     tag = SPAN_TREE_TAG;
@@ -144,10 +137,10 @@ int main(int argc, char **argv)
 
 // read edge list from files
 void fileread(Readable<char*, void> *input,
-              Writable<int64_t, ValType> *output, void *ptr)
+              Writable<int64_t, int64_t> *output, void *ptr)
 {
     char *word;
-    while (input->read(&word, NULL) == 0) {
+    while (input->read(&word, NULL) == true) {
         char sep[10] = " ";
         char *v0, *v1;
         char *saveptr = NULL;
@@ -166,88 +159,83 @@ void fileread(Readable<char*, void> *input,
                 int_v0, int_v1, nglobalverts);
             exit(1);
         }
-        ValType val;
-        val.tag = EDGE_LIST_TAG;
-        val.val = int_v1;
+        int64_t val = SET_VAL(int_v1, EDGE_LIST_TAG);
         output->write(&int_v0, &val);
     }
 }
 
 // expand child vertexes of root
-void init_root(Readable<int64_t, ValType> *input,
-               Writable<int64_t, ValType> *output, void *ptr)
+void init_root(Readable<int64_t, int64_t> *input,
+               Writable<int64_t, int64_t> *output, void *ptr)
 {
     if (rank == 0) {
         int tag = *(int*)ptr;
-        ValType val;
-        val.tag = tag;
-        val.val = root;
+        int64_t val = SET_VAL(root, tag);
         output->write(&root, &val);
     }
 }
 
-void map_copy(Readable<int64_t, ValType> *input,
-              Writable<int64_t, ValType> *output, void *ptr) {
+void map_copy(Readable<int64_t, int64_t> *input,
+              Writable<int64_t, int64_t> *output, void *ptr) {
     int64_t key;
-    ValType val;
-    while (input->read(&key, &val) == 0) {
+    int64_t val;
+    while (input->read(&key, &val) == true) {
         output->write(&key, &val);
     }
 }
 
-void add_span_tree(Readable<int64_t, ValType> *input,
-                   Writable<int64_t, ValType> *output, void *ptr) {
+void add_span_tree(Readable<int64_t, int64_t> *input,
+                   Writable<int64_t, int64_t> *output, void *ptr) {
     int64_t key;
-    ValType val;
-    while (input->read(&key, &val) == 0) {
-        val.tag = SPAN_TREE_TAG;
+    int64_t val;
+    while (input->read(&key, &val) == true) {
+        val = SET_VAL(val, SPAN_TREE_TAG);
         output->write(&key, &val);
     }
 }
 
-void add_active_vertex(Readable<int64_t, ValType> *input,
-                       Writable<int64_t, ValType> *output, void *ptr) {
+void add_active_vertex(Readable<int64_t, int64_t> *input,
+                       Writable<int64_t, int64_t> *output, void *ptr) {
     int64_t key;
-    ValType val;
-    while (input->read(&key, &val) == 0) {
+    int64_t val;
+    while (input->read(&key, &val) == true) {
         int64_t tmp = key;
-        key = val.val;
-        val.val = tmp;
+        key = val;
+        val = tmp;
         output->write(&key, &val);
     }
 }
 
 
-void join_edge_list_reduce(Readable<int64_t, ValType> *input,
-                           Writable<int64_t, ValType> *output, void *ptr) {
+void join_edge_list_reduce(Readable<int64_t, int64_t> *input,
+                           Writable<int64_t, int64_t> *output, void *ptr) {
     int64_t key;
-    ValType val;
-    std::vector<ValType> db;
-    while (input->read(&key, &val) == 0) {
-        if (val.tag == ACTIVE_EDGE_TAG) {
+    int64_t val;
+    std::vector<int64_t> db;
+    while (input->read(&key, &val) == true) {
+        if (GET_TAG(val) == ACTIVE_EDGE_TAG) {
             db.push_back(val);
         }
     }
 
     if (db.size() != 0) {
-        while (input->read(&key, &val) == 0) {
-            if (val.tag == EDGE_LIST_TAG) {
-                ValType newval;
-                newval.tag = ACTIVE_EDGE_TAG;
-                newval.val = key;
-                output->write(&(val.val), &newval);
+        while (input->read(&key, &val) == true) {
+            if (GET_TAG(val) == EDGE_LIST_TAG) {
+                int64_t newval = SET_VAL(key, ACTIVE_EDGE_TAG);
+                val = SET_VAL(val,  0);
+                output->write(&val, &newval);
             }
         }
     }
 }
 
-void deduplicate(Readable<int64_t, ValType> *input,
-                 Writable<int64_t, ValType> *output, void *ptr) {
+void deduplicate(Readable<int64_t, int64_t> *input,
+                 Writable<int64_t, int64_t> *output, void *ptr) {
     int64_t key;
-    ValType val;
+    int64_t val;
     bool is_visited = false;
-    while (input->read(&key, &val) == 0) {
-        if (val.tag == SPAN_TREE_TAG) {
+    while (input->read(&key, &val) == true) {
+        if (GET_TAG(val) == SPAN_TREE_TAG) {
             is_visited = true;
         }
     }
@@ -258,25 +246,25 @@ void deduplicate(Readable<int64_t, ValType> *input,
 }
 
 
-void cut_edge_list(Readable<int64_t, ValType> *input,
-                   Writable<int64_t, ValType> *output, void *ptr) {
+void cut_edge_list(Readable<int64_t, int64_t> *input,
+                   Writable<int64_t, int64_t> *output, void *ptr) {
     int64_t key;
-    ValType val;
+    int64_t val;
     bool is_visited = false;
-    while (input->read(&key, &val) == 0) {
-        if (val.tag == ACTIVE_EDGE_TAG) {
+    while (input->read(&key, &val) == true) {
+        if (GET_TAG(val) == ACTIVE_EDGE_TAG) {
             is_visited = true;
             break;
         }
     }
 
     if (!is_visited) {
-        while (input->read(&key, &val) == 0) {
+        while (input->read(&key, &val) == true) {
             output->write(&key, &val);
         }
     }
 }
 
-void print_kv (int64_t *v0, ValType *v1, void *ptr) {
-    printf("tag=%x, v0=%ld, v1=%ld\n", v1->tag, *v0, v1->val);
+void print_kv (int64_t *v0, int64_t *v1, void *ptr) {
+    printf("tag=%lx, v0=%ld, v1=%ld\n", GET_TAG(*v1), *v0, GET_VAL(*v1));
 }

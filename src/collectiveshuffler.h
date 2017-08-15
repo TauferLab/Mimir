@@ -50,7 +50,8 @@ public:
         this->done_flag = 0;
         this->done_count = 0;
 
-        LOG_PRINT(DBG_GEN, "CollectiveShuffler open: allocation start\n");
+        LOG_PRINT(DBG_GEN, "CollectiveShuffler open: allocation start, peakmem=%ld\n",
+                  peakmem);
 
         send_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * this->shuffle_size, MCDRAM_ALLOCATE);
         recv_buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, buf_size * this->shuffle_size, MCDRAM_ALLOCATE);
@@ -81,7 +82,8 @@ public:
 
         PROFILER_RECORD_COUNT(COUNTER_COMM_BUFS, 1, OPMAX);
 
-        LOG_PRINT(DBG_GEN, "CollectiveShuffler open: buf_size=%ld\n", buf_size);
+        LOG_PRINT(DBG_GEN, "CollectiveShuffler open: buf_size=%ld, peakmem=%ld\n",
+                  buf_size, peakmem);
 
         return true;
     }
@@ -120,7 +122,7 @@ public:
                     LOG_ERROR("Wrong bin index=%d\n", bidx);
                 }
             }
-            return 0;
+            return true;
         }
 
         char *buffer = send_buffer + target * (int64_t)buf_size + send_offset[target];
@@ -141,10 +143,128 @@ public:
         send_offset[target] += kvsize;
         this->kvcount++;
 
-        return 0;
+        return true;
     }
 
     virtual void make_progress(bool issue_new = false) { exchange_kv(); }
+
+    virtual void migrate_kvs(std::map<uint32_t,int> redirect_bins,
+                             std::set<int> send_procs,
+                             std::set<int> recv_procs) {
+
+        MPI_Request req;
+        MPI_Status st;
+        int flag, count;
+
+        // Create send procs map
+        std::map<int,int> send_procs_map;
+        int idx = 0;
+        for (auto send_proc : send_procs) {
+            send_procs_map[send_proc] = idx;
+            idx ++;
+        }
+
+        // Send KVs
+        this->out->seek(DB_START);
+        int factor = this->shuffle_size / (int)send_procs.size();
+
+        if (send_procs.size() > 0) {
+
+            typename SafeType<KeyType>::type key[this->keycount];
+            typename SafeType<ValType>::type val[this->valcount];
+
+            while(this->out_reader->read(key,val) == true) {
+
+                uint32_t bid = this->ser->get_hash_code(key) \
+                    % (uint32_t) (this->shuffle_size * BIN_COUNT);
+
+                // This KV needs migrate out
+                auto iter = redirect_bins.find(bid);
+                if (iter != redirect_bins.end()) {
+                    int target = send_procs_map[iter->second];
+                    char *buffer = send_buffer + factor * target * (int64_t)buf_size;
+                    int kvsize = this->ser->kv_to_bytes(key, val,
+                                    buffer + send_offset[target],
+                                    (int)buf_size * factor - send_offset[target]);
+                    if (kvsize == -1) {
+                        MPI_Isend(buffer, send_offset[target], MPI_BYTE,
+                                  iter->second, LB_MIGRATE_TAG,
+                                  this->shuffle_comm, &req);
+                        MPI_Wait(&req, &st);
+                        LOG_PRINT(DBG_COMM, "Comm: migrate to %d size=%d\n",
+                                  iter->second, send_offset[target]);
+                        send_offset[target] = 0;
+                        buffer = send_buffer + factor * target * (int64_t)buf_size;
+                        kvsize = this->ser->kv_to_bytes(key, val, buffer + send_offset[target], 
+                                            (int)buf_size * factor - send_offset[target]);
+                        if (kvsize == -1) LOG_ERROR("Error to send out the KV!\n");
+                    }
+                    send_offset[target] += kvsize;
+                    this->out_mover->remove();
+                }
+            }
+            for (auto iter : send_procs) {
+                int target = send_procs_map[iter];
+                if (send_offset[target] != 0) {
+                    char *buffer = send_buffer + factor * target * (int64_t)buf_size;
+                    MPI_Isend(buffer, send_offset[target], MPI_BYTE,
+                            iter, LB_MIGRATE_TAG, this->shuffle_comm, &req);
+                    MPI_Wait(&req, &st);
+                    LOG_PRINT(DBG_COMM, "Comm: migrate to %d size=%d\n",
+                              iter, send_offset[target]);
+                }
+                send_offset[target] = 0;
+                MPI_Isend(NULL, 0, MPI_BYTE, iter, LB_MIGRATE_TAG,
+                          this->shuffle_comm, &req);
+            }
+        }
+
+        // Recv KVs
+        this->out->seek(DB_END);
+        int recv_proc_count = (int)recv_procs.size();
+        while ( recv_proc_count > 0) {
+            typename SafeType<KeyType>::ptrtype key = NULL;
+            typename SafeType<ValType>::ptrtype val = NULL;
+
+            MPI_Irecv(recv_buffer, (int)buf_size * this->shuffle_size,
+                      MPI_BYTE, MPI_ANY_SOURCE, LB_MIGRATE_TAG,
+                      this->shuffle_comm, &req);
+
+            flag = 0;
+            while (!flag) MPI_Test(&req, &flag, &st);
+
+            MPI_Get_count(&st, MPI_BYTE, &count);
+            if (count == 0) {
+                recv_proc_count --;
+                continue;
+            }
+
+            LOG_PRINT(DBG_COMM, "Comm: migrate from %d size=%d\n",
+                      st.MPI_SOURCE, count);
+
+            int offset = 0;
+            char *src_buf = recv_buffer;
+            while (offset < count) {
+                int kvsize = this->ser->kv_from_bytes(&key, &val,
+                     src_buf, count - offset);
+                int ret = this->out->write(key, val);
+                if (BALANCE_LOAD && !(this->user_hash) && ret == 1) {
+                    this->ser->get_key_bytes(&key[0]);
+                    uint32_t hid = this->ser->get_hash_code(key);
+                    uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                    auto iter = this->bin_table.find(bidx);
+                    if (iter != this->bin_table.end()) {
+                        iter->second += 1;
+                        this->local_kv_count += 1;
+                    } else {
+                        LOG_ERROR("Wrong bin index=%d\n", bidx);
+                    }
+                }
+                src_buf += kvsize;
+                offset += kvsize;
+            }
+        }
+    }
 
 protected:
 

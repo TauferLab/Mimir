@@ -36,7 +36,13 @@ public:
         this->keycount = keycount;
         this->valcount = valcount;
 
-        out_db = dynamic_cast<BinContainer<KeyType,ValType>*>(out);
+        out_reader = dynamic_cast<Readable<KeyType,ValType>*>(out);
+        out_mover = dynamic_cast<Removable<KeyType,ValType>*>(out);
+        if (out_reader != NULL && out_mover != NULL) {
+            migratable = true;
+        } else {
+            migratable = false;
+        }
 
         ser = new Serializer<KeyType, ValType>(keycount, valcount);
 
@@ -152,6 +158,13 @@ public:
     virtual int write(KeyType *key, ValType *val) = 0;
     virtual void close() = 0;
     virtual void make_progress(bool issue_new = false) = 0;
+    virtual void migrate_kvs(std::map<uint32_t,int> redirect_bins,
+                             std::set<int> send_procs,
+                             std::set<int> recv_procs) = 0;
+    virtual int seek(DB_POS pos) {
+        LOG_WARNING("FileReader doesnot support seek methods!\n");
+        return false;
+    }
     virtual uint64_t get_record_count() { return kvcount; }
 
 protected:
@@ -187,7 +200,7 @@ protected:
 
     bool check_load_balance() {
 
-        if (out_db == NULL) return true;
+        if (!migratable) return true;
 
         int64_t send_kv_count = local_kv_count;
         if (this->isrepartition || this->done_flag) {
@@ -565,7 +578,8 @@ protected:
 
         // Get redirect bins
         std::map<uint32_t,int> redirect_bins;
-        uint64_t migrate_kv_count = compute_redirect_bins(redirect_bins);
+        /*uint64_t migrate_kv_count = */
+        compute_redirect_bins(redirect_bins);
 
         // Update redirect table
         int sendcount, recvcount;
@@ -618,10 +632,14 @@ protected:
 
         // Ensure no extrea repartition within repartition
         isrepartition = true;
-        if (!out_db) {
-            LOG_ERROR("Cannot convert to removable object! out_db=%p\n", out_db);
-        }
+        //if (!out_db) {
+        //    LOG_ERROR("Cannot convert to removable object! out_db=%p\n", out_db);
+        //}
 
+        // Migrate KVs
+        migrate_kvs(redirect_bins, send_procs, recv_procs);
+
+#if 0
         if (send_procs.size() > 0) {
             char *buffer = NULL;
             uint32_t bintag = 0;
@@ -740,12 +758,14 @@ protected:
 
             out_db->set_bin_info(bidx, bintag, count, kvcount);
         }
+#endif
 
         isrepartition = false;
     }
 
     int (*user_hash)(KeyType* key, ValType* val, int npartition);
     Writable<KeyType,ValType> *out;
+    bool                 migratable;
 
     Serializer<KeyType, ValType> *ser;
 
@@ -769,7 +789,8 @@ protected:
     MPI_Win                       kv_proc_win, kv_core_win;
     MPI_Win      map_off_win, map_count_win, map_rank_win;
 
-    BinContainer<KeyType,ValType>          *out_db;
+    Readable<KeyType,ValType>              *out_reader;
+    Removable<KeyType,ValType>             *out_mover;
     std::unordered_map<uint32_t, int>       redirect_table;
     std::unordered_map<uint32_t, uint64_t>  bin_table;
     uint64_t                                global_kv_count;

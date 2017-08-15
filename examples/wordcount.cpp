@@ -66,7 +66,7 @@ int main (int argc, char *argv[])
 void map (Readable<char*,void> *input, Writable<char*,uint64_t> *output, void *ptr)
 {
     char *line = NULL;
-    while (input->read(&line, NULL) == 0) {
+    while (input->read(&line, NULL) == true) {
         char *saveptr = NULL;
         char *word = strtok_r(line, " ", &saveptr);
         while (word != NULL) {
@@ -86,7 +86,7 @@ void countword (Readable<char*,uint64_t> *input,
     char *key = NULL;
     uint64_t val = 0;
     uint64_t count = 0;
-    while (input->read(&key, &val) == 0) {
+    while (input->read(&key, &val) == true) {
         count += val;
     }
     output->write(&key, &count);

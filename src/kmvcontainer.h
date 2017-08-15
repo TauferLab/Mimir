@@ -73,7 +73,7 @@ class KMVContainer {
         LOG_PRINT(DBG_GEN, "MapReduce: convert start.\n");
 
         kv->open();
-        while ((kv->read(key, val)) == 0) {
+        while ((kv->read(key, val)) == true) {
             keybytes = ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
             if ((rdc_val = h->findEntry(keyarray, keybytes)) == NULL) {
                 valbytes = ser->get_val_bytes(val);
@@ -120,7 +120,7 @@ class KMVContainer {
         }
 
         kv->open();
-        while ((kv->read(key, val)) == 0) {
+        while ((kv->read(key, val)) == true) {
             keybytes = ser->key_to_bytes(key, keyarray, MAX_RECORD_SIZE);
             if ((rdc_val = h->findEntry(keyarray, keybytes)) != NULL) {
                 int vsize = ser->val_to_bytes(val, rdc_val->values_end, MAX_RECORD_SIZE);
@@ -171,25 +171,34 @@ class KMVItem : public Readable<KeyType, ValType>   {
         this->entry = entry;
     }
 
-    int open() {
+    virtual int open() {
         valptr = entry->val.values_start;
-        return 0;
+        return true;
     }
 
-    void close() {
+    virtual void close() {
         return;
     }
 
-    int read(KeyType *key, ValType *val) {
+    virtual int seek(DB_POS pos) {
+        if (pos == DB_START) {
+            valptr = entry->val.values_start;
+        } else if (pos == DB_END) {
+            valptr = entry->val.values_end;
+        }
+        return true;
+    }
+
+    virtual int read(KeyType *key, ValType *val) {
         if (valptr == entry->val.values_end) {
             valptr = entry->val.values_start;
-            return -1;
+            return false;
         }
         ser->key_from_bytes(key, entry->key, entry->keysize);
         int vsize = ser->val_from_bytes(val, valptr, 
                                         (int)(entry->val.values_end - valptr));
         valptr += vsize;
-        return 0;
+        return true;
     }
 
     uint64_t get_record_count() {

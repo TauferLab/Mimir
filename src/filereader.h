@@ -116,12 +116,17 @@ class FileReader : public Readable<InKeyType, InValType> {
         LOG_PRINT(DBG_IO, "Filereader close.\n");
     }
 
+    virtual int seek(DB_POS pos) {
+        LOG_WARNING("FileReader doesnot support seek methods!\n");
+        return false;
+    }
+
     virtual uint64_t get_record_count() { return record_count; }
 
     virtual int read(InKeyType *key, InValType *val) {
 
         if (state.cur_chunk.fileseg == NULL)
-            return -1;
+            return false;
 
         bool is_empty = false;
         while(!is_empty) {
@@ -152,7 +157,7 @@ class FileReader : public Readable<InKeyType, InValType> {
                 }
                 record_count ++;
                 //return record;
-                return 0;
+                return true;
             }
             else {
                 // read next chunk
@@ -163,7 +168,7 @@ class FileReader : public Readable<InKeyType, InValType> {
         };
 
         chunk_mgr->wait();
-        return EOF;
+        return false;
     }
 
   protected:

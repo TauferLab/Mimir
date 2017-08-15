@@ -71,7 +71,13 @@ class BinContainer : virtual public BaseDatabase<KeyType, ValType>
 
     virtual void close()
     {
-        LOG_PRINT(DBG_DATA, "BinContainer close.\n");
+        LOG_PRINT(DBG_DATA, "BinContainer close (buffer size=%ld, data size=%ld).\n",
+                  pages.size() * pagesize, get_data_size());
+    }
+
+    virtual int seek(DB_POS pos) {
+        LOG_WARNING("FileReader doesnot support seek methods!\n");
+        return false;
     }
 
     virtual int read(KeyType* key, ValType* val) 
@@ -207,6 +213,14 @@ class BinContainer : virtual public BaseDatabase<KeyType, ValType>
 
     virtual uint64_t get_record_count() { return kvcount; }
 
+    virtual uint64_t get_data_size() {
+        uint64_t total_size = 0;
+        for (auto bin : bins) {
+            total_size += bin.datasize;
+        }
+        return total_size;
+    }
+
     char *get_bin_ptr(int bin_idx) {
         return pages[bin_idx / bin_per_page].buffer                            \
             + (bin_idx % bin_per_page) * bin_unit_size;
@@ -220,6 +234,9 @@ class BinContainer : virtual public BaseDatabase<KeyType, ValType>
         PROFILER_RECORD_COUNT(COUNTER_MAX_KV_PAGES,
                               this->mem_bytes, OPMAX);
         pages.push_back(page);
+
+        printf("%d[%d] add page=%ld\n", mimir_world_rank, mimir_world_size, pages.size());
+
         return pages.size() - 1;
     }
 
@@ -246,6 +263,11 @@ class BinContainer : virtual public BaseDatabase<KeyType, ValType>
     }
 
     int get_unit_size() { return bin_unit_size; }
+
+    virtual int remove() {
+        LOG_ERROR("This KV container doesnot support remove function!\n");
+        return false;
+    }
 
     void set_bin_info(int bidx, uint32_t bintag, int datasize, int kvcount) {
         bins[bidx].bintag = bintag;

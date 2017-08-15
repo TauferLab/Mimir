@@ -116,7 +116,7 @@ void read_dataset (Readable<char*,void> *input,
     char      *key = NULL;
     SingleVal  val;
 
-    while (input->read(&line, NULL) == 0) {
+    while (input->read(&line, NULL) == true) {
 
         char *saveptr = NULL, *word = NULL;
 
@@ -152,7 +152,7 @@ void map (Readable<KeyType, SingleVal> *input,
 {
     KeyType key;
     SingleVal val;
-    while (input->read(&key, &val) == 0) {
+    while (input->read(&key, &val) == true) {
         output->write(&key, &val);
     }
 }
@@ -167,7 +167,7 @@ void reduce (Readable<KeyType,SingleVal> *input,
 
     // Set datatag to the tag of smaller dataset
     uint64_t val1count = 0, val2count = 0;
-    while (input->read(&key, &val) == 0) {
+    while (input->read(&key, &val) == true) {
         if (val.tag == DATA1_TAG) val1count +=1;
         else if (val.tag == DATA2_TAG) val2count += 1;
     }
@@ -176,14 +176,14 @@ void reduce (Readable<KeyType,SingleVal> *input,
     else datatag = DATA2_TAG;
 
     // Get values of smaller dataset
-    while (input->read(&key, &val) == 0) {
+    while (input->read(&key, &val) == true) {
         if (val.tag == datatag) {
             db.push_back(val.val);
         }
     }
 
     // Get final results
-    while (input->read(&key, &val) == 0) {
+    while (input->read(&key, &val) == true) {
         if (val.tag != datatag) {
             auto iter = db.begin();
             for (; iter != db.end(); iter ++) {

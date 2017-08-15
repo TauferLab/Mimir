@@ -142,7 +142,8 @@ class MimirContext {
                 chunk_mgr = new ChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYNAME);
             reader = FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType>::getReader(mimir_ctx_comm,
                                                                                                chunk_mgr, user_padding);
-            inputs.push_back(reader);
+            Readable<InKeyType,InValType>* input = dynamic_cast<Readable<InKeyType,InValType>*>(reader);
+            inputs.push_back(input);
         }
 
         ///////////////////// get output objects ////////////////////////
@@ -153,16 +154,19 @@ class MimirContext {
         // Output to this context
         else if (!output_file) {
             if (BALANCE_LOAD) {
-                if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
-                else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+                //if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
+                //else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+                if (!user_combine) kv = new KVContainer<KeyType,ValType>(bincount, keycount, valcount, true);
+                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount, true);
             } else {
-                if (CONTAINER_TYPE == 0) {
-                    if (!user_combine) kv = new KVContainer<KeyType,ValType>(bincount, keycount, valcount);
-                    else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
-                } else if (CONTAINER_TYPE == 1) {
-                    if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
-                    else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
-                }
+                //if (CONTAINER_TYPE == 0) {
+                if (!user_combine) kv = new KVContainer<KeyType,ValType>(bincount, keycount, valcount);
+                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+                //}
+                //else if (CONTAINER_TYPE == 1) {
+                //    if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
+                //    else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+                //}
             }
             output = kv;
         }
@@ -430,7 +434,7 @@ class MimirContext {
         output = (Readable<OutKeyType,OutValType>*)(database);
         output->open();
         writer->open();
-        while (output->read(key, val) == 0) {
+        while (output->read(key, val) == true) {
             writer->write(key, val);
         }
         writer->close();
@@ -467,7 +471,7 @@ class MimirContext {
         LOG_PRINT(DBG_GEN, "MapReduce: scan start\n");
 
         db->open();
-        while (db->read(key, val) == 0) {
+        while (db->read(key, val) == true) {
             scan_fn(key, val, ptr);
         }
         db->close();
@@ -492,7 +496,7 @@ class MimirContext {
         LOG_PRINT(DBG_GEN, "MapReduce: scan start\n");
 
         db->open();
-        while (db->read(key, val) == 0) {
+        while (db->read(key, val) == true) {
             scan_fn(key, val, ptr);
         }
         db->close();
