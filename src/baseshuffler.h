@@ -216,7 +216,7 @@ protected:
         MPI_Barrier(shared_comm);
 
         global_kv_count = 0;
-        int64_t min_val = 0xffffffffffffffff, max_val = 0;
+        int64_t min_val = 0x7fffffffffffffff, max_val = 0;
         int i = 0;
         for (i = 0 ; i < shuffle_size; i++) {
             if (kv_per_proc[i] == -1) break;
@@ -226,6 +226,8 @@ protected:
         }
 
         if (i < shuffle_size) return true;
+
+        if (max_val < 1024) return true;
 
         if ((double)max_val > BALANCE_FACTOR * (double)min_val) return false;
 
@@ -362,6 +364,8 @@ protected:
                         kv_count_j += node_redirect_count;
                         kv_count_i = node_kv_mean;
                     }
+
+                    if (node_redirect_count == 0) break;
 
                     // This node send out
                     if (i == node_rank) {
@@ -525,6 +529,7 @@ protected:
                         kv_count_i = proc_kv_mean;
                         kv_count_j += redirect_count;
                     }
+                    if (redirect_count == 0) break;
                     if (i == shared_rank) {
                         migrate_kv_count += find_bins(redirect_bins,
                                                       redirect_count,
@@ -561,6 +566,7 @@ protected:
                         kv_count_j += redirect_count;
                         kv_count_i = proc_kv_mean;
                     }
+                    if (redirect_count == 0) break;
                     if (i == shuffle_rank) {
                         migrate_kv_count += find_bins(redirect_bins, redirect_count, j);
                     }
@@ -578,6 +584,7 @@ protected:
 
         // Get redirect bins
         std::map<uint32_t,int> redirect_bins;
+
         /*uint64_t migrate_kv_count = */
         compute_redirect_bins(redirect_bins);
 
@@ -596,6 +603,8 @@ protected:
             displs[i] = displs[i - 1] + recvcounts[i - 1];
             recvcount += recvcounts[i];
         }
+
+        if (recvcount == 0) return;
 
         int sendbuf[sendcount], recvbuf[recvcount];
         std::set<int> send_procs, recv_procs;
