@@ -81,7 +81,7 @@ int main(int argc, char **argv)
         = new MimirContext<int64_t,int64_t,char*,void>(input);
     graph_loader->map(fileread);
 
-    MimirContext<int64_t,int64_t> *edge_list = new MimirContext<int64_t,int64_t>();
+    //MimirContext<int64_t,int64_t> *edge_list = new MimirContext<int64_t,int64_t>();
 
     // Initialize root
     int tag = 0;
@@ -98,11 +98,11 @@ int main(int argc, char **argv)
     int level = 0;
     do {
         // Join with edge list
-        if (level == 0) {
-            active_edge->insert_data_handle(graph_loader->get_data_handle());
-        } else {
-            active_edge->insert_data_handle(edge_list->get_data_handle());
-        }
+        //if (level == 0) {
+        active_edge->insert_data_handle(graph_loader->get_data_handle());
+        //} else {
+        //    active_edge->insert_data_handle(edge_list->get_data_handle());
+        //}
         active_edge->map(map_copy);
         nactives[level] = active_edge->reduce(join_edge_list_reduce);
         if (rank == 0) {
@@ -116,19 +116,20 @@ int main(int argc, char **argv)
         span_tree->insert_data_handle(active_edge->get_data_handle());
         span_tree->map(add_span_tree);
         // Cut visited edges
-        if (level == 0)
-            edge_list->insert_data_handle(graph_loader->get_data_handle());
-        edge_list->insert_data_handle(active_edge->get_data_handle());
-        edge_list->map(add_active_vertex);
-        if (level == 0) delete graph_loader;
-        edge_list->reduce(cut_edge_list);
+        //if (level == 0)
+        //    edge_list->insert_data_handle(graph_loader->get_data_handle());
+        //edge_list->insert_data_handle(active_edge->get_data_handle());
+        //edge_list->map(add_active_vertex);
+        //if (level == 0) delete graph_loader;
+        //edge_list->reduce(cut_edge_list);
         level ++;
     } while(nactives[level - 1]);
 
     // Output span tree
     span_tree->output("text");
 
-    delete edge_list;
+    delete graph_loader;
+    //delete edge_list;
     delete active_edge;
     delete span_tree;
 
@@ -199,9 +200,9 @@ void add_active_vertex(Readable<int64_t, int64_t> *input,
     int64_t key;
     int64_t val;
     while (input->read(&key, &val) == true) {
-        int64_t tmp = key;
-        key = val;
-        val = tmp;
+        int64_t tmp = val;
+        val = SET_VAL(key,GET_TAG(tmp));
+        key = GET_VAL(tmp);
         output->write(&key, &val);
     }
 }
