@@ -28,7 +28,7 @@ public:
                        uint32_t bincount = 0,
                        int keycount = 1, int valcount = 1,
                        bool isremove = false)
-        : BaseDatabase<KeyType, ValType>(true), KVContainer<KeyType,ValType>(bincount, keycount, valcount) {
+        : BaseObject(true), KVContainer<KeyType,ValType>(bincount, keycount, valcount) {
 
         this->user_combine = user_combine;
         this->user_ptr = user_ptr;

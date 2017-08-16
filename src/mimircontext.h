@@ -78,18 +78,19 @@ class MimirContext {
 
     // Set customized database
     void set_user_database(void *database) {
-        this->user_database = (BaseDatabase<KeyType,ValType>*)database;
+        this->user_database = dynamic_cast<BaseObject*>(database);
+        if (this->user_database) LOG_ERROR("Cannot convert user database\n");
     }
 
     // Get data handle
     void *get_data_handle() {
-        return database;
+        return (void*)(database);
     }
 
     // Insert data handle
     void insert_data_handle(void *handle) {
         if (handle == NULL) LOG_ERROR("The handle inserted is not valid!\n");
-        BaseDatabase<InKeyType,InValType>::addRef((BaseDatabase<InKeyType,InValType>*)handle);
+        BaseObject::addRef((BaseDatabase<InKeyType,InValType>*)handle);
         in_databases.push_back((BaseDatabase<InKeyType,InValType>*)handle);
     }
 
@@ -126,7 +127,9 @@ class MimirContext {
         }
         // Input from this context
         if (database != NULL) {
-            Readable<InKeyType,InValType>* input = (Readable<InKeyType,InValType>*)(database);
+            //reinterpret_cast<BaseDatabase<KeyType,ValType>*>
+            Readable<InKeyType,InValType>* input = dynamic_cast<Readable<InKeyType,InValType>*>(database);
+            if (input == NULL) LOG_ERROR("Cannot convert database into input format!\n");
             inputs.push_back(input);
         }
         // Input from files
@@ -149,7 +152,7 @@ class MimirContext {
         ///////////////////// get output objects ////////////////////////
         // Output to customized database
         if (user_database != NULL) {
-            output = (Writable<KeyType,ValType>*)user_database;
+            output = dynamic_cast<Writable<KeyType,ValType>*>(user_database);
         }
         // Output to this context
         else if (!output_file) {
@@ -285,12 +288,12 @@ class MimirContext {
         // Cleanup input objects
         if (in_databases.size() != 0) {
             for (auto iter : in_databases) {
-                BaseDatabase<InKeyType,InValType>::subRef(iter);
+                BaseObject::subRef(iter);
             }
             in_databases.clear();
 	}
         if (database != NULL) {
-            BaseDatabase<InKeyType,InValType>::subRef((BaseDatabase<InKeyType,InValType>*)database);
+            BaseObject::subRef(database);
             database = NULL;
         }
         if (reader != NULL) {
@@ -300,12 +303,12 @@ class MimirContext {
         // Cleanup output objects
         if (user_database != NULL) {
             database = user_database;
-            BaseDatabase<KeyType,ValType>::addRef((BaseDatabase<KeyType,ValType>*)database);
+            BaseObject::addRef(database);
             user_database = NULL;
         } else if (!output_file) {
             database = kv;
-            isoutkv = false;
-            BaseDatabase<KeyType,ValType>::addRef((BaseDatabase<KeyType,ValType>*)database);
+            //isoutkv = false;
+            BaseObject::addRef(database);
         } else {
             database = NULL;
             delete writer;
@@ -349,10 +352,12 @@ class MimirContext {
 
         LOG_PRINT(DBG_GEN, "MapReduce: reduce start, %ld\n", Container::mem_bytes);
 
-        input = (Readable<KeyType,ValType>*)database;
+        input = dynamic_cast<Readable<KeyType,ValType>*>(database);
+        if (input == NULL) LOG_ERROR("Error to convert database to input!\n");
         // output to user database
         if (user_database != NULL) {
-            output = (Writable<OutKeyType,OutValType>*)(user_database);
+            output = dynamic_cast<Writable<OutKeyType,OutValType>*>(user_database);
+            if (output == NULL) LOG_ERROR("Error to convert database to output!\n");
         // output to stage area
         } else if (!output_file) {
             kv = new KVContainer<OutKeyType,OutValType>(bincount, keycount, valcount);
@@ -366,7 +371,7 @@ class MimirContext {
 
         kmv = new KMVContainer<KeyType,ValType>(keycount, valcount);
         kmv->convert(input);
-        BaseDatabase<KeyType,ValType>::subRef((BaseDatabase<KeyType,ValType>*)database);
+        BaseObject::subRef(database);
         database = NULL;
 
         kmv_records = kmv->get_record_count();
@@ -391,12 +396,11 @@ class MimirContext {
 
         if (user_database != NULL) {
             database = user_database;
-            BaseDatabase<OutKeyType,OutValType>::addRef((BaseDatabase<OutKeyType,OutValType>*)database);
+            BaseObject::addRef(database);
             user_database = NULL;
         } else if (!output_file) {
-            BaseDatabase<OutKeyType,OutValType>::addRef(kv);
-            database = kv;
-            isoutkv = true;
+            BaseObject::addRef(kv);
+            database = dynamic_cast<BaseObject*>(kv);
         // output to disk files
         } else {
             delete writer;
@@ -404,7 +408,6 @@ class MimirContext {
         }
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_RDC);
-        LOG_PRINT(DBG_GEN, "MapReduce: done\n");
 
         uint64_t total_records = 0;
 	PROFILER_RECORD_TIME_START;
@@ -431,7 +434,8 @@ class MimirContext {
         FileWriter<OutKeyType, OutValType> *writer 
             = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
         writer->set_file_format(outfile_format.c_str());
-        output = (Readable<OutKeyType,OutValType>*)(database);
+        output = dynamic_cast<Readable<OutKeyType,OutValType>*>(database);
+        if (output == NULL) LOG_ERROR("Error to convert database!\n");
         output->open();
         writer->open();
         while (output->read(key, val) == true) {
@@ -442,7 +446,7 @@ class MimirContext {
         uint64_t output_records = writer->get_record_count();
         delete writer;
 
-        BaseDatabase<OutKeyType,OutValType>::subRef((BaseDatabase<OutKeyType,OutValType>*)database);
+        BaseObject::subRef(database);
         database = NULL;
 
         uint64_t total_records = 0;
@@ -466,7 +470,8 @@ class MimirContext {
         if (database == NULL)
             LOG_ERROR("No data to scan!\n");
 
-        db = (BaseDatabase<KeyType,ValType>*)(database);
+        db = dynamic_cast<BaseDatabase<KeyType,ValType>*>(database);
+        if (db == NULL) LOG_ERROR("Error to convert database!\n");
 
         LOG_PRINT(DBG_GEN, "MapReduce: scan start\n");
 
@@ -491,7 +496,8 @@ class MimirContext {
         if (database == NULL)
             LOG_ERROR("No data to scan!\n");
 
-        db = (BaseDatabase<OutKeyType,OutValType>*)(database);
+        db = dynamic_cast<BaseDatabase<OutKeyType,OutValType>*>(database);
+        if (db == NULL) LOG_ERROR("Error to convert database!\n");
 
         LOG_PRINT(DBG_GEN, "MapReduce: scan start\n");
 
@@ -561,19 +567,20 @@ class MimirContext {
         // BIN_COUNT may be changed by mimir_init function
         this->bincount = mimir_ctx_size * BIN_COUNT;
 
-        isoutkv = false;
+        //isoutkv = false;
     }
 
     void _uinit() {
         MPI_Comm_free(&mimir_ctx_comm);
         if (database != NULL) {
-            if (!isoutkv) BaseDatabase<KeyType,ValType>::subRef((BaseDatabase<KeyType,ValType>*)database);
-            else BaseDatabase<OutKeyType,OutValType>::subRef((BaseDatabase<OutKeyType,OutValType>*)database);
+            //if (!isoutkv) BaseDatabase<KeyType,ValType>::subRef((BaseDatabase<KeyType,ValType>*)database);
+            //else BaseDatabase<OutKeyType,OutValType>::subRef((BaseDatabase<OutKeyType,OutValType>*)database);
+            BaseObject::subRef(database);
             database = NULL;
         }
 	else if (in_databases.size() != 0) {
             for (auto iter : in_databases) {
-                BaseDatabase<InKeyType,InValType>::subRef(iter);
+                BaseObject::subRef(iter);
             }
             in_databases.clear();
 	}
@@ -600,9 +607,8 @@ class MimirContext {
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Structure
-    void*         database;
-    bool          isoutkv;
-    void*         user_database;
+    BaseObject              *database;
+    BaseObject              *user_database;
     std::vector<BaseDatabase<InKeyType, InValType>*> in_databases;
 
     uint64_t    input_records;

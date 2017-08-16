@@ -16,33 +16,70 @@ namespace MIMIR_NS {
 
 enum DB_POS {DB_START, DB_END};
 
-template <typename KeyType, typename ValType>
-class Base {
+class BaseObject {
   public:
-    virtual ~Base() {}
+    BaseObject(bool inner = false) {
+        ref = 0;
+        this->inner = inner;
+    }
+    virtual ~BaseObject() {}
     virtual int open() = 0;
     virtual void close() = 0;
     virtual int seek(DB_POS pos) = 0;
     virtual uint64_t get_record_count() = 0;
+
+    bool is_inner() {
+        return inner;
+    }
+
+    uint64_t getRef() {
+        return ref;
+    }
+
+    void addRef() {
+        ref ++;
+    }
+
+    void subRef() {
+        ref --;
+    }
+
+    static void addRef(BaseObject *d) {
+        if (d != NULL) {
+            d->addRef();
+        }
+    }
+
+    static void subRef(BaseObject *d) {
+	 if (d != NULL && d->is_inner()) {
+            d->subRef();
+            if (d->getRef() == 0 ) {
+                delete d;
+            }
+        }
+    }
+
+  private:
+    uint64_t    ref;
+    bool        inner;
 };
 
 template <typename KeyType, typename ValType>
-class Readable : public Base<KeyType, ValType> {
+class Readable : virtual public BaseObject {
   public:
     virtual ~Readable() {}
     virtual int read(KeyType*, ValType*) = 0;
 };
 
 template <typename KeyType, typename ValType>
-class Removable : public Base<KeyType, ValType> {
+class Removable : virtual public BaseObject {
   public:
     virtual ~Removable() {}
-    // return 1 if success, otherwise return 0
     virtual int remove() = 0;
 };
 
 template <typename KeyType, typename ValType>
-class Writable : public Base<KeyType, ValType> {
+class Writable : virtual public BaseObject {
   public:
     virtual ~Writable() {}
     virtual int write(KeyType*, ValType*) = 0;
@@ -61,9 +98,7 @@ class BaseDatabase :
     virtual public Removable<KeyType, ValType>
 {
   public:
-    BaseDatabase(bool if_inner_object = false) {
-        ref = 0;
-        this->if_inner_object = if_inner_object;
+    BaseDatabase() {
     }
 
     virtual ~BaseDatabase() {
@@ -75,42 +110,6 @@ class BaseDatabase :
     virtual int seek(DB_POS pos) = 0;
     virtual int write(KeyType *, ValType *) = 0;
     virtual int remove() = 0;
-
-    uint64_t getRef() {
-        return ref;
-    }
-
-    void addRef() {
-        ref ++;
-    }
-
-    void subRef() {
-        ref --;
-    }
-
-    bool is_inner_object() {
-        return if_inner_object;
-    }
-
-    static void addRef(BaseDatabase *d) {
-        if (d != NULL) {
-            d->addRef();
-        }
-    }
-
-    static void subRef(BaseDatabase *d) {
-	 if (d != NULL) {
-            d->subRef();
-            if (d->getRef() == 0 
-                && d->is_inner_object() ) {
-                delete d;
-            }
-        }
-    }
-
-  private:
-    uint64_t    ref;
-    bool        if_inner_object;
 
   public:
     static uint64_t    mem_bytes;

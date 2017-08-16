@@ -24,7 +24,7 @@ class KVContainer : virtual public BaseDatabase<KeyType, ValType> {
 public:
     KVContainer(uint32_t bincount, int keycount, int valcount,
                 bool isremove = false) 
-        : BaseDatabase<KeyType, ValType>(true) {
+        : BaseObject(true), BaseDatabase<KeyType, ValType>() {
 
         this->keycount = keycount;
         this->valcount = valcount;
