@@ -310,7 +310,7 @@ void map_words (Readable<double, void> *input,
     const char *word;
     uint64_t range_size = div_idx_map[proc_rank + 1] - div_idx_map[proc_rank];
 
-    while (input->read(&num, NULL) == 0) {
+    while (input->read(&num, NULL) == true) {
 
         uint64_t low = 0;
         uint64_t high = range_size + 1;
@@ -346,7 +346,7 @@ void map_copy (Readable<const char*, void> *input,
 {
     double t1 = MPI_Wtime();
     const char* word = NULL;
-    while (input->read(&word, NULL) == 0) {
+    while (input->read(&word, NULL) == true) {
         output->write(&word, NULL);
     }
     double t2 = MPI_Wtime();
@@ -364,7 +364,7 @@ void map_uniques (Readable<const char*,void> *input,
     // Get existing words
     if (input != NULL) {
         const char *exist_word = NULL;
-        while (input->read(&exist_word, NULL) == 0) {
+        while (input->read(&exist_word, NULL) == true) {
             //unique_words.push_back(std::string(exist_word));
             output->write(&exist_word, NULL);
         }

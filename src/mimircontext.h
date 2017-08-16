@@ -331,7 +331,7 @@ class MimirContext {
     uint64_t reduce(void (*user_reduce)(Readable<KeyType,ValType> *input,
                                         Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
                     void *ptr = NULL,
-                    bool output_file = true,
+                    bool output_file = false,
                     std::string outfile_format = "binary") {
 
         KVContainer<OutKeyType,OutValType> *kv = NULL;

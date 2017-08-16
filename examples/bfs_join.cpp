@@ -25,11 +25,11 @@ using namespace MIMIR_NS;
 
 #define SPAN_TREE_TAG   0x00
 #define EDGE_LIST_TAG   0x01
-#define ACTIVE_EDGE_TAG 0x10
+#define ACTIVE_EDGE_TAG 0x02
 
-#define GET_TAG(v)      (((v & 0xc000000000000000) >> 62) & 0x11UL)
+#define GET_TAG(v)      (((v & 0xc000000000000000) >> 62) & 0x3UL)
 #define GET_VAL(v)        (v & 0x3fffffffffffffff)
-#define SET_VAL(v,tag)  (((tag & 0x11UL) << 62) | (v & 0x3fffffffffffffff))
+#define SET_VAL(v,tag)  (((tag & 0x3UL) << 62) | (v & 0x3fffffffffffffff))
 
 void fileread (Readable<char*, void> *input,
                Writable<int64_t, int64_t> *output, void *ptr);

@@ -83,7 +83,7 @@ void map (Readable<const char*,void> *input,
     // Get existing words
     if (input != NULL) {
         const char *exist_word = NULL;
-        while (input->read(&exist_word, NULL) == 0) {
+        while (input->read(&exist_word, NULL) == true) {
             unique_words.push_back(std::string(exist_word));
         }
     }

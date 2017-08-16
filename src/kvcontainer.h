@@ -31,6 +31,11 @@ public:
         this->bincount = bincount;
         this->isremove = isremove;
 
+        pageid = 0;
+        pageoff = 0;
+        ptr = NULL;
+        kvsize = 0;
+
         kvcount = 0;
         pagesize = DATA_PAGE_SIZE;
 
@@ -55,9 +60,6 @@ public:
         pageoff = 0;
         ptr = NULL;
         kvsize = 0;
-        if (pageid >= pages.size()) {
-            return false;
-        }
         LOG_PRINT(DBG_DATA, "KVContainer open.\n");
         return true;
     }
@@ -110,7 +112,7 @@ public:
                 }
 
                 if (pageid >= pages.size()) {
-                    return 0;
+                    return false;
                 }
 
                 ptr = pages[pageid].buffer + pageoff;
@@ -151,6 +153,7 @@ public:
                     LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n",
                               kvsize, pagesize);
             }
+            pages[pageid].datasize += kvsize;
         } else {
             kvsize = ser->get_kv_bytes(key, val);
             std::unordered_map < char *, int >::iterator iter;
@@ -179,10 +182,9 @@ public:
                 if (kvsize == -1)
                     LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n",
                               kvsize, pagesize);
+                pages[pageid].datasize += kvsize;
             }
         }
-
-        pages[pageid].datasize += kvsize;
 
         kvcount += 1;
 
@@ -194,7 +196,7 @@ public:
             LOG_ERROR("This KV container doesnot support remove function!\n");
         }
 
-        if (ptr == NULL) return 0;
+        if (ptr == NULL) return false;
 
         slices[ptr] = kvsize;
         kvcount -= 1;
