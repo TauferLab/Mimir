@@ -83,15 +83,16 @@ class MimirContext {
     }
 
     // Get data handle
-    void *get_data_handle() {
-        return (void*)(database);
+    BaseObject *get_data_handle() {
+        return database;
     }
 
     // Insert data handle
-    void insert_data_handle(void *handle) {
-        if (handle == NULL) LOG_ERROR("The handle inserted is not valid!\n");
-        BaseObject::addRef((BaseDatabase<InKeyType,InValType>*)handle);
-        in_databases.push_back((BaseDatabase<InKeyType,InValType>*)handle);
+    void insert_data_handle(BaseObject *handle) {
+        BaseObject *ptr = dynamic_cast<BaseObject*>(handle);
+        if (ptr == NULL) LOG_ERROR("The handle inserted is not valid!\n");
+        BaseObject::addRef(ptr);
+        in_databases.push_back(ptr);
     }
 
     // Map
@@ -122,7 +123,9 @@ class MimirContext {
         // Input from outside
         if (in_databases.size() != 0) {
             for (auto iter : in_databases) {
-                inputs.push_back(iter);
+                Readable<InKeyType,InValType> *input = dynamic_cast<Readable<InKeyType,InValType>*>(iter);
+                if (input == NULL) LOG_ERROR("Object convert error!\n");
+                inputs.push_back(input);
             }
         }
         // Input from this context
@@ -610,7 +613,7 @@ class MimirContext {
     // Internal Structure
     BaseObject              *database;
     BaseObject              *user_database;
-    std::vector<BaseDatabase<InKeyType, InValType>*> in_databases;
+    std::vector<BaseObject*> in_databases;
 
     uint64_t    input_records;
     uint64_t    kv_records;
