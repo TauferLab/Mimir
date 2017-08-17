@@ -5,7 +5,7 @@
 # Notes:
 #
 #   -- Launch this script by executing
-#      "slurm.mpiexec.sub N n job parameters"
+#      "slurm.srun.sub N n job parameters"
 #
 #----------------------------------------------------
 
@@ -19,6 +19,7 @@ date
 #          -e cache-references,cache-misses \
 #          -e LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses \
 #          -e mem-loads,mem-stores \
-mpiexec -n $2 -bind-to core $3 $4
+srun -N $1 -n $2 --ntasks-per-core=1 --cpu_bind=rank $3 $4
+
 
 # ---------------------------------------------------

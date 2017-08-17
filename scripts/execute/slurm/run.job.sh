@@ -38,6 +38,6 @@ for((i=0; i<$ntimes; i++))
 do
     sbatch --job-name=$jobname --output=$jobname.o%j.out --error=$jobname.e%j.out \
     --partition=$partition -N $N -n $n --time=$timelimit --export=all             \
-    $subscript $n $installdir/$job "$params"
+    $subscript $N $n $installdir/$job "$params"
     #sleep 1
 done
