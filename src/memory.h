@@ -22,6 +22,8 @@
 #include <spi/include/kernel/memory.h>
 #endif
 
+#include "getrss.h"
+
 #include "log.h"
 
 #define DRAM_ALLOCATE    0
@@ -115,7 +117,8 @@ inline int64_t get_mem_usage()
 
     memsize = heap + stacksize;
 #else
-    memsize = get_max_mmap();
+    //memsize = get_max_mmap();
+    memsize = getCurrentRSS();
 #endif
 
     return memsize;
