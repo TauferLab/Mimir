@@ -77,9 +77,9 @@ class MimirContext {
     }
 
     // Set customized database
-    void set_user_database(void *database) {
-        this->user_database = dynamic_cast<BaseObject*>(database);
-        if (this->user_database) LOG_ERROR("Cannot convert user database\n");
+    void set_user_database(BaseObject *database) {
+        this->user_database = database;
+        if (this->user_database == NULL) LOG_ERROR("Cannot convert user database\n");
     }
 
     // Get data handle
@@ -153,6 +153,7 @@ class MimirContext {
         // Output to customized database
         if (user_database != NULL) {
             output = dynamic_cast<Writable<KeyType,ValType>*>(user_database);
+            if (output == NULL) LOG_ERROR("Convert user database error!\n");
         }
         // Output to this context
         else if (!output_file) {
