@@ -23,6 +23,18 @@
 #include <mpi.h>
 #include "mimir.h"
 
+const char dict[] = {                   \
+     'a', 'b', 'c', 'd', 'e', 'f', 'g', \
+     'h', 'i', 'j', 'k', 'l', 'm', 'n', \
+     'o', 'p', 'q',      'r', 's', 't', \
+     'u', 'v', 'w',      'x', 'y', 'z', \
+     'A', 'B', 'C', 'D', 'E', 'F', 'G', \
+     'H', 'I', 'J', 'K', 'L', 'M', 'N', \
+     'O', 'P', 'Q',      'R', 'S', 'T', \
+     'U', 'V', 'W',      'X', 'Y', 'Z', \
+     '0', '1', '2', '3', '4', '5', '6', \
+     '7', '8', '9'};
+
 int get_word_length(int mean, double sd)
 {
     std::random_device rd;
@@ -36,7 +48,7 @@ int generate_unique_words(uint64_t n_unique, std::vector<std::string>& output,
 {
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0,25);
+    std::uniform_int_distribution<> dis(0,61);
 
     int n_buckets = 1, n_word = 0;
     while (n_buckets < n_unique) n_buckets <<= 1;
@@ -47,7 +59,7 @@ int generate_unique_words(uint64_t n_unique, std::vector<std::string>& output,
         memset(word, 0, 16);
         int wordlen = get_word_length(len_mean, len_sd);
         for (int i = 0; i < wordlen; i++) {
-            word[i] = 'a' + dis(gen);
+            word[i] = dict[dis(gen)];
         }
         word[wordlen] = 0;
         std::string new_word = word;
