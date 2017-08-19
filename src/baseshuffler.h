@@ -306,9 +306,9 @@ protected:
                 continue;
             }
             if (iter->second < redirect_count) {
-                //LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d (%ld, %.6lf)\n",
-                //          iter->first, target, iter->second,
-                //          (double)iter->second/(double)global_kv_count);
+                LOG_PRINT(DBG_REPAR, "Find bin %d (%ld, %.6lf)\n",
+                          iter->first, iter->second,
+                          (double)iter->second/(double)global_kv_count);
                 redirect_bins[iter->first] = iter->second;
                 redirect_count -= iter->second;
                 migrate_kv_count += iter->second;
@@ -339,6 +339,11 @@ protected:
             std::map<uint32_t,uint64_t> node_bins;
             int unitsize = (int)sizeof(uint32_t) + (int)sizeof(uint64_t);
 
+            //printf("%d[%d] node=[%ld,%ld,%ld,%ld], mean=%ld\n",
+            //       shuffle_rank, shuffle_size,
+            //       get_node_count(0), get_node_count(1),
+            //       get_node_count(2), get_node_count(3), node_kv_mean);
+
             // Redirect KVs from Node i to Node j
             while (i < node_size && j < node_size) {
 
@@ -353,6 +358,9 @@ protected:
                     }
                     if (j >= node_size) break;
 
+                    //LOG_PRINT(DBG_REPAR, "Redirect node %d=%ld, node %d=%ld\n",
+                    //          i, kv_count_i, j, kv_count_j);
+
                     // Redirect KVs from node i to node j
                     uint64_t node_redirect_count = 0;
                     if (node_kv_mean - kv_count_j < kv_count_i - node_kv_mean) {
@@ -364,6 +372,9 @@ protected:
                         kv_count_j += node_redirect_count;
                         kv_count_i = node_kv_mean;
                     }
+
+                    LOG_PRINT(DBG_REPAR, "Redirect node %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
+                              node_redirect_count, i, kv_count_i, j, kv_count_j, node_kv_mean);
 
                     if (node_redirect_count == 0) break;
 
@@ -430,6 +441,7 @@ protected:
                                      j, LB_EXCH_TAG, node_comm);
                         }
                         MPI_Win_free(&sendbuf_win);
+                        node_bins.clear();
                     }
                     // This node receive from
                     if (j == node_rank) {
@@ -496,15 +508,16 @@ protected:
                 if (i < node_size) kv_count_i = get_node_count(i);
             }
 
-           // Compute intra-node redirect
-            //MPI_Barrier(shared_comm);
-            //kv_per_proc[get_shuffle_rank(node_rank, shared_rank)] -= migrate_inter_node;
-            //MPI_Barrier(shared_comm);
+            //LOG_PRINT(DBG_REPAR, "Compute inter-node redirect end.\n");
+
+            // Compute intra-node redirect
+            MPI_Barrier(shared_comm);
             int64_t send_kv_count = 
                 kv_per_proc[get_shuffle_rank(node_rank, shared_rank)]
                 - migrate_inter_node;
             MPI_Gather(&send_kv_count, 1, MPI_INT64_T,
                        kv_per_proc, 1, MPI_INT64_T, 0, shared_comm);
+            MPI_Barrier(shared_comm);
 
             int64_t proc_kv_mean = get_node_count(node_rank)/shared_size;
             i = 0; j = 0;
@@ -588,6 +601,8 @@ protected:
         /*uint64_t migrate_kv_count = */
         compute_redirect_bins(redirect_bins);
 
+        LOG_PRINT(DBG_REPAR, "compute redirect bins end.\n");
+
         // Update redirect table
         int sendcount, recvcount;
         int recvcounts[shuffle_size], displs[shuffle_size];
@@ -639,6 +654,8 @@ protected:
 
         assert(isrepartition == false);
 
+        LOG_PRINT(DBG_REPAR, "migrate KVs start.\n");
+
         // Ensure no extrea repartition within repartition
         isrepartition = true;
         //if (!out_db) {
@@ -647,6 +664,8 @@ protected:
 
         // Migrate KVs
         migrate_kvs(redirect_bins, send_procs, recv_procs);
+
+        LOG_PRINT(DBG_REPAR, "migrate KVs end.\n");
 
 #if 0
         if (send_procs.size() > 0) {
