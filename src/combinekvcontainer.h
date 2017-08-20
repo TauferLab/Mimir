@@ -64,6 +64,7 @@ public:
 
     virtual int write(KeyType *key, ValType *val)
     {
+        int ret = true;
         int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > this->pagesize)
             LOG_ERROR("Error: KV size (%d) is larger \
@@ -140,8 +141,9 @@ public:
                 this->ser->kv_to_bytes(u_key, r_val, u->kv, ukeysize + rvalsize);
                 this->pages[this->pageid].datasize += ukeysize + rvalsize;
             }
+            ret = 2;
         }
-        return true;
+        return ret;
     }
 
 #if 0
