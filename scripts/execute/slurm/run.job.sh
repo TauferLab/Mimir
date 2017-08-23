@@ -17,6 +17,7 @@ n=$5
 job=$6
 params=$7
 statdir=$8
+prejob=$9
 
 source $config
 
@@ -32,12 +33,23 @@ export MIMIR_STAT_FILE=$statdir/$jobname-$label-$partition-$N-$n
 export MIMIR_RECORD_PEAKMEM=1
 #export MIMIR_DBG_ALL=0         # always output debug message
 
-echo $N,$n,$job,$params
+#echo $N,$n,$job,$params
 
-for((i=0; i<$ntimes; i++))
-do
+#for((i=0; i<$ntimes; i++))
+#do
+
+#echo $prejob
+
+if [ -z "$prejob" ];
+then
     sbatch --job-name=$jobname --output=$jobname.o%j.out --error=$jobname.e%j.out \
     --partition=$partition -N $N -n $n --time=$timelimit --export=all             \
-    $subscript $N $n $installdir/$job "$params"
-    #sleep 1
-done
+    $subscript $N $n $installdir/$job "$params" | awk '{print $4}'
+else
+    sbatch --job-name=$jobname --output=$jobname.o%j.out --error=$jobname.e%j.out \
+    --partition=$partition -N $N -n $n --time=$timelimit                          \
+    --export=all --dependency=afterany:$prejob                                    \
+    $subscript $N $n $installdir/$job "$params" | awk '{print $4}'
+fi
+#sleep 1
+#done
