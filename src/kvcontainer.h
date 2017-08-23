@@ -37,7 +37,12 @@ public:
         kvsize = 0;
 
         kvcount = 0;
+        kvmem = 0;
+        gbmem = 0;
         pagesize = DATA_PAGE_SIZE;
+
+        min_kvsize = MAX_RECORD_SIZE;
+        max_kvsize = 0;
 
         ser = new Serializer<KeyType, ValType>(keycount, valcount);
 
@@ -100,6 +105,7 @@ public:
             }
 
             if (pageid >= pages.size()) {
+                if (gbmem > 2 * (uint64_t)pagesize) garbage_collection();
                 return false;
             }
             ptr = pages[pageid].buffer + pageoff;
@@ -112,6 +118,7 @@ public:
                 }
 
                 if (pageid >= pages.size()) {
+                    if (gbmem > 2 * (uint64_t)pagesize) garbage_collection();
                     return false;
                 }
 
@@ -170,6 +177,7 @@ public:
                     else
                         this->slices[iter->first] -= kvsize;
 
+                    gbmem -= kvsize;
                     break;
                 }
             }
@@ -187,6 +195,10 @@ public:
         }
 
         kvcount += 1;
+        kvmem += kvsize;
+
+        if (kvsize > max_kvsize) max_kvsize = kvsize;
+        if (kvsize < min_kvsize) min_kvsize = kvsize;
 
         return true;
     }
@@ -198,12 +210,53 @@ public:
 
         if (ptr == NULL) return false;
 
-        slices[ptr] = kvsize;
+        // Insert <ptr, kvsize>
+        int i = 0;
+        for (i = min_kvsize; i < max_kvsize; i ++) {
+            char *tmp = ptr - i;
+            auto iter = slices.find(tmp);
+            if (iter != slices.end() && iter->second == i) {
+                iter->second += kvsize;
+                break;
+            }
+        }
+
+        if (i >= max_kvsize) {
+            int next_kvsize = 0;
+            char *tmp = ptr + kvsize;
+            auto iter = slices.find(tmp);
+            if (iter != slices.end()) {
+                next_kvsize = iter->second;
+                slices.erase(iter);
+            }
+            slices[ptr] = kvsize + next_kvsize;
+        }
+
         kvcount -= 1;
+        kvmem -= kvsize;
+        gbmem += kvsize;
+
         return true;
     }
 
     virtual uint64_t get_record_count() { return kvcount; }
+
+    void print(int rank, int size) {
+        size_t count = 0;
+        for (unsigned i = 0; i < slices.bucket_count(); ++i) {
+            size_t bucket_size = slices.bucket_size(i);
+            if (bucket_size == 0) {
+                count++;
+            }
+            else {
+                count += bucket_size;
+            }
+        }
+        fprintf(stdout, "%d[%d] KVinfo: page count=%ld, kvcount=%ld, kvmem=%ld, gbmem=%ld, memuse=%ld, membytes=%ld,slices=%ld,%ld,%ld\n",
+                rank, size, pages.size(),
+                kvcount, kvmem, gbmem, get_mem_usage(),
+                BaseDatabase<KeyType, ValType>::mem_bytes,slices.size(), slices.bucket_count(), count);
+    }
 
 protected:
 
@@ -231,6 +284,19 @@ protected:
 
             LOG_PRINT(DBG_GEN, "KVContainer garbage collection: slices=%ld\n",
                       this->slices.size());
+
+            if (kvcount == 0) {
+                for (auto iter : pages) {
+                    mem_aligned_free(iter.buffer);
+                    BaseDatabase<KeyType, ValType>::mem_bytes -= pagesize;
+                }
+                pages.clear();
+                //this->slices.clear();
+                std::unordered_map<char*,int> empty;
+                this->slices.swap(empty);
+                gbmem = 0;
+                return;
+            }
 
             if (dst_pid < pages.size()) dst_page = &pages[dst_pid++];
             while (src_pid < pages.size() ) {
@@ -268,10 +334,15 @@ protected:
             pageid = dst_pid;
             pageoff = dst_off;
             while (dst_pid < pages.size()) {
-                dst_page = &pages[dst_pid++];
-                dst_page->datasize = 0;
+                auto iter = pages.back();
+                mem_aligned_free(iter.buffer);
+                BaseDatabase<KeyType, ValType>::mem_bytes -= pagesize;
+                pages.pop_back();
             }
-            this->slices.clear();
+            //this->slices.clear();
+            std::unordered_map<char*,int> empty;
+            this->slices.swap(empty);
+            gbmem = 0;
         }
     }
 
@@ -286,7 +357,12 @@ protected:
 
     int     keycount, valcount;
     uint64_t           kvcount;
+    uint64_t           kvmem;
+    uint64_t           gbmem;
     uint32_t          bincount;
+
+    int              max_kvsize;
+    int              min_kvsize;
 
     bool              isremove;
     std::unordered_map<char*, int> slices;

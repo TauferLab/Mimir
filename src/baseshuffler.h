@@ -17,6 +17,7 @@
 #include "hashbucket.h"
 #include "serializer.h"
 #include "bincontainer.h"
+#include "kvcontainer.h"
 
 namespace MIMIR_NS {
 
@@ -232,6 +233,20 @@ protected:
         if ((double)max_val > BALANCE_FACTOR * (double)min_val) return false;
 
         return true;
+    }
+
+    void print_node_kvs(const char* str) {
+        int64_t memuse = get_mem_usage();
+        int64_t nodemem, nodepeak;
+        MPI_Reduce(&memuse, &nodemem, 1, MPI_INT64_T, MPI_SUM, 0, shared_comm);
+        MPI_Reduce(&peakmem, &nodepeak, 1, MPI_INT64_T, MPI_SUM, 0, shared_comm);
+        if (shared_rank == 0) {
+            fprintf(stdout, "%s node=%d, kvs=%ld, nodemem=%ld, nodepeak=%ld\n",
+                    str, node_rank, get_node_count(node_rank), nodemem, nodepeak);
+        }
+        KVContainer<KeyType,ValType>* kc = dynamic_cast<KVContainer<KeyType,ValType>*>(out);
+        if (kc == NULL) LOG_ERROR("Error!\n");
+        kc->print(shuffle_rank, shuffle_size);
     }
 
     int64_t get_node_count(int nodeid) {

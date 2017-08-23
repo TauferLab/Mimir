@@ -346,7 +346,7 @@ protected:
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-        LOG_PRINT(DBG_COMM, "Comm: start alltoall (isrepartition=%d)\n", this->isrepartition);
+        LOG_PRINT(DBG_COMM, "Comm: start alltoall (isrepartition=%d, peakmem=%ld)\n", this->isrepartition, peakmem);
 
         if (this->done_flag) {
             for (int i = 0; i < this->shuffle_size; i++) {
@@ -413,8 +413,6 @@ protected:
 
         PROFILER_RECORD_COUNT(COUNTER_SHUFFLE_TIMES, 1, OPSUM);
 
-        LOG_PRINT(DBG_COMM, "Comm: exchange KV. (send count=%ld, recv count=%ld, done count=%d)\n", sendcount, recvcount, this->done_count);
-
         if (BALANCE_LOAD && !(this->user_hash) && this->shuffle_times % BALANCE_FREQ == 0) {
             PROFILER_RECORD_TIME_START;
             bool flag = this->check_load_balance();
@@ -428,6 +426,9 @@ protected:
                 LOG_PRINT(DBG_REPAR, "shuffle index=%d: load balance end\n", this->shuffle_times);
             }
         }
+
+        LOG_PRINT(DBG_COMM, "Comm: exchange KV. (send count=%ld, recv count=%ld, done count=%d, peakmem=%ld)\n",
+                  sendcount, recvcount, this->done_count, peakmem);
 
         this->shuffle_times += 1;
     }
