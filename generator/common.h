@@ -31,6 +31,7 @@
 int get_word_length(int mean, double sd);
 int generate_unique_words(uint64_t n_unique, std::vector<std::string>& output,
                           int len_mean, double len_sd);
+void print_dist_map(uint64_t zipf_n, double zipf_alpha, double *dist_map);
 void gen_dist_map(uint64_t zipf_n, double zipf_alpha,
                   double* dist_map, uint64_t* div_idx_map,
                   double *div_dist_map);

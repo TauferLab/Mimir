@@ -78,6 +78,37 @@ int generate_unique_words(uint64_t n_unique, std::vector<std::string>& output,
     return 0;
 }
 
+void print_dist_map(uint64_t zipf_n, double zipf_alpha, double *dist_map) {
+    int proc_rank;
+    int proc_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &proc_size);
+
+    if (proc_size > zipf_n) {
+        fprintf(stderr, "The process count should larger n!\n");
+        exit(1);
+    }
+
+    if (proc_rank == 0) {
+        fprintf(stdout, "zipf (%ld,%.2lf) distribution:\n",
+                zipf_n, zipf_alpha);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    uint64_t div_size = zipf_n / proc_size;
+    uint64_t div_off = div_size * proc_rank;
+    if (proc_rank < (zipf_n % proc_size)) div_size += 1;
+    if (proc_rank < (zipf_n % proc_size)) div_off += proc_rank;
+    else div_off += (zipf_n % proc_size);
+
+    for (uint64_t i = 0; i < div_size; i++) {
+        fprintf(stdout, "%ld:%.6lf\n", div_off + i, dist_map[i]);
+    }
+
+    return;
+}
+
 void gen_dist_map(uint64_t zipf_n, double zipf_alpha, double* dist_map,
                   uint64_t* div_idx_map, double *div_dist_map) {
 

@@ -34,7 +34,8 @@ const char *cmdstr = "./cmd \t<itemcount> <outfile>\n\
 \t--val-len [val]\n\
 \t-disorder\n\
 \t-exchange\n\
-\t-withvalue\n";
+\t-withvalue\n\
+\t-distonly\n";
 
 uint64_t itemcount = 0;
 const char *outfile = NULL;
@@ -46,6 +47,7 @@ bool disorder = false;
 bool exchange = false;
 bool withvalue = false;
 bool singlefile = false;
+bool distonly = false;
 
 uint64_t total_unique = 0;
 uint64_t remain_unique = 0;
@@ -109,6 +111,14 @@ int main(int argc, char **argv) {
     div_dist_map = new double[proc_size + 1];
 
     gen_dist_map(zipf_n, zipf_alpha, dist_map, div_idx_map, div_dist_map);
+
+    if (distonly) {
+        print_dist_map(zipf_n, zipf_alpha, dist_map);
+        delete [] dist_map;
+        delete [] div_idx_map;
+        delete [] div_dist_map;
+        return 0;
+    }
 
     double t2 = MPI_Wtime();
     if (proc_rank == 0) {
@@ -485,6 +495,9 @@ void parse_cmd_line(int argc, char **argv) {
         }
         else if (!strcmp(*argv, "-withvalue")) {
             withvalue = true;
+        }
+        else if (!strcmp(*argv, "-distonly")) {
+            distonly = true;
         }
         else if (!strcmp(*argv, "-singlefile")) {
             singlefile = true;
