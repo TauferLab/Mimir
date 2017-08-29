@@ -343,9 +343,13 @@ class MPIFileWriter : public FileWriter<KeyType, ValType> {
 
         LOG_PRINT(DBG_IO, "Collective open output file %s.\n", this->filename.c_str());	
         PROFILER_RECORD_TIME_START;
+        MPI_Info file_info;
+        MPI_Info_create(&file_info);
+        if (DIRECT_WRITE) MPI_Info_set(file_info, "direct_write", "true");
         MPI_CHECK(MPI_File_open(this->writer_comm, this->filename.c_str(), 
                                 MPI_MODE_WRONLY | MPI_MODE_CREATE,
-                                MPI_INFO_NULL, &(this->union_fp.mpi_fp)));
+                                file_info, &(this->union_fp.mpi_fp)));
+        MPI_Info_free(&file_info);
         if (this->union_fp.mpi_fp == MPI_FILE_NULL) {
             LOG_ERROR("Open file %s error!\n", this->filename.c_str());
         }
@@ -479,10 +483,12 @@ template <typename KeyType, typename ValType>
 FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::getWriter(MPI_Comm comm, const char *filename) {
     //if (writer != NULL) delete writer;
     if (WRITE_TYPE == 0) {
-        writer = new FileWriter<KeyType, ValType>(comm, filename);
+        if (DIRECT_WRITE) {
+            writer = new DirectFileWriter<KeyType, ValType>(comm, filename);
+        } else {
+            writer = new FileWriter<KeyType, ValType>(comm, filename);
+        }
     } else if (WRITE_TYPE == 1) {
-        writer = new DirectFileWriter<KeyType, ValType>(comm, filename);
-    } else if (WRITE_TYPE == 2) {
         writer = new MPIFileWriter<KeyType, ValType>(comm, filename); 
     } else {
         LOG_ERROR("Error writer type %d\n", WRITE_TYPE);

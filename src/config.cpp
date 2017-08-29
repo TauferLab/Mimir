@@ -21,6 +21,8 @@ int MAX_SBUF_COUNT = 5;
 int COMM_UNIT_SIZE = 4096;
 int READ_TYPE = 0;
 int WRITE_TYPE = 0;
+int DIRECT_READ = 0;
+int DIRECT_WRITE = 0;
 
 // Features
 int WORK_STEAL = 0;

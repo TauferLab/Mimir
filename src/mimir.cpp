@@ -203,11 +203,8 @@ void get_default_values()
         if (strcmp(env, "posix") == 0) {
             READ_TYPE = 0;
         }
-	//else if (strcmp(env, "direct") == 0) {
-        //    READ_TYPE = 1;
-        //}
 	else if (strcmp(env, "mpiio") == 0) {
-            READ_TYPE = 2;
+            READ_TYPE = 1;
         }
     }
     // write type
@@ -216,12 +213,19 @@ void get_default_values()
         if (strcmp(env, "posix") == 0) {
             WRITE_TYPE = 0;
         }
-	//else if (strcmp(env, "direct") == 0) {
-        //    WRITE_TYPE = 1;
-        //}
 	else if (strcmp(env, "mpiio") == 0) {
-            WRITE_TYPE = 2;
+            WRITE_TYPE = 1;
         }
+    }
+    // direct read
+    env = getenv("MIMIR_DIRECT_READ");
+    if (env) {
+        DIRECT_READ = atoi(env);
+    }
+    // direct write
+    env = getenv("MIMIR_DIRECT_WRITE");
+    if (env) {
+        DIRECT_WRITE = atoi(env);
     }
 
     /// Features
@@ -386,8 +390,8 @@ Library configuration:\n\
 \thash bucket size: %d\n\
 \tmax record size: %d\n\
 \tshuffle type: %d (unit size: %d)(0 - MPI_Alltoallv; 1 - MPI_Ialltoallv [%d,%d])\n\
-\treader type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
-\twriter type: %d (0 - POSIX; 1 - DIRECT; 2 - MPIIO)\n\
+\treader type: %d (0 - POSIX; 1 - MPIIO) direct read=%d\n\
+\twriter type: %d (0 - POSIX; 1 - MPIIO) direct write=%d\n\
 \twork stealing: %d (make progress=%d)\n\
 \tcontainer type: %d (0 - kv; 1 - bin)\n\
 \tload balance: balance=%d, factor=%.2lf, bin=%d, freq=%d, alg=%d (0 - proc; 1 - node)\n\
@@ -395,7 +399,8 @@ Library configuration:\n\
 \tstat & debug: output stat=%d, stat file=%s, output peak mem=%d, debug level=%x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, MAX_RECORD_SIZE,
-        SHUFFLE_TYPE, COMM_UNIT_SIZE, MIN_SBUF_COUNT, MAX_SBUF_COUNT, READ_TYPE, WRITE_TYPE, 
+        SHUFFLE_TYPE, COMM_UNIT_SIZE, MIN_SBUF_COUNT, MAX_SBUF_COUNT,
+        READ_TYPE, DIRECT_READ, WRITE_TYPE, DIRECT_WRITE,
         WORK_STEAL, MAKE_PROGRESS,
         CONTAINER_TYPE,
         BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BALANCE_FREQ, BALANCE_ALG,

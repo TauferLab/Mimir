@@ -487,7 +487,7 @@ class MPIFileReader : public FileReader<FileFormat, KeyType, ValType, InKeyType,
 
         MPI_Info file_info;
         MPI_Info_create(&file_info);
-        MPI_Info_set(file_info, "direct_read", "true");
+        if (DIRECT_READ) MPI_Info_set(file_info, "direct_read", "true");
         MPI_CHECK(MPI_File_open(MPI_COMM_SELF, filename, MPI_MODE_RDONLY,
                                 file_info, &(this->union_fp.mpi_fp)));
         MPI_Info_free(&file_info);
@@ -798,10 +798,12 @@ FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>*
         ChunkManager<KeyType, ValType> *mgr, 
         int (*padding_fn)(const char* buf, int buflen, bool islast)) {
     if (READ_TYPE == 0) {
-        reader = new FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
+        if (DIRECT_READ) {
+            reader = new DirectFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
+        } else {
+            reader = new FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
+        }
     } else if (READ_TYPE == 1) {
-        reader = new DirectFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
-    } else if (READ_TYPE == 2) {
         reader = new MPIFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
     } else {
         LOG_ERROR("Error reader type %d\n", READ_TYPE);

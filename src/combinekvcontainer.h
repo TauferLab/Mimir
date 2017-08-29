@@ -77,39 +77,47 @@ public:
         if (u == NULL) {
             CombinerVal tmp;
 
-            std::unordered_map < char *, int >::iterator iter;
-            for (iter = this->slices.begin(); iter != this->slices.end(); iter++) {
-                char *sbuf = iter->first;
-                int ssize = iter->second;
+            if (!(this->ispointer)) {
+                std::unordered_map < char *, int >::iterator iter;
+                for (iter = this->slices.begin(); iter != this->slices.end(); iter++) {
+                    char *sbuf = iter->first;
+                    int ssize = iter->second;
 
-                if (ssize >= kvsize) {
-                    tmp.kv = sbuf + (ssize - kvsize);
-                    this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
+                    if (ssize >= kvsize) {
+                        tmp.kv = sbuf + (ssize - kvsize);
+                        this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
 
-                    if (iter->second == kvsize)
-                        this->slices.erase(iter);
-                    else
-                        this->slices[iter->first] -= kvsize;
+                        if (iter->second == kvsize)
+                            this->slices.erase(iter);
+                        else
+                            this->slices[iter->first] -= kvsize;
 
-                    break;
+                        break;
+                    }
                 }
-            }
 
-            if (iter == this->slices.end()) {
+                if (iter == this->slices.end()) {
+
+                    if (this->pageid >= this->pages.size() 
+                        || this->pagesize - this->pages[this->pageid].datasize < kvsize) {
+                        this->pageid = this->add_page(); 
+                    }
+
+                    tmp.kv = this->pages[this->pageid].buffer + this->pages[this->pageid].datasize;
+                    this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
+                    this->pages[this->pageid].datasize += kvsize;
+                }
+            } else {
 
                 if (this->pageid >= this->pages.size() 
                     || this->pagesize - this->pages[this->pageid].datasize < kvsize) {
-                    //Page page;
-                    //page.datasize = 0;
-                    //page.buffer = (char*)mem_aligned_malloc(MEMPAGE_SIZE, this->pagesize);
-                    //this->pages.push_back(page);
-                    //this->pageid = this->pages.size() - 1;
                     this->pageid = this->add_page(); 
-		}
+                }
 
                 tmp.kv = this->pages[this->pageid].buffer + this->pages[this->pageid].datasize;
                 this->ser->kv_to_bytes(key, val, tmp.kv, kvsize);
                 this->pages[this->pageid].datasize += kvsize;
+
             }
             bucket->insertEntry(tmp.kv, keysize, &tmp);
             this->kvcount += 1;

@@ -46,6 +46,13 @@ public:
 
         ser = new Serializer<KeyType, ValType>(keycount, valcount);
 
+        if (std::is_pointer<KeyType>::value
+            || std::is_pointer<ValType>::value) {
+            ispointer = true;
+        } else {
+            ispointer = false;
+        }
+
         LOG_PRINT(DBG_DATA, "KVContainer create.\n");
     }
 
@@ -106,6 +113,7 @@ public:
 
             if (pageid >= pages.size()) {
                 if (gbmem > 2 * (uint64_t)pagesize) garbage_collection();
+                LOG_PRINT(DBG_DATA, "slice length=%ld\n", slices.size());
                 return false;
             }
             ptr = pages[pageid].buffer + pageoff;
@@ -119,6 +127,7 @@ public:
 
                 if (pageid >= pages.size()) {
                     if (gbmem > 2 * (uint64_t)pagesize) garbage_collection();
+                    LOG_PRINT(DBG_DATA, "slice length=%ld\n", slices.size());
                     return false;
                 }
 
@@ -163,25 +172,39 @@ public:
             pages[pageid].datasize += kvsize;
         } else {
             kvsize = ser->get_kv_bytes(key, val);
-            std::unordered_map < char *, int >::iterator iter;
-            for (iter = this->slices.begin(); iter != this->slices.end(); iter++) {
-                char *sbuf = iter->first;
-                int ssize = iter->second;
 
-                if (ssize >= kvsize) {
-                    ptr = sbuf + (ssize - kvsize);
-                    this->ser->kv_to_bytes(key, val, ptr, kvsize);
+            if (!ispointer) {
+                std::unordered_map < char *, int >::iterator iter;
+                for (iter = this->slices.begin(); iter != this->slices.end(); iter++) {
+                    char *sbuf = iter->first;
+                    int ssize = iter->second;
 
-                    if (iter->second == kvsize)
-                        this->slices.erase(iter);
-                    else
-                        this->slices[iter->first] -= kvsize;
+                    if (ssize >= kvsize) {
+                        ptr = sbuf + (ssize - kvsize);
+                        this->ser->kv_to_bytes(key, val, ptr, kvsize);
 
-                    gbmem -= kvsize;
-                    break;
+                        if (iter->second == kvsize)
+                            this->slices.erase(iter);
+                        else
+                            this->slices[iter->first] -= kvsize;
+
+                        gbmem -= kvsize;
+                        break;
+                    }
                 }
-            }
-            if (iter == this->slices.end()) {
+                if (iter == this->slices.end()) {
+
+                    if ((int)(pagesize - pages[pageid].datasize) < kvsize) {
+                        pageid = add_page();
+                    }
+                    ptr = pages[pageid].buffer + pages[pageid].datasize;
+                    kvsize = this->ser->kv_to_bytes(key, val, ptr, kvsize);
+                    if (kvsize == -1)
+                        LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n",
+                                kvsize, pagesize);
+                    pages[pageid].datasize += kvsize;
+                }
+            } else {
                 if ((int)(pagesize - pages[pageid].datasize) < kvsize) {
                     pageid = add_page();
                 }
@@ -212,7 +235,7 @@ public:
 
         // Insert <ptr, kvsize>
         int i = 0;
-        for (i = min_kvsize; i < max_kvsize; i ++) {
+        for (i = min_kvsize; i < min_kvsize + 1; i ++) {
             char *tmp = ptr - i;
             auto iter = slices.find(tmp);
             if (iter != slices.end() && iter->second == i) {
@@ -364,6 +387,7 @@ protected:
     int              max_kvsize;
     int              min_kvsize;
 
+    bool              ispointer;
     bool              isremove;
     std::unordered_map<char*, int> slices;
     Serializer<KeyType, ValType> *ser;

@@ -28,6 +28,8 @@ extern int MAX_SBUF_COUNT;
 extern int COMM_UNIT_SIZE;
 extern int READ_TYPE;
 extern int WRITE_TYPE;
+extern int DIRECT_READ;
+extern int DIRECT_WRITE;
 
 // Features
 extern int WORK_STEAL;
