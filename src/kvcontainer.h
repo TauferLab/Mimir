@@ -244,7 +244,7 @@ public:
             }
         }
 
-        if (i >= max_kvsize) {
+        if (i >= min_kvsize + 1) {
             int next_kvsize = 0;
             char *tmp = ptr + kvsize;
             auto iter = slices.find(tmp);

@@ -204,9 +204,9 @@ protected:
         if (!migratable) return true;
 
         int64_t send_kv_count = local_kv_count;
-        if (this->isrepartition || this->done_flag) {
-            send_kv_count = -1;
-        }
+        //if (this->isrepartition || this->done_flag) {
+        //    send_kv_count = -1;
+        //}
         MPI_Gather(&send_kv_count, 1, MPI_INT64_T,
                    kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
         if (shared_rank == 0) {
@@ -220,13 +220,17 @@ protected:
         int64_t min_val = 0x7fffffffffffffff, max_val = 0;
         int i = 0;
         for (i = 0 ; i < shuffle_size; i++) {
-            if (kv_per_proc[i] == -1) break;
+            //if (kv_per_proc[i] == -1) break;
             global_kv_count += kv_per_proc[i];
             if (kv_per_proc[i] <= min_val) min_val = kv_per_proc[i];
             if (kv_per_proc[i] >= max_val) max_val = kv_per_proc[i];
         }
 
-        if (i < shuffle_size) return true;
+        //if (shuffle_rank == 0) {
+        //    printf("load balance i=%d, min=%ld, max=%ld\n", i, min_val, max_val);
+        //}
+
+        //if (i < shuffle_size) return true;
 
         if (max_val < 1024) return true;
 
