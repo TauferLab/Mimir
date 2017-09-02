@@ -39,6 +39,8 @@ public:
 
         out_reader = dynamic_cast<Readable<KeyType,ValType>*>(out);
         out_mover = dynamic_cast<Removable<KeyType,ValType>*>(out);
+        out_combiner = dynamic_cast<Combinable<KeyType,ValType>*>(out);
+
         if (out_reader != NULL && out_mover != NULL) {
             migratable = true;
         } else {
@@ -79,6 +81,9 @@ public:
                 MPI_Win_allocate_shared(sizeof(int64_t)*shuffle_size,
                                         sizeof(int64_t), MPI_INFO_NULL,
                                         shared_comm, &kv_per_proc, &kv_proc_win);
+                MPI_Win_allocate_shared(sizeof(int64_t)*shuffle_size,
+                                        sizeof(int64_t), MPI_INFO_NULL,
+                                        shared_comm, &unique_per_proc, &unique_proc_win);
                 MPI_Win_allocate_shared(sizeof(int64_t)*shared_size,
                                         sizeof(int64_t), MPI_INFO_NULL,
                                         shared_comm, &kv_per_core, &kv_core_win);
@@ -97,6 +102,9 @@ public:
                 MPI_Win_allocate_shared(0, sizeof(int64_t), MPI_INFO_NULL,
                                         shared_comm, &kv_per_proc, &kv_proc_win);
                 MPI_Win_shared_query(kv_proc_win, 0, &tmp_size, &tmp_unit, &kv_per_proc);
+                MPI_Win_allocate_shared(0, sizeof(int64_t), MPI_INFO_NULL,
+                                        shared_comm, &unique_per_proc, &unique_proc_win);
+                MPI_Win_shared_query(unique_proc_win, 0, &tmp_size, &tmp_unit, &unique_per_proc);
                 MPI_Win_allocate_shared(0, sizeof(int64_t), MPI_INFO_NULL,
                                         shared_comm, &kv_per_core, &kv_core_win);
                 MPI_Win_shared_query(kv_core_win, 0, &tmp_size, &tmp_unit, &kv_per_core);
@@ -128,13 +136,16 @@ public:
                                MPI_INT, node_comm);
                 for (int i = 0; i < shuffle_size; i++) {
                     kv_per_proc[i] = 0;
+                    unique_per_proc[i] = 0;
                 }
             }
 
             this->local_kv_count = 0;
             this->global_kv_count = 0;
+            this->local_unique_count = 0;
+            this->global_unique_count = 0;
             for (int i = 0; i < BIN_COUNT; i++) {
-                bin_table.insert({shuffle_rank+i*shuffle_size, 0});
+                bin_table.insert({shuffle_rank+i*shuffle_size, {0,0}});
             }
         }
         isrepartition = false;
@@ -199,42 +210,77 @@ protected:
         return target;
     }
 
+    void record_bin_info(KeyType *key, int ret) {
+        uint32_t hid = ser->get_hash_code(key);
+        int bidx = (int) (hid % (uint32_t) (shuffle_size * BIN_COUNT));
+        if (ret) {
+            auto iter = bin_table.find(bidx);
+            if (iter != bin_table.end()) {
+                iter->second.first += 1;
+                local_kv_count += 1;
+                if (ret == 2) {
+                    iter->second.second += 1;
+                    local_unique_count += 1;
+                }
+            } else {
+                LOG_ERROR("Wrong bin index=%d\n", bidx);
+            }
+        }
+    }
+
     bool check_load_balance() {
 
         if (!migratable) return true;
 
-        int64_t send_kv_count = local_kv_count;
+        //int64_t send_kv_count = local_kv_count;
         //if (this->isrepartition || this->done_flag) {
         //    send_kv_count = -1;
         //}
-        MPI_Gather(&send_kv_count, 1, MPI_INT64_T,
+        MPI_Gather(&local_kv_count, 1, MPI_INT64_T,
                    kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
         if (shared_rank == 0) {
             MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
                            kv_per_proc, proc_map_count, proc_map_off,
                            MPI_INT64_T, node_comm);
         }
+        if (out_combiner) {
+            MPI_Gather(&local_unique_count, 1, MPI_INT64_T,
+                       kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
+            if (shared_rank == 0) {
+                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
+                               unique_per_proc, proc_map_count, proc_map_off,
+                               MPI_INT64_T, node_comm);
+            }
+        }
         MPI_Barrier(shared_comm);
 
         global_kv_count = 0;
-        int64_t min_val = 0x7fffffffffffffff, max_val = 0;
+        int64_t min_kv_count = 0x7fffffffffffffff, max_kv_count = 0;
+        int64_t min_unique_count = 0x7fffffffffffffff, max_unique_count = 0;
         int i = 0;
         for (i = 0 ; i < shuffle_size; i++) {
             //if (kv_per_proc[i] == -1) break;
             global_kv_count += kv_per_proc[i];
-            if (kv_per_proc[i] <= min_val) min_val = kv_per_proc[i];
-            if (kv_per_proc[i] >= max_val) max_val = kv_per_proc[i];
+            global_unique_count += unique_per_proc[i];
+            if (kv_per_proc[i] <= min_kv_count) min_kv_count = kv_per_proc[i];
+            if (kv_per_proc[i] >= max_kv_count) max_kv_count = kv_per_proc[i];
+            if (out_combiner) {
+                if (unique_per_proc[i] <= min_unique_count) min_unique_count = unique_per_proc[i];
+                if (unique_per_proc[i] >= max_unique_count) max_unique_count = unique_per_proc[i];
+            }
         }
-
-        //if (shuffle_rank == 0) {
-        //    printf("load balance i=%d, min=%ld, max=%ld\n", i, min_val, max_val);
-        //}
-
-        //if (i < shuffle_size) return true;
 
         if (max_val < 1024) return true;
 
-        if ((double)max_val > BALANCE_FACTOR * (double)min_val) return false;
+        if (!out_combiner) {
+            if (max_kv_count < 1024) return true;
+            if ((double)max_kv_count > BALANCE_FACTOR * (double)min_kv_count)
+                return false;
+        } else {
+            if (max_unique_count < 1024) return true;
+            if ((double)max_unique_count > BALANCE_FACTOR * (double)min_unique_count)
+                return false;
+        }
 
         return true;
     }
@@ -290,26 +336,91 @@ protected:
                    uint64_t redirect_count, int target) {
 
         uint64_t migrate_kv_count = 0;
-
-        auto iter = bin_table.begin();
-        while (iter != bin_table.end()) {
-            if (iter->second == 0) {
-                iter++;
+        auto iter = bin_table_flip.rbegin();
+        while (iter != bin_table_flip.rend()) {
+            // this item has been redirected
+            if (iter->second.first == std::numeric_limits<uint32_t>::max()) {
+                iter ++;
                 continue;
             }
-            if (iter->second < redirect_count) {
+            // do not redirect small bins
+            if (iter->first == 0 ) {
+                break;
+            }
+            if (iter->first < 1024) {
+                break;
+            }
+            if (iter->first < redirect_count) {
                 LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d (%ld, %.6lf)\n",
-                          iter->first, target, iter->second,
-                          (double)iter->second/(double)global_kv_count);
-                migrate_kv_count += iter->second;
-                redirect_count -= iter->second;
-                iter->second = 0;
-                redirect_bins[iter->first] = target;
+                          iter->second.first, target, iter->first,
+                          (double)iter->first/(double)global_kv_count);
+                migrate_kv_count += iter->first;
+                redirect_count -= iter->first;
+                redirect_bins[iter->second.first] = target;
+                // make it invalid
+                iter->second.first = std::numeric_limits<uint32_t>::max();
+            }
+            iter ++;
+        }
+
+        return migrate_kv_count;
+    }
+
+    uint64_t find_bins(std::map<uint32_t,int> &redirect_bins,
+                   uint64_t redirect_count, int target, uint64_t &migrate_kvs) {
+
+        uint64_t migrate_unique_count = 0;
+
+        auto iter = bin_table_flip.begin();
+        while (iter != bin_table_flip.end()) {
+            // this item has been redirected
+            if (iter->first == 0
+                || iter->second.first == std::numeric_limits<uint32_t>::max()) {
+                iter ++;
+                continue;
+            }
+            if (redirect_count >= iter->second.second) {
+                LOG_PRINT(DBG_REPAR, "Redirect bin (combiner) %d-> P%d (%ld, %.6lf)\n",
+                          iter->second.first, target, iter->second.second,
+                          (double)iter->second.second/(double)global_kv_count);
+                migrate_unique_count += iter->second.second;
+                redirect_count -= iter->second.second;
+                migrate_kvs += iter->first;
+                redirect_bins[iter->second.first] = target;
+                // make it invalid
+                iter->second.first = std::numeric_limits<uint32_t>::max();
             }
             if (redirect_count <= 0) break;
             iter ++;
         }
+        return migrate_unique_count;
+    }
 
+    uint64_t find_small_bins(std::map<uint32_t,int> &redirect_bins,
+                             int count, int target) {
+        uint64_t migrate_kv_count = 0;
+
+        auto iter = bin_table_flip.begin();
+        while (iter != bin_table_flip.end()) {
+            // this item has been redirected
+            if (iter->first == 0
+                || iter->second.first == std::numeric_limits<uint32_t>::max()) {
+                iter ++;
+                continue;
+            }
+            if (count > 0) {
+                LOG_PRINT(DBG_REPAR, "Redirect bin (small) %d-> P%d (%ld, %.6lf)\n",
+                          iter->second.first, target, iter->first,
+                          (double)iter->first/(double)global_kv_count);
+                migrate_kv_count += iter->first;
+                count --;
+                redirect_bins[iter->second.first] = target;
+                // make it invalid
+                iter->second.first = std::numeric_limits<uint32_t>::max();
+            }
+            if (count <= 0) break;
+            iter ++;
+        }
         return migrate_kv_count;
     }
 
@@ -320,18 +431,18 @@ protected:
 
         auto iter = bin_table.begin();
         while (iter != bin_table.end()) {
-            if (iter->second == 0) {
+            if (iter->second.first == 0) {
                 iter++;
                 continue;
             }
-            if (iter->second < redirect_count) {
+            if (iter->second.first < redirect_count) {
                 LOG_PRINT(DBG_REPAR, "Find bin %d (%ld, %.6lf)\n",
-                          iter->first, iter->second,
-                          (double)iter->second/(double)global_kv_count);
-                redirect_bins[iter->first] = iter->second;
-                redirect_count -= iter->second;
-                migrate_kv_count += iter->second;
-                iter->second = 0;
+                          iter->first, iter->second.first,
+                          (double)iter->second.first/(double)global_kv_count);
+                redirect_bins[iter->first] = iter->second.first;
+                redirect_count -= iter->second.first;
+                migrate_kv_count += iter->second.first;
+                iter->second.first = 0;
             }
             if (redirect_count <= 0) break;
             iter ++;
@@ -342,7 +453,9 @@ protected:
 
     uint64_t compute_redirect_bins(std::map<uint32_t,int> &redirect_bins) {
 
-        uint64_t migrate_kv_count = 0;
+        uint64_t migrate_kv_count = 0, migrate_unique_count = 0;
+
+        flip_map(bin_table, bin_table_flip);
 
         // balance among nodes
         if (BALANCE_ALG == 1) {
@@ -357,11 +470,6 @@ protected:
 
             std::map<uint32_t,uint64_t> node_bins;
             int unitsize = (int)sizeof(uint32_t) + (int)sizeof(uint64_t);
-
-            //printf("%d[%d] node=[%ld,%ld,%ld,%ld], mean=%ld\n",
-            //       shuffle_rank, shuffle_size,
-            //       get_node_count(0), get_node_count(1),
-            //       get_node_count(2), get_node_count(3), node_kv_mean);
 
             // Redirect KVs from Node i to Node j
             while (i < node_size && j < node_size) {
@@ -571,12 +679,11 @@ protected:
                 i ++;
                 if (i < shared_size) kv_count_i = get_proc_count(node_rank, i);
             }
-
-        } 
+        }
         else if (BALANCE_ALG == 0){
-
+            if (!out_combiner) {
+            // Balance KVs
             int64_t proc_kv_mean = global_kv_count / shuffle_size;
-
             int i = 0, j = 0;
             while (i < shuffle_size && j < shuffle_size) {
                 int64_t kv_count_i = kv_per_proc[i];
@@ -599,15 +706,71 @@ protected:
                         kv_count_i = proc_kv_mean;
                     }
                     if (redirect_count == 0) break;
+                    LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
+                              redirect_count, i, kv_count_i, j, kv_count_j, proc_kv_mean);
                     if (i == shuffle_rank) {
                         migrate_kv_count += find_bins(redirect_bins, redirect_count, j);
+                        //if (BALANCE_KMV && !out_combiner) {
+                        //    int bin_count = (int)redirect_bins.size();
+                        //    MPI_Send(&bin_count, 1, MPI_INT, j, LB_EXCH_TAG, shuffle_comm);
+                        //}
                     }
+                    //if (j == shuffle_rank) {
+                    //    if (BALANCE_KMV && !out_combiner) {
+                    //        int bin_count;
+                    //        MPI_Status st;
+                    //        MPI_Recv(&bin_count, 1, MPI_INT, i, LB_EXCH_TAG,
+                    //                 shuffle_comm, &st);
+                    //        migrate_kv_count += find_small_bins(redirect_bins, bin_count, i);
+                    //    }
+                    //}
                 }
                 i ++;
             }
+            }
+
+            // Balance unique KVs
+            else {
+                int64_t proc_unique_mean = global_unique_count / shuffle_size;
+                int i = 0, j = 0;
+                while (i < shuffle_size && j < shuffle_size) {
+                    int64_t unique_count_i = unique_per_proc[i];
+                    int64_t unique_count_j = unique_per_proc[j];
+                    while ((double)unique_count_i > (double)proc_unique_mean * 1) {
+                        while ((double)unique_count_j > (double)proc_unique_mean * 1 && j < shuffle_size) {
+                            j ++;
+                            unique_count_j = unique_per_proc[j];
+                        }
+                        if (j >= shuffle_size) break;
+
+                        int64_t redirect_count = 0.0;
+                        if (proc_unique_mean - unique_count_j < unique_count_i - proc_unique_mean) {
+                            redirect_count = proc_unique_mean - unique_count_j;
+                            unique_count_i -= redirect_count;
+                            unique_count_j = proc_unique_mean;
+                        } else {
+                            redirect_count = unique_count_i - proc_unique_mean;
+                            unique_count_j += redirect_count;
+                            unique_count_i = proc_unique_mean;
+                        }
+                        if (redirect_count == 0) break;
+                        LOG_PRINT(DBG_REPAR, "Redirect unique %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
+                                  redirect_count, i, unique_count_i, j, unique_count_j, proc_unique_mean);
+                        if (i == shuffle_rank) {
+                            migrate_unique_count += find_bins(redirect_bins, redirect_count, j, migrate_kv_count);
+                        }
+                    }
+                    i ++;
+                }
+            }
         }
         this->local_kv_count -= migrate_kv_count;
-        PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, migrate_kv_count, OPSUM);
+        this->local_unique_count -= migrate_unique_count;
+        if (!out_combiner) {
+            PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, migrate_kv_count, OPSUM);
+        } else {
+            PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, migrate_unique_count, OPSUM);
+        }
 
         return migrate_kv_count;
     }
@@ -664,7 +827,7 @@ protected:
             }
             if (rankid == shuffle_rank) {
                 recv_procs.insert(get_bin_target(binid));
-                bin_table[binid] = 0;
+                bin_table[binid] = {0,0};
             }
             redirect_table[binid] = rankid;
         }
@@ -810,6 +973,14 @@ protected:
         isrepartition = false;
     }
 
+    void flip_map(std::unordered_map<uint32_t, std::pair<uint64_t,uint64_t>>& src,
+                  std::map<uint64_t, std::pair<uint32_t,uint64_t>>& dst) {
+        dst.clear();
+        for (auto iter : src) {
+            dst[iter.second.first] = {iter.first,iter.second.second};
+        }
+    }
+
     int (*user_hash)(KeyType* key, ValType* val, int npartition);
     Writable<KeyType,ValType> *out;
     bool                 migratable;
@@ -831,17 +1002,21 @@ protected:
     MPI_Comm                      shared_comm, node_comm;
     MPI_Group                shared_group, shuffle_group;
     int    shared_rank, shared_size, node_rank, node_size;
-    int64_t                    *kv_per_proc, *kv_per_core;
+    int64_t     *kv_per_proc, *unique_per_proc, *kv_per_core;
     int    *proc_map_off, *proc_map_count, *proc_map_rank;
-    MPI_Win                       kv_proc_win, kv_core_win;
+    MPI_Win        kv_proc_win, unique_proc_win, kv_core_win;
     MPI_Win      map_off_win, map_count_win, map_rank_win;
 
-    Readable<KeyType,ValType>              *out_reader;
-    Removable<KeyType,ValType>             *out_mover;
+    Readable<KeyType,ValType>               *out_reader;
+    Removable<KeyType,ValType>              *out_mover;
+    Combinable<KeyType,ValType>              *out_combiner;
     std::unordered_map<uint32_t, int>       redirect_table;
-    std::unordered_map<uint32_t, uint64_t>  bin_table;
+    std::unordered_map<uint32_t, std::pair<uint64_t, uint64_t>> bin_table;
+    std::map<uint64_t, std::pair<uint32_t, uint64_t>> bin_table_flip;
     uint64_t                                global_kv_count;
     uint64_t                                local_kv_count;
+    uint64_t                                global_unique_count;
+    uint64_t                                local_unique_count;
     bool                                    isrepartition;
 };
 

@@ -111,16 +111,17 @@ public:
 
         if (target == this->shuffle_rank) {
             int ret = this->out->write(key, val);
-            if (BALANCE_LOAD && !(this->user_hash) && ret == true) {
-                uint32_t hid = this->ser->get_hash_code(key);
-                uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
-                auto iter = this->bin_table.find(bidx);
-                if (iter != this->bin_table.end()) {
-                    iter->second += 1;
-                    this->local_kv_count += 1;
-                } else {
-                    LOG_ERROR("Wrong bin index=%d\n", bidx);
-                }
+            if (BALANCE_LOAD && !(this->user_hash)) {
+                this->record_bin_info(key, ret);
+                //uint32_t hid = this->ser->get_hash_code(key);
+                //uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                //auto iter = this->bin_table.find(bidx);
+                //if (iter != this->bin_table.end()) {
+                //    iter->second += 1;
+                //    this->local_kv_count += 1;
+                //} else {
+                //    LOG_ERROR("Wrong bin index=%d\n", bidx);
+                //}
             }
             return true;
         }
@@ -156,6 +157,9 @@ public:
         MPI_Status st;
         int flag, count;
 
+        LOG_PRINT(DBG_COMM, "Comm: migrate send procs=%ld, recv procs=%ld\n",
+                  send_procs.size(), recv_procs.size());
+
         // Create send procs map
         std::map<int,int> send_procs_map;
         int idx = 0;
@@ -166,9 +170,9 @@ public:
 
         // Send KVs
         this->out->seek(DB_START);
-        int factor = this->shuffle_size / (int)send_procs.size();
 
         if (send_procs.size() > 0) {
+            int factor = this->shuffle_size / (int)send_procs.size();
 
             typename SafeType<KeyType>::type key[this->keycount];
             typename SafeType<ValType>::type val[this->valcount];
@@ -248,17 +252,18 @@ public:
                 int kvsize = this->ser->kv_from_bytes(&key, &val,
                      src_buf, count - offset);
                 int ret = this->out->write(key, val);
-                if (BALANCE_LOAD && !(this->user_hash) && ret == true) {
-                    this->ser->get_key_bytes(&key[0]);
-                    uint32_t hid = this->ser->get_hash_code(key);
-                    uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
-                    auto iter = this->bin_table.find(bidx);
-                    if (iter != this->bin_table.end()) {
-                        iter->second += 1;
-                        this->local_kv_count += 1;
-                    } else {
-                        LOG_ERROR("Wrong bin index=%d\n", bidx);
-                    }
+                if (BALANCE_LOAD && !(this->user_hash)) {
+                    this->record_bin_info(key, ret);
+                    //this->ser->get_key_bytes(&key[0]);
+                    //uint32_t hid = this->ser->get_hash_code(key);
+                    //uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                    //auto iter = this->bin_table.find(bidx);
+                    //if (iter != this->bin_table.end()) {
+                    //    iter->second += 1;
+                    //    this->local_kv_count += 1;
+                    //} else {
+                    //    LOG_ERROR("Wrong bin index=%d\n", bidx);
+                    //}
                 }
                 src_buf += kvsize;
                 offset += kvsize;
@@ -294,7 +299,7 @@ protected:
 
         auto iter = this->bin_table.begin();
         while (iter != this->bin_table.end()) {
-            PROFILER_RECORD_COUNT(COUNTER_MAX_BIN_SIZE, iter->second, OPMAX);
+            PROFILER_RECORD_COUNT(COUNTER_MAX_BIN_SIZE, iter->second.first, OPMAX);
             iter ++;
         }
 
@@ -316,17 +321,18 @@ protected:
                 int kvsize = this->ser->kv_from_bytes(&key, &val,
                      src_buf, recv_count[k] - count);
                 int ret = this->out->write(key, val);
-                if (BALANCE_LOAD && !(this->user_hash) && ret == true) {
-                    this->ser->get_key_bytes(&key[0]);
-                    uint32_t hid = this->ser->get_hash_code(key);
-                    uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
-                    auto iter = this->bin_table.find(bidx);
-                    if (iter != this->bin_table.end()) {
-                        iter->second += 1;
-                        this->local_kv_count += 1;
-                    } else {
-                        LOG_ERROR("Wrong bin index=%d\n", bidx);
-                    }
+                if (BALANCE_LOAD && !(this->user_hash)) {
+                    this->record_bin_info(key, ret);
+                    //this->ser->get_key_bytes(&key[0]);
+                    //uint32_t hid = this->ser->get_hash_code(key);
+                    //uint32_t bidx = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                    //auto iter = this->bin_table.find(bidx);
+                    //if (iter != this->bin_table.end()) {
+                    //    iter->second += 1;
+                    //    this->local_kv_count += 1;
+                    //} else {
+                    //    LOG_ERROR("Wrong bin index=%d\n", bidx);
+                    //}
                 }
                 src_buf += kvsize;
                 count += kvsize;

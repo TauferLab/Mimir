@@ -27,11 +27,12 @@ public:
                        void *user_ptr,
                        uint32_t bincount = 0,
                        int keycount = 1, int valcount = 1,
-                       bool isremove = false)
-        : BaseObject(true), KVContainer<KeyType,ValType>(bincount, keycount, valcount) {
+                       bool isremove = false, int hashscale = 1)
+        : BaseObject(true), KVContainer<KeyType,ValType>(bincount, keycount, valcount, isremove) {
 
         this->user_combine = user_combine;
         this->user_ptr = user_ptr;
+        this->hashscale = hashscale;
         bucket = NULL;
     }
 
@@ -41,7 +42,7 @@ public:
 
     virtual int open() {
 
-        bucket = new HashBucket<CombinerVal>();
+        bucket = new HashBucket<CombinerVal>(hashscale, false, true);
 
         KVContainer<KeyType,ValType>::open();
 
@@ -121,6 +122,7 @@ public:
             }
             bucket->insertEntry(tmp.kv, keysize, &tmp);
             this->kvcount += 1;
+            ret = 2;
         }
         else {
             typename SafeType<KeyType>::ptrtype u_key = NULL;
@@ -149,7 +151,7 @@ public:
                 this->ser->kv_to_bytes(u_key, r_val, u->kv, ukeysize + rvalsize);
                 this->pages[this->pageid].datasize += ukeysize + rvalsize;
             }
-            ret = 2;
+            ret = 1;
         }
         return ret;
     }
@@ -185,7 +187,9 @@ public:
         typename SafeType<KeyType>::ptrtype key = NULL;
         typename SafeType<ValType>::ptrtype val = NULL;
 
-        this->ser->kv_from_bytes(key, val, this->ptr, this->kvsize);
+        if (this->ptr == NULL) return false;
+
+        this->ser->kv_from_bytes(&key, &val, this->ptr, this->kvsize);
 
         int ret = KVContainer<KeyType, ValType>::remove();
         if (ret) {
@@ -197,11 +201,89 @@ public:
         return ret;
     }
 
+    virtual void garbage_collection()
+    {
+        typename SafeType<KeyType>::ptrtype key = NULL;
+        typename SafeType<ValType>::ptrtype val = NULL;
+        size_t dst_pid = 0, src_pid = 0;
+        Page *dst_page = NULL, *src_page = NULL;
+        int64_t dst_off = 0, src_off = 0;
+
+        if (!(this->slices.empty())) {
+
+            LOG_PRINT(DBG_GEN, "CombineKVContainer garbage collection: slices=%ld\n",
+                      this->slices.size());
+
+            if (this->kvcount == 0) {
+                for (auto iter : this->pages) {
+                    mem_aligned_free(iter.buffer);
+                    BaseDatabase<KeyType, ValType>::mem_bytes -= this->pagesize;
+                }
+                this->pages.clear();
+                std::unordered_map<char*,int> empty;
+                this->slices.swap(empty);
+                this->gbmem = 0;
+                return;
+            }
+
+            if (dst_pid < this->pages.size()) dst_page = &this->pages[dst_pid++];
+            while (src_pid < this->pages.size() ) {
+                src_page = &this->pages[src_pid++];
+                src_off = 0;
+                while (src_off < src_page->datasize) {
+                    char *src_buf = src_page->buffer + src_off;
+                    std::unordered_map < char *, int >::iterator slice = this->slices.find(src_buf);
+                    if (slice != this->slices.end()) {
+                        src_off += slice->second;
+                    }
+                    else {
+                        int kvsize = this->ser->kv_from_bytes(&key, &val,
+                                        src_buf, (int)(src_page->datasize - src_off));
+                        if (dst_page != src_page || dst_off != src_off) {
+                            if (dst_off + kvsize > this->pagesize) {
+                                dst_page->datasize = dst_off;
+                                dst_page = &this->pages[dst_pid++];
+                                dst_off = 0;
+                            }
+                            // Update key entry
+                            int keysize = this->ser->get_key_bytes(key);
+                            char *keyptr = this->ser->get_key_ptr(key);
+                            u = bucket->updateEntry(keyptr, keysize, dst_page->buffer + dst_off);
+                            u->kv = dst_page->buffer + dst_off;
+                            for (int kk = 0; kk < kvsize; kk++) {
+                                dst_page->buffer[dst_off + kk] = src_page->buffer[src_off + kk];
+                            }
+                        }
+                        src_off += kvsize;
+                        dst_off += kvsize;
+                    }
+                }
+                if (src_page == dst_page && src_off == dst_off) {
+                    dst_page = &this->pages[dst_pid++];
+                    dst_off = 0;
+                }
+            }
+            if (dst_page != NULL) dst_page->datasize = dst_off;
+            this->pageid = dst_pid;
+            this->pageoff = dst_off;
+            while (dst_pid < this->pages.size()) {
+                auto iter = this->pages.back();
+                mem_aligned_free(iter.buffer);
+                BaseDatabase<KeyType, ValType>::mem_bytes -= this->pagesize;
+                this->pages.pop_back();
+            }
+            std::unordered_map<char*,int> empty;
+            this->slices.swap(empty);
+            this->gbmem = 0;
+        }
+    }
+
 private:
     void (*user_combine)(Combinable<KeyType,ValType> *output,
                          KeyType *key, ValType *val1, ValType *val2, ValType *val3, void *ptr);
     void *user_ptr;
     HashBucket<CombinerVal> *bucket;
+    int hashscale;
     CombinerVal *u;
 };
 

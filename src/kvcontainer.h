@@ -228,7 +228,7 @@ public:
 
     virtual int remove() {
         if (!isremove) {
-            LOG_ERROR("This KV container doesnot support remove function!\n");
+            LOG_ERROR("This KV container does not support remove function!\n");
         }
 
         if (ptr == NULL) return false;
@@ -249,8 +249,8 @@ public:
             char *tmp = ptr + kvsize;
             auto iter = slices.find(tmp);
             if (iter != slices.end()) {
-                next_kvsize = iter->second;
-                slices.erase(iter);
+                //next_kvsize = iter->second;
+                //slices.erase(iter);
             }
             slices[ptr] = kvsize + next_kvsize;
         }
@@ -295,7 +295,7 @@ protected:
 	return pages.size() - 1;
     }
 
-    void garbage_collection()
+    virtual void garbage_collection()
     {
         typename SafeType<KeyType>::ptrtype key = NULL;
         typename SafeType<ValType>::ptrtype val = NULL;

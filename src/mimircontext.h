@@ -164,11 +164,11 @@ class MimirContext {
                 //if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
                 //else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
                 if (!user_combine) kv = new KVContainer<KeyType,ValType>(bincount, keycount, valcount, true);
-                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount, true);
+                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount, true, mimir_ctx_size);
             } else {
                 //if (CONTAINER_TYPE == 0) {
                 if (!user_combine) kv = new KVContainer<KeyType,ValType>(bincount, keycount, valcount);
-                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
+                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount, false, mimir_ctx_size);
                 //}
                 //else if (CONTAINER_TYPE == 1) {
                 //    if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
@@ -373,7 +373,7 @@ class MimirContext {
             output = writer;
         }
 
-        kmv = new KMVContainer<KeyType,ValType>(keycount, valcount);
+        kmv = new KMVContainer<KeyType,ValType>(keycount, valcount, mimir_ctx_size);
         kmv->convert(input);
         BaseObject::subRef(database);
         database = NULL;

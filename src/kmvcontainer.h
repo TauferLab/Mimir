@@ -22,14 +22,14 @@ class KMVItem;
 template <typename KeyType, typename ValType>
 class KMVContainer {
   public:
-    KMVContainer(int keycount, int valcount) {
+    KMVContainer(int keycount, int valcount, int hashscale) {
         this->keycount = keycount;
         this->valcount = valcount;
 
         kmvcount = 0;
 
         keyarray = (char*) mem_aligned_malloc(MEMPAGE_SIZE, MAX_RECORD_SIZE);
-        h = new HashBucket<ReducerVal>(true);
+        h = new HashBucket<ReducerVal>(hashscale, true);
         ser = new Serializer<KeyType, ValType>(keycount, valcount);
 
         mem_bytes = 0;

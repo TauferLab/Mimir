@@ -65,16 +65,17 @@ public:
 
         if (target == this->shuffle_rank) {
             int ret =  this->out->write(key, val);
-            if (BALANCE_LOAD && ret == 1) {
-                uint32_t hid = this->ser->get_hash_code(key);
-                int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
-                auto iter = this->bin_table.find(bidx);
-                if (iter != this->bin_table.end()) {
-                    iter->second += 1;
-                    this->local_kv_count += 1;
-                } else {
-                    LOG_ERROR("Wrong bin index=%d\n", bidx);
-                }
+            if (BALANCE_LOAD && !(this->user_hash)) {
+                this->record_bin_info(key, ret);
+                //uint32_t hid = this->ser->get_hash_code(key);
+                //int bidx = (int) (hid % (uint32_t) (this->shuffle_size * BIN_COUNT));
+                //auto iter = this->bin_table.find(bidx);
+                //if (iter != this->bin_table.end()) {
+                //    iter->second += 1;
+                //    this->local_kv_count += 1;
+                //} else {
+                //    LOG_ERROR("Wrong bin index=%d\n", bidx);
+                //}
             }
             return 0;
         }
