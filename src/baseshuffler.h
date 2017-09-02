@@ -270,8 +270,6 @@ protected:
             }
         }
 
-        if (max_val < 1024) return true;
-
         if (!out_combiner) {
             if (max_kv_count < 1024) return true;
             if ((double)max_kv_count > BALANCE_FACTOR * (double)min_kv_count)
