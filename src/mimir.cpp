@@ -322,7 +322,7 @@ void get_default_values()
         int flag = atoi(env);
         if (flag != 0) {
             DBG_LEVEL |= (DBG_GEN | DBG_DATA | DBG_COMM 
-                          | DBG_IO | DBG_MEM | DBG_CHUNK | DBG_REPAR);
+                          | DBG_IO | DBG_MEM | DBG_CHUNK);
         }
     }
     env = getenv("MIMIR_DBG_GEN");
@@ -358,6 +358,20 @@ void get_default_values()
         int flag = atoi(env);
         if (flag != 0) {
             DBG_LEVEL |= (DBG_MEM);
+        }
+    }
+    env = getenv("MIMIR_DBG_CHUNK");
+    if (env) {
+        int flag = atoi(env);
+        if (flag != 0) {
+            DBG_LEVEL |= (DBG_CHUNK);
+        }
+    }
+    env = getenv("MIMIR_DBG_REPAR");
+    if (env) {
+        int flag = atoi(env);
+        if (flag != 0) {
+            DBG_LEVEL |= (DBG_REPAR);
         }
     }
     env = getenv("MIMIR_DBG_VERBOSE");

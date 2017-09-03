@@ -283,6 +283,11 @@ protected:
         return true;
     }
 
+    void print_kvs() {
+        fprintf(stdout, "%d[%d] LB Info, %d, %ld\n",
+                shuffle_rank, shuffle_size, shuffle_times, local_kv_count);
+    }
+
     void print_node_kvs(const char* str) {
         int64_t memuse = get_mem_usage();
         int64_t nodemem, nodepeak;
@@ -704,9 +709,9 @@ protected:
                         kv_count_i = proc_kv_mean;
                     }
                     if (redirect_count == 0) break;
-                    LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
-                              redirect_count, i, kv_count_i, j, kv_count_j, proc_kv_mean);
                     if (i == shuffle_rank) {
+                        LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
+                                  redirect_count, i, kv_count_i, j, kv_count_j, proc_kv_mean);
                         migrate_kv_count += find_bins(redirect_bins, redirect_count, j);
                         //if (BALANCE_KMV && !out_combiner) {
                         //    int bin_count = (int)redirect_bins.size();
@@ -789,8 +794,14 @@ protected:
 
         sendcount = (int)redirect_bins.size() * 2;
 
+        TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
+
+        //PROFILER_RECORD_TIME_START;
         MPI_Allgather(&sendcount, 1, MPI_INT,
                        recvcounts, 1, MPI_INT, shuffle_comm);
+        //PROFILER_RECORD_TIME_END(TIMER_COMM_ALLGATHER);
+
+        TRACKER_RECORD_EVENT(EVENT_COMM_ALLGATHER);
 
         recvcount  = recvcounts[0];
         displs[0] = 0;
@@ -810,8 +821,12 @@ protected:
             k ++;
         }
 
+        //PROFILER_RECORD_TIME_START;
         MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
                        recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
+        //PROFILER_RECORD_TIME_END(TIMER_COMM_ALLGATHERV);
+
+        TRACKER_RECORD_EVENT(EVENT_COMM_ALLGATHERV);
 
         redirect_bins.clear();
         for (int i = 0; i < recvcount / 2; i++) {

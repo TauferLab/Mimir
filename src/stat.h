@@ -5,8 +5,8 @@
  *
  *     See COPYRIGHT in top-level directory.
  */
-#ifndef STAT_H
-#define STAT_H
+#ifndef MIMIR_STAT_H
+#define MIMIR_STAT_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,10 +54,11 @@ extern char timestr[];
 #define TIMER_COMM_RDC             5    // MPI_Allreduce
 #define TIMER_COMM_BLOCK           6    // blocking time
 #define TIMER_COMM_ALLGATHER       7    // MPI_Allgather
-#define TIMER_MEM_ALLOCATE         8    // memory allocation
-#define TIMER_LB_CHECK             9    // check
-#define TIMER_LB_MIGRATE          10    // migrate
-#define TIMER_NUM                 11
+#define TIMER_COMM_ALLGATHERV      8    // MPI_Allgather
+#define TIMER_MEM_ALLOCATE         9    // memory allocation
+#define TIMER_LB_CHECK            10    // check
+#define TIMER_LB_MIGRATE          11    // migrate
+#define TIMER_NUM                 12
 
 
 // Counters
@@ -105,6 +106,7 @@ extern char timestr[];
 #define EVENT_COMM_ISEND           "event_comm_isend"           // MPI_Isend
 #define EVENT_COMM_IRECV           "event_comm_irecv"           // MPI_Irecv
 #define EVENT_COMM_ALLGATHER       "event_comm_allgather"       // MPI_Allgather
+#define EVENT_COMM_ALLGATHERV      "event_comm_allgatherv"      // MPI_Allgatherv
 
 // Disk IO
 #define EVENT_DISK_FOPEN           "event_disk_open"            // posix open
