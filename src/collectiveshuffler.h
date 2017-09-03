@@ -424,12 +424,12 @@ protected:
             bool flag = this->check_load_balance();
             PROFILER_RECORD_TIME_END(TIMER_LB_CHECK);
             if (flag == false) {
-                LOG_PRINT(DBG_REPAR, "shuffle index=%d: load balance start\n", this->shuffle_times);
+                LOG_PRINT(DBG_GEN, "shuffle index=%d: load balance start\n", this->shuffle_times);
                 PROFILER_RECORD_TIME_START;
                 this->balance_load();
                 PROFILER_RECORD_TIME_END(TIMER_LB_MIGRATE);
                 PROFILER_RECORD_COUNT(COUNTER_BALANCE_TIMES, 1, OPSUM);
-                LOG_PRINT(DBG_REPAR, "shuffle index=%d: load balance end\n", this->shuffle_times);
+                LOG_PRINT(DBG_GEN, "shuffle index=%d: load balance end\n", this->shuffle_times);
             }
         }
 

@@ -458,7 +458,7 @@ protected:
 
         uint64_t migrate_kv_count = 0, migrate_unique_count = 0;
 
-        flip_map(bin_table, bin_table_flip);
+        prepare_redirect();
 
         // balance among nodes
         if (BALANCE_ALG == 1) {
@@ -684,86 +684,61 @@ protected:
             }
         }
         else if (BALANCE_ALG == 0){
-            if (!out_combiner) {
             // Balance KVs
             int64_t proc_kv_mean = global_kv_count / shuffle_size;
-            int i = 0, j = 0;
-            while (i < shuffle_size && j < shuffle_size) {
-                int64_t kv_count_i = kv_per_proc[i];
-                int64_t kv_count_j = kv_per_proc[j];
-                while ((double)kv_count_i > (double)proc_kv_mean * 1.01) {
-                    while ((double)kv_count_j > (double)proc_kv_mean * 0.99 && j < shuffle_size) {
-                        j ++;
-                        kv_count_j = kv_per_proc[j];
-                    }
-                    if (j >= shuffle_size) break;
-
-                    int64_t redirect_count = 0.0;
-                    if (proc_kv_mean - kv_count_j < kv_count_i - proc_kv_mean) {
-                        redirect_count = proc_kv_mean - kv_count_j;
-                        kv_count_i -= redirect_count;
-                        kv_count_j = proc_kv_mean;
-                    } else {
-                        redirect_count = kv_count_i - proc_kv_mean;
-                        kv_count_j += redirect_count;
-                        kv_count_i = proc_kv_mean;
-                    }
-                    if (redirect_count == 0) break;
-                    if (i == shuffle_rank) {
-                        LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
-                                  redirect_count, i, kv_count_i, j, kv_count_j, proc_kv_mean);
-                        migrate_kv_count += find_bins(redirect_bins, redirect_count, j);
-                        //if (BALANCE_KMV && !out_combiner) {
-                        //    int bin_count = (int)redirect_bins.size();
-                        //    MPI_Send(&bin_count, 1, MPI_INT, j, LB_EXCH_TAG, shuffle_comm);
-                        //}
-                    }
-                    //if (j == shuffle_rank) {
-                    //    if (BALANCE_KMV && !out_combiner) {
-                    //        int bin_count;
-                    //        MPI_Status st;
-                    //        MPI_Recv(&bin_count, 1, MPI_INT, i, LB_EXCH_TAG,
-                    //                 shuffle_comm, &st);
-                    //        migrate_kv_count += find_small_bins(redirect_bins, bin_count, i);
-                    //    }
-                    //}
+            if (out_combiner) proc_kv_mean = global_unique_count / shuffle_size;
+            //int i = shuffle_size - 1, j = 0;
+            auto iter_i = count_per_proc.rbegin();
+            auto iter_j = count_per_proc.begin();
+            int64_t kv_count_i = iter_i->first;
+            int64_t kv_count_j = iter_j->first;
+            int rank_i = iter_i->second;
+            int rank_j = iter_j->second;
+            while (iter_i != count_per_proc.rend()
+                   && iter_j != count_per_proc.end()
+                   && rank_i != rank_j) {
+                if ((double)kv_count_i <= (double)proc_kv_mean * 1.01
+                    || (double)kv_count_j >= (double)proc_kv_mean * 0.99) {
+                    break;
                 }
-                i ++;
-            }
-            }
-
-            // Balance unique KVs
-            else {
-                int64_t proc_unique_mean = global_unique_count / shuffle_size;
-                int i = 0, j = 0;
-                while (i < shuffle_size && j < shuffle_size) {
-                    int64_t unique_count_i = unique_per_proc[i];
-                    int64_t unique_count_j = unique_per_proc[j];
-                    while ((double)unique_count_i > (double)proc_unique_mean * 1) {
-                        while ((double)unique_count_j > (double)proc_unique_mean * 1 && j < shuffle_size) {
-                            j ++;
-                            unique_count_j = unique_per_proc[j];
-                        }
-                        if (j >= shuffle_size) break;
-
-                        int64_t redirect_count = 0.0;
-                        if (proc_unique_mean - unique_count_j < unique_count_i - proc_unique_mean) {
-                            redirect_count = proc_unique_mean - unique_count_j;
-                            unique_count_i -= redirect_count;
-                            unique_count_j = proc_unique_mean;
-                        } else {
-                            redirect_count = unique_count_i - proc_unique_mean;
-                            unique_count_j += redirect_count;
-                            unique_count_i = proc_unique_mean;
-                        }
-                        if (redirect_count == 0) break;
-                        LOG_PRINT(DBG_REPAR, "Redirect unique %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
-                                  redirect_count, i, unique_count_i, j, unique_count_j, proc_unique_mean);
-                        if (i == shuffle_rank) {
-                            migrate_unique_count += find_bins(redirect_bins, redirect_count, j, migrate_kv_count);
-                        }
+                int64_t redirect_count = 0.0;
+                bool flag = true;
+                if (proc_kv_mean - kv_count_j < kv_count_i - proc_kv_mean) {
+                    redirect_count = proc_kv_mean - kv_count_j;
+                    flag = true;
+                } else {
+                    redirect_count = kv_count_i - proc_kv_mean;
+                    flag = false;
+                }
+                if (rank_i == shuffle_rank) {
+                    LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
+                              redirect_count, rank_i, kv_count_i, rank_j, kv_count_j, proc_kv_mean);
+                    if (!out_combiner) {
+                        migrate_kv_count += find_bins(redirect_bins, redirect_count, rank_j);
+                    } else {
+                        migrate_unique_count += find_bins(redirect_bins, redirect_count, rank_j, migrate_kv_count);
                     }
-                    i ++;
+                }
+                if (flag) {
+                    kv_count_i -= redirect_count;
+                    kv_count_j = proc_kv_mean;
+                    iter_j ++;
+                    if (iter_j != count_per_proc.end()) {
+                        kv_count_j = iter_j->first;
+                        rank_j = iter_j->second;
+                    } else {
+                        break;
+                    }
+                } else {
+                    kv_count_j += redirect_count;
+                    kv_count_i = proc_kv_mean;
+                    iter_i ++;
+                    if (iter_i != count_per_proc.rend()) {
+                        kv_count_i = iter_i->first;
+                        rank_i = iter_i->second;
+                    } else {
+                        break;
+                    }
                 }
             }
         }
@@ -986,11 +961,19 @@ protected:
         isrepartition = false;
     }
 
-    void flip_map(std::unordered_map<uint32_t, std::pair<uint64_t,uint64_t>>& src,
-                  std::map<uint64_t, std::pair<uint32_t,uint64_t>>& dst) {
-        dst.clear();
-        for (auto iter : src) {
-            dst[iter.second.first] = {iter.first,iter.second.second};
+    void prepare_redirect() {
+        bin_table_flip.clear();
+        for (auto iter : bin_table) {
+            bin_table_flip[iter.second.first] = {iter.first,iter.second.second};
+        }
+        if (!out_combiner) {
+            for (int i = 0; i < shuffle_size; i++) {
+                count_per_proc[kv_per_proc[i]] = i;
+            }
+        } else {
+            for (int i = 0; i < shuffle_size; i++) {
+                unique_per_proc[unique_per_proc[i]] = i;
+            }
         }
     }
 
@@ -1022,10 +1005,11 @@ protected:
 
     Readable<KeyType,ValType>               *out_reader;
     Removable<KeyType,ValType>              *out_mover;
-    Combinable<KeyType,ValType>              *out_combiner;
+    Combinable<KeyType,ValType>             *out_combiner;
     std::unordered_map<uint32_t, int>       redirect_table;
     std::unordered_map<uint32_t, std::pair<uint64_t, uint64_t>> bin_table;
     std::map<uint64_t, std::pair<uint32_t, uint64_t>> bin_table_flip;
+    std::map<int64_t,int>                   count_per_proc;
     uint64_t                                global_kv_count;
     uint64_t                                local_kv_count;
     uint64_t                                global_unique_count;
