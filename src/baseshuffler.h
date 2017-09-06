@@ -350,9 +350,9 @@ protected:
             if (iter->first == 0 ) {
                 break;
             }
-            if (iter->first < 1024) {
-                break;
-            }
+            //if (iter->first < 1024) {
+            //    break;
+            //}
             if (iter->first < redirect_count) {
                 LOG_PRINT(DBG_REPAR, "Redirect bin %d-> P%d (%ld, %.6lf)\n",
                           iter->second.first, target, iter->first,
@@ -710,6 +710,8 @@ protected:
                     redirect_count = kv_count_i - proc_kv_mean;
                     flag = false;
                 }
+                //LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
+                //          redirect_count, rank_i, kv_count_i, rank_j, kv_count_j, proc_kv_mean);
                 if (rank_i == shuffle_rank) {
                     LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
                               redirect_count, rank_i, kv_count_i, rank_j, kv_count_j, proc_kv_mean);
@@ -963,6 +965,7 @@ protected:
 
     void prepare_redirect() {
         bin_table_flip.clear();
+        count_per_proc.clear();
         for (auto iter : bin_table) {
             bin_table_flip[iter.second.first] = {iter.first,iter.second.second};
         }
@@ -972,7 +975,7 @@ protected:
             }
         } else {
             for (int i = 0; i < shuffle_size; i++) {
-                unique_per_proc[unique_per_proc[i]] = i;
+                count_per_proc[unique_per_proc[i]] = i;
             }
         }
     }
