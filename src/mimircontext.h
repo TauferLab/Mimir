@@ -147,7 +147,9 @@ class MimirContext {
             else
                 chunk_mgr = new ChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYNAME);
             reader = FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType>::getReader(mimir_ctx_comm,
-                                                                                               chunk_mgr, user_padding);
+                                                                                               chunk_mgr, user_padding,
+                                                                                               keycount, valcount,
+                                                                                               inkeycount, invalcount);
             Readable<InKeyType,InValType>* input = dynamic_cast<Readable<InKeyType,InValType>*>(reader);
             inputs.push_back(input);
         }
@@ -179,7 +181,7 @@ class MimirContext {
         }
         // Output to files
         else {
-            writer = FileWriter<KeyType,ValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
+            writer = FileWriter<KeyType,ValType>::getWriter(mimir_ctx_comm, output_dir.c_str(), keycount, valcount);
             writer->set_file_format(outfile_format.c_str());
             output = writer;
         }
@@ -368,7 +370,7 @@ class MimirContext {
             output = kv;
         // output to disk files
         } else {
-            writer = FileWriter<OutKeyType,OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
+            writer = FileWriter<OutKeyType,OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str(), outkeycount, outvalcount);
             writer->set_file_format(outfile_format.c_str());
             output = writer;
         }
@@ -436,7 +438,8 @@ class MimirContext {
         LOG_PRINT(DBG_GEN, "MapReduce: output start\n");
 
         FileWriter<OutKeyType, OutValType> *writer 
-            = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str());
+            = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str(),
+                                                            outkeycount, outvalcount);
         writer->set_file_format(outfile_format.c_str());
         output = dynamic_cast<Readable<OutKeyType,OutValType>*>(database);
         if (output == NULL) LOG_ERROR("Error to convert database!\n");

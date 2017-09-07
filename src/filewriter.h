@@ -34,7 +34,7 @@ enum OUTPUT_FORMAT {BINARY_FORMAT, TEXT_FORMAT};
 template <typename KeyType, typename ValType>
 class FileWriter : public Writable<KeyType, ValType> {
   public:
-    static FileWriter *getWriter(MPI_Comm comm, const char *filename);
+    static FileWriter *getWriter(MPI_Comm comm, const char *filename, int keycount = 1, int valcount = 1);
     static FileWriter *writer;
 
   public:
@@ -224,8 +224,8 @@ template <typename KeyType, typename ValType>
 class DirectFileWriter : public FileWriter<KeyType, ValType>
 {
   public:
-    DirectFileWriter(MPI_Comm comm, const char *filename) 
-        : FileWriter<KeyType, ValType>(comm, filename, false) {
+    DirectFileWriter(MPI_Comm comm, const char *filename, int keycount = 1, int valcount = 1) 
+        : FileWriter<KeyType, ValType>(comm, filename, false, keycount, valcount) {
     }
 
     virtual int file_open() {
@@ -318,8 +318,8 @@ class DirectFileWriter : public FileWriter<KeyType, ValType>
 template <typename KeyType, typename ValType>
 class MPIFileWriter : public FileWriter<KeyType, ValType> {
   public:
-    MPIFileWriter(MPI_Comm comm, const char *filename) : 
-        FileWriter<KeyType, ValType>(comm, filename, true) {
+    MPIFileWriter(MPI_Comm comm, const char *filename, int keycount = 1, int valcount = 1) : 
+        FileWriter<KeyType, ValType>(comm, filename, true, keycount, valcount) {
     }
 
     virtual int file_open() {
@@ -480,16 +480,16 @@ template <typename KeyType, typename ValType>
 FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::writer = NULL;
 
 template <typename KeyType, typename ValType>
-FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::getWriter(MPI_Comm comm, const char *filename) {
+FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::getWriter(MPI_Comm comm, const char *filename, int keycount, int valcount) {
     //if (writer != NULL) delete writer;
     if (WRITE_TYPE == 0) {
         if (DIRECT_WRITE) {
-            writer = new DirectFileWriter<KeyType, ValType>(comm, filename);
+            writer = new DirectFileWriter<KeyType, ValType>(comm, filename, keycount, valcount);
         } else {
-            writer = new FileWriter<KeyType, ValType>(comm, filename);
+            writer = new FileWriter<KeyType, ValType>(comm, filename, keycount, valcount);
         }
     } else if (WRITE_TYPE == 1) {
-        writer = new MPIFileWriter<KeyType, ValType>(comm, filename); 
+        writer = new MPIFileWriter<KeyType, ValType>(comm, filename, keycount, valcount); 
     } else {
         LOG_ERROR("Error writer type %d\n", WRITE_TYPE);
     }

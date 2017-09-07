@@ -266,7 +266,7 @@ class txtstream {
             const char *strptr = ss.str().c_str();
             int strsize = (int)ss.str().size();
             if (bufsize < strsize) return -1;
-            memcpy(buf, strptr, strsize);
+            memcpy(buf + bytesize, strptr, strsize);
             bytesize += strsize;
             bufsize -= strsize;
         }
@@ -294,7 +294,7 @@ class txtstream<Type,typename std::enable_if<std::is_class<Type>::value, Type>::
             const char *strptr = ss.str().c_str();
             int strsize = (int)ss.str().size();
             if (bufsize < strsize) return -1;
-            memcpy(buf, strptr, strsize);
+            memcpy(buf + bytesize, strptr, strsize);
             bytesize += strsize;
             bufsize -= strsize;
         }

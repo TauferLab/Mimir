@@ -39,14 +39,17 @@ class FileReader : public Readable<InKeyType, InValType> {
 
     static FileReader<FileFormat,KeyType,ValType,InKeyType,InValType> 
         *getReader(MPI_Comm comm, ChunkManager<KeyType,ValType> *chunk_mgr,
-                   int (*padding_fn)(const char* buf, int buflen, bool islast));
+                   int (*padding_fn)(const char* buf, int buflen, bool islast),
+                   int keycount = 1, int valcount = 1,
+                   int inkeycount = 1, int invalcount = 1);
     static FileReader<FileFormat,KeyType,ValType,InKeyType,InValType> *reader;
 
   public:
 
     FileReader(MPI_Comm comm,ChunkManager<KeyType,ValType> *chunk_mgr,
                int (*padding_fn)(const char* buf, int buflen, bool islast),
-               int keycount = 1, int valcount = 1) {
+               int keycount = 1, int valcount = 1,
+               int inkeycount = 1, int invalcount = 1) {
 
         this->reader_comm = comm;
         this->chunk_mgr = chunk_mgr;
@@ -64,7 +67,7 @@ class FileReader : public Readable<InKeyType, InValType> {
 
         record_count = 0;
 
-        ser = new Serializer<InKeyType, InValType>(keycount, valcount);
+        ser = new Serializer<InKeyType, InValType>(inkeycount, invalcount);
     }
 
     virtual ~FileReader() {
@@ -367,9 +370,11 @@ class DirectFileReader
   public:
     DirectFileReader(MPI_Comm comm,
                      ChunkManager<KeyType, ValType> *chunk_mgr, 
-                     int (*padding_fn)(const char* buf, int buflen, bool islast)) 
+                     int (*padding_fn)(const char* buf, int buflen, bool islast),
+                     int keycount = 1, int valcount = 1,
+                     int inkeycount = 1, int invalcount = 1) 
         : FileReader<FileFormat, KeyType, ValType, InKeyType, InValType> 
-        (comm, chunk_mgr, padding_fn) {
+        (comm, chunk_mgr, padding_fn, keycount, valcount, inkeycount, invalcount) {
     }
 
     ~DirectFileReader(){
@@ -464,8 +469,11 @@ class MPIFileReader : public FileReader<FileFormat, KeyType, ValType, InKeyType,
   public:
     MPIFileReader(MPI_Comm comm,
                   ChunkManager<KeyType,ValType> *chunk_mgr,
-                  int (*padding_fn)(const char* buf, int buflen, bool islast)) 
-        : FileReader<FileFormat, KeyType, ValType, InKeyType,InValType>(comm, chunk_mgr, padding_fn) {
+                  int (*padding_fn)(const char* buf, int buflen, bool islast),
+                  int keycount = 1, int valcount = 1,
+                  int inkeycount = 1, int invalcount = 1) 
+        : FileReader<FileFormat, KeyType, ValType, InKeyType,InValType>(comm, chunk_mgr, padding_fn,
+                                                                        keycount, valcount, inkeycount, invalcount) {
     }
 
     ~MPIFileReader(){
@@ -796,15 +804,19 @@ FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>*
     FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>::getReader(
         MPI_Comm comm,
         ChunkManager<KeyType, ValType> *mgr, 
-        int (*padding_fn)(const char* buf, int buflen, bool islast)) {
+        int (*padding_fn)(const char* buf, int buflen, bool islast),
+        int keycount, int valcount, int inkeycount, int invalcount) {
     if (READ_TYPE == 0) {
         if (DIRECT_READ) {
-            reader = new DirectFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
+            reader = new DirectFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn,
+                                                                                              keycount, valcount, inkeycount, invalcount);
         } else {
-            reader = new FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
+            reader = new FileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn,
+                                                                                        keycount, valcount, inkeycount, invalcount);
         }
     } else if (READ_TYPE == 1) {
-        reader = new MPIFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn);
+        reader = new MPIFileReader<FileFormat, KeyType, ValType, InKeyType, InValType>(comm, mgr, padding_fn,
+                                                                                       keycount, valcount, inkeycount, invalcount);
     } else {
         LOG_ERROR("Error reader type %d\n", READ_TYPE);
     }
