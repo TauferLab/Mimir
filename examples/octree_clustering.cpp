@@ -253,10 +253,22 @@ void generate_octkey (Readable<char*, void> *input,
         double b0, b1, b2;
         char *saveptr = NULL;
         char *token = strtok_r(word, " ", &saveptr);
-	b0 = atof(token);
+        if (token == NULL) {
+            fprintf(stderr, "Input format error! line=%s\n", word);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        b0 = atof(token);
 	token = strtok_r(NULL, " ", &saveptr);
+        if (token == NULL) {
+            fprintf(stderr, "Input format error! line=%s\n", word);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
         b1 = atof(token);
         token = strtok_r(NULL, " ", &saveptr);
+        if (token == NULL) {
+            fprintf(stderr, "Input format error! line=%s\n", word);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
         b2 = atof(token);
 
         double minx = range_down, miny = range_down, minz = range_down;
