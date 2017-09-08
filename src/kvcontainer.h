@@ -89,10 +89,11 @@ public:
             ptr = NULL;
             kvsize = 0;
         } else if (pos == DB_END) {
-            pageid = pages.size() - 1;
-            if (pageid > 0) {
+            if (pages.size() != 0) {
+                pageid = pages.size() - 1;
                 pageoff = pages[pageid].datasize;
             } else {
+                pageid = 0;
                 pageoff = 0;
             }
             ptr = NULL;
