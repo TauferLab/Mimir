@@ -78,22 +78,42 @@ int main(int argc, char *argv[])
         int num_point_incluster = points_num.front();
         string dist = distr.front();
 
-        // Assume normal dist
-        std::normal_distribution<> dx((*cluster)[0], stdiv);
-        std::normal_distribution<> dy((*cluster)[1], stdiv);
-        std::normal_distribution<> dz((*cluster)[2], stdiv);
+        if (dist == "normal") {
+            // Assume normal dist
+            std::normal_distribution<> dx((*cluster)[0], stdiv);
+            std::normal_distribution<> dy((*cluster)[1], stdiv);
+            std::normal_distribution<> dz((*cluster)[2], stdiv);
 
-        int point_count = 0;
-        char filename[128];
-        memset(filename, 0, 128);
-        sprintf(filename, "%s/%s.points.%d.txt", outdir.c_str(), key_file_prefix.c_str(), worldrank);
-        ofstream out_file(filename, ios::out);
-        char points_coords[128];
-        for (int point_count = 0; point_count < num_point_incluster; point_count++) {
-            memset(points_coords, 0, 128);
-            sprintf(points_coords, " %.17f %.17f %.17f\n", dx(gen), dy(gen), dz(gen));
-            out_file << points_coords;
+            int point_count = 0;
+            char filename[128];
+            memset(filename, 0, 128);
+            sprintf(filename, "%s/%s.points.%d.txt", outdir.c_str(), key_file_prefix.c_str(), worldrank);
+            ofstream out_file(filename, ios::out);
+            char points_coords[128];
+            for (int point_count = 0; point_count < num_point_incluster; point_count++) {
+                memset(points_coords, 0, 128);
+                sprintf(points_coords, " %.17f %.17f %.17f\n", dx(gen), dy(gen), dz(gen));
+                out_file << points_coords;
 
+            }
+        } else if (dist == "uniform") {
+            // Assume uniform dist
+            std::uniform_real_distribution<> dx(range_min, range_max);
+            std::uniform_real_distribution<> dy(range_min, range_max);
+            std::uniform_real_distribution<> dz(range_min, range_max);
+
+            int point_count = 0;
+            char filename[128];
+            memset(filename, 0, 128);
+            sprintf(filename, "%s/%s.points.%d.txt", outdir.c_str(), key_file_prefix.c_str(), worldrank);
+            ofstream out_file(filename, ios::out);
+            char points_coords[128];
+            for (int point_count = 0; point_count < num_point_incluster; point_count++) {
+                memset(points_coords, 0, 128);
+                sprintf(points_coords, " %.17f %.17f %.17f\n", dx(gen), dy(gen), dz(gen));
+                out_file << points_coords;
+
+            }
         }
 
     }
