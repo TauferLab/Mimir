@@ -23,9 +23,11 @@ public:
   CollectiveShuffler(MPI_Comm comm,
                      Writable<KeyType, ValType> *out,
                      int (*user_hash)(KeyType* key, ValType* val, int npartition),
-                     int keycount, int valcount) 
+                     int keycount, int valcount,
+                     bool split_hint, HashBucket<> *h) 
       : BaseShuffler<KeyType, ValType>(comm, out, user_hash,
-                                       keycount, valcount)
+                                       keycount, valcount,
+                                       split_hint, h)
     {
         if (COMM_BUF_SIZE < (int64_t) COMM_UNIT_SIZE * (int64_t) this->shuffle_size) {
             LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n",
@@ -149,9 +151,13 @@ public:
 
     virtual void make_progress(bool issue_new = false) { exchange_kv(); }
 
-    virtual void migrate_kvs(std::map<uint32_t,int> redirect_bins,
-                             std::set<int> send_procs,
-                             std::set<int> recv_procs) {
+    virtual void migrate_kvs(std::map<uint32_t,int>& redirect_bins,
+                             std::set<int>& send_procs,
+                             std::set<int>& recv_procs,
+                             std::unordered_set<uint32_t>& suspect_table,
+                             std::unordered_set<uint32_t>& local_split_table) {
+
+        std::unordered_map<uint32_t, uint64_t> suspect_stat;
 
         MPI_Request req;
         MPI_Status st;
@@ -178,9 +184,17 @@ public:
             typename SafeType<ValType>::type val[this->valcount];
 
             while(this->out_reader->read(key,val) == true) {
+                uint32_t hid = this->ser->get_hash_code(key);
+                uint32_t bid = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
 
-                uint32_t bid = this->ser->get_hash_code(key) \
-                    % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                // Gather stat of suspect
+                if (suspect_table.find(bid) != suspect_table.end()) {
+                    if (suspect_stat.find(hid) != suspect_stat.end()) {
+                        suspect_stat[hid] += 1;
+                    } else {
+                        suspect_stat[hid] = 0;
+                    }
+                }
 
                 // This KV needs migrate out
                 auto iter = redirect_bins.find(bid);
@@ -221,7 +235,44 @@ public:
                 MPI_Isend(NULL, 0, MPI_BYTE, iter, LB_MIGRATE_TAG,
                           this->shuffle_comm, &req);
             }
+        } else {
+            if (suspect_table.size() != 0) {
+                typename SafeType<KeyType>::type key[this->keycount];
+                typename SafeType<ValType>::type val[this->valcount];
+
+                while(this->out_reader->read(key,val) == true) {
+                    uint32_t hid = this->ser->get_hash_code(key);
+                    uint32_t bid = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+
+                    // Gather stat of suspect
+                    if (suspect_table.find(bid) != suspect_table.end()) {
+                        if (suspect_stat.find(hid) != suspect_stat.end()) {
+                            suspect_stat[hid] += 1;
+                        } else {
+                            suspect_stat[hid] = 0;
+                        }
+                    }
+                }
+            }
         }
+
+        // Update split table
+        if (suspect_table.size() != 0) {
+            for (auto iter : suspect_stat) {
+                if ((double)iter.second * this->shuffle_size > (double)this->global_kv_count * 0.8) {
+                    uint32_t hid = iter.first;
+                    uint32_t bid = hid % (uint32_t)(this->shuffle_size * BIN_COUNT);
+                    if (this->split_table.find(hid) == this->split_table.end())
+                    {
+                        LOG_PRINT(DBG_REPAR, "Find split key hid=%u, bid=%u\n", hid, bid);
+                        local_split_table.insert(hid);
+                    }
+                }
+            }
+        }
+
+        //LOG_PRINT(DBG_REPAR, "Find suspect table=%ld, split table=%ld, ignore_table=%ld\n",
+        //          suspect_table.size(), local_split_table.size(), ignore_table.size());
 
         // Recv KVs
         this->out->seek(DB_END);

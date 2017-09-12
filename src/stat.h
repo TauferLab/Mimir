@@ -72,16 +72,17 @@ extern char timestr[];
 #define COUNTER_SEND_TAIL           7   // send tail
 #define COUNTER_RECV_TAIL           8   // recv tail
 #define COUNTER_BALANCE_TIMES       9   // balance times
-#define COUNTER_REDIRECT_BINS      10   // redirect bins
-#define COUNTER_MAX_BIN_SIZE       11   // max bin size
-#define COUNTER_MIGRATE_KVS        12   // migrate KVs
-#define COUNTER_MAX_KVS            13   // max kvs in a process
-#define COUNTER_MAX_KMVS           14   // max kmvs in a process
-#define COUNTER_MAX_KV_PAGES       15   // max kv pages
-#define COUNTER_MAX_KMV_PAGES      16   // max kmv pages
-#define COUNTER_HASH_BUCKET        17   // max reduce bucket
-#define COUNTER_PEAKMEM_USE        18   // peak memory usage
-#define COUNTER_NUM                19
+#define COUNTER_SPLIT_KEYS         10   // split keys
+#define COUNTER_REDIRECT_BINS      11   // redirect bins
+#define COUNTER_MAX_BIN_SIZE       12   // max bin size
+#define COUNTER_MIGRATE_KVS        13   // migrate KVs
+#define COUNTER_MAX_KVS            14   // max kvs in a process
+#define COUNTER_MAX_KMVS           15   // max kmvs in a process
+#define COUNTER_MAX_KV_PAGES       16   // max kv pages
+#define COUNTER_MAX_KMV_PAGES      17   // max kmv pages
+#define COUNTER_HASH_BUCKET        18   // max reduce bucket
+#define COUNTER_PEAKMEM_USE        19   // peak memory usage
+#define COUNTER_NUM                20
 
 /// Events
 #define EVENT_COMPUTE_APP          "event_compute_app"          // application computation

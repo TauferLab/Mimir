@@ -27,8 +27,12 @@ public:
                               void *user_ptr,
                               Writable<KeyType,ValType> *out,
                               int (*user_hash)(KeyType* key, ValType* val, int npartition),
-                              int keycount, int valcount)
-        : CollectiveShuffler<KeyType,ValType>(comm, out, user_hash, keycount, valcount)
+                              int keycount, int valcount,
+                              bool split_hint,
+                              HashBucket<> *h)
+        : CollectiveShuffler<KeyType,ValType>(comm, out, user_hash,
+                                              keycount, valcount,
+                                              split_hint, h)
     {
         this->user_combine = user_combine;
         this->user_ptr = user_ptr;

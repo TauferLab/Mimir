@@ -35,7 +35,10 @@ struct ReducerVal {
     char *values_end;
 };
 
-template <typename ValType>
+struct EmptyVal {
+};
+
+template <typename ValType = EmptyVal>
 class HashBucket {
   public:
     struct HashEntry {

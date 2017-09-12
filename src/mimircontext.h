@@ -33,6 +33,7 @@
 #include "nbcombinecollectiveshuffler.h"
 #include "filereader.h"
 #include "filewriter.h"
+#include "hashbucket.h"
 
 #include <vector>
 #include <string>
@@ -101,7 +102,8 @@ class MimirContext {
                  void *ptr = NULL,
                  bool do_shuffle = true,
                  bool output_file = false,
-                 std::string outfile_format = "binary")
+                 std::string outfile_format = "binary",
+                 bool split_hint = false)
     {
         BaseShuffler<KeyType,ValType> *c = NULL;
         BaseDatabase<KeyType,ValType> *kv = NULL;
@@ -190,20 +192,28 @@ class MimirContext {
         if (do_shuffle) {
             // Map with combiner
             if (!user_combine) {
+                if (split_hint) {
+                    if (h != NULL) delete h;
+                    h = new HashBucket<>(1, true);
+                }
                 // MPI_Alltoallv shuffler
                 if (SHUFFLE_TYPE == 0)
                     c = new CollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
                                                                 output,
                                                                 user_partition,
                                                                 keycount,
-                                                                valcount);
+                                                                valcount,
+                                                                split_hint,
+                                                                h);
                 // MPI_Ialltoallv shuffler
                 else if (SHUFFLE_TYPE == 1)
                     c = new NBCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
                                                                   output,
                                                                   user_partition,
                                                                   keycount,
-                                                                  valcount);
+                                                                  valcount,
+                                                                  split_hint,
+                                                                  h);
                 else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
             // Map without combiner
             } else {
@@ -215,7 +225,9 @@ class MimirContext {
                                                                        output,
                                                                        user_partition,
                                                                        keycount,
-                                                                       valcount);
+                                                                       valcount,
+                                                                       split_hint,
+                                                                       h);
                 // MPI_Ialltoallv shuffler
                 else if (SHUFFLE_TYPE == 1)
                     c = new NBCombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
@@ -224,7 +236,9 @@ class MimirContext {
                                                                          output,
                                                                          user_partition,
                                                                          keycount,
-                                                                         valcount);
+                                                                         valcount,
+                                                                         split_hint,
+                                                                         h);
                 else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
             }
             if (output) {
@@ -467,6 +481,26 @@ class MimirContext {
         return total_records;
     }
 
+    uint64_t scan_split_keys(void (*scan_fn)(KeyType *key, void *ptr),
+                             void *ptr = NULL) {
+        typename SafeType<KeyType>::type key[keycount];
+
+        if (h == NULL) return 0;
+
+        uint64_t count = 0;
+
+        h->open();
+        HashBucket<>::HashEntry *entry = NULL;
+        while ((entry = h->next()) != NULL) {
+            ser->key_from_bytes(key, entry->key, entry->keysize);
+            scan_fn(key, ptr);
+            count ++;
+        }
+        h->close();
+
+        return count;
+    }
+
     uint64_t scan(void (*scan_fn)(KeyType *key, ValType *val, void *ptr),
                   void *ptr = NULL) {
 
@@ -574,6 +608,9 @@ class MimirContext {
         // BIN_COUNT may be changed by mimir_init function
         this->bincount = mimir_ctx_size * BIN_COUNT;
 
+        h = NULL;
+        ser = new Serializer<KeyType, ValType>(keycount, valcount);
+
         //isoutkv = false;
     }
 
@@ -591,6 +628,10 @@ class MimirContext {
             }
             in_databases.clear();
 	}
+        if (h != NULL) {
+            delete h;
+        }
+        delete ser;
 	mimir_ctx_count -= 1;
         if (mimir_ctx_count == 0) {
             ::mimir_finalize();
@@ -618,6 +659,8 @@ class MimirContext {
     BaseObject              *user_database;
     std::vector<BaseObject*> in_databases;
 
+    HashBucket<> *h;
+
     uint64_t    input_records;
     uint64_t    kv_records;
     uint64_t    kmv_records;
@@ -628,6 +671,8 @@ class MimirContext {
     int         mimir_ctx_size;
 
     uint32_t    bincount;
+
+    Serializer<KeyType, ValType> *ser;
 };
 
 }

@@ -40,8 +40,11 @@ public:
   NBCollectiveShuffler(MPI_Comm comm,
                        Writable<KeyType, ValType> *out,
                        int (*user_hash)(KeyType* key, ValType* val, int npartition),
-                       int keycount, int valcount)
-      :  BaseShuffler<KeyType, ValType>(comm, out, user_hash, keycount, valcount)
+                       int keycount, int valcount,
+                       bool split_hint, HashBucket<> *h)
+      :  BaseShuffler<KeyType, ValType>(comm, out, user_hash,
+                                        keycount, valcount,
+                                        split_hint, h)
       {
           if (COMM_BUF_SIZE < (int64_t) COMM_UNIT_SIZE * (int64_t) this->shuffle_size) {
               LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n", COMM_BUF_SIZE, COMM_UNIT_SIZE, this->shuffle_size);
@@ -168,9 +171,12 @@ public:
         push_kv_exchange();
     }
 
-    virtual void migrate_kvs(std::map<uint32_t,int> redirect_bins,
-                             std::set<int> send_procs,
-                             std::set<int> recv_procs) {
+    virtual void migrate_kvs(std::map<uint32_t,int>& redirect_bins,
+                             std::set<int>& send_procs,
+                             std::set<int>& recv_procs,
+                             std::unordered_set<uint32_t>& suspect_table,
+                             std::unordered_set<uint32_t>& split_table) {
+
         LOG_ERROR("Don't support!\n");
     }
 
