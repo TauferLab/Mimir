@@ -28,6 +28,7 @@
 #include <vector>
 #include <string>
 
+std::string get_unique_word(uint64_t idx, int len);
 int get_word_length(int mean, double sd);
 int generate_unique_words(uint64_t n_unique, std::vector<std::string>& output,
                           int len_mean, double len_sd);

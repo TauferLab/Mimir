@@ -35,6 +35,17 @@ const char dict[] = {                   \
      '0', '1', '2', '3', '4', '5', '6', \
      '7', '8', '9'};
 
+std::string get_unique_word(uint64_t idx, int len) {
+    std::string word;
+    uint64_t mod_base = sizeof(dict);
+    for (int i = 0; i < len; i ++) {
+        uint64_t char_idx = idx % mod_base;
+        word += dict[char_idx];
+        idx = (idx - char_idx) / mod_base;
+    }
+    return word;
+}
+
 int get_word_length(int mean, double sd)
 {
     std::random_device rd;
@@ -442,12 +453,12 @@ void repartition_unique_words(std::vector<std::string>& unique_words,
     sendbuf = new char[sendcount];
     recvbuf = new char[recvcount];
 
-    char *ptr = sendbuf;
+    int off = 0;
     for (auto iter : unique_words) {
-        memcpy(ptr, iter.c_str(), iter.size() + 1);
-        ptr += iter.size() + 1;
+        memcpy(sendbuf + off, iter.c_str(), iter.size() + 1);
+        off += iter.size() + 1;
     }
-    if (ptr - sendbuf != sendcount) {
+    if (off != sendcount) {
         fprintf(stderr, "Prepare send buffer error!\n");
         exit(1);
     }
@@ -455,20 +466,24 @@ void repartition_unique_words(std::vector<std::string>& unique_words,
     MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_CHAR,
                   recvbuf, recvcounts, rdispls, MPI_CHAR, MPI_COMM_WORLD);
 
-    ptr = recvbuf;
-    while (ptr < recvbuf + recvcount) {
-        unique_new_words.push_back(ptr);
-        ptr += strlen(ptr)+1;
+    off = 0;
+    while (off < recvcount) {
+
+        //printf("%d[%d] alltoallv end, off=%d, str=%s\n",
+        //       proc_rank, proc_size, off, recvbuf + off);
+
+        unique_new_words.push_back(recvbuf + off);
+        off += strlen(recvbuf + off) + 1;
     }
-    if (ptr - recvbuf != recvcount) {
-        fprintf(stderr, "Prepare recv buffer error! recvcount=%d, %ld\n",
-                recvcount, ptr - recvbuf);
+    if (off != recvcount) {
+        fprintf(stderr, "Prepare recv buffer error! recvcount=%d, %d\n",
+                recvcount, off);
         exit(1);
     }
 
     delete [] recvbuf;
+
     delete [] sendbuf;
 
     unique_words.clear();
 }
-
