@@ -35,6 +35,7 @@ const char *cmdstr = "./cmd \t<itemcount> <outfile>\n\
 \t--len-mean [val]\n\
 \t--len-std [val]\n\
 \t--val-len [val]\n\
+\t-idxunique\n\
 \t-disorder\n\
 \t-exchange\n\
 \t-withvalue\n\
