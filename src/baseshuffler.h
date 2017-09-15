@@ -159,7 +159,7 @@ public:
                 bin_table.insert({shuffle_rank+i*shuffle_size, {0,0}});
             }
         }
-        isrepartition = false;
+        //isrepartition = false;
     }
 
     virtual ~BaseShuffler() {
@@ -314,10 +314,6 @@ protected:
 
         if (!migratable) return true;
 
-        //int64_t send_kv_count = local_kv_count;
-        //if (this->isrepartition || this->done_flag) {
-        //    send_kv_count = -1;
-        //}
         MPI_Gather(&local_kv_count, 1, MPI_INT64_T,
                    kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
         if (shared_rank == 0) {
@@ -774,65 +770,66 @@ protected:
 
         prepare_redirect();
 
-            // Balance KVs
-            int64_t proc_kv_mean = global_kv_count / shuffle_size;
-            if (out_combiner) proc_kv_mean = global_unique_count / shuffle_size;
-            //int i = shuffle_size - 1, j = 0;
-            auto iter_i = count_per_proc.rbegin();
-            auto iter_j = count_per_proc.begin();
-            int64_t kv_count_i = iter_i->first;
-            int64_t kv_count_j = iter_j->first;
-            int rank_i = iter_i->second;
-            int rank_j = iter_j->second;
-            while (iter_i != count_per_proc.rend()
-                   && iter_j != count_per_proc.end()
-                   && rank_i != rank_j) {
-                if ((double)kv_count_i <= (double)proc_kv_mean * 1.01
-                    || (double)kv_count_j >= (double)proc_kv_mean * 0.99) {
-                    break;
-                }
-                int64_t redirect_count = 0.0;
-                bool flag = true;
-                if (proc_kv_mean - kv_count_j < kv_count_i - proc_kv_mean) {
-                    redirect_count = proc_kv_mean - kv_count_j;
-                    flag = true;
+        // Balance KVs
+        int64_t proc_kv_mean = global_kv_count / shuffle_size;
+        if (out_combiner) proc_kv_mean = global_unique_count / shuffle_size;
+        //int i = shuffle_size - 1, j = 0;
+        auto iter_i = count_per_proc.rbegin();
+        auto iter_j = count_per_proc.begin();
+        int64_t kv_count_i = iter_i->first;
+        int64_t kv_count_j = iter_j->first;
+        int rank_i = iter_i->second;
+        int rank_j = iter_j->second;
+        while (iter_i != count_per_proc.rend()
+               && iter_j != count_per_proc.end()
+               && rank_i != rank_j) {
+            if ((double)kv_count_i <= (double)proc_kv_mean * 1.01
+                || (double)kv_count_j >= (double)proc_kv_mean * 0.99) {
+                break;
+            }
+            int64_t redirect_count = 0.0;
+            bool flag = true;
+            if (proc_kv_mean - kv_count_j < kv_count_i - proc_kv_mean) {
+                redirect_count = proc_kv_mean - kv_count_j;
+                flag = true;
+            } else {
+                redirect_count = kv_count_i - proc_kv_mean;
+                flag = false;
+            }
+            //LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
+            //          redirect_count, rank_i, kv_count_i, rank_j, kv_count_j, proc_kv_mean);
+            if (rank_i == shuffle_rank) {
+                LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
+                          redirect_count, rank_i, kv_count_i, rank_j, kv_count_j, proc_kv_mean);
+                if (!out_combiner) {
+                    migrate_kv_count += find_bins(redirect_bins, redirect_count, rank_j);
                 } else {
-                    redirect_count = kv_count_i - proc_kv_mean;
-                    flag = false;
-                }
-                //LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
-                //          redirect_count, rank_i, kv_count_i, rank_j, kv_count_j, proc_kv_mean);
-                if (rank_i == shuffle_rank) {
-                    LOG_PRINT(DBG_REPAR, "Redirect proc %ld from %d[%ld] -> %d[%ld] mean=%ld\n",
-                              redirect_count, rank_i, kv_count_i, rank_j, kv_count_j, proc_kv_mean);
-                    if (!out_combiner) {
-                        migrate_kv_count += find_bins(redirect_bins, redirect_count, rank_j);
-                    } else {
-                        migrate_unique_count += find_bins(redirect_bins, redirect_count, rank_j, migrate_kv_count);
-                    }
-                }
-                if (flag) {
-                    kv_count_i -= redirect_count;
-                    kv_count_j = proc_kv_mean;
-                    iter_j ++;
-                    if (iter_j != count_per_proc.end()) {
-                        kv_count_j = iter_j->first;
-                        rank_j = iter_j->second;
-                    } else {
-                        break;
-                    }
-                } else {
-                    kv_count_j += redirect_count;
-                    kv_count_i = proc_kv_mean;
-                    iter_i ++;
-                    if (iter_i != count_per_proc.rend()) {
-                        kv_count_i = iter_i->first;
-                        rank_i = iter_i->second;
-                    } else {
-                        break;
-                    }
+                    migrate_unique_count += find_bins(redirect_bins, redirect_count, rank_j, migrate_kv_count);
                 }
             }
+            if (flag) {
+                kv_count_i -= redirect_count;
+                kv_count_j = proc_kv_mean;
+                iter_j ++;
+                if (iter_j != count_per_proc.end()) {
+                    kv_count_j = iter_j->first;
+                    rank_j = iter_j->second;
+                } else {
+                    break;
+                }
+            } else {
+                kv_count_j += redirect_count;
+                kv_count_i = proc_kv_mean;
+                iter_i ++;
+                if (iter_i != count_per_proc.rend()) {
+                    kv_count_i = iter_i->first;
+                    rank_i = iter_i->second;
+                } else {
+                    break;
+                }
+            }
+        }
+
 #if 0
         }
 #endif
@@ -852,7 +849,6 @@ protected:
         // Get redirect bins
         std::map<uint32_t,int> redirect_bins;
 
-        /*uint64_t migrate_kv_count = */
         compute_redirect_bins(redirect_bins);
 
         LOG_PRINT(DBG_REPAR, "compute redirect bins end.\n");
@@ -916,12 +912,12 @@ protected:
 
         PROFILER_RECORD_COUNT(COUNTER_REDIRECT_BINS, redirect_table.size(), OPMAX);
 
-        assert(isrepartition == false);
+        //assert(isrepartition == false);
 
         LOG_PRINT(DBG_REPAR, "migrate KVs start.\n");
 
         // Ensure no extrea repartition within repartition
-        isrepartition = true;
+        //isrepartition = true;
         //if (!out_db) {
         //    LOG_ERROR("Cannot convert to removable object! out_db=%p\n", out_db);
         //}
@@ -967,24 +963,25 @@ protected:
                 recvcount += recvcounts[i];
             }
 
-            if (recvcount == 0) return;
+            if (recvcount != 0) {
 
-            int sendbuf[sendcount], recvbuf[recvcount];
-            int idx = 0;
-            for (auto iter : local_split_table) {
-                sendbuf[idx] = iter;
-                idx ++;
-            }
-            MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
-                           recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
-            for (idx = 0; idx < recvcount; idx ++) {
-                uint32_t hid = recvbuf[idx];
-                uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
-                split_table.insert(hid);
-                ignore_table.insert(bid);
-                PROFILER_RECORD_COUNT(COUNTER_SPLIT_KEYS, split_table.size(), OPMAX);
-                if (bin_table.find(bid) == bin_table.end()) {
-                    bin_table.insert({bid, {0,0}});
+                int sendbuf[sendcount], recvbuf[recvcount];
+                int idx = 0;
+                for (auto iter : local_split_table) {
+                    sendbuf[idx] = iter;
+                    idx ++;
+                }
+                MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
+                               recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
+                for (idx = 0; idx < recvcount; idx ++) {
+                    uint32_t hid = recvbuf[idx];
+                    uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
+                    split_table.insert(hid);
+                    ignore_table.insert(bid);
+                    PROFILER_RECORD_COUNT(COUNTER_SPLIT_KEYS, split_table.size(), OPMAX);
+                    if (bin_table.find(bid) == bin_table.end()) {
+                        bin_table.insert({bid, {0,0}});
+                    }
                 }
             }
         }
@@ -1048,7 +1045,7 @@ protected:
     uint64_t                                local_kv_count;
     uint64_t                                global_unique_count;
     uint64_t                                local_unique_count;
-    bool                                    isrepartition;
+    //bool                                    isrepartition;
     bool                                    split_hint;
     std::minstd_rand                       *gen;
     std::uniform_int_distribution<>        *d;

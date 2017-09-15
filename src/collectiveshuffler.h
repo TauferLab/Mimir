@@ -403,7 +403,7 @@ protected:
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
-        LOG_PRINT(DBG_COMM, "Comm: start alltoall (isrepartition=%d, peakmem=%ld)\n", this->isrepartition, peakmem);
+        LOG_PRINT(DBG_COMM, "Comm: start alltoall (peakmem=%ld)\n", peakmem);
 
         if (this->done_flag) {
             for (int i = 0; i < this->shuffle_size; i++) {
