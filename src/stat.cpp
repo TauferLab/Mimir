@@ -23,6 +23,7 @@ const char *timer_str[TIMER_NUM] = {
     "mpi_a2av_time",
     "mpi_rdc_time",
     "mpi_block_time",
+    "mpi_barrier_time",
     "mpi_allgather_time",
     "mpi_allgatherv_time",
     "mem_allocate_time",

@@ -53,12 +53,13 @@ extern char timestr[];
 #define TIMER_COMM_A2AV            4    // MPI_Alltoallv
 #define TIMER_COMM_RDC             5    // MPI_Allreduce
 #define TIMER_COMM_BLOCK           6    // blocking time
-#define TIMER_COMM_ALLGATHER       7    // MPI_Allgather
-#define TIMER_COMM_ALLGATHERV      8    // MPI_Allgather
-#define TIMER_MEM_ALLOCATE         9    // memory allocation
-#define TIMER_LB_CHECK            10    // check
-#define TIMER_LB_MIGRATE          11    // migrate
-#define TIMER_NUM                 12
+#define TIMER_COMM_BARRIER         7    // MPI_Barrier
+#define TIMER_COMM_ALLGATHER       8    // MPI_Allgather
+#define TIMER_COMM_ALLGATHERV      9    // MPI_Allgather
+#define TIMER_MEM_ALLOCATE        10    // memory allocation
+#define TIMER_LB_CHECK            11    // check
+#define TIMER_LB_MIGRATE          12    // migrate
+#define TIMER_NUM                 13
 
 
 // Counters

@@ -471,6 +471,11 @@ protected:
         PROFILER_RECORD_COUNT(COUNTER_SHUFFLE_TIMES, 1, OPSUM);
 
         if (BALANCE_LOAD && !(this->user_hash) && this->shuffle_times % BALANCE_FREQ == 0) {
+
+            PROFILER_RECORD_TIME_START;
+            MPI_Barrier(MPI_COMM_WORLD);
+            PROFILER_RECORD_TIME_END(TIMER_COMM_BARRIER);
+
             PROFILER_RECORD_TIME_START;
             bool flag = this->check_load_balance();
             PROFILER_RECORD_TIME_END(TIMER_LB_CHECK);

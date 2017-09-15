@@ -311,41 +311,21 @@ protected:
     }
 
     bool check_load_balance() {
-
         if (!migratable) return true;
 
-        MPI_Gather(&local_kv_count, 1, MPI_INT64_T,
-                   kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
-        if (shared_rank == 0) {
-            MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
-                           kv_per_proc, proc_map_count, proc_map_off,
-                           MPI_INT64_T, node_comm);
-        }
-        if (out_combiner) {
-            MPI_Gather(&local_unique_count, 1, MPI_INT64_T,
-                       kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
-            if (shared_rank == 0) {
-                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
-                               unique_per_proc, proc_map_count, proc_map_off,
-                               MPI_INT64_T, node_comm);
-            }
-        }
-        MPI_Barrier(shared_comm);
-
-        global_kv_count = 0;
         int64_t min_kv_count = 0x7fffffffffffffff, max_kv_count = 0;
         int64_t min_unique_count = 0x7fffffffffffffff, max_unique_count = 0;
-        int i = 0;
-        for (i = 0 ; i < shuffle_size; i++) {
-            //if (kv_per_proc[i] == -1) break;
-            global_kv_count += kv_per_proc[i];
-            global_unique_count += unique_per_proc[i];
-            if (kv_per_proc[i] <= min_kv_count) min_kv_count = kv_per_proc[i];
-            if (kv_per_proc[i] >= max_kv_count) max_kv_count = kv_per_proc[i];
-            if (out_combiner) {
-                if (unique_per_proc[i] <= min_unique_count) min_unique_count = unique_per_proc[i];
-                if (unique_per_proc[i] >= max_unique_count) max_unique_count = unique_per_proc[i];
-            }
+
+        if (!out_combiner) {
+            MPI_Allreduce(&local_kv_count, &min_kv_count, 1,
+                          MPI_INT64_T, MPI_MIN, shuffle_comm);
+            MPI_Allreduce(&local_kv_count, &max_kv_count, 1,
+                          MPI_INT64_T, MPI_MAX, shuffle_comm);
+        } else {
+            MPI_Allreduce(&local_unique_count, &min_unique_count, 1,
+                          MPI_INT64_T, MPI_MIN, shuffle_comm);
+            MPI_Allreduce(&local_unique_count, &max_unique_count, 1,
+                          MPI_INT64_T, MPI_MAX, shuffle_comm);
         }
 
         if (!out_combiner) {
@@ -359,6 +339,36 @@ protected:
         }
 
         return true;
+    }
+
+    void gather_counts() {
+
+        if (!out_combiner) {
+            MPI_Gather(&local_kv_count, 1, MPI_INT64_T,
+                    kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
+            if (shared_rank == 0) {
+                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
+                            kv_per_proc, proc_map_count, proc_map_off,
+                            MPI_INT64_T, node_comm);
+            }
+        } else {
+            MPI_Gather(&local_unique_count, 1, MPI_INT64_T,
+                       kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
+            if (shared_rank == 0) {
+                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
+                               unique_per_proc, proc_map_count, proc_map_off,
+                               MPI_INT64_T, node_comm);
+            }
+        }
+        MPI_Barrier(shared_comm);
+
+        global_kv_count = global_unique_count = 0;
+        int i = 0;
+        for (i = 0 ; i < shuffle_size; i++) {
+            if (!out_combiner) global_kv_count += kv_per_proc[i];
+            else global_unique_count += unique_per_proc[i];
+        }
+
     }
 
     void print_kvs() {
@@ -990,6 +1000,7 @@ protected:
     }
 
     void prepare_redirect() {
+        gather_counts();
         bin_table_flip.clear();
         count_per_proc.clear();
         for (auto iter : bin_table) {
