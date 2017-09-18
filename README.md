@@ -4,13 +4,19 @@ supercomputing systems. The inefficient memory use of
 [MapReduce-MPI](http://mapreduce.sandia.gov/) drives the design of this new 
 library. The work is summarized in IPDPS 2017 paper:
 
-T. Gao, Y. Guo, B. Zhang, P. Cicotti, Y. Lu, P. Balaji, and M. Taufer.
-Mimir: Memory-Efficient and Scalable MapReduce for Large Supercomputing Systems.
-The 31st IEEE International Parallel and Distributed Processing Symposium (IPDPS)
-2017.
-
 The code is still under development. If you find any problems, please contact us
 at taogao@udel.edu.
+
+# Publications
+Tao Gao, Yanfei Guo, Boyu Zhang, Pietro Cicotti, Yutong Lu, Pavan Balaji, and
+Michela Taufer. Mimir: Memory-Efficient and Scalable MapReduce for Large
+Supercomputing Systems. The 31st IEEE International Parallel and Distributed
+Processing Symposium (IPDPS) 2017.
+
+Tao Gao, Yanfei Guo, Yanjie Wei, Bingqiang Wang, Yutong Lu, Pietro Cicotti,
+Pavan Balaji, and Michela Taufer. Bloomfish: A Highly Scalable Distributed K-mer
+Counting Framework. IEEE International Conference on Parallel and Distributed
+Systems (ICPADS) 2017.
 
 # Requirement
 * A C++ compiler: supports C++ 11
