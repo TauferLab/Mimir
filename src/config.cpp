@@ -18,7 +18,7 @@ int MAX_RECORD_SIZE = 1024 * 1024;
 int SHUFFLE_TYPE = 0;
 int MIN_SBUF_COUNT = 2;
 int MAX_SBUF_COUNT = 5;
-int COMM_UNIT_SIZE = 4096;
+//int COMM_UNIT_SIZE = 4096;
 int READ_TYPE = 0;
 int WRITE_TYPE = 0;
 int DIRECT_READ = 0;
@@ -27,16 +27,15 @@ int DIRECT_WRITE = 0;
 // Features
 int WORK_STEAL = 0;
 int MAKE_PROGRESS = 0;
-int CONTAINER_TYPE = 0;
 int BIN_COUNT = 1000;
 int BALANCE_LOAD = 0;
 double BALANCE_FACTOR = 1.5;
 int BALANCE_FREQ = 1;
-int BALANCE_ALG = 0;
 int USE_MCDRAM = 1;
 
 // Profile & Debug
 int DBG_LEVEL = 0;
 int OUTPUT_STAT = 0;
+int OUTPUT_TRACE = 0;
 const char *STAT_FILE = NULL;
 int RECORD_PEAKMEM = 0;

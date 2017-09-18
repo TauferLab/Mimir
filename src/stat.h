@@ -262,11 +262,13 @@ extern char timestr[];
 
 #define TRACKER_RECORD_EVENT(event_type)                                       \
 {                                                                              \
-    double t_start = MR_GET_WTIME();                                           \
-    double t_prev = tracker_info.prev_wtime;                                   \
-    tracker_event[0].push_back(std::make_pair(event_type, t_start-t_prev));    \
-    double t_end = MR_GET_WTIME();                                             \
-    tracker_info.prev_wtime = t_end;                                           \
+    if (OUTPUT_TRACE) {                                                        \
+        double t_start = MR_GET_WTIME();                                       \
+        double t_prev = tracker_info.prev_wtime;                               \
+        tracker_event[0].push_back(std::make_pair(event_type, t_start-t_prev));\
+        double t_end = MR_GET_WTIME();                                         \
+        tracker_info.prev_wtime = t_end;                                       \
+    }                                                                          \
 }
 
 #define TRACKER_PRINT(filename)                                                \

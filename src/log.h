@@ -5,8 +5,8 @@
  *
  *     See COPYRIGHT in top-level directory.
  */
-#ifndef LOG_H
-#define LOG_H
+#ifndef MIMIR_LOG_H
+#define MIMIR_LOG_H
 
 #include <algorithm>
 

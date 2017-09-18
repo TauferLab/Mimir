@@ -84,10 +84,10 @@ void *mem_aligned_malloc(size_t alignment, size_t size, int hint)
 
     PROFILER_RECORD_TIME_END(TIMER_MEM_ALLOCATE);
 
-    if (RECORD_PEAKMEM == 1) {
-        int64_t vmsize = get_mem_usage();
-        if (vmsize > peakmem) peakmem = vmsize;
-    }
+    //if (RECORD_PEAKMEM == 1) {
+    int64_t vmsize = get_mem_usage();
+    if (vmsize > peakmem) peakmem = vmsize;
+    //}
 
     return ptr;
 }

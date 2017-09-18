@@ -43,8 +43,6 @@ combine phases
 ## Settings
 * MIMIR_SHUFFLE_TYPE (default: a2av) --- a2av: MPI_Alltoallv; ia2av:
 MPI_Ialltoallv
-* MIMIR_COMM_UNIT_SIZE (default: 4K) --- the unit size to divide the
-communication buffer
 * MIMIR_MIN_COMM_BUF (default: 2) --- if the shuffle type is ia2av, it sets
 the min communication buffer count
 * MIMIR_MAX_COMM_BUF (default: 5) --- if the suffle type is ia2av, it sets
@@ -66,6 +64,6 @@ progress pushing during nonblocking communication
 
 ## Stat & Debug
 * MIMIR_OUTPUT_STAT (default: off) --- output stat file
+* MIMIR_OUTPUT_TRACE (default: off) --- output trace file
 * MIMIR_STAT_FILE (default: NULL) --- stat file name
-* MIMIR_RECORD_PEAKMEM (default: off) --- enable/disable record peak memory usage
 * MIMIR_DBG_ALL (default: off) --- enable/disable debug message

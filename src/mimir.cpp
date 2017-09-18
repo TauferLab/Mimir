@@ -37,13 +37,13 @@ void mimir_init(){
 
 void mimir_finalize()
 {
-    if (OUTPUT_STAT) {
+    //if (OUTPUT_STAT) {
         //const char *env = getenv("MIMIR_STAT_FILE");
-        if (STAT_FILE) {
-            mimir_stat(STAT_FILE);
-        }
-        else mimir_stat("Mimir");
+    if (STAT_FILE) {
+        mimir_stat(STAT_FILE);
     }
+    else mimir_stat("Mimir");
+    //}
     UNINIT_STAT;
     //MPI_Comm_free(&mimir_world_comm);
     //printf("%d[%d] Mimir Finalize.\n",
@@ -54,12 +54,12 @@ void mimir_stat(const char* filename)
 {
     GET_CUR_TIME;
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
-    if (RECORD_PEAKMEM == 1) {
+    //if (RECORD_PEAKMEM == 1) {
         int64_t vmsize = get_mem_usage();
         if (vmsize > peakmem) peakmem = vmsize;
-    }
-    PROFILER_PRINT(filename);
-    TRACKER_PRINT(filename);
+    //}
+    if (OUTPUT_STAT) PROFILER_PRINT(filename);
+    if (OUTPUT_TRACE) TRACKER_PRINT(filename);
 }
 
 int64_t convert_to_int64(const char *_str)
@@ -181,12 +181,12 @@ void get_default_values()
     }
     // unit size to divide communication buffer
     env = NULL;
-    env = getenv("MIMIR_COMM_UNIT_SIZE");
-    if (env) {
-        COMM_UNIT_SIZE = (int) convert_to_int64(env);
-        if (COMM_UNIT_SIZE <= 0 || COMM_UNIT_SIZE > 1024 * 1024 * 1024)
-            LOG_ERROR("Error: COMM_UNIT_SIZE (%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
-    }
+    ///env = getenv("MIMIR_COMM_UNIT_SIZE");
+    //if (env) {
+    //    COMM_UNIT_SIZE = (int) convert_to_int64(env);
+    //    if (COMM_UNIT_SIZE <= 0 || COMM_UNIT_SIZE > 1024 * 1024 * 1024)
+    //        LOG_ERROR("Error: COMM_UNIT_SIZE (%d) should be > 0 and <1G!\n", COMM_UNIT_SIZE);
+    //}
     // if shuffle type is ia2av, min count of communication buffer
     env = getenv("MIMIR_MIN_COMM_BUF");
     if (env) {
@@ -240,14 +240,14 @@ void get_default_values()
         MAKE_PROGRESS = atoi(env);
     }
     // balance load
-    env = getenv("MIMIR_CONTAINER_TYPE");
-    if (env) {
-        if (strcmp(env, "kv") == 0) {
-            CONTAINER_TYPE = 0;
-        } else if (strcmp(env, "bin") == 0){
-            CONTAINER_TYPE = 1;
-        }
-    }
+    //env = getenv("MIMIR_CONTAINER_TYPE");
+    //if (env) {
+    //    if (strcmp(env, "kv") == 0) {
+    //        CONTAINER_TYPE = 0;
+    //    } else if (strcmp(env, "bin") == 0){
+    //        CONTAINER_TYPE = 1;
+    //    }
+    //}
     // balance load
     env = getenv("MIMIR_BALANCE_LOAD");
     if (env) {
@@ -269,15 +269,15 @@ void get_default_values()
         BALANCE_FACTOR = atof(env);
     }
     // balance memory among nodes
-    env = getenv("MIMIR_BALANCE_ALG");
-    if (env) {
-        if (strcmp(env, "proc") == 0) {
-            BALANCE_ALG = 0;
-        }
-        else if (strcmp(env, "node") == 0) {
-            BALANCE_ALG = 1;
-        }
-    } 
+    //env = getenv("MIMIR_BALANCE_ALG");
+    //if (env) {
+    //    if (strcmp(env, "proc") == 0) {
+    //        BALANCE_ALG = 0;
+    //    }
+    //    else if (strcmp(env, "node") == 0) {
+    //        BALANCE_ALG = 1;
+    //    }
+    //} 
     // balance memory among node
     env = getenv("MIMIR_BALANCE_FREQ");
     if (env) {
@@ -301,21 +301,30 @@ void get_default_values()
             OUTPUT_STAT = 1;
         }
     }
+    env = getenv("MIMIR_OUTPUT_TRACE");
+    if (env) {
+        int flag = atoi(env);
+        if (flag == 0) {
+            OUTPUT_TRACE = 0;
+        } else {
+            OUTPUT_TRACE = 1;
+        }
+    }
     // stat file name
     env = getenv("MIMIR_STAT_FILE");
     if (env) {
         STAT_FILE = env;
     }
     // record peak memory usage
-    env = getenv("MIMIR_RECORD_PEAKMEM");
-    if (env) {
-        int flag = atoi(env);
-        if (flag == 0) {
-            RECORD_PEAKMEM = 0;
-        } else {
-            RECORD_PEAKMEM = 1;
-        }
-    }
+    //env = getenv("MIMIR_RECORD_PEAKMEM");
+    //if (env) {
+    //    int flag = atoi(env);
+    //    if (flag == 0) {
+    //        RECORD_PEAKMEM = 0;
+    //    } else {
+    //        RECORD_PEAKMEM = 1;
+    //    }
+    //}
     // Ccnfigure debug level
     env = getenv("MIMIR_DBG_ALL");
     if (env) {
@@ -403,23 +412,22 @@ Library configuration:\n\
 \tdisk buffer size: %ld\n\
 \thash bucket size: %d\n\
 \tmax record size: %d\n\
-\tshuffle type: %d (unit size: %d)(0 - MPI_Alltoallv; 1 - MPI_Ialltoallv [%d,%d])\n\
+\tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv [%d,%d])\n\
 \treader type: %d (0 - POSIX; 1 - MPIIO) direct read=%d\n\
 \twriter type: %d (0 - POSIX; 1 - MPIIO) direct write=%d\n\
 \twork stealing: %d (make progress=%d)\n\
-\tcontainer type: %d (0 - kv; 1 - bin)\n\
-\tload balance: balance=%d, factor=%.2lf, bin=%d, freq=%d, alg=%d (0 - proc; 1 - node)\n\
+\tload balance: balance=%d, factor=%.2lf, bin=%d, freq=%d\n\
 \tMCDRAM: use_mcdram=%d\n\
-\tstat & debug: output stat=%d, stat file=%s, output peak mem=%d, debug level=%x\n\
+\tstat & debug: output profile=%d, output trace=%d, stat file=%s, debug level=%x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, MAX_RECORD_SIZE,
-        SHUFFLE_TYPE, COMM_UNIT_SIZE, MIN_SBUF_COUNT, MAX_SBUF_COUNT,
+        SHUFFLE_TYPE, MIN_SBUF_COUNT, MAX_SBUF_COUNT,
         READ_TYPE, DIRECT_READ, WRITE_TYPE, DIRECT_WRITE,
         WORK_STEAL, MAKE_PROGRESS,
-        CONTAINER_TYPE,
-        BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BALANCE_FREQ, BALANCE_ALG,
+        //CONTAINER_TYPE,
+        BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BALANCE_FREQ,
         USE_MCDRAM,
-	OUTPUT_STAT, STAT_FILE, RECORD_PEAKMEM, DBG_LEVEL);
+        OUTPUT_STAT, OUTPUT_TRACE, STAT_FILE, DBG_LEVEL);
         fflush(stdout);
     }
 }

@@ -46,10 +46,18 @@ public:
                                         keycount, valcount,
                                         split_hint, h)
       {
-          if (COMM_BUF_SIZE < (int64_t) COMM_UNIT_SIZE * (int64_t) this->shuffle_size) {
-              LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n", COMM_BUF_SIZE, COMM_UNIT_SIZE, this->shuffle_size);
+          unit_size = MEMPAGE_SIZE;
+          while ((int64_t)unit_size * (int64_t) this->shuffle_size > COMM_BUF_SIZE) {
+              unit_size /= 2;
           }
-          buf_size = (COMM_BUF_SIZE / COMM_UNIT_SIZE / this->shuffle_size) * COMM_UNIT_SIZE;
+          if (unit_size < 64) {
+              LOG_ERROR("The communication buffer is too small (%d*%d)!",
+                        unit_size, this->shuffle_size);
+          }
+          //if (COMM_BUF_SIZE < (int64_t) COMM_UNIT_SIZE * (int64_t) this->shuffle_size) {
+          //    LOG_ERROR("Error: send buffer(%ld) should be larger than COMM_UNIT_SIZE(%d)*size(%d).\n", COMM_BUF_SIZE, COMM_UNIT_SIZE, this->shuffle_size);
+          //}
+          buf_size = (COMM_BUF_SIZE / unit_size / this->shuffle_size) * unit_size;
           type_log_bytes = 0;
           int type_bytes = 0x1;
           while ((int64_t) type_bytes * (int64_t) MAX_COMM_SIZE 
@@ -417,6 +425,7 @@ protected:
     }
 
     int64_t buf_size;
+    int unit_size;
 
     MPI_Datatype comm_type;
     int type_log_bytes;
