@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <cassert>
+#include <random>
 #include "config.h"
 #include "interface.h"
 #include "hashbucket.h"

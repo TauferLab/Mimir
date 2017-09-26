@@ -24,7 +24,9 @@ source $config
 subscript=$SUBSCRIPT
 ntimes=$TESTTIMES
 partition=$PARTITION
+
 timelimit=$TIMELIMIT
+#timelimit="0:38:40"
 installdir=$INSTALLDIR/bin
 
 # output stat files
@@ -44,7 +46,7 @@ if [ -z "$prejob" ];
 then
     sbatch --job-name=$jobname --output=$jobname.o%j.out --error=$jobname.e%j.out \
     --partition=$partition -N $N -n $n --time=$timelimit --export=all             \
-    $subscript $N $n $installdir/$job "$params" | awk '{print $4}'
+    $subscript $N $n $installdir/$job "$params"
 else
     sbatch --job-name=$jobname --output=$jobname.o%j.out --error=$jobname.e%j.out \
     --partition=$partition -N $N -n $n --time=$timelimit                          \

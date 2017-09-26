@@ -254,7 +254,7 @@ int main(int argc, char **argv) {
     sprintf(filename, "%s%d.%d", outfile, proc_size, proc_rank);
     FILE *fp = fopen(filename, "w");
     if (!fp) {
-        fprintf(stderr, "Output error!\n");
+        fprintf(stderr, "Output error!filename=%s\n", filename);
         exit(1);
     }
     partition2_ctx->scan(output_kv, fp);
