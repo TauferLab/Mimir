@@ -35,6 +35,7 @@ const char *cmdstr = "./cmd \t<itemcount> <outfile>\n\
 \t--len-mean [val]\n\
 \t--len-std [val]\n\
 \t--val-len [val]\n\
+\t--key-skew [val]\n\
 \t-idxunique\n\
 \t-disorder\n\
 \t-exchange\n\
@@ -59,6 +60,7 @@ uint64_t remain_unique = 0;
 int len_mean = WORD_LEN_MEAN_DEFAULT;
 double len_std = WORD_LEN_SD_DEFAULT;
 int val_len = VALUE_LEN;
+int key_skew = 1;
 
 int proc_rank, proc_size;
 double    *dist_map = NULL;
@@ -379,15 +381,21 @@ void map_uniques (Readable<const char*,void> *input,
 {
     unique_words.clear();
 
-    uint64_t local_unique = remain_unique / proc_size;
-    if (proc_rank < (remain_unique % proc_size)) local_unique += 1;
+    uint64_t local_unique = remain_unique / (proc_size);
+    if (proc_rank < (remain_unique % (proc_size))) local_unique += 1;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0, 1);
 
     // Get existing words
     if (input != NULL) {
         const char *exist_word = NULL;
         while (input->read(&exist_word, NULL) == true) {
-            //unique_words.push_back(std::string(exist_word));
-            output->write(&exist_word, NULL);
+            double num = dis(gen);
+            if (proc_rank % key_skew == 0)
+                output->write(&exist_word, NULL);
+            else local_unique += 1;
         }
     }
 
@@ -514,6 +522,13 @@ void parse_cmd_line(int argc, char **argv) {
             assert(argc);
 
             val_len = atoi(*argv);
+        }
+        else if (!strcmp(*argv, "--key-skew")) {
+            --argc;
+            ++argv;
+            assert(argc);
+
+            key_skew = atof(*argv);
         }
         else if (!strcmp(*argv, "-idxunique")) {
             idxunique = true;
