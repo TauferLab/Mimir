@@ -486,7 +486,7 @@ FileWriter<KeyType, ValType>* FileWriter<KeyType, ValType>::getWriter(MPI_Comm c
         if (DIRECT_WRITE) {
             writer = new DirectFileWriter<KeyType, ValType>(comm, filename, keycount, valcount);
         } else {
-            writer = new FileWriter<KeyType, ValType>(comm, filename, keycount, valcount);
+            writer = new FileWriter<KeyType, ValType>(comm, filename, false, keycount, valcount);
         }
     } else if (WRITE_TYPE == 1) {
         writer = new MPIFileWriter<KeyType, ValType>(comm, filename, keycount, valcount); 
