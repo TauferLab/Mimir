@@ -25,10 +25,10 @@ public:
                                             ValType *val1, ValType *val2, ValType *val3,
                                             void *ptr),
                        void *user_ptr,
-                       uint32_t bincount = 0,
+                       //uint32_t bincount = 0,
                        int keycount = 1, int valcount = 1,
-                       bool isremove = false, int hashscale = 1)
-        : BaseObject(true), KVContainer<KeyType,ValType>(bincount, keycount, valcount, isremove) {
+                       int hashscale = 1)
+        : BaseObject(true), KVContainer<KeyType,ValType>(keycount, valcount) {
 
         this->user_combine = user_combine;
         this->user_ptr = user_ptr;

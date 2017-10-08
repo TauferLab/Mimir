@@ -28,7 +28,9 @@ const char *timer_str[TIMER_NUM] = {
     "mpi_allgatherv_time",
     "mem_allocate_time",
     "lb_check_time",
-    "lb_migrate_time"
+    "lb_rp_time",
+    "lb_migrate_time",
+    "lb_split_time"
 };
 
 const char *counter_str[COUNTER_NUM] = {

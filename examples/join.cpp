@@ -62,6 +62,8 @@ void map (Readable<KeyType, SingleVal> *input,
 void reduce (Readable<KeyType, SingleVal> *input,
              Writable<KeyType, JoinedVal> *output, void *ptr);
 
+uint64_t nitem = 0, ngroup = 0, nsplit = 0, nsplitkey = 0;
+
 #ifdef SPLIT_HINT
 std::unordered_map<std::string,std::vector<ValType>> ds1;
 std::unordered_map<std::string,std::vector<ValType>> ds2;
@@ -93,13 +95,13 @@ int main (int argc, char *argv[])
     MimirContext<KeyType, SingleVal, char*, void>* data1 
         = new MimirContext<KeyType, SingleVal, char*, void>(input1);
     datatag = DATA1_TAG;
-    data1->map(read_dataset, &datatag, false);
+    uint64_t nitem1 = data1->map(read_dataset, &datatag, false);
 
     // Get Dataset2
     MimirContext<KeyType, SingleVal, char*, void>* data2 
         = new MimirContext<KeyType, SingleVal, char*, void>(input2);
     datatag = DATA2_TAG;
-    data2->map(read_dataset, &datatag, false);
+    uint64_t nitem2 = data2->map(read_dataset, &datatag, false);
 
     // Merge Dataset1 and Dataset2
     MimirContext<KeyType, SingleVal, KeyType, SingleVal, KeyType, JoinedVal>* ctx 
@@ -108,21 +110,33 @@ int main (int argc, char *argv[])
     ctx->insert_data_handle(data1->get_data_handle());
     ctx->insert_data_handle(data2->get_data_handle());
 #ifndef SPLIT_HINT
-    ctx->map(map);
+    nitem = ctx->map(map);
 #else
-    ctx->map(map, NULL, true, false, "", true);
+    nitem = ctx->map(map, NULL, true, false, "", true);
     ctx->scan_split_keys(get_split_key);
 #endif
     delete data1;
     delete data2;
 
-    ctx->reduce(reduce, NULL, true, "text");
+    ngroup = ctx->reduce(reduce, NULL, true, "text");
 
-#ifdef SPLIT_HINT
-    printf("%d[%d] Join split keys=%ld, ds1=%ld, ds2=%ld\n",
-            rank, size, split_keys.size(), ds1.size(), ds2.size());
+#ifndef SPLIT_HINT
+    if (rank == 0) {
+        printf("Join dataset stat: item1=%ld, item2=%ld, item=%ld, group=%ld\n",
+            nitem1, nitem2, nitem, ngroup);
+    }
+#else
+    //printf("%d[%d] Join split keys=%ld, ds1=%ld, ds2=%ld\n",
+    //        rank, size, split_keys.size(), ds1.size(), ds2.size());
     join_split_key(output);
-    printf("%d[%d] Join split keys done!\n", rank, size);
+    uint64_t nsplit_global = 0;
+    MPI_Allreduce(&nsplit, &nsplit_global, 1,
+                  MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+    if (rank == 0) {
+        printf("Join datase stat: item1=%ld, item2=%ld, item=%ld, group=%ld, split=%ld, split keys=%ld\n",
+            nitem1, nitem2, nitem, ngroup, nsplit_global, nsplitkey);
+    }
+    //printf("%d[%d] Join split keys done!\n", rank, size);
 #endif
 
     delete ctx;
@@ -278,7 +292,7 @@ void reduce (Readable<KeyType,SingleVal> *input,
 
 #ifdef SPLIT_HINT
 void get_split_key(KeyType *key, void *ptr) {
-    printf("split key=%s\n", *key);
+    nsplitkey += 1;
     split_keys.insert(std::string(*key));
 }
 
@@ -383,6 +397,7 @@ void join_split_key(std::string& output) {
         if (iter2 != (*large_ds).end()) {
             for (auto item2: iter2->second) {
                 for (auto item1 : iter1.second) {
+                    nsplit += 1;
                     if (small_idx == 1) {
                         fprintf(fp, "%s %ld %ld\n", iter1.first.c_str(), item1.val1, item2.val2);
                     } else if (small_idx == 2) {

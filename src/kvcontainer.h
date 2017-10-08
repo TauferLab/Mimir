@@ -22,14 +22,12 @@ namespace MIMIR_NS {
 template <typename KeyType, typename ValType>
 class KVContainer : virtual public BaseDatabase<KeyType, ValType> {
 public:
-    KVContainer(uint32_t bincount, int keycount, int valcount,
-                bool isremove = false) 
+    KVContainer(int keycount, int valcount) 
         : BaseObject(true), BaseDatabase<KeyType, ValType>() {
 
         this->keycount = keycount;
         this->valcount = valcount;
-        this->bincount = bincount;
-        this->isremove = isremove;
+        //this->bincount = bincount;
 
         pageid = 0;
         pageoff = 0;
@@ -105,45 +103,17 @@ public:
 
     virtual int read(KeyType *key, ValType *val) {
 
-        if (!isremove) {
-            while (pageid < pages.size() 
-                   && (int)pageoff >= (int)pages[pageid].datasize) {
-                pageid ++;
-                pageoff = 0;
-            }
+        while (pageid < pages.size() 
+               && (int)pageoff >= (int)pages[pageid].datasize) {
+            pageid ++;
+            pageoff = 0;
+	}
 
-            if (pageid >= pages.size()) {
-                if (gbmem > 2 * (uint64_t)pagesize) garbage_collection();
-                LOG_PRINT(DBG_DATA, "slice length=%ld\n", slices.size());
-                return false;
-            }
-            ptr = pages[pageid].buffer + pageoff;
-        } else {
-            while (1) {
-                while (pageid < pages.size() 
-                       && (int)pageoff >= (int)pages[pageid].datasize) {
-                    pageid ++;
-                    pageoff = 0;
-                }
-
-                if (pageid >= pages.size()) {
-                    if (gbmem > 2 * (uint64_t)pagesize) garbage_collection();
-                    LOG_PRINT(DBG_DATA, "slice length=%ld\n", slices.size());
-                    return false;
-                }
-
-                ptr = pages[pageid].buffer + pageoff;
-
-                // Skip holes
-                auto iter = slices.find(ptr);
-                if (iter == slices.end()) {
-                    break;
-                } else {
-                    pageoff += iter->second;
-                }
-            }
-        }
-
+	if (pageid >= pages.size()) {
+            LOG_PRINT(DBG_DATA, "slice length=%ld\n", slices.size());
+            return false;
+	}
+	ptr = pages[pageid].buffer + pageoff;
         kvsize = this->ser->kv_from_bytes(key, val,
                     ptr, (int)(pages[pageid].datasize - pageoff));
         pageoff += kvsize;
@@ -157,66 +127,19 @@ public:
             pageid = add_page();
         }
 
-        if (!isremove) {
+        ptr = pages[pageid].buffer + pages[pageid].datasize;
+        kvsize = this->ser->kv_to_bytes(key, val, ptr,
+                  (int)(pagesize - pages[pageid].datasize));
+        if (kvsize == -1) {
+            pageid = add_page();
             ptr = pages[pageid].buffer + pages[pageid].datasize;
             kvsize = this->ser->kv_to_bytes(key, val, ptr,
-                                                (int)(pagesize - pages[pageid].datasize));
-            if (kvsize == -1) {
-                pageid = add_page();
-                ptr = pages[pageid].buffer + pages[pageid].datasize;
-                kvsize = this->ser->kv_to_bytes(key, val, ptr,
-                                                (int)(pagesize - pages[pageid].datasize));
-                if (kvsize == -1)
-                    LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n",
-                              kvsize, pagesize);
+                     (int)(pagesize - pages[pageid].datasize));
+            if (kvsize == -1)
+              LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n",
+                        kvsize, pagesize);
             }
-            pages[pageid].datasize += kvsize;
-        } else {
-            kvsize = ser->get_kv_bytes(key, val);
-
-            if (!ispointer) {
-                std::unordered_map < char *, int >::iterator iter;
-                for (iter = this->slices.begin(); iter != this->slices.end(); iter++) {
-                    char *sbuf = iter->first;
-                    int ssize = iter->second;
-
-                    if (ssize >= kvsize) {
-                        ptr = sbuf + (ssize - kvsize);
-                        this->ser->kv_to_bytes(key, val, ptr, kvsize);
-
-                        if (iter->second == kvsize)
-                            this->slices.erase(iter);
-                        else
-                            this->slices[iter->first] -= kvsize;
-
-                        gbmem -= kvsize;
-                        break;
-                    }
-                }
-                if (iter == this->slices.end()) {
-
-                    if ((int)(pagesize - pages[pageid].datasize) < kvsize) {
-                        pageid = add_page();
-                    }
-                    ptr = pages[pageid].buffer + pages[pageid].datasize;
-                    kvsize = this->ser->kv_to_bytes(key, val, ptr, kvsize);
-                    if (kvsize == -1)
-                        LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n",
-                                kvsize, pagesize);
-                    pages[pageid].datasize += kvsize;
-                }
-            } else {
-                if ((int)(pagesize - pages[pageid].datasize) < kvsize) {
-                    pageid = add_page();
-                }
-                ptr = pages[pageid].buffer + pages[pageid].datasize;
-                kvsize = this->ser->kv_to_bytes(key, val, ptr, kvsize);
-                if (kvsize == -1)
-                    LOG_ERROR("Error: KV size (%d) is larger than one page (%ld)\n",
-                              kvsize, pagesize);
-                pages[pageid].datasize += kvsize;
-            }
-        }
+        pages[pageid].datasize += kvsize;
 
         kvcount += 1;
         kvmem += kvsize;
@@ -228,33 +151,9 @@ public:
     }
 
     virtual int remove() {
-        if (!isremove) {
-            LOG_ERROR("This KV container does not support remove function!\n");
-        }
-
         if (ptr == NULL) return false;
 
-        // Insert <ptr, kvsize>
-        int i = 0;
-        for (i = min_kvsize; i < min_kvsize + 1; i ++) {
-            char *tmp = ptr - i;
-            auto iter = slices.find(tmp);
-            if (iter != slices.end() && iter->second == i) {
-                iter->second += kvsize;
-                break;
-            }
-        }
-
-        if (i >= min_kvsize + 1) {
-            int next_kvsize = 0;
-            char *tmp = ptr + kvsize;
-            auto iter = slices.find(tmp);
-            if (iter != slices.end()) {
-                //next_kvsize = iter->second;
-                //slices.erase(iter);
-            }
-            slices[ptr] = kvsize + next_kvsize;
-        }
+        slices[ptr] = kvsize;
 
         kvcount -= 1;
         kvmem -= kvsize;
@@ -383,13 +282,12 @@ protected:
     uint64_t           kvcount;
     uint64_t           kvmem;
     uint64_t           gbmem;
-    uint32_t          bincount;
+    //uint32_t          bincount;
 
     int              max_kvsize;
     int              min_kvsize;
 
     bool              ispointer;
-    bool              isremove;
     std::unordered_map<char*, int> slices;
     Serializer<KeyType, ValType> *ser;
 };

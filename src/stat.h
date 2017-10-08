@@ -58,8 +58,10 @@ extern char timestr[];
 #define TIMER_COMM_ALLGATHERV      9    // MPI_Allgather
 #define TIMER_MEM_ALLOCATE        10    // memory allocation
 #define TIMER_LB_CHECK            11    // check
-#define TIMER_LB_MIGRATE          12    // migrate
-#define TIMER_NUM                 13
+#define TIMER_LB_RP               12    // repartition
+#define TIMER_LB_MIGRATE          13    // migrate
+#define TIMER_LB_SPLIT            14    // split
+#define TIMER_NUM                 15
 
 
 // Counters
