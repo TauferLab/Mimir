@@ -159,6 +159,14 @@ public:
 
     virtual void make_progress(bool issue_new = false) { exchange_kv(); }
 
+    virtual BaseDatabase<KeyType,ValType>* get_tmp_db() {
+        BaseDatabase<KeyType,ValType> *kv = NULL;
+        kv = new KVContainer<KeyType,ValType>(BIN_COUNT * this->shuffle_size,
+             this->keycount, this->valcount, true);
+        return kv;
+    }
+
+#if 0
     virtual void migrate_kvs(std::map<uint32_t,int>& redirect_bins,
                              std::set<int>& send_procs,
                              std::set<int>& recv_procs,
@@ -171,8 +179,8 @@ public:
         MPI_Status st;
         int flag, count;
 
-        LOG_PRINT(DBG_COMM, "Comm: migrate send procs=%ld, recv procs=%ld\n",
-                  send_procs.size(), recv_procs.size());
+        LOG_PRINT(DBG_COMM, "Comm: migrate send procs=%ld,recv procs=%ld,suspect_table=%ld\n",
+                  send_procs.size(), recv_procs.size(), suspect_table.size());
 
         // Create send procs map
         std::map<int,int> send_procs_map;
@@ -188,12 +196,13 @@ public:
         if (send_procs.size() > 0) {
             int factor = this->shuffle_size / (int)send_procs.size();
 
-            typename SafeType<KeyType>::type key[this->keycount];
-            typename SafeType<ValType>::type val[this->valcount];
+            typename SafeType<KeyType>::type key[keycount];
+            typename SafeType<ValType>::type val[valcount];
 
             while(this->out_reader->read(key,val) == true) {
-                uint32_t hid = this->ser->get_hash_code(key);
+		uint32_t hid = this->ser->get_hash_code(key);
                 uint32_t bid = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+		hash_t += (t2 - t1);
 
                 // Gather stat of suspect
                 if (suspect_table.find(bid) != suspect_table.end()) {
@@ -229,7 +238,7 @@ public:
                     this->out_mover->remove();
                 }
             }
-            for (auto iter : send_procs) {
+	    for (auto iter : send_procs) {
                 int target = send_procs_map[iter];
                 if (send_offset[target] != 0) {
                     char *buffer = send_buffer + factor * target * (int64_t)buf_size;
@@ -245,8 +254,8 @@ public:
             }
         } else {
             if (suspect_table.size() != 0) {
-                typename SafeType<KeyType>::type key[this->keycount];
-                typename SafeType<ValType>::type val[this->valcount];
+                typename SafeType<KeyType>::type key[keycount];
+                typename SafeType<ValType>::type val[valcount];
 
                 while(this->out_reader->read(key,val) == true) {
                     uint32_t hid = this->ser->get_hash_code(key);
@@ -278,9 +287,6 @@ public:
                 }
             }
         }
-
-        //LOG_PRINT(DBG_REPAR, "Find suspect table=%ld, split table=%ld, ignore_table=%ld\n",
-        //          suspect_table.size(), local_split_table.size(), ignore_table.size());
 
         // Recv KVs
         this->out->seek(DB_END);
@@ -329,6 +335,7 @@ public:
             }
         }
     }
+#endif
 
 protected:
 
@@ -458,7 +465,7 @@ protected:
         LOG_PRINT(DBG_COMM, "Comm: start alltoallv\n");
 
         PROFILER_RECORD_TIME_START;
-        MPI_Alltoallv(send_buffer, a2a_s_count, a2a_s_displs, comm_type,
+	MPI_Alltoallv(send_buffer, a2a_s_count, a2a_s_displs, comm_type,
                       recv_buffer, a2a_r_count, a2a_r_displs, comm_type, 
                       this->shuffle_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_A2AV);
@@ -480,9 +487,9 @@ protected:
 
         if (BALANCE_LOAD && !(this->user_hash) && this->shuffle_times % BALANCE_FREQ == 0) {
 
-            PROFILER_RECORD_TIME_START;
-            MPI_Barrier(MPI_COMM_WORLD);
-            PROFILER_RECORD_TIME_END(TIMER_COMM_BARRIER);
+            //PROFILER_RECORD_TIME_START;
+            //MPI_Barrier(MPI_COMM_WORLD);
+            //PROFILER_RECORD_TIME_END(TIMER_COMM_BARRIER);
 
             PROFILER_RECORD_TIME_START;
             bool flag = this->check_load_balance();

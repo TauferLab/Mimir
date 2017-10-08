@@ -239,12 +239,52 @@ public:
     virtual int write(KeyType *key, ValType *val) = 0;
     virtual void close() = 0;
     virtual void make_progress(bool issue_new = false) = 0;
+    #if 0
     virtual void migrate_kvs(std::map<uint32_t,int>& redirect_bins,
                              std::set<int>& send_procs,
                              std::set<int>& recv_procs,
                              std::unordered_set<uint32_t>& suspect_table,
                              std::unordered_set<uint32_t>& split_table
                              ) = 0;
+    #endif
+   
+    virtual BaseDatabase<KeyType,ValType>* get_tmp_db() {
+        return NULL;
+    }
+
+    virtual void migrate_kvs() {
+	if (redirect_table.size() == 0) return;
+        BaseDatabase<KeyType,ValType> *kv = get_tmp_db();
+        // Change output DB
+	Writable<KeyType,ValType>* tmp_out = out;
+        out = kv;
+
+        // Migrate data
+        typename SafeType<KeyType>::type key[keycount];
+        typename SafeType<ValType>::type val[valcount];
+        kv->open();
+        out_reader->seek(DB_START);
+	while(out_reader->read(key,val) == true) {
+	    uint32_t hid = ser->get_hash_code(key);
+            uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
+            auto iter = redirect_table.find(bid);
+	    if (iter != redirect_table.end()
+                && iter->second != shuffle_rank) {     
+                this->write(key, val);
+            }
+        }
+        wait();
+
+        // Copy back
+        out = tmp_out;
+        kv->seek(DB_START);
+ 	while(out_reader->read(key,val) == true) {
+            this->write(key, val);
+        }
+        kv->close();
+        delete kv;
+    }
+
     virtual int seek(DB_POS pos) {
         LOG_WARNING("FileReader doesnot support seek methods!\n");
         return false;
@@ -322,7 +362,7 @@ protected:
                           MPI_INT64_T, MPI_MIN, shuffle_comm);
             MPI_Allreduce(&local_kv_count, &max_kv_count, 1,
                           MPI_INT64_T, MPI_MAX, shuffle_comm);
-        } else {
+         } else {
             MPI_Allreduce(&local_unique_count, &min_unique_count, 1,
                           MPI_INT64_T, MPI_MIN, shuffle_comm);
             MPI_Allreduce(&local_unique_count, &max_unique_count, 1,
@@ -860,7 +900,7 @@ protected:
         // Get redirect bins
         std::map<uint32_t,int> redirect_bins;
 
-        compute_redirect_bins(redirect_bins);
+        compute_redirect_bins(redirect_bins);	
 
         LOG_PRINT(DBG_REPAR, "compute redirect bins end.\n");
 
@@ -922,82 +962,98 @@ protected:
         }
 
         PROFILER_RECORD_COUNT(COUNTER_REDIRECT_BINS, redirect_table.size(), OPMAX);
+        
+        if (split_hint) split_keys(); 
+     }
 
-        //assert(isrepartition == false);
-
-        LOG_PRINT(DBG_REPAR, "migrate KVs start.\n");
-
-        // Ensure no extrea repartition within repartition
-        //isrepartition = true;
-        //if (!out_db) {
-        //    LOG_ERROR("Cannot convert to removable object! out_db=%p\n", out_db);
-        //}
+     void split_keys() {
 
         std::unordered_set<uint32_t> suspect_table;
-        if (split_hint) {
-            auto iter = bin_table_flip.rbegin();
-            while (iter != bin_table_flip.rend()) {
-                if (iter->second.first == std::numeric_limits<uint32_t>::max()) {
-                    iter ++;
-                    continue;
-                }
-                //if (ignore_table.find(iter->second.first) != ignore_table.end()) {
-                //    iter ++;
-                //    continue;
-                //}
-                if (iter->first * shuffle_size > global_kv_count) {
-                    suspect_table.insert(iter->second.first);
-                    LOG_PRINT(DBG_REPAR, "Find split suspect bid=%u (%ld,%lf)\n",
-                              iter->second.first, iter->first,
-                              (double)iter->first / (double)global_kv_count);
-                } else {
-                    break;
-                }
+        auto iter = bin_table_flip.rbegin();
+        while (iter != bin_table_flip.rend()) {
+            if (iter->second.first == std::numeric_limits<uint32_t>::max()) {
                 iter ++;
+                continue;
             }
+            if (iter->first * shuffle_size > global_kv_count) {
+                suspect_table.insert(iter->second.first);
+                LOG_PRINT(DBG_REPAR, "Find split suspect bid=%u (%ld,%lf)\n",
+                          iter->second.first, iter->first,
+                          (double)iter->first / (double)global_kv_count);
+            } else {
+                break;
+            }
+            iter ++;
         }
 
-        // Migrate KVs
         std::unordered_set<uint32_t> local_split_table;
-        migrate_kvs(redirect_bins, send_procs, recv_procs,
-                    suspect_table, local_split_table);
+        std::unordered_map<uint32_t, uint64_t> suspect_stat;
+	if (suspect_table.size() != 0) {
+	    typename SafeType<KeyType>::type key[keycount];
+            typename SafeType<ValType>::type val[valcount];
 
-        // Update Split table
-        if (split_hint) {
-            sendcount = (int)local_split_table.size();
-            MPI_Allgather(&sendcount, 1, MPI_INT,
-                          recvcounts, 1, MPI_INT, shuffle_comm);
-            recvcount  = recvcounts[0];
-            displs[0] = 0;
-            for (int i = 1; i < shuffle_size; i++) {
-                displs[i] = displs[i - 1] + recvcounts[i - 1];
-                recvcount += recvcounts[i];
-            }
+            this->out->seek(DB_START);
+            while(this->out_reader->read(key,val) == true) {
+                uint32_t hid = this->ser->get_hash_code(key);
+                uint32_t bid = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
 
-            if (recvcount != 0) {
-
-                int sendbuf[sendcount], recvbuf[recvcount];
-                int idx = 0;
-                for (auto iter : local_split_table) {
-                    sendbuf[idx] = iter;
-                    idx ++;
-                }
-                MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
-                               recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
-                for (idx = 0; idx < recvcount; idx ++) {
-                    uint32_t hid = recvbuf[idx];
-                    uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
-                    split_table.insert(hid);
-                    ignore_table.insert(bid);
-                    PROFILER_RECORD_COUNT(COUNTER_SPLIT_KEYS, split_table.size(), OPMAX);
-                    if (bin_table.find(bid) == bin_table.end()) {
-                        bin_table.insert({bid, {0,0}});
+                // Gather stat of suspect
+                if (suspect_table.find(bid) != suspect_table.end()) {
+                    if (suspect_stat.find(hid) != suspect_stat.end()) {
+                        suspect_stat[hid] += 1;
+                    } else {
+                        suspect_stat[hid] = 0;
                     }
                 }
             }
+            for (auto iter : suspect_stat) {
+                if ((double)iter.second * shuffle_size > (double)global_kv_count * 0.8) {
+                    uint32_t hid = iter.first;
+                    uint32_t bid = hid % (uint32_t)(shuffle_size * BIN_COUNT);
+                    if (split_table.find(hid) == split_table.end())
+                    {
+                        LOG_PRINT(DBG_REPAR, "Find split key hid=%u, bid=%u\n", hid, bid);
+                        local_split_table.insert(hid);
+                    }
+                }
+            }
+
         }
 
-        LOG_PRINT(DBG_REPAR, "migrate KVs end.\n");
+        int sendcount, recvcount;
+        int recvcounts[shuffle_size], displs[shuffle_size];
+
+        sendcount = (int)local_split_table.size();
+        MPI_Allgather(&sendcount, 1, MPI_INT,
+                       recvcounts, 1, MPI_INT, shuffle_comm);
+        recvcount  = recvcounts[0];
+        displs[0] = 0;
+        for (int i = 1; i < shuffle_size; i++) {
+            displs[i] = displs[i - 1] + recvcounts[i - 1];
+            recvcount += recvcounts[i];
+        }
+
+        if (recvcount != 0) {
+
+            int sendbuf[sendcount], recvbuf[recvcount];
+            int idx = 0;
+            for (auto iter : local_split_table) {
+                sendbuf[idx] = iter;
+                idx ++;
+            }
+            MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
+                           recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
+            for (idx = 0; idx < recvcount; idx ++) {
+                uint32_t hid = recvbuf[idx];
+                uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
+                split_table.insert(hid);
+                ignore_table.insert(bid);
+                PROFILER_RECORD_COUNT(COUNTER_SPLIT_KEYS, split_table.size(), OPMAX);
+                if (bin_table.find(bid) == bin_table.end()) {
+                    bin_table.insert({bid, {0,0}});
+                }
+            }
+        }
     }
 
     void prepare_redirect() {
@@ -1034,12 +1090,12 @@ protected:
     int      shuffle_times;
 
     int      keycount, valcount;
-
-    // redirect <key,value> to other processes
+    
     MPI_Comm                      shared_comm, node_comm;
     MPI_Group                shared_group, shuffle_group;
     int    shared_rank, shared_size, node_rank, node_size;
     int64_t     *kv_per_proc, *unique_per_proc, *kv_per_core;
+    
     int    *proc_map_off, *proc_map_count, *proc_map_rank;
     MPI_Win        kv_proc_win, unique_proc_win, kv_core_win;
     MPI_Win      map_off_win, map_count_win, map_rank_win;

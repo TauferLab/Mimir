@@ -179,15 +179,6 @@ public:
         push_kv_exchange();
     }
 
-    virtual void migrate_kvs(std::map<uint32_t,int>& redirect_bins,
-                             std::set<int>& send_procs,
-                             std::set<int>& recv_procs,
-                             std::unordered_set<uint32_t>& suspect_table,
-                             std::unordered_set<uint32_t>& split_table) {
-
-        LOG_ERROR("Don't support!\n");
-    }
-
 protected:
     void wait()
     {

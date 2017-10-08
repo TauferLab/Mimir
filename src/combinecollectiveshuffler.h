@@ -171,6 +171,14 @@ public:
         return 0;
     }
 
+    virtual BaseDatabase<KeyType,ValType>* get_tmp_db() {
+        BaseDatabase<KeyType,ValType> *kv = NULL;
+        kv = new CombineKVContainer<KeyType,ValType>(user_combine, user_ptr,
+            BIN_COUNT * this->shuffle_size,
+            keycount, valcount, true, this->shuffle_size);
+        return kv;
+    }
+
 #if 0
     virtual void update(KeyType *key, ValType *val)
     {
