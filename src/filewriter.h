@@ -170,6 +170,7 @@ class FileWriter : public Writable<KeyType, ValType> {
 
         PROFILER_RECORD_TIME_START;
         fwrite(this->buffer, this->datasize, 1, this->union_fp.c_fp);
+        PROFILER_RECORD_COUNT(COUNTER_OUTPUT_SIZE, this->datasize, OPSUM);
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
 
         this->datasize = 0;
@@ -272,6 +273,7 @@ class DirectFileWriter : public FileWriter<KeyType, ValType>
             if (write_bytes == -1) {
                 LOG_ERROR("Write error, %d\n", errno);
             }
+            PROFILER_RECORD_COUNT(COUNTER_OUTPUT_SIZE, write_bytes, OPSUM);
             remain_bytes -= write_bytes;
             remain_buffer += write_bytes;
         } while (remain_bytes > 0);
@@ -418,6 +420,7 @@ class MPIFileWriter : public FileWriter<KeyType, ValType> {
         PROFILER_RECORD_TIME_START;
         MPI_CHECK(MPI_File_write_at_all(this->union_fp.mpi_fp, fileoff, 
                                         this->buffer, (int)(this->datasize), MPI_BYTE, &st));
+        PROFILER_RECORD_COUNT(COUNTER_OUTPUT_SIZE, this->datasize, OPSUM);
         this->datasize = 0;
         PROFILER_RECORD_TIME_END(TIMER_PFS_OUTPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIWRITEATALL);

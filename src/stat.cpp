@@ -39,6 +39,7 @@ const char *counter_str[COUNTER_NUM] = {
     "file_count",
     "file_size",
     "max_file",
+    "output_size",
     "send_tail",
     "recv_tail",
     "balance_times",
