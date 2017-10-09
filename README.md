@@ -2,7 +2,7 @@
 Mimir is a memory-efficient and scalable MapReduce implementation over MPI for 
 supercomputing systems. The inefficient memory use of 
 [MapReduce-MPI](http://mapreduce.sandia.gov/) drives the design of this new 
-library. The work is summarized in IPDPS 2017 paper:
+library.
 
 The code is still under development. If you find any problems, please contact us
 at taogao@udel.edu.
