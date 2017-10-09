@@ -66,7 +66,7 @@ progress pushing during nonblocking communication
 * MIMIR_BIN_COUNT (default: 1000) --- number of bins per process
 * MIMIR_BALANCE_FACTOR (default: 1.5) --- the balance factor
 * MIMIR_BALANCE_FREQ (default: 1) --- load balancing frequency
-* MIMIR_USE_MCDRAM (default: on) --- if use MCDRAM when there is MCDRAM
+* MIMIR_USE_MCDRAM (default: off) --- if use MCDRAM when there is MCDRAM
 
 ## Stat & Debug
 * MIMIR_OUTPUT_STAT (default: off) --- output stat file

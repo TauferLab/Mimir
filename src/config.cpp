@@ -31,7 +31,7 @@ int BIN_COUNT = 1000;
 int BALANCE_LOAD = 0;
 double BALANCE_FACTOR = 1.5;
 int BALANCE_FREQ = 1;
-int USE_MCDRAM = 1;
+int USE_MCDRAM = 0;
 
 // Profile & Debug
 int DBG_LEVEL = 0;
