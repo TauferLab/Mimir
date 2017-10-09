@@ -273,7 +273,7 @@ class DirectFileWriter : public FileWriter<KeyType, ValType>
             if (write_bytes == -1) {
                 LOG_ERROR("Write error, %d\n", errno);
             }
-            PROFILER_RECORD_COUNT(COUNTER_OUTPUT_SIZE, write_bytes, OPSUM);
+            PROFILER_RECORD_COUNT(COUNTER_OUTPUT_SIZE, (uint64_t)write_bytes, OPSUM);
             remain_bytes -= write_bytes;
             remain_buffer += write_bytes;
         } while (remain_bytes > 0);

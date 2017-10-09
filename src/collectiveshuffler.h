@@ -161,7 +161,7 @@ public:
             gather_counts();
             balance_load();
             PROFILER_RECORD_TIME_END(TIMER_LB_RP);
-            if (split_hint) {
+            if (this->split_hint) {
                 PROFILER_RECORD_TIME_START;
                 split_keys(); 
                 PROFILER_RECORD_TIME_END(TIMER_LB_SPLIT);
@@ -171,24 +171,24 @@ public:
 
     // if there is load imbanace problem, return false
     bool check_load_balance() {
-        if (!migratable) return true;
+        if (!(this->migratable)) return true;
 
         int64_t min_kv_count = 0x7fffffffffffffff, max_kv_count = 0;
         int64_t min_unique_count = 0x7fffffffffffffff, max_unique_count = 0;
 
-        if (!out_combiner) {
-            MPI_Allreduce(&local_kv_count, &min_kv_count, 1,
-                          MPI_INT64_T, MPI_MIN, shuffle_comm);
-            MPI_Allreduce(&local_kv_count, &max_kv_count, 1,
-                          MPI_INT64_T, MPI_MAX, shuffle_comm);
+        if (!(this->out_combiner)) {
+            MPI_Allreduce(&(this->local_kv_count), &min_kv_count, 1,
+                          MPI_INT64_T, MPI_MIN, this->shuffle_comm);
+            MPI_Allreduce(&(this->local_kv_count), &max_kv_count, 1,
+                          MPI_INT64_T, MPI_MAX, this->shuffle_comm);
          } else {
-            MPI_Allreduce(&local_unique_count, &min_unique_count, 1,
-                          MPI_INT64_T, MPI_MIN, shuffle_comm);
-            MPI_Allreduce(&local_unique_count, &max_unique_count, 1,
-                          MPI_INT64_T, MPI_MAX, shuffle_comm);
+            MPI_Allreduce(&(this->local_unique_count), &min_unique_count, 1,
+                          MPI_INT64_T, MPI_MIN, this->shuffle_comm);
+            MPI_Allreduce(&(this->local_unique_count), &max_unique_count, 1,
+                          MPI_INT64_T, MPI_MAX, (this->shuffle_comm));
         }
 
-        if (!out_combiner) {
+        if (!(this->out_combiner)) {
             if (max_kv_count < 1024) return true;
             if ((double)max_kv_count > BALANCE_FACTOR * (double)min_kv_count)
                 return false;
@@ -203,30 +203,30 @@ public:
 
     void gather_counts() {
 
-        if (!out_combiner) {
-            MPI_Gather(&local_kv_count, 1, MPI_INT64_T,
-                    kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
-            if (shared_rank == 0) {
-                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
-                            kv_per_proc, proc_map_count, proc_map_off,
-                            MPI_INT64_T, node_comm);
+        if (!(this->out_combiner)) {
+            MPI_Gather(&(this->local_kv_count), 1, MPI_INT64_T,
+                   this->kv_per_core, 1, MPI_INT64_T, 0, this->shared_comm);
+            if (this->shared_rank == 0) {
+                MPI_Allgatherv(this->kv_per_core, this->shared_size, MPI_INT64_T,
+                            this->kv_per_proc, this->proc_map_count, this->proc_map_off,
+                            MPI_INT64_T, this->node_comm);
             }
         } else {
-            MPI_Gather(&local_unique_count, 1, MPI_INT64_T,
-                       kv_per_core, 1, MPI_INT64_T, 0, shared_comm);
-            if (shared_rank == 0) {
-                MPI_Allgatherv(kv_per_core, shared_size, MPI_INT64_T,
-                               unique_per_proc, proc_map_count, proc_map_off,
-                               MPI_INT64_T, node_comm);
+            MPI_Gather(&(this->local_unique_count), 1, MPI_INT64_T,
+                       this->kv_per_core, 1, MPI_INT64_T, 0, this->shared_comm);
+            if (this->shared_rank == 0) {
+                MPI_Allgatherv(this->kv_per_core, this->shared_size, MPI_INT64_T,
+                               this->unique_per_proc, this->proc_map_count, this->proc_map_off,
+                               MPI_INT64_T, this->node_comm);
             }
         }
-        MPI_Barrier(shared_comm);
+        MPI_Barrier(this->shared_comm);
 
-        global_kv_count = global_unique_count = 0;
+        this->global_kv_count = this->global_unique_count = 0;
         int i = 0;
-        for (i = 0 ; i < shuffle_size; i++) {
-            if (!out_combiner) global_kv_count += kv_per_proc[i];
-            else global_unique_count += unique_per_proc[i];
+        for (i = 0 ; i < this->shuffle_size; i++) {
+            if (!(this->out_combiner)) this->global_kv_count += this->kv_per_proc[i];
+            else this->global_unique_count += this->unique_per_proc[i];
         }
 
     }
@@ -234,18 +234,18 @@ public:
     void balance_load() {
         LOG_PRINT(DBG_GEN, "shuffle index=%d: load balance start\n",
             this->shuffle_times);
-        
- 	// Get redirect bins
+
+        // Get redirect bins
         std::map<uint32_t,int> redirect_bins;
         std::map<uint32_t,std::pair<uint64_t, uint64_t>> bin_counts;
-        compute_redirect_bins(redirect_bins, bin_counts);
+        this->compute_redirect_bins(redirect_bins, bin_counts);
 
-	for (auto iter : redirect_bins) {
-            auto iter1 = bin_table.find(iter.first);
-            if (iter1 != bin_table.end()) {
+        for (auto iter : redirect_bins) {
+            auto iter1 = this->bin_table.find(iter.first);
+            if (iter1 != this->bin_table.end()) {
                 this->local_kv_count -= iter1->second.first;
                 this->local_unique_count -= iter1->second.second;
-                bin_table.erase(iter1);
+                this->bin_table.erase(iter1);
                 //iter1->second.first = 0;
                 //iter1->second.second = 0;
             } else {
@@ -257,20 +257,20 @@ public:
 
         // Update redirect table
         int sendcount, recvcount;
-        int recvcounts[shuffle_size], displs[shuffle_size];
+        int recvcounts[this->shuffle_size], displs[this->shuffle_size];
 
         sendcount = (int)redirect_bins.size() * 24;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
 
         MPI_Allgather(&sendcount, 1, MPI_INT,
-                       recvcounts, 1, MPI_INT, shuffle_comm);
+                       recvcounts, 1, MPI_INT, this->shuffle_comm);
 
         TRACKER_RECORD_EVENT(EVENT_COMM_ALLGATHER);
 
         recvcount  = recvcounts[0];
         displs[0] = 0;
-        for (int i = 1; i < shuffle_size; i++) {
+        for (int i = 1; i < this->shuffle_size; i++) {
             displs[i] = displs[i - 1] + recvcounts[i - 1];
             recvcount += recvcounts[i];
         }
@@ -280,40 +280,41 @@ public:
         char sendbuf[sendcount], recvbuf[recvcount];
         int k = 0;
         for (auto iter : redirect_bins) {
-            *(int*)&sendbuf[k] = iter.first;
-            *(int*)&sendbuf[k+4] = iter.second;
+            *(int*)(sendbuf+k) = iter.first;
+            *(int*)(sendbuf+k+4) = iter.second;
 	    auto iter1 = bin_counts.find(iter.first);
             if (iter1 != bin_counts.end()) {
-                *(int64_t*)&sendbuf[k+8] = iter1->second.first;
-                *(int64_t*)&sendbuf[k+16] = iter1->second.second;
+                *(int64_t*)(sendbuf+k+8) = iter1->second.first;
+                *(int64_t*)(sendbuf+k+16) = iter1->second.second;
             }
             k += 24;
         }
 
         MPI_Allgatherv(sendbuf, sendcount, MPI_CHAR,
-                       recvbuf, recvcounts, displs, MPI_CHAR, shuffle_comm);
+                       recvbuf, recvcounts, displs, MPI_CHAR, this->shuffle_comm);
 
         TRACKER_RECORD_EVENT(EVENT_COMM_ALLGATHERV);
         for (int i = 0; i < recvcount; i += 24) {
-            uint32_t binid = *(uint32_t*)(&recvbuf[i]);
-            int rankid = *(int*)(&recvbuf[i+4]);
-            int64_t kvcount = *(int64_t*)(&recvbuf[i+8]);
-            int64_t ucount = *(int64_t*)(&recvbuf[i+16]);
-            if (rankid == shuffle_rank) {
+            uint32_t binid = *(uint32_t*)(recvbuf + i);
+            int rankid = *(int*)(recvbuf + i + 4);
+            int64_t kvcount = *(int64_t*)(recvbuf + i + 8);
+            int64_t ucount = *(int64_t*)(recvbuf + i + 16);
+            if (rankid == this->shuffle_rank) {
                 this->local_kv_count += kvcount;
                 this->local_unique_count += ucount;
-                auto iter = bin_table.find(binid);
-                if (iter != bin_table.end()) {
+                auto iter = this->bin_table.find(binid);
+                if (iter != this->bin_table.end()) {
                     iter->second.first += kvcount;
                     iter->second.second += ucount;
                 } else {
-                    bin_table[binid] = {kvcount,ucount};
+                    this->bin_table[binid] = {kvcount,ucount};
                 }
             }
-            redirect_table[binid] = rankid;
+            this->redirect_table[binid] = rankid;
         }
 
-        PROFILER_RECORD_COUNT(COUNTER_REDIRECT_BINS, redirect_table.size(), OPMAX);
+        PROFILER_RECORD_COUNT(COUNTER_REDIRECT_BINS,
+                              this->redirect_table.size(), OPMAX);
         PROFILER_RECORD_COUNT(COUNTER_BALANCE_TIMES, 1, OPSUM);
         LOG_PRINT(DBG_GEN, "shuffle index=%d: load balance end\n", this->shuffle_times);
      }
@@ -321,17 +322,17 @@ public:
      void split_keys() {
 
         std::unordered_set<uint32_t> suspect_table;
-        auto iter = bin_table_flip.rbegin();
-        while (iter != bin_table_flip.rend()) {
+        auto iter = this->bin_table_flip.rbegin();
+        while (iter != this->bin_table_flip.rend()) {
             if (iter->second.first == std::numeric_limits<uint32_t>::max()) {
                 iter ++;
                 continue;
             }
-            if (iter->first * shuffle_size > global_kv_count) {
+            if (iter->first * this->shuffle_size > this->global_kv_count) {
                 suspect_table.insert(iter->second.first);
                 LOG_PRINT(DBG_REPAR, "Find split suspect bid=%u (%ld,%lf)\n",
                           iter->second.first, iter->first,
-                          (double)iter->first / (double)global_kv_count);
+                          (double)iter->first / (double)(this->global_kv_count));
             } else {
                 break;
             }
@@ -340,9 +341,9 @@ public:
 
         std::unordered_set<uint32_t> local_split_table;
         std::unordered_map<uint32_t, uint64_t> suspect_stat;
-	if (suspect_table.size() != 0) {
-	    typename SafeType<KeyType>::type key[keycount];
-            typename SafeType<ValType>::type val[valcount];
+        if (suspect_table.size() != 0) {
+            typename SafeType<KeyType>::type key[this->keycount];
+            typename SafeType<ValType>::type val[this->valcount];
 
             this->out->seek(DB_START);
             while(this->out_reader->read(key,val) == true) {
@@ -359,10 +360,11 @@ public:
                 }
             }
             for (auto iter : suspect_stat) {
-                if ((double)iter.second * shuffle_size > (double)global_kv_count * 0.8) {
+                if ((double)iter.second * this->shuffle_size > 
+                    (double)(this->global_kv_count) * 0.8) {
                     uint32_t hid = iter.first;
-                    uint32_t bid = hid % (uint32_t)(shuffle_size * BIN_COUNT);
-                    if (split_table.find(hid) == split_table.end())
+                    uint32_t bid = hid % (uint32_t)(this->shuffle_size * BIN_COUNT);
+                    if (this->split_table.find(hid) == this->split_table.end())
                     {
                         LOG_PRINT(DBG_REPAR, "Find split key hid=%u, bid=%u\n", hid, bid);
                         local_split_table.insert(hid);
@@ -373,14 +375,14 @@ public:
         }
 
         int sendcount, recvcount;
-        int recvcounts[shuffle_size], displs[shuffle_size];
+        int recvcounts[this->shuffle_size], displs[this->shuffle_size];
 
         sendcount = (int)local_split_table.size();
         MPI_Allgather(&sendcount, 1, MPI_INT,
-                       recvcounts, 1, MPI_INT, shuffle_comm);
+                       recvcounts, 1, MPI_INT, this->shuffle_comm);
         recvcount  = recvcounts[0];
         displs[0] = 0;
-        for (int i = 1; i < shuffle_size; i++) {
+        for (int i = 1; i < this->shuffle_size; i++) {
             displs[i] = displs[i - 1] + recvcounts[i - 1];
             recvcount += recvcounts[i];
         }
@@ -394,15 +396,15 @@ public:
                 idx ++;
             }
             MPI_Allgatherv(sendbuf, sendcount, MPI_INT,
-                           recvbuf, recvcounts, displs, MPI_INT, shuffle_comm);
+                           recvbuf, recvcounts, displs, MPI_INT, this->shuffle_comm);
             for (idx = 0; idx < recvcount; idx ++) {
                 uint32_t hid = recvbuf[idx];
-                uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
-                split_table.insert(hid);
-                ignore_table.insert(bid);
-                PROFILER_RECORD_COUNT(COUNTER_SPLIT_KEYS, split_table.size(), OPMAX);
-                if (bin_table.find(bid) == bin_table.end()) {
-                    bin_table.insert({bid, {0,0}});
+                uint32_t bid = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                this->split_table.insert(hid);
+                this->ignore_table.insert(bid);
+                PROFILER_RECORD_COUNT(COUNTER_SPLIT_KEYS, this->split_table.size(), OPMAX);
+                if (this->bin_table.find(bid) == this->bin_table.end()) {
+                    this->bin_table.insert({bid, {0,0}});
                 }
             }
         }
@@ -415,48 +417,51 @@ public:
     }
 
     virtual void migrate_kvs() {
-	if (redirect_table.size() == 0) return;
-	
-	PROFILER_RECORD_TIME_START;
+        if (this->redirect_table.size() == 0) return;
 
-	this->done_flag = 0;
+        printf("%d[%d] migrate start peakmem=%ld\n",
+               this->shuffle_rank, this->shuffle_size, peakmem);
+
+        PROFILER_RECORD_TIME_START;
+
+        this->done_flag = 0;
         this->ismigrate = true; 
-        
+
         LOG_PRINT(DBG_GEN, "migrate kvs start\n");
-         
-	BaseDatabase<KeyType,ValType> *kv = get_tmp_db();
+
+        BaseDatabase<KeyType,ValType> *kv = get_tmp_db();
         // Change output DB
-	Writable<KeyType,ValType>* tmp_out = out;
-        out = kv;
+        Writable<KeyType,ValType>* tmp_out = this->out;
+        this->out = kv;
 
         // Migrate data
-        typename SafeType<KeyType>::type key[keycount];
-        typename SafeType<ValType>::type val[valcount];
+        typename SafeType<KeyType>::type key[this->keycount];
+        typename SafeType<ValType>::type val[this->valcount];
         kv->open();
-        out_reader->seek(DB_START);
-	if (!split_hint) {
-            while(out_reader->read(key,val) == true) {
-	        uint32_t hid = ser->get_hash_code(key);
-                uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
-                auto iter = redirect_table.find(bid);
-	        if (iter != redirect_table.end()
-                    && iter->second != shuffle_rank) {
+        this->out_reader->seek(DB_START);
+        if (!(this->split_hint)) {
+            while(this->out_reader->read(key,val) == true) {
+                uint32_t hid = this->ser->get_hash_code(key);
+                uint32_t bid = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                auto iter = this->redirect_table.find(bid);
+                if (iter != this->redirect_table.end()
+                    && iter->second != this->shuffle_rank) {
                     PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, 1, OPSUM);
                     this->write(key, val);
-            	    out_mover->remove();
+                    this->out_mover->remove();
                 }
            }
         } else {
-            while(out_reader->read(key,val) == true) {
-	        uint32_t hid = ser->get_hash_code(key);
-                uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
-                auto iter = redirect_table.find(bid);
-	        if (iter != redirect_table.end()
-                    && iter->second != shuffle_rank) {
-                    if (split_table.find(hid) == split_table.end()) {
+            while(this->out_reader->read(key,val) == true) {
+                uint32_t hid = this->ser->get_hash_code(key);
+                uint32_t bid = hid % (uint32_t) (this->shuffle_size * BIN_COUNT);
+                auto iter = this->redirect_table.find(bid);
+                if (iter != this->redirect_table.end()
+                    && iter->second != this->shuffle_rank) {
+                    if (this->split_table.find(hid) == this->split_table.end()) {
                         PROFILER_RECORD_COUNT(COUNTER_MIGRATE_KVS, 1, OPSUM);
                         this->write(key, val);
-            	        out_mover->remove();
+                        this->out_mover->remove();
                     }
                 }
            }
@@ -464,14 +469,19 @@ public:
         this->wait();
 
         // Copy back
-        out = tmp_out;
+        this->out = tmp_out;
+        this->out->close();
+        this->out->open();
         kv->seek(DB_START);
- 	while(kv->read(key,val) == true) {
-            out->write(key, val);
+        while(kv->read(key,val) == true) {
+            this->out->write(key, val);
         }
         kv->close();
         delete kv;
         PROFILER_RECORD_TIME_END(TIMER_LB_MIGRATE);
+
+        printf("%d[%d] migrate end peakmem=%ld\n",
+               this->shuffle_rank, this->shuffle_size, peakmem);
 
         this->ismigrate = false;
 
