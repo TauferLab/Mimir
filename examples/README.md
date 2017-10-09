@@ -11,6 +11,8 @@ This folder includes various MapReduce examples written by Mimir.
 
 # Join
 * join - join two datasets
+* join_split - join with superfrequent keys split for highly skewed
+  datasets
 
 # Octree Clustering
 * oc - Basic Octree Clustering implementation
