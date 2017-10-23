@@ -25,7 +25,6 @@ extern int MAX_RECORD_SIZE;
 extern int SHUFFLE_TYPE;
 extern int MIN_SBUF_COUNT;
 extern int MAX_SBUF_COUNT;
-//extern int COMM_UNIT_SIZE;
 extern int READ_TYPE;
 extern int WRITE_TYPE;
 extern int DIRECT_READ;
@@ -39,12 +38,13 @@ extern int BIN_COUNT;
 extern double BALANCE_FACTOR;
 extern int BALANCE_FREQ;
 extern int USE_MCDRAM;
+extern int LIMIT_POWER;
+extern double LIMIT_SCALE;
 
 // Profile & Debug
 extern int OUTPUT_STAT;
 extern int OUTPUT_TRACE;
 extern const char *STAT_FILE;
-//extern int RECORD_PEAKMEM;
 extern int DBG_LEVEL;
 
 #endif

@@ -10,7 +10,7 @@ libmimir_a_HEADERS = mimir.h interface.h globals.h hashbucket.h 	       \
 		     combinebincontainer.h bincontainer.h serializer.h	       \
 		     nbcollectiveshuffler.h combinecollectiveshuffler.h config.h \
 		     ac_config.h nbcombinecollectiveshuffler.h chunkmanager.h  \
-		     uniteddataset.h getrss.h
+		     uniteddataset.h getrss.h powerlimit.h
 libmimir_a_SOURCES = mimircontext.h                           		       \
 		     container.cpp container.h containeriter.h		       \
 		     kvcontainer.h combinekvcontainer.h kmvcontainer.h 	       \
@@ -22,4 +22,4 @@ libmimir_a_SOURCES = mimircontext.h                           		       \
 		     config.cpp config.h stat.cpp stat.h globals.cpp	       \
 		     globals.h log.h interface.h			       \
 		     mimir.cpp mimir.h tools.h memory.cpp memory.h	       \
-		     uniteddataset.h
+		     uniteddataset.h powerlimit.cpp powerlimit.h

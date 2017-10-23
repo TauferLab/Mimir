@@ -6,6 +6,7 @@ AC_PROG_CXX(mpicxx)
 AC_CONFIG_HEADERS([src/ac_config.h])
 AC_CONFIG_FILES([Makefile src/Makefile examples/Makefile generator/Makefile])
 AC_CHECK_LIB(memkind, hbw_posix_memalign, [], [], [])
+AC_CHECK_LIB(papi, PAPI_library_init, [], [], [])
 AX_CXX_COMPILE_STDCXX_11
 AC_PROG_RANLIB
 AC_OUTPUT

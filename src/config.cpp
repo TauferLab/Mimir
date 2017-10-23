@@ -32,10 +32,12 @@ int BALANCE_LOAD = 0;
 double BALANCE_FACTOR = 1.5;
 int BALANCE_FREQ = 1;
 int USE_MCDRAM = 0;
+int LIMIT_POWER = 0;
+double LIMIT_SCALE = 1.0;
 
 // Profile & Debug
 int DBG_LEVEL = 0;
 int OUTPUT_STAT = 0;
 int OUTPUT_TRACE = 0;
 const char *STAT_FILE = NULL;
-int RECORD_PEAKMEM = 0;
+//int RECORD_PEAKMEM = 0;

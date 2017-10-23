@@ -15,6 +15,8 @@
 #include "hbwmalloc.h"
 #endif
 
+#include "powerlimit.h"
+
 void get_default_values();
 
 void mimir_init(){
@@ -33,21 +35,23 @@ void mimir_init(){
            mimir_world_rank, mimir_world_size);
     hbw_set_policy(HBW_POLICY_BIND);   
 #endif
+    if (LIMIT_POWER) {
+        init_power_limit();
+        set_power_limit(LIMIT_SCALE);        
+    }
 }
 
 void mimir_finalize()
 {
-    //if (OUTPUT_STAT) {
-        //const char *env = getenv("MIMIR_STAT_FILE");
+    if (LIMIT_POWER) {
+        set_power_limit(1.0);
+        uinit_power_limit();
+    }
     if (STAT_FILE) {
         mimir_stat(STAT_FILE);
     }
     else mimir_stat("Mimir");
-    //}
     UNINIT_STAT;
-    //MPI_Comm_free(&mimir_world_comm);
-    //printf("%d[%d] Mimir Finalize.\n",
-    //       mimir_world_rank, mimir_world_size);
 }
 
 void mimir_stat(const char* filename)
@@ -289,6 +293,16 @@ void get_default_values()
     if (env) {
         USE_MCDRAM = atoi(env);
     }
+    // limit power
+    env = getenv("MIMIR_LIMIT_POWER");
+    if (env) {
+         LIMIT_POWER = atoi(env);
+    }
+    // limit scale
+    env = getenv("MIMIR_LIMIT_SCALE");
+    if (env) {
+        LIMIT_SCALE = atof(env);
+    }
 
     /// Profile & Debug
     // output stat file
@@ -418,15 +432,16 @@ Library configuration:\n\
 \twork stealing: %d (make progress=%d)\n\
 \tload balance: balance=%d, factor=%.2lf, bin=%d, freq=%d\n\
 \tMCDRAM: use_mcdram=%d\n\
+\tpower capping: limit power=%d, limit scale=%.2lf\n\
 \tstat & debug: output profile=%d, output trace=%d, stat file=%s, debug level=%x\n\
 ***********************************************************************\n",
         COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, MAX_RECORD_SIZE,
         SHUFFLE_TYPE, MIN_SBUF_COUNT, MAX_SBUF_COUNT,
         READ_TYPE, DIRECT_READ, WRITE_TYPE, DIRECT_WRITE,
         WORK_STEAL, MAKE_PROGRESS,
-        //CONTAINER_TYPE,
         BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BALANCE_FREQ,
         USE_MCDRAM,
+        LIMIT_POWER, LIMIT_SCALE,
         OUTPUT_STAT, OUTPUT_TRACE, STAT_FILE, DBG_LEVEL);
         fflush(stdout);
     }

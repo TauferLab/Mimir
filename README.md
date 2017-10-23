@@ -67,6 +67,8 @@ progress pushing during nonblocking communication
 * MIMIR_BALANCE_FACTOR (default: 1.5) --- the balance factor
 * MIMIR_BALANCE_FREQ (default: 1) --- load balancing frequency
 * MIMIR_USE_MCDRAM (default: off) --- if use MCDRAM when there is MCDRAM
+* MIMIR_LIMIT_POWER (default: off) --- enable/disable power capping
+* MIMIR_LIMIT_SCALE (default: 1.0) --- power capping percentage (e.g. 1.0 means no power capping)
 
 ## Stat & Debug
 * MIMIR_OUTPUT_STAT (default: off) --- output stat file
