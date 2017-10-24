@@ -20,12 +20,13 @@ AC_CHECK_LIB(memkind, hbw_posix_memalign, [], [], [])
 
 # check papi library
 AC_ARG_WITH([papi],
-            AS_HELP_STRING([--with-papi], [papi directory])],
-            [with_papi=yes], [with_papi=no])
-AS_IF([test "x$with_papi" != xno],
-      [PKG_CHECK_MODULES([PAPI], [papi > 5.5], 
-                         [with_papi=yes], [with_papi=no])])
-AS_IF([test "x$with_papi" != xno],
+            AS_HELP_STRING([--with-papi], [papi directory]),
+            [without_papi=no], [without_papi=yes])
+AS_IF([test "x$without_papi" != xyes],
+      [PKG_CHECK_MODULES([PAPI], [papi > 1.0], 
+                         [without_papi=no], [without_papi=yes])],
+                         [without_papi=yes])
+AS_IF([test "x$without_papi" != xyes],
       [AC_CHECK_LIB(papi, PAPI_library_init)],[])
 
 AC_OUTPUT
