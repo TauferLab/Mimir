@@ -1,0 +1,17 @@
+#!/bin/bash
+#----------------------------------------------------
+# SLURM job script
+#
+# Notes:
+#
+#   -- Launch this script by executing
+#      "slurm.srun.sub N n exe parameters"
+#
+#----------------------------------------------------
+
+pwd
+date
+
+srun -N $1 -n $2 --ntasks-per-core=1 --cpu_bind=rank $3 $4
+
+# ---------------------------------------------------

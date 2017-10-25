@@ -1,0 +1,17 @@
+#!/bin/bash
+#----------------------------------------------------
+# SLURM job script
+#
+# Notes:
+#
+#   -- Launch this script by executing
+#      "slurm.mpiexec.sub N n exe parameters"
+#
+#----------------------------------------------------
+
+pwd
+date
+
+mpiexec -n $2 -bind-to core $3 $4
+
+# ---------------------------------------------------
