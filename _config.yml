@@ -9,7 +9,8 @@ show_full_navigation: true
 
 # Values for the jekyll-seo-tag gem (https://github.com/jekyll/jekyll-seo-tag)
 logo: /siteicon.png
-description: Website for Mimir.
+description: This is the website for Mimir. Mimir is a MapReduce over MPI
+    framework targeted for supercomputing systems.
 author:
   name:
   email:
