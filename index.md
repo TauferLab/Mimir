@@ -30,6 +30,8 @@ Michela Taufer. Mimir: Memory-Efficient and Scalable MapReduce for Large
 Supercomputing Systems. The 31st IEEE International Parallel and Distributed
 Processing Symposium (IPDPS) 2017.
 
+> Read our publications for the design ideas.
+
 ### Contributors
 * Tao Gao, National University of Defense Technology and University of Delaware
 * Yanfei Guo, Argonne National Laboratory
@@ -38,3 +40,5 @@ Processing Symposium (IPDPS) 2017.
 * Yutong Lu, National Supercomputing Center in Guangzhou and Sun Yat-sen University
 * Pavan Balaji, Argonne National Laboratory
 * Michela Taufer, University of Delaware
+
+> Welcome to contribute to this software.
