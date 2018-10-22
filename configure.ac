@@ -1,5 +1,6 @@
 # initialize
-AC_INIT([mimir], [0.9], [taogao@udel.edu])
+# FIX version number and email
+AC_INIT([mimir], [0.9], [taufer@utk.edu])
 AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 
 # macro directory
