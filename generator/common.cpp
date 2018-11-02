@@ -1,10 +1,10 @@
-/*
- * (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
 
 #include <cstdio>
 #include <cstdlib>
@@ -226,7 +226,7 @@ void gen_dist_map(uint64_t zipf_n, double zipf_alpha, double* dist_map,
 #if 0
     else {
         if (next_sum > mean_dist * (ntimes + 1)) {
-            //printf("%d[%d] mean_dist=%lf, ntimes=%ld, prev_sum=%lf, sep=%d\n", 
+            //printf("%d[%d] mean_dist=%lf, ntimes=%ld, prev_sum=%lf, sep=%d\n",
             //       proc_rank, proc_size, mean_dist, ntimes, prev_sum, div_off + div_size);
             //fflush(stdout);
             idxsep.push_back(div_off + div_size);

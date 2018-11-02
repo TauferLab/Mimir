@@ -1,9 +1,10 @@
 /*
- *  * Author:  David Robert Nadeau
- *  * Site:    http://NadeauSoftware.com/
- *  * License: Creative Commons Attribution 3.0 Unported License
- *  *          http://creativecommons.org/licenses/by/3.0/deed.en_US
- *  */
+ * Author:  David Robert Nadeau
+ * Site:    http://NadeauSoftware.com/
+ * License: Creative Commons Attribution 3.0 Unported License
+ *          http://creativecommons.org/licenses/by/3.0/deed.en_US
+ */
+
 #ifndef MIMIR_GET_RSS
 #define MIMIR_GET_RSS
 #if defined(_WIN32)
@@ -34,11 +35,11 @@
 #error "Cannot define getPeakRSS( ) or getCurrentRSS( ) for an unknown OS."
 #endif
 
-/**
- * * Returns the peak (maximum so far) resident set size (physical
- * * memory use) measured in bytes, or zero if the value cannot be
- * * determined on this OS.
- * */
+/*
+ * Returns the peak (maximum so far) resident set size (physical
+ * memory use) measured in bytes, or zero if the value cannot be
+ * determined on this OS.
+ */
 inline size_t getPeakRSS()
 {
 #if defined(_WIN32)
@@ -79,10 +80,10 @@ inline size_t getPeakRSS()
 #endif
 }
 
-/**
- ** Returns the current resident set size (physical memory use) measured
- ** in bytes, or zero if the value cannot be determined on this OS.
- **/
+/*
+ * Returns the current resident set size (physical memory use) measured
+ * in bytes, or zero if the value cannot be determined on this OS.
+ */
 inline size_t getCurrentRSS()
 {
 #if defined(_WIN32)

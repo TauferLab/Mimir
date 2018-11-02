@@ -1,10 +1,11 @@
-/*
- * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #ifndef MIMIR_BASE_SHUFFLER_H
 #define MIMIR_BASE_SHUFFLER_H
 
@@ -256,7 +257,7 @@ class BaseShuffler : public Writable<KeyType, ValType>
     virtual void close() = 0;
     virtual void make_progress(bool issue_new = false) = 0;
 
-#if 0 
+#if 0
     virtual BaseDatabase<KeyType,ValType>* get_tmp_db() {
         return NULL;
     }
@@ -264,7 +265,7 @@ class BaseShuffler : public Writable<KeyType, ValType>
 	if (redirect_table.size() == 0) return;
 
         LOG_PRINT(DBG_GEN, "migrate kvs start\n");
-         
+
 	PROFILER_RECORD_TIME_START;
 	BaseDatabase<KeyType,ValType> *kv = get_tmp_db();
         // Change output DB
@@ -281,7 +282,7 @@ class BaseShuffler : public Writable<KeyType, ValType>
             uint32_t bid = hid % (uint32_t) (shuffle_size * BIN_COUNT);
             auto iter = redirect_table.find(bid);
 	    if (iter != redirect_table.end()
-                && iter->second != shuffle_rank) {     
+                && iter->second != shuffle_rank) {
                 this->write(key, val);
             }
         }
@@ -749,7 +750,7 @@ class BaseShuffler : public Writable<KeyType, ValType>
         // Get redirect bins
         std::map<uint32_t,int> redirect_bins;
 
-        compute_redirect_bins(redirect_bins);	
+        compute_redirect_bins(redirect_bins);
 
         LOG_PRINT(DBG_REPAR, "compute redirect bins end.\n");
 
@@ -816,7 +817,7 @@ class BaseShuffler : public Writable<KeyType, ValType>
         PROFILER_RECORD_TIME_END(TIMER_LB_RP);
 
         PROFILER_RECORD_TIME_START;
-        if (split_hint) split_keys(); 
+        if (split_hint) split_keys();
         PROFILER_RECORD_TIME_END(TIMER_LB_SPLIT);
      }
 

@@ -1,10 +1,11 @@
-/*
- * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #ifndef MIMIR_FILE_READER_H
 #define MIMIR_FILE_READER_H
 
@@ -569,7 +570,7 @@ class MPIFileReader
 template <typename RecordFormat>
 class MPIFileReader : public FileReader< RecordFormat >{
 public:
-    MPIFileReader(InputSplit *input, RepartitionCallback repartition_cb) 
+    MPIFileReader(InputSplit *input, RepartitionCallback repartition_cb)
         : FileReader<RecordFormat>(input, repartition_cb) {
     }
 
@@ -639,7 +640,7 @@ protected:
         MPI_Request req;
         int flag = 0;
 
-        LOG_PRINT(DBG_IO, "Collective MPI read input file=%s:%ld+%ld start\n", 
+        LOG_PRINT(DBG_IO, "Collective MPI read input file=%s:%ld+%ld start\n",
                   this->state.seg_file->filename.c_str(), offset, size);
 
         if (sfile_idx < MAX_GROUPS) {
@@ -667,7 +668,7 @@ protected:
         TRACKER_RECORD_EVENT(EVENT_DISK_MPIREADATALL);
 
 
-        LOG_PRINT(DBG_IO, "Collective MPI read input file=%s:%ld+%ld\n", 
+        LOG_PRINT(DBG_IO, "Collective MPI read input file=%s:%ld+%ld\n",
                   this->state.seg_file->filename.c_str(), offset, size);
     }
 
@@ -678,7 +679,7 @@ protected:
 
         if (this->union_fp.mpi_fp != MPI_FILE_NULL) {
 
-            LOG_PRINT(DBG_IO, "Collective MPI close input file=%s start\n", 
+            LOG_PRINT(DBG_IO, "Collective MPI close input file=%s start\n",
                       this->state.seg_file->filename.c_str());
 
             if (sfile_idx < MAX_GROUPS) {
@@ -738,7 +739,7 @@ protected:
 
             this->union_fp.mpi_fp = MPI_FILE_NULL;
 
-            LOG_PRINT(DBG_IO, "Collective MPI close input file=%s\n", 
+            LOG_PRINT(DBG_IO, "Collective MPI close input file=%s\n",
                       this->state.seg_file->filename.c_str());
         }
     }
@@ -770,8 +771,8 @@ protected:
             }
 
             MPI_Group_incl(world_group, n, ranks, &sfile_groups[i]);
-            MPI_Comm_create(mimir_world_comm, 
-                            sfile_groups[i], 
+            MPI_Comm_create(mimir_world_comm,
+                            sfile_groups[i],
                             &sfile_comms[i]);
             MPI_Group_free(&sfile_groups[i]);
 

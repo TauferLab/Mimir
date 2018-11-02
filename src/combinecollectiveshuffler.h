@@ -1,10 +1,11 @@
-/*
- * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #ifndef MIMIR_COMBINE_COLLECTIVE_SHUFFLER_H
 #define MIMIR_COMBINE_COLLECTIVE_SHUFFLER_H
 
@@ -198,7 +199,7 @@ class CombineCollectiveShuffler : public CollectiveShuffler<KeyType, ValType>,
 
         int kvsize = this->ser->get_kv_bytes(key, val);
         if (kvsize > this->buf_size)
-            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n", 
+            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n",
                       kvsize, this->buf_size);
 
         if (this->ser->compare_key(key, u_key) != 0)
@@ -207,7 +208,7 @@ class CombineCollectiveShuffler : public CollectiveShuffler<KeyType, ValType>,
         if (kvsize <= ukvsize) {
             this->ser->kv_to_bytes(key, val, u->kv, kvsize);
             if (kvsize < ukvsize)
-                slices.insert(std::make_pair(u->kv + kvsize, 
+                slices.insert(std::make_pair(u->kv + kvsize,
                                              ukvsize - kvsize));
         }
         else {
@@ -217,8 +218,8 @@ class CombineCollectiveShuffler : public CollectiveShuffler<KeyType, ValType>,
                 this->exchange_kv();
                 u = NULL;
             }
-            char *gbuf = this->send_buffer 
-                + target * (int64_t) this->buf_size 
+            char *gbuf = this->send_buffer
+                + target * (int64_t) this->buf_size
                 + this->send_offset[target];
             this->ser->kv_to_bytes(key, val, gbuf, (int)this->buf_size - this->send_offset[target]);
             this->send_offset[target] += kvsize;

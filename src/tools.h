@@ -1,10 +1,10 @@
-/*
- * (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
 
 #ifndef MIMIR_VAR_128_INT_H
 #define MIMIR_VAR_128_INT_H
@@ -42,7 +42,7 @@ inline int text_file_repartition(const char *buffer, int bufsize, bool islast)
 
 #if 0
 template <typename KeyType, typename ValType, int KeyLen, int ValLen>
-inline void mimir_copy (Readable<KeyType,ValType,KeyLen,ValLen> *input, 
+inline void mimir_copy (Readable<KeyType,ValType,KeyLen,ValLen> *input,
                         Writable<kEYtYPE,ValType,KeyLen,ValLen> *output, void *ptr) {
     BaseRecordFormat *record = NULL;
     while ((record = input->read()) != NULL) {
