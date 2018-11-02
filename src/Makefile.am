@@ -1,3 +1,11 @@
+#
+# (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego
+#     Supercomputer Center, National University of Defense Technology,
+#     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+#
+#     See COPYRIGHT in top-level directory.
+#
+
 lib_LIBRARIES = libmimir.a
 libmimir_a_CXXFLAGS = -g -Wno-write-strings -Wall -Wconversion      		\
 		      -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
