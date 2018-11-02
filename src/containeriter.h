@@ -18,39 +18,41 @@
 
 namespace MIMIR_NS {
 
-class ContainerIter {
-public:
-  ContainerIter(Container *container) {
-      this->container = container;
-      groupid = 0;
-      pageid = 0;
-  }
+class ContainerIter
+{
+  public:
+    ContainerIter(Container *container)
+    {
+        this->container = container;
+        groupid = 0;
+        pageid = 0;
+    }
 
-  ~ContainerIter() {
-  }
+    ~ContainerIter() {}
 
-  Page *next() {
-      while (groupid < container->get_group_count()) {
-          if (pageid >= container->get_page_count(groupid)) {
-              groupid ++;
-              pageid = 0;
-              continue;
-          }
-          Page *page = container->get_page(pageid, groupid);
-          pageid ++;
-          return page;
-      }
-      
-      groupid = 0;
-      pageid = 0;
-      return NULL;
-  }
+    Page *next()
+    {
+        while (groupid < container->get_group_count()) {
+            if (pageid >= container->get_page_count(groupid)) {
+                groupid++;
+                pageid = 0;
+                continue;
+            }
+            Page *page = container->get_page(pageid, groupid);
+            pageid++;
+            return page;
+        }
 
-private:
-  Container *container;
-  int groupid, pageid;
+        groupid = 0;
+        pageid = 0;
+        return NULL;
+    }
+
+  private:
+    Container *container;
+    int groupid, pageid;
 };
 
-}
+} // namespace MIMIR_NS
 
 #endif

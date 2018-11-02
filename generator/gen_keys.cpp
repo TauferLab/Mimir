@@ -12,16 +12,17 @@
 using namespace MIMIR_NS;
 
 #define WORD_LEN_MEAN_DEFAULT 6
-#define WORD_LEN_SD_DEFAULT   1
+#define WORD_LEN_SD_DEFAULT 1
 
 void parse_cmd_line(int argc, char **argv);
 
-void map (Readable<const char*,void> *input,
-          Writable<const char*,void> *output, void *ptr);
-void combine (Combinable<const char*,void> *combiner,
-              const char**, void*, void*, void*, void *ptr);
+void map(Readable<const char *, void> *input,
+         Writable<const char *, void> *output, void *ptr);
+void combine(Combinable<const char *, void> *combiner, const char **, void *,
+             void *, void *, void *ptr);
 
-const char *cmdstr = "./cmd \t<number of unique words> <outfile> \n\
+const char *cmdstr
+    = "./cmd \t<number of unique words> <outfile> \n\
 \t--word-len-mean [val]\n\
 \t--word-len-std [val]\n\
 \t-sort\n";
@@ -35,8 +36,8 @@ bool sortkey = false;
 
 int proc_rank, proc_size;
 
-int main(int argc, char **argv) {
-
+int main(int argc, char **argv)
+{
     parse_cmd_line(argc, argv);
 
     MPI_Init(&argc, &argv);
@@ -52,10 +53,9 @@ int main(int argc, char **argv) {
     pid_t pid = getpid();
     fprintf(stdout, "start rank=%d, pid=%ld\n", proc_rank, pid);
 
-    MIMIR_NS::MimirContext<const char*, void>* ctx 
-        = new MIMIR_NS::MimirContext<const char*, void>(input, output,
-                                                        MPI_COMM_WORLD,
-                                                        combine);
+    MIMIR_NS::MimirContext<const char *, void> *ctx
+        = new MIMIR_NS::MimirContext<const char *, void>(
+            input, output, MPI_COMM_WORLD, combine);
 
     // Generate remain_unique words
     remain_unique = total_unique;
@@ -80,8 +80,8 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void map (Readable<const char*,void> *input, 
-          Writable<const char*,void> *output, void *ptr)
+void map(Readable<const char *, void> *input,
+         Writable<const char *, void> *output, void *ptr)
 {
     std::vector<std::string> unique_words;
 
@@ -109,22 +109,27 @@ void map (Readable<const char*,void> *input,
     }
 }
 
-void combine (Combinable<const char*,void> *combiner,
-              const char **key, void *val1, void *val2,
-              void *rval, void *ptr)
+void combine(Combinable<const char *, void> *combiner, const char **key,
+             void *val1, void *val2, void *rval, void *ptr)
 {
     return;
 }
 
-void parse_cmd_line(int argc, char **argv) {
-
-    if (argc < 3) { printf("%s", cmdstr); exit(1); }
+void parse_cmd_line(int argc, char **argv)
+{
+    if (argc < 3) {
+        printf("%s", cmdstr);
+        exit(1);
+    }
 
     --argc;
     ++argv;
     assert(argc);
 
-    if (**argv == '-') { printf("%s", cmdstr); exit(1); }
+    if (**argv == '-') {
+        printf("%s", cmdstr);
+        exit(1);
+    }
 
     total_unique = atoi(*argv);
 
@@ -132,7 +137,10 @@ void parse_cmd_line(int argc, char **argv) {
     ++argv;
     assert(argc);
 
-    if (**argv == '-') { printf("%s", cmdstr); exit(1); }
+    if (**argv == '-') {
+        printf("%s", cmdstr);
+        exit(1);
+    }
 
     outfile = *argv;
 

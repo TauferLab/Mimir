@@ -21,80 +21,81 @@ namespace MIMIR_NS {
 
 enum DataType { ByteType, KVType };
 
-struct Page {
-    int64_t  datasize;
-    char*    buffer;
+struct Page
+{
+    int64_t datasize;
+    char* buffer;
 };
 
-class Container {
-public:
-    Container(DataType datatype = ByteType) {
+class Container
+{
+  public:
+    Container(DataType datatype = ByteType)
+    {
         this->datatype = datatype;
         pagesize = DATA_PAGE_SIZE;
     }
 
-    virtual ~Container() {
+    virtual ~Container()
+    {
         for (size_t i = 0; i < groups.size(); i++) {
             for (size_t j = 0; j < groups[i].pages.size(); j++) {
                 mem_aligned_free(groups[i].pages[j].buffer);
-                Container::mem_bytes -= pagesize;		
+                Container::mem_bytes -= pagesize;
             }
         }
     }
 
-    Page* get_page(int pageid, int groupid=0) {
-        if (groupid >= (int)groups.size())
-            return NULL;
-        if(pageid >= (int)groups[groupid].pages.size())
-            return NULL;
+    Page* get_page(int pageid, int groupid = 0)
+    {
+        if (groupid >= (int) groups.size()) return NULL;
+        if (pageid >= (int) groups[groupid].pages.size()) return NULL;
         return &groups[groupid].pages[pageid];
     }
 
-    Page* add_page(int groupid=0) {
+    Page* add_page(int groupid = 0)
+    {
         int pageid = 0;
-        if (groupid >= (int)groups.size()) {
+        if (groupid >= (int) groups.size()) {
             Group group;
             groups.push_back(group);
-            groupid = (int)groups.size() - 1;
+            groupid = (int) groups.size() - 1;
         }
         Page page;
         page.datasize = 0;
         page.buffer = (char*) mem_aligned_malloc(MEMPAGE_SIZE, pagesize);
-	Container::mem_bytes += pagesize;
-	//PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, Container::mem_bytes, OPMAX);
+        Container::mem_bytes += pagesize;
+        //PROFILER_RECORD_COUNT(COUNTER_MAX_PAGES, Container::mem_bytes, OPMAX);
         groups[groupid].pages.push_back(page);
-        pageid = (int)groups[groupid].pages.size() - 1;
+        pageid = (int) groups[groupid].pages.size() - 1;
         return &groups[groupid].pages[pageid];
     }
 
-    int get_group_count() {
-        return (int)groups.size();
+    int get_group_count() { return (int) groups.size(); }
+
+    int get_page_count(int groupid = 0)
+    {
+        if (groupid >= (int) groups.size()) return 0;
+        return (int) groups[groupid].pages.size();
     }
 
-    int get_page_count(int groupid = 0) {
-        if (groupid >= (int)groups.size())
-            return 0;
-        return (int)groups[groupid].pages.size();
-    }
+    int64_t get_page_size() { return pagesize; }
 
-    int64_t get_page_size() {
-        return pagesize;
-    }
-
-protected:
-    int64_t  pagesize;
+  protected:
+    int64_t pagesize;
     DataType datatype;
 
-private:
-    struct Group {
+  private:
+    struct Group
+    {
         std::vector<Page> pages;
     };
     std::vector<Group> groups;
 
-public:
+  public:
     static uint64_t mem_bytes;
 };
 
-}
+} // namespace MIMIR_NS
 
 #endif

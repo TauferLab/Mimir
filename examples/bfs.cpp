@@ -25,49 +25,48 @@ using namespace MIMIR_NS;
 
 #define BYTE_BITS 8
 #define LONG_BITS (sizeof(unsigned long) * BYTE_BITS)
-#define TEST_VISITED(v, vis)                                                   \
+#define TEST_VISITED(v, vis) \
     ((vis[(v) / LONG_BITS]) & (1UL << ((v) % LONG_BITS)))
-#define SET_VISITED(v, vis)                                                    \
+#define SET_VISITED(v, vis) \
     ((vis[(v) / LONG_BITS]) |= (1UL << ((v) % LONG_BITS)))
 
 int mypartition(int64_t *, int64_t *, int);
-void fileread (Readable<char*, void> *input,
-               Writable<int64_t, int64_t> *output, void *ptr);
-void makegraph (int64_t *v0, int64_t *v1, void *ptr);
-void countedge (int64_t *v0, int64_t *v1, void *ptr);
+void fileread(Readable<char *, void> *input, Writable<int64_t, int64_t> *output,
+              void *ptr);
+void makegraph(int64_t *v0, int64_t *v1, void *ptr);
+void countedge(int64_t *v0, int64_t *v1, void *ptr);
 
 int64_t getrootvert();
-void rootvisit (Readable<int64_t, int64_t> *input,
-                Writable<int64_t, int64_t> *output, void *ptr);
-void expand (Readable<int64_t, int64_t> *input,
-             Writable<int64_t, int64_t> *output, void *ptr);
-void combiner (Combinable<int64_t, int64_t> *combiner,
-               int64_t *key, int64_t *val1, int64_t *val2, 
-               int64_t *rval, void *ptr);
+void rootvisit(Readable<int64_t, int64_t> *input,
+               Writable<int64_t, int64_t> *output, void *ptr);
+void expand(Readable<int64_t, int64_t> *input,
+            Writable<int64_t, int64_t> *output, void *ptr);
+void combiner(Combinable<int64_t, int64_t> *combiner, int64_t *key,
+              int64_t *val1, int64_t *val2, int64_t *rval, void *ptr);
 
-void printresult(FILE* fp, int64_t * pred, size_t nlocalverts);
+void printresult(FILE *fp, int64_t *pred, size_t nlocalverts);
 
 int rank, size;
-int64_t nglobalverts;           // global vertex count
-int64_t nglobaledges;           // global edge count
-int64_t nlocalverts;            // local vertex count
-int64_t nlocaledges;            // local edge count
-int64_t nvertoffset;            // local vertex's offset
-int64_t quot, rem;              // quotient and reminder of globalverts/size
+int64_t nglobalverts; // global vertex count
+int64_t nglobaledges; // global edge count
+int64_t nlocalverts;  // local vertex count
+int64_t nlocaledges;  // local edge count
+int64_t nvertoffset;  // local vertex's offset
+int64_t quot, rem;    // quotient and reminder of globalverts/size
 
-size_t *rowstarts;              // rowstarts
+size_t *rowstarts; // rowstarts
 
 // Put edges into mutiple columns to avoid large buffer allocation
 int ncolumn = 0;
 int64_t ncolumnedge = 8 * 1024 * 1024;
-int64_t **columns;              // columns
+int64_t **columns; // columns
 #define GET_COL_IDX(pos) ((pos) / (ncolumnedge))
 #define GET_COL_OFF(pos) ((pos) % (ncolumnedge))
 
-unsigned long *vis;             // visited bitmap
-int64_t *pred;                  // pred map
-int64_t root;                   // root vertex
-size_t *rowinserts;             // tmp buffer for construct CSR
+unsigned long *vis; // visited bitmap
+int64_t *pred;      // pred map
+int64_t root;       // root vertex
+size_t *rowinserts; // tmp buffer for construct CSR
 
 #define MAX_LEVEL 100
 uint64_t nactives[MAX_LEVEL];
@@ -84,8 +83,8 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    root         = strtoull(argv[1], NULL, 0);
-    if (root < 0) srand((unsigned)root);
+    root = strtoull(argv[1], NULL, 0);
+    if (root < 0) srand((unsigned) root);
     nglobalverts = strtoull(argv[2], NULL, 0);
     std::string output = argv[3];
     std::vector<std::string> input;
@@ -107,12 +106,9 @@ int main(int argc, char **argv)
     if (rank == 0) fprintf(stdout, "make CSR graph start.\n");
 
     // partition edges
-    MimirContext<int64_t,int64_t,char*,void> *mimir 
-        = new MimirContext<int64_t,int64_t,char*,void>(
-                                                       input, output,
-                                                       MPI_COMM_WORLD, 
-                                                       NULL,
-                                                       mypartition);
+    MimirContext<int64_t, int64_t, char *, void> *mimir
+        = new MimirContext<int64_t, int64_t, char *, void>(
+            input, output, MPI_COMM_WORLD, NULL, mypartition);
     mimir->map(fileread);
 
     rowstarts = new size_t[nlocalverts + 1];
@@ -135,21 +131,24 @@ int main(int argc, char **argv)
         fflush(stdout);
     }
     int64_t edge_left = nlocaledges;
-    columns = new int64_t*[ncolumn];
+    columns = new int64_t *[ncolumn];
     for (int i = 0; i < ncolumn - 1; i++) {
-        columns[i] = (int64_t *) mem_aligned_malloc(4096, ncolumnedge * sizeof(int64_t));
+        columns[i] = (int64_t *) mem_aligned_malloc(
+            4096, ncolumnedge * sizeof(int64_t));
         if (columns[i] == NULL) {
-            fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!\n", nlocaledges);
+            fprintf(stderr, "Error: allocate buffer for edges (%ld) failed!\n",
+                    nlocaledges);
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
         edge_left -= ncolumnedge;
     }
-    columns[ncolumn - 1] = (int64_t *) mem_aligned_malloc(4096, edge_left * sizeof(int64_t));
+    columns[ncolumn - 1]
+        = (int64_t *) mem_aligned_malloc(4096, edge_left * sizeof(int64_t));
 
     if (rank == 0) fprintf(stdout, "begin make graph.\n");
 
     mimir->scan(makegraph);
-    delete [] rowinserts;
+    delete[] rowinserts;
 
     if (rank == 0) fprintf(stdout, "make CSR graph end.\n");
 
@@ -169,10 +168,10 @@ int main(int argc, char **argv)
 
     if (rank == 0) fprintf(stdout, "Traversal start. (root=%ld)\n", root);
 
-    MimirContext<int64_t,int64_t>* bfs_mimir = new MimirContext<int64_t,int64_t>(
-                                                 std::vector<std::string>(),
-                                                 std::string(), MPI_COMM_WORLD,
-                                                 NULL, mypartition);
+    MimirContext<int64_t, int64_t> *bfs_mimir
+        = new MimirContext<int64_t, int64_t>(std::vector<std::string>(),
+                                             std::string(), MPI_COMM_WORLD,
+                                             NULL, mypartition);
 
     // Ensure stat file being a single file
     delete mimir;
@@ -232,8 +231,8 @@ void countedge(int64_t *v0, int64_t *v1, void *ptr)
 }
 
 // read edge list from files
-void fileread(Readable<char*, void> *input,
-              Writable<int64_t, int64_t> *output, void *ptr)
+void fileread(Readable<char *, void> *input, Writable<int64_t, int64_t> *output,
+              void *ptr)
 {
     char *word;
     while (input->read(&word, NULL) == true) {
@@ -251,8 +250,9 @@ void fileread(Readable<char*, void> *input,
         int64_t int_v1 = strtoull(v1, NULL, 0);
         if (int_v0 >= nglobalverts || int_v1 >= nglobalverts) {
             fprintf(stderr,
-                "The vertex index <%ld,%ld> is larger than maximum value %ld!\n",
-                int_v0, int_v1, nglobalverts);
+                    "The vertex index <%ld,%ld> is larger than maximum value "
+                    "%ld!\n",
+                    int_v0, int_v1, nglobalverts);
             exit(1);
         }
         output->write(&int_v0, &int_v1);
@@ -260,7 +260,7 @@ void fileread(Readable<char*, void> *input,
 }
 
 // make CSR graph based edge list
-void makegraph (int64_t *v0, int64_t *v1, void *ptr)
+void makegraph(int64_t *v0, int64_t *v1, void *ptr)
 {
     int64_t v0_local = *v0 - nvertoffset;
     size_t pos = rowstarts[v0_local] + rowinserts[v0_local];
@@ -290,7 +290,6 @@ void expand(Readable<int64_t, int64_t> *input,
 {
     int64_t v, v0;
     while (input->read(&v, &v0) == true) {
-
         int64_t v_local = v - nvertoffset;
 
         if (!TEST_VISITED(v_local, vis)) {
@@ -307,8 +306,7 @@ void expand(Readable<int64_t, int64_t> *input,
 
 // compress KV with the rank key
 void combiner(Combinable<int64_t, int64_t> *combiner, int64_t *key,
-              int64_t *val0, int64_t *val1,
-              int64_t *rval, void *ptr)
+              int64_t *val0, int64_t *val1, int64_t *rval, void *ptr)
 {
     *rval = *val0 + *val1;
 }
@@ -330,12 +328,13 @@ int64_t getrootvert()
                 myroot = -1;
             }
         }
-        MPI_Bcast((void *) &myroot, 1, MPI_INT64_T, (int) myroot_proc, MPI_COMM_WORLD);
+        MPI_Bcast((void *) &myroot, 1, MPI_INT64_T, (int) myroot_proc,
+                  MPI_COMM_WORLD);
     } while (myroot == -1);
     return myroot;
 }
 
-void printresult(FILE* fp, int64_t * pred, size_t nlocalverts)
+void printresult(FILE *fp, int64_t *pred, size_t nlocalverts)
 {
     for (size_t i = 0; i < nlocalverts; i++) {
         size_t v = nvertoffset + i;

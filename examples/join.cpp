@@ -17,10 +17,10 @@
 
 using namespace MIMIR_NS;
 
-#define DATA1_TAG   0xaa
-#define DATA2_TAG   0xbb
+#define DATA1_TAG 0xaa
+#define DATA2_TAG 0xbb
 
-typedef char*   KeyType;
+typedef char *KeyType;
 typedef int64_t ValType1;
 typedef int64_t ValType2;
 
@@ -29,22 +29,24 @@ union ValType {
     ValType2 val2;
 };
 
-struct SingleVal {
-    int      tag;   // dataset id
-    ValType  val;   // autual value
+struct SingleVal
+{
+    int tag;     // dataset id
+    ValType val; // autual value
 
-    std::stringstream& operator>>(std::stringstream& ss)
+    std::stringstream &operator>>(std::stringstream &ss)
     {
         ss << this->tag;
         return ss;
     }
 };
 
-struct JoinedVal {
-    ValType1     val1; // value from dataset 1
-    ValType2     val2; // value from dataset 2
+struct JoinedVal
+{
+    ValType1 val1; // value from dataset 1
+    ValType2 val2; // value from dataset 2
 
-    std::stringstream& operator>>(std::stringstream& ss)
+    std::stringstream &operator>>(std::stringstream &ss)
     {
         ss << this->val1;
         ss << " ";
@@ -55,24 +57,24 @@ struct JoinedVal {
 
 int rank, size;
 
-void read_dataset (Readable<char*,void> *input,
-                   Writable<KeyType,SingleVal> *output, void *ptr);
-void map (Readable<KeyType, SingleVal> *input,
-          Writable<KeyType, SingleVal> *output, void *ptr);
-void reduce (Readable<KeyType, SingleVal> *input,
-             Writable<KeyType, JoinedVal> *output, void *ptr);
+void read_dataset(Readable<char *, void> *input,
+                  Writable<KeyType, SingleVal> *output, void *ptr);
+void map(Readable<KeyType, SingleVal> *input,
+         Writable<KeyType, SingleVal> *output, void *ptr);
+void reduce(Readable<KeyType, SingleVal> *input,
+            Writable<KeyType, JoinedVal> *output, void *ptr);
 
 uint64_t nitem = 0, ngroup = 0, nsplit = 0, nsplitkey = 0;
 
 #ifdef SPLIT_HINT
-std::unordered_map<std::string,std::vector<ValType>> ds1;
-std::unordered_map<std::string,std::vector<ValType>> ds2;
-std::unordered_set<std::string>           split_keys;
+std::unordered_map<std::string, std::vector<ValType>> ds1;
+std::unordered_map<std::string, std::vector<ValType>> ds2;
+std::unordered_set<std::string> split_keys;
 void get_split_key(KeyType *key, void *ptr);
-void join_split_key(std::string&);
+void join_split_key(std::string &);
 #endif
 
-int main (int argc, char *argv[])
+int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
 
@@ -92,21 +94,22 @@ int main (int argc, char *argv[])
 
     // Get Dataset1
     int datatag = 0;
-    MimirContext<KeyType, SingleVal, char*, void>* data1 
-        = new MimirContext<KeyType, SingleVal, char*, void>(input1);
+    MimirContext<KeyType, SingleVal, char *, void> *data1
+        = new MimirContext<KeyType, SingleVal, char *, void>(input1);
     datatag = DATA1_TAG;
     uint64_t nitem1 = data1->map(read_dataset, &datatag, false);
 
     // Get Dataset2
-    MimirContext<KeyType, SingleVal, char*, void>* data2 
-        = new MimirContext<KeyType, SingleVal, char*, void>(input2);
+    MimirContext<KeyType, SingleVal, char *, void> *data2
+        = new MimirContext<KeyType, SingleVal, char *, void>(input2);
     datatag = DATA2_TAG;
     uint64_t nitem2 = data2->map(read_dataset, &datatag, false);
 
     // Merge Dataset1 and Dataset2
-    MimirContext<KeyType, SingleVal, KeyType, SingleVal, KeyType, JoinedVal>* ctx 
-        = new MimirContext<KeyType, SingleVal, KeyType, SingleVal, KeyType, JoinedVal>(
-            std::vector<std::string>(), output, MPI_COMM_WORLD);
+    MimirContext<KeyType, SingleVal, KeyType, SingleVal, KeyType, JoinedVal>
+        *ctx = new MimirContext<KeyType, SingleVal, KeyType, SingleVal, KeyType,
+                                JoinedVal>(std::vector<std::string>(), output,
+                                           MPI_COMM_WORLD);
     ctx->insert_data_handle(data1->get_data_handle());
     ctx->insert_data_handle(data2->get_data_handle());
 #ifndef SPLIT_HINT
@@ -123,17 +126,19 @@ int main (int argc, char *argv[])
 #ifndef SPLIT_HINT
     if (rank == 0) {
         printf("Join dataset stat: item1=%ld, item2=%ld, item=%ld, group=%ld\n",
-            nitem1, nitem2, nitem, ngroup);
+               nitem1, nitem2, nitem, ngroup);
     }
 #else
     //printf("%d[%d] Join split keys=%ld, ds1=%ld, ds2=%ld\n",
     //        rank, size, split_keys.size(), ds1.size(), ds2.size());
     join_split_key(output);
     uint64_t nsplit_global = 0;
-    MPI_Allreduce(&nsplit, &nsplit_global, 1,
-                  MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&nsplit, &nsplit_global, 1, MPI_UINT64_T, MPI_SUM,
+                  MPI_COMM_WORLD);
     if (rank == 0) {
-        printf("Join datase stat: item1=%ld, item2=%ld, item=%ld, group=%ld, split=%ld, split keys=%ld\n",
+        printf(
+            "Join datase stat: item1=%ld, item2=%ld, item=%ld, group=%ld, "
+            "split=%ld, split keys=%ld\n",
             nitem1, nitem2, nitem, ngroup, nsplit_global, nsplitkey);
     }
     //printf("%d[%d] Join split keys done!\n", rank, size);
@@ -144,16 +149,15 @@ int main (int argc, char *argv[])
     MPI_Finalize();
 }
 
-void read_dataset (Readable<char*,void> *input,
-                   Writable<KeyType,SingleVal> *output, void *ptr)
+void read_dataset(Readable<char *, void> *input,
+                  Writable<KeyType, SingleVal> *output, void *ptr)
 {
-    int datatag = *(int*)ptr;
-    char      *line = NULL;
-    char      *key = NULL;
-    SingleVal  val;
+    int datatag = *(int *) ptr;
+    char *line = NULL;
+    char *key = NULL;
+    SingleVal val;
 
     while (input->read(&line, NULL) == true) {
-
         char *saveptr = NULL, *word = NULL;
 
         word = strtok_r(line, " ", &saveptr);
@@ -173,7 +177,8 @@ void read_dataset (Readable<char*,void> *input,
         }
         else if (datatag == DATA2_TAG) {
             val.val.val2 = strtoull(word, NULL, 0);
-        } else {
+        }
+        else {
             fprintf(stderr, "Error dataset tag!\n");
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
@@ -183,8 +188,8 @@ void read_dataset (Readable<char*,void> *input,
     }
 }
 
-void map (Readable<KeyType, SingleVal> *input,
-          Writable<KeyType, SingleVal> *output, void *ptr)
+void map(Readable<KeyType, SingleVal> *input,
+         Writable<KeyType, SingleVal> *output, void *ptr)
 {
     KeyType key;
     SingleVal val;
@@ -193,8 +198,8 @@ void map (Readable<KeyType, SingleVal> *input,
     }
 }
 
-void reduce (Readable<KeyType,SingleVal> *input,
-             Writable<KeyType,JoinedVal> *output, void *ptr) 
+void reduce(Readable<KeyType, SingleVal> *input,
+            Writable<KeyType, JoinedVal> *output, void *ptr)
 {
     std::vector<ValType> db;
     KeyType key;
@@ -206,15 +211,18 @@ void reduce (Readable<KeyType,SingleVal> *input,
 
 #ifdef SPLIT_HINT
     if (input->read(&key, &val) == true) {
-        if (val.tag == DATA1_TAG) val1count +=1;
-        else if (val.tag == DATA2_TAG) val2count += 1;
+        if (val.tag == DATA1_TAG)
+            val1count += 1;
+        else if (val.tag == DATA2_TAG)
+            val2count += 1;
         // This is a splited key
         if (split_keys.find(std::string(key)) != split_keys.end()) {
             if (val.tag == DATA1_TAG) {
                 auto iter = ds1.find(std::string(key));
                 if (iter != ds1.end()) {
                     iter->second.push_back(val.val);
-                } else {
+                }
+                else {
                     ds1[key] = std::vector<ValType>();
                     ds1[key].push_back(val.val);
                 }
@@ -223,7 +231,8 @@ void reduce (Readable<KeyType,SingleVal> *input,
                 auto iter = ds2.find(key);
                 if (iter != ds2.end()) {
                     iter->second.push_back(val.val);
-                } else {
+                }
+                else {
                     ds2[key] = std::vector<ValType>();
                     ds2[key].push_back(val.val);
                 }
@@ -233,7 +242,8 @@ void reduce (Readable<KeyType,SingleVal> *input,
                     auto iter = ds1.find(std::string(key));
                     if (iter != ds1.end()) {
                         iter->second.push_back(val.val);
-                    } else {
+                    }
+                    else {
                         ds1[key] = std::vector<ValType>();
                         ds1[key].push_back(val.val);
                     }
@@ -242,7 +252,8 @@ void reduce (Readable<KeyType,SingleVal> *input,
                     auto iter = ds2.find(key);
                     if (iter != ds2.end()) {
                         iter->second.push_back(val.val);
-                    } else {
+                    }
+                    else {
                         ds2[key] = std::vector<ValType>();
                         ds2[key].push_back(val.val);
                     }
@@ -255,12 +266,16 @@ void reduce (Readable<KeyType,SingleVal> *input,
 #endif
 
     while (input->read(&key, &val) == true) {
-        if (val.tag == DATA1_TAG) val1count +=1;
-        else if (val.tag == DATA2_TAG) val2count += 1;
+        if (val.tag == DATA1_TAG)
+            val1count += 1;
+        else if (val.tag == DATA2_TAG)
+            val2count += 1;
     }
 
-    if (val1count <= val2count) datatag = DATA1_TAG;
-    else datatag = DATA2_TAG;
+    if (val1count <= val2count)
+        datatag = DATA1_TAG;
+    else
+        datatag = DATA2_TAG;
 
     // Get values of smaller dataset
     while (input->read(&key, &val) == true) {
@@ -273,14 +288,15 @@ void reduce (Readable<KeyType,SingleVal> *input,
     while (input->read(&key, &val) == true) {
         if (val.tag != datatag) {
             auto iter = db.begin();
-            for (; iter != db.end(); iter ++) {
+            for (; iter != db.end(); iter++) {
                 JoinedVal jval;
                 // Smaller dataset is Dataset1
                 if (datatag == DATA1_TAG) {
                     jval.val1 = iter->val1;
                     jval.val2 = val.val.val2;
-                // Smaller dataset is Dataset2
-                } else if (datatag == DATA2_TAG) {
+                    // Smaller dataset is Dataset2
+                }
+                else if (datatag == DATA2_TAG) {
                     jval.val2 = iter->val2;
                     jval.val1 = val.val.val1;
                 }
@@ -291,27 +307,28 @@ void reduce (Readable<KeyType,SingleVal> *input,
 }
 
 #ifdef SPLIT_HINT
-void get_split_key(KeyType *key, void *ptr) {
+void get_split_key(KeyType *key, void *ptr)
+{
     nsplitkey += 1;
     split_keys.insert(std::string(*key));
 }
 
-void join_split_key(std::string& output) {
-
+void join_split_key(std::string &output)
+{
     uint64_t ds1_local, ds1_global;
     uint64_t ds2_local, ds2_global;
     int small_idx = 0;
-    std::unordered_map<std::string,std::vector<ValType>> *small_ds = NULL;
-    std::unordered_map<std::string,std::vector<ValType>> *large_ds = NULL;
+    std::unordered_map<std::string, std::vector<ValType>> *small_ds = NULL;
+    std::unordered_map<std::string, std::vector<ValType>> *large_ds = NULL;
 
     // Get the small and large dataset
     ds1_local = ds1.size();
     ds2_local = ds2.size();
 
-    MPI_Allreduce(&ds1_local, &ds1_global, 1,
-                  MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
-    MPI_Allreduce(&ds2_local, &ds2_global, 1,
-                  MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&ds1_local, &ds1_global, 1, MPI_UINT64_T, MPI_SUM,
+                  MPI_COMM_WORLD);
+    MPI_Allreduce(&ds2_local, &ds2_global, 1, MPI_UINT64_T, MPI_SUM,
+                  MPI_COMM_WORLD);
 
     if (ds1_global == 0 || ds2_global == 0) return;
     if (ds1_global <= ds2_global) {
@@ -330,33 +347,34 @@ void join_split_key(std::string& output) {
     int recvcounts[size], displs[size];
     sendcount = 0;
     for (auto iter : *small_ds) {
-        sendcount += (int)strlen(iter.first.c_str()) + 1;
-        sendcount += (int)sizeof(int);
-        sendcount += (int)sizeof(ValType) * (int)(iter.second.size());
+        sendcount += (int) strlen(iter.first.c_str()) + 1;
+        sendcount += (int) sizeof(int);
+        sendcount += (int) sizeof(ValType) * (int) (iter.second.size());
     }
-    MPI_Allgather(&sendcount, 1, MPI_INT,
-                  recvcounts, 1, MPI_INT, MPI_COMM_WORLD);
-    recvcount  = recvcounts[0];
+    MPI_Allgather(&sendcount, 1, MPI_INT, recvcounts, 1, MPI_INT,
+                  MPI_COMM_WORLD);
+    recvcount = recvcounts[0];
     displs[0] = 0;
     for (int i = 1; i < size; i++) {
         displs[i] = displs[i - 1] + recvcounts[i - 1];
         recvcount += recvcounts[i];
     }
 
-    printf("%d[%d] sendcount=%d, recvcount=%d\n",
-           rank, size, sendcount, recvcount);
+    printf("%d[%d] sendcount=%d, recvcount=%d\n", rank, size, sendcount,
+           recvcount);
 
     // Allgather data
     char sendbuf[sendcount], recvbuf[recvcount];
     int off = 0;
     for (auto iter1 : *small_ds) {
-        memcpy(sendbuf+off, iter1.first.c_str(), (int)(iter1.first.size()) + 1);
-        off += (int)(iter1.first.size()) + 1;
-        *(int*)(sendbuf+off) = (int)iter1.second.size();
-        off += (int)sizeof(int);
+        memcpy(sendbuf + off, iter1.first.c_str(),
+               (int) (iter1.first.size()) + 1);
+        off += (int) (iter1.first.size()) + 1;
+        *(int *) (sendbuf + off) = (int) iter1.second.size();
+        off += (int) sizeof(int);
         for (auto iter2 : iter1.second) {
-            memcpy(sendbuf+off, &iter2, sizeof(ValType));
-            off += (int)sizeof(ValType);
+            memcpy(sendbuf + off, &iter2, sizeof(ValType));
+            off += (int) sizeof(ValType);
         }
     }
     if (sendcount != off) {
@@ -364,24 +382,26 @@ void join_split_key(std::string& output) {
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    MPI_Allgatherv(sendbuf, sendcount, MPI_BYTE,
-                   recvbuf, recvcounts, displs, MPI_BYTE, MPI_COMM_WORLD);
+    MPI_Allgatherv(sendbuf, sendcount, MPI_BYTE, recvbuf, recvcounts, displs,
+                   MPI_BYTE, MPI_COMM_WORLD);
 
     small_ds->clear();
 
     off = 0;
     while (off < recvcount) {
         KeyType key = recvbuf + off;
-        off += (int)strlen(key) + 1;
+        off += (int) strlen(key) + 1;
         (*small_ds)[key] = std::vector<ValType>();
-        int valcount = *(int*)(recvbuf+off);
-        off += (int)sizeof(int);
+        int valcount = *(int *) (recvbuf + off);
+        off += (int) sizeof(int);
         for (int i = 0; i < valcount; i++) {
             ValType val;
-            if (small_idx == 1) val.val1 = *(int64_t*)(recvbuf+off);
-            else if (small_idx == 2) val.val2 = *(int64_t*)(recvbuf+off);
+            if (small_idx == 1)
+                val.val1 = *(int64_t *) (recvbuf + off);
+            else if (small_idx == 2)
+                val.val2 = *(int64_t *) (recvbuf + off);
             (*small_ds)[key].push_back(val);
-            off += (int)sizeof(int64_t);
+            off += (int) sizeof(int64_t);
         }
     }
 
@@ -395,13 +415,16 @@ void join_split_key(std::string& output) {
     for (auto iter1 : *small_ds) {
         auto iter2 = (*large_ds).find(iter1.first.c_str());
         if (iter2 != (*large_ds).end()) {
-            for (auto item2: iter2->second) {
+            for (auto item2 : iter2->second) {
                 for (auto item1 : iter1.second) {
                     nsplit += 1;
                     if (small_idx == 1) {
-                        fprintf(fp, "%s %ld %ld\n", iter1.first.c_str(), item1.val1, item2.val2);
-                    } else if (small_idx == 2) {
-                        fprintf(fp, "%s %ld %ld\n", iter1.first.c_str(), item2.val2, item1.val1);
+                        fprintf(fp, "%s %ld %ld\n", iter1.first.c_str(),
+                                item1.val1, item2.val2);
+                    }
+                    else if (small_idx == 2) {
+                        fprintf(fp, "%s %ld %ld\n", iter1.first.c_str(),
+                                item2.val2, item1.val1);
                     }
                 }
             }
@@ -412,5 +435,3 @@ void join_split_key(std::string& output) {
 }
 
 #endif
-
-

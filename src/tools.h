@@ -12,7 +12,7 @@
 #include <type_traits>
 #include <typeinfo>
 #ifndef _MSC_VER
-#   include <cxxabi.h>
+#include <cxxabi.h>
 #endif
 #include <memory>
 #include <string>
@@ -23,10 +23,10 @@
 int encode_varint(char *buf, uint64_t x);
 uint64_t decode_varint(char *buf);
 
-inline int text_file_repartition (const char* buffer, int bufsize, bool islast)
+inline int text_file_repartition(const char *buffer, int bufsize, bool islast)
 {
     int idx = 0;
-    for (idx = 0; idx < bufsize; idx ++) {
+    for (idx = 0; idx < bufsize; idx++) {
         if (buffer[idx] == '\n') {
             idx = idx + 1;
             break;
@@ -39,7 +39,6 @@ inline int text_file_repartition (const char* buffer, int bufsize, bool islast)
 
     return idx;
 }
-
 
 #if 0
 template <typename KeyType, typename ValType, int KeyLen, int ValLen>

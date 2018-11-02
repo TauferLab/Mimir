@@ -8,7 +8,7 @@
 #include "log.h"
 #include <mpi.h>
 
-MPI_Comm  mimir_world_comm;
+MPI_Comm mimir_world_comm;
 int mimir_world_rank = -1;
 int mimir_world_size = 0;
 
@@ -24,7 +24,7 @@ void handle_error(int errcode, const char *str)
 
     MPI_Get_processor_name(name, &resultlen);
     MPI_Error_string(errcode, msg, &resultlen);
-    fprintf(stderr, "%d[%d](host=%s) %s: %s\n",
-            mimir_world_rank, mimir_world_size, name, str, msg);
+    fprintf(stderr, "%d[%d](host=%s) %s: %s\n", mimir_world_rank,
+            mimir_world_size, name, str, msg);
     MPI_Abort(MPI_COMM_WORLD, 1);
 }

@@ -11,7 +11,7 @@
 #include "globals.h"
 #include "ac_config.h"
 
-#if HAVE_LIBMEMKIND 
+#if HAVE_LIBMEMKIND
 #include "hbwmalloc.h"
 #endif
 
@@ -19,25 +19,25 @@
 
 void get_default_values();
 
-void mimir_init(){
+void mimir_init()
+{
     //MPI_Comm_dup(comm, &mimir_world_comm);
     mimir_world_comm = MPI_COMM_WORLD;
     MPI_Comm_rank(MPI_COMM_WORLD, &mimir_world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mimir_world_size);
     char hostname[1024];
     gethostname(hostname, 1024);
-    printf("%d[%d] Mimir Initialize... (pid=%d,host=%s)\n",
-           mimir_world_rank, mimir_world_size, getpid(), hostname);
+    printf("%d[%d] Mimir Initialize... (pid=%d,host=%s)\n", mimir_world_rank,
+           mimir_world_size, getpid(), hostname);
     INIT_STAT();
     get_default_values();
 #if HAVE_LIBMEMKIND
-    printf("%d[%d] set hbw policy\n",
-           mimir_world_rank, mimir_world_size);
-    hbw_set_policy(HBW_POLICY_BIND);   
+    printf("%d[%d] set hbw policy\n", mimir_world_rank, mimir_world_size);
+    hbw_set_policy(HBW_POLICY_BIND);
 #endif
     if (LIMIT_POWER) {
         init_power_limit();
-        set_power_limit(LIMIT_SCALE);        
+        set_power_limit(LIMIT_SCALE);
     }
 }
 
@@ -50,17 +50,18 @@ void mimir_finalize()
     if (STAT_FILE) {
         mimir_stat(STAT_FILE);
     }
-    else mimir_stat("Mimir");
+    else
+        mimir_stat("Mimir");
     UNINIT_STAT;
 }
 
-void mimir_stat(const char* filename)
+void mimir_stat(const char *filename)
 {
     GET_CUR_TIME;
     TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
     //if (RECORD_PEAKMEM == 1) {
-        int64_t vmsize = get_mem_usage();
-        if (vmsize > peakmem) peakmem = vmsize;
+    int64_t vmsize = get_mem_usage();
+    if (vmsize > peakmem) peakmem = vmsize;
     //}
     if (OUTPUT_STAT) PROFILER_PRINT(filename);
     if (OUTPUT_TRACE) TRACKER_PRINT(filename);
@@ -75,9 +76,9 @@ int64_t convert_to_int64(const char *_str)
         num = atoi(str.c_str());
         num *= 1;
     }
-    else if (str[str.size() - 1] == 'k' || str[str.size() - 1] == 'K' ||
-             (str[str.size() - 1] == 'b' && str[str.size() - 2] == 'k') ||
-             (str[str.size() - 1] == 'B' && str[str.size() - 2] == 'K')) {
+    else if (str[str.size() - 1] == 'k' || str[str.size() - 1] == 'K'
+             || (str[str.size() - 1] == 'b' && str[str.size() - 2] == 'k')
+             || (str[str.size() - 1] == 'B' && str[str.size() - 2] == 'K')) {
         if (str[str.size() - 1] == 'b' || str[str.size() - 1] == 'B') {
             str = str.substr(0, str.size() - 2);
         }
@@ -87,9 +88,9 @@ int64_t convert_to_int64(const char *_str)
         num = atoi(str.c_str());
         num *= 1024;
     }
-    else if (str[str.size() - 1] == 'm' || str[str.size() - 1] == 'M' ||
-             (str[str.size() - 1] == 'b' && str[str.size() - 2] == 'm') ||
-             (str[str.size() - 1] == 'B' && str[str.size() - 2] == 'M')) {
+    else if (str[str.size() - 1] == 'm' || str[str.size() - 1] == 'M'
+             || (str[str.size() - 1] == 'b' && str[str.size() - 2] == 'm')
+             || (str[str.size() - 1] == 'B' && str[str.size() - 2] == 'M')) {
         if (str[str.size() - 1] == 'b' || str[str.size() - 1] == 'B') {
             str = str.substr(0, str.size() - 2);
         }
@@ -99,9 +100,9 @@ int64_t convert_to_int64(const char *_str)
         num = atoi(str.c_str());
         num *= 1024 * 1024;
     }
-    else if (str[str.size() - 1] == 'g' || str[str.size() - 1] == 'G' ||
-             (str[str.size() - 1] == 'b' && str[str.size() - 2] == 'g') ||
-             (str[str.size() - 1] == 'B' && str[str.size() - 2] == 'G')) {
+    else if (str[str.size() - 1] == 'g' || str[str.size() - 1] == 'G'
+             || (str[str.size() - 1] == 'b' && str[str.size() - 2] == 'g')
+             || (str[str.size() - 1] == 'B' && str[str.size() - 2] == 'G')) {
         if (str[str.size() - 1] == 'b' || str[str.size() - 1] == 'B') {
             str = str.substr(0, str.size() - 2);
         }
@@ -112,8 +113,10 @@ int64_t convert_to_int64(const char *_str)
         num *= 1024 * 1024 * 1024;
     }
     else {
-        LOG_ERROR("Error: set buffer size %s error! \
-                  The buffer size should end with b,B,k,K,kb,KB,m,M,mb,MB,g,G,gb,GB", _str);
+        LOG_ERROR(
+            "Error: set buffer size %s error! \
+                  The buffer size should end with b,B,k,K,kb,KB,m,M,mb,MB,g,G,gb,GB",
+            _str);
     }
     if (num == 0) {
         LOG_ERROR("Error: buffer size %s should not be zero!", _str);
@@ -122,7 +125,6 @@ int64_t convert_to_int64(const char *_str)
     return num;
 }
 
-
 void get_default_values()
 {
     ///// Buffes
@@ -130,46 +132,52 @@ void get_default_values()
     // hash bucket size
     env = getenv("MIMIR_BUCKET_SIZE");
     if (env) {
-        BUCKET_COUNT = (int)convert_to_int64(env);
+        BUCKET_COUNT = (int) convert_to_int64(env);
         if (BUCKET_COUNT <= 0)
-            LOG_ERROR
-                ("Error: set bucket size error, please set MIMIR_BUCKET_SIZE (%s) correctly!\n",
-                 env);
+            LOG_ERROR(
+                "Error: set bucket size error, please set MIMIR_BUCKET_SIZE "
+                "(%s) correctly!\n",
+                env);
     }
     // communication buffer size
     env = getenv("MIMIR_COMM_SIZE");
     if (env) {
         COMM_BUF_SIZE = convert_to_int64(env);
         if (COMM_BUF_SIZE <= 0)
-            LOG_ERROR
-                ("Error: set communication buffer size error, please set MIMIR_COMM_SIZE (%s) correctly!\n",
-                 env);
+            LOG_ERROR(
+                "Error: set communication buffer size error, please set "
+                "MIMIR_COMM_SIZE (%s) correctly!\n",
+                env);
     }
     // data page buffer size
     env = getenv("MIMIR_PAGE_SIZE");
     if (env) {
         DATA_PAGE_SIZE = convert_to_int64(env);
         if (DATA_PAGE_SIZE <= 0)
-            LOG_ERROR("Error: set page size error, please set DATA_PAGE_SIZE (%s) correctly!\n",
-                      env);
+            LOG_ERROR(
+                "Error: set page size error, please set DATA_PAGE_SIZE (%s) "
+                "correctly!\n",
+                env);
     }
     // disk I/O buffer size
     env = getenv("MIMIR_DISK_SIZE");
     if (env) {
         INPUT_BUF_SIZE = convert_to_int64(env);
         if (INPUT_BUF_SIZE <= 0)
-            LOG_ERROR
-                ("Error: set input buffer size error, please set INPUT_BUF_SIZE (%s) correctly!\n",
-                 env);
+            LOG_ERROR(
+                "Error: set input buffer size error, please set INPUT_BUF_SIZE "
+                "(%s) correctly!\n",
+                env);
     }
     // max record size
     env = getenv("MIMIR_MAX_RECORD_SIZE");
     if (env) {
-        MAX_RECORD_SIZE = (int)convert_to_int64(env);
+        MAX_RECORD_SIZE = (int) convert_to_int64(env);
         if (MAX_RECORD_SIZE <= 0) {
-            LOG_ERROR
-                ("Error: set max record size error, please set MAX_RECORD_SIZE (%s) correctly!\n",
-                 env);
+            LOG_ERROR(
+                "Error: set max record size error, please set MAX_RECORD_SIZE "
+                "(%s) correctly!\n",
+                env);
         }
     }
 
@@ -179,7 +187,8 @@ void get_default_values()
     if (env) {
         if (strcmp(env, "a2av") == 0) {
             SHUFFLE_TYPE = 0;
-        }else if (strcmp(env, "ia2av") == 0) {
+        }
+        else if (strcmp(env, "ia2av") == 0) {
             SHUFFLE_TYPE = 1;
         }
     }
@@ -207,7 +216,7 @@ void get_default_values()
         if (strcmp(env, "posix") == 0) {
             READ_TYPE = 0;
         }
-	else if (strcmp(env, "mpiio") == 0) {
+        else if (strcmp(env, "mpiio") == 0) {
             READ_TYPE = 1;
         }
     }
@@ -217,7 +226,7 @@ void get_default_values()
         if (strcmp(env, "posix") == 0) {
             WRITE_TYPE = 0;
         }
-	else if (strcmp(env, "mpiio") == 0) {
+        else if (strcmp(env, "mpiio") == 0) {
             WRITE_TYPE = 1;
         }
     }
@@ -258,7 +267,8 @@ void get_default_values()
         int flag = atoi(env);
         if (flag == 0) {
             BALANCE_LOAD = 0;
-        } else {
+        }
+        else {
             BALANCE_LOAD = 1;
         }
     }
@@ -281,7 +291,7 @@ void get_default_values()
     //    else if (strcmp(env, "node") == 0) {
     //        BALANCE_ALG = 1;
     //    }
-    //} 
+    //}
     // balance memory among node
     env = getenv("MIMIR_BALANCE_FREQ");
     if (env) {
@@ -296,7 +306,7 @@ void get_default_values()
     // limit power
     env = getenv("MIMIR_LIMIT_POWER");
     if (env) {
-         LIMIT_POWER = atoi(env);
+        LIMIT_POWER = atoi(env);
     }
     // limit scale
     env = getenv("MIMIR_LIMIT_SCALE");
@@ -311,7 +321,8 @@ void get_default_values()
         int flag = atoi(env);
         if (flag == 0) {
             OUTPUT_STAT = 0;
-        } else {
+        }
+        else {
             OUTPUT_STAT = 1;
         }
     }
@@ -320,7 +331,8 @@ void get_default_values()
         int flag = atoi(env);
         if (flag == 0) {
             OUTPUT_TRACE = 0;
-        } else {
+        }
+        else {
             OUTPUT_TRACE = 1;
         }
     }
@@ -344,8 +356,8 @@ void get_default_values()
     if (env) {
         int flag = atoi(env);
         if (flag != 0) {
-            DBG_LEVEL |= (DBG_GEN | DBG_DATA | DBG_COMM 
-                          | DBG_IO | DBG_MEM | DBG_CHUNK);
+            DBG_LEVEL |= (DBG_GEN | DBG_DATA | DBG_COMM | DBG_IO | DBG_MEM
+                          | DBG_CHUNK);
         }
     }
     env = getenv("MIMIR_DBG_GEN");
@@ -405,7 +417,6 @@ void get_default_values()
         }
     }
 
-
     //env = getenv("MIMIR_FILE_ALIGN");
     //if (env) {
     //    FILE_SPLIT_UNIT = convert_to_int64(env);
@@ -414,8 +425,8 @@ void get_default_values()
     //}
 
     if (mimir_world_rank == 0) {
-        printf(\
-"**********************************************************************\n\
+        printf(
+            "**********************************************************************\n\
 ******** Welcome to use Mimir (MapReduce framework over MPI) *********\n\
 **********************************************************************\n\
 Refer IPDPS17 paper \"Mimir: Memory-Efficient and Scalable MapReduce\n\
@@ -435,14 +446,12 @@ Library configuration:\n\
 \tpower capping: limit power=%d, limit scale=%.2lf\n\
 \tstat & debug: output profile=%d, output trace=%d, stat file=%s, debug level=%x\n\
 ***********************************************************************\n",
-        COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT, MAX_RECORD_SIZE,
-        SHUFFLE_TYPE, MIN_SBUF_COUNT, MAX_SBUF_COUNT,
-        READ_TYPE, DIRECT_READ, WRITE_TYPE, DIRECT_WRITE,
-        WORK_STEAL, MAKE_PROGRESS,
-        BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT, BALANCE_FREQ,
-        USE_MCDRAM,
-        LIMIT_POWER, LIMIT_SCALE,
-        OUTPUT_STAT, OUTPUT_TRACE, STAT_FILE, DBG_LEVEL);
+            COMM_BUF_SIZE, DATA_PAGE_SIZE, INPUT_BUF_SIZE, BUCKET_COUNT,
+            MAX_RECORD_SIZE, SHUFFLE_TYPE, MIN_SBUF_COUNT, MAX_SBUF_COUNT,
+            READ_TYPE, DIRECT_READ, WRITE_TYPE, DIRECT_WRITE, WORK_STEAL,
+            MAKE_PROGRESS, BALANCE_LOAD, BALANCE_FACTOR, BIN_COUNT,
+            BALANCE_FREQ, USE_MCDRAM, LIMIT_POWER, LIMIT_SCALE, OUTPUT_STAT,
+            OUTPUT_TRACE, STAT_FILE, DBG_LEVEL);
         fflush(stdout);
     }
 }

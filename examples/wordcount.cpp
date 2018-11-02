@@ -18,16 +18,16 @@ using namespace MIMIR_NS;
 
 int rank, size;
 
-void map (Readable<char*,void> *input,
-          Writable<char*,uint64_t> *output, void *ptr);
-void countword (Readable<char*,uint64_t> *input,
-                Writable<char*,uint64_t> *output, void *ptr);
-void combine (Combinable<char*,uint64_t> *combiner,
-              char**, uint64_t*, uint64_t*, uint64_t*, void *ptr);
+void map(Readable<char *, void> *input, Writable<char *, uint64_t> *output,
+         void *ptr);
+void countword(Readable<char *, uint64_t> *input,
+               Writable<char *, uint64_t> *output, void *ptr);
+void combine(Combinable<char *, uint64_t> *combiner, char **, uint64_t *,
+             uint64_t *, uint64_t *, void *ptr);
 
 uint64_t nwords = 0, nunique = 0;
 
-int main (int argc, char *argv[])
+int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
 
@@ -35,8 +35,7 @@ int main (int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     if (argc < 3) {
-        if (rank == 0)
-            fprintf(stdout, "Usage: %s output input ...\n", argv[0]);
+        if (rank == 0) fprintf(stdout, "Usage: %s output input ...\n", argv[0]);
         return 0;
     }
 
@@ -45,15 +44,15 @@ int main (int argc, char *argv[])
     for (int i = 2; i < argc; i++) {
         input.push_back(argv[i]);
     }
-    MimirContext<char*, uint64_t, char*, void>* ctx 
-        = new MimirContext<char*, uint64_t, char*, void>(
-                                           input, output, MPI_COMM_WORLD,
+    MimirContext<char *, uint64_t, char *, void> *ctx
+        = new MimirContext<char *, uint64_t, char *, void>(input, output,
+                                                           MPI_COMM_WORLD,
 #ifdef COMBINER
-                                           combine
+                                                           combine
 #else
-                                           NULL
+                                                           NULL
 #endif
-                                           );
+        );
     ctx->map(map);
     nunique = ctx->reduce(countword, NULL, true, "text");
     delete ctx;
@@ -63,7 +62,8 @@ int main (int argc, char *argv[])
     MPI_Finalize();
 }
 
-void map (Readable<char*,void> *input, Writable<char*,uint64_t> *output, void *ptr)
+void map(Readable<char *, void> *input, Writable<char *, uint64_t> *output,
+         void *ptr)
 {
     char *line = NULL;
     while (input->read(&line, NULL) == true) {
@@ -80,8 +80,8 @@ void map (Readable<char*,void> *input, Writable<char*,uint64_t> *output, void *p
     }
 }
 
-void countword (Readable<char*,uint64_t> *input,
-                Writable<char*,uint64_t> *output, void *ptr) 
+void countword(Readable<char *, uint64_t> *input,
+               Writable<char *, uint64_t> *output, void *ptr)
 {
     char *key = NULL;
     uint64_t val = 0;
@@ -92,9 +92,8 @@ void countword (Readable<char*,uint64_t> *input,
     output->write(&key, &count);
 }
 
-void combine (Combinable<char*,uint64_t> *combiner,
-              char **key, uint64_t *val1, uint64_t *val2,
-              uint64_t *rval, void *ptr)
+void combine(Combinable<char *, uint64_t> *combiner, char **key, uint64_t *val1,
+             uint64_t *val2, uint64_t *rval, void *ptr)
 {
     *rval = *val1 + *val2;
 }

@@ -10,21 +10,20 @@
 
 namespace MIMIR_NS {
 
-class FileParser {
+class FileParser
+{
   public:
-    FileParser() {
-    }
+    FileParser() {}
 
-    ~FileParser() {
-    }
+    ~FileParser() {}
 
-    int to_line (char *buffer, int len, bool islast) {
+    int to_line(char *buffer, int len, bool islast)
+    {
         if (len == 0) return -1;
 
         int i = 0;
         for (i = 0; i < len; i++) {
-            if(*(buffer + i) == '\n')
-                break;
+            if (*(buffer + i) == '\n') break;
         }
 
         if (i < len) {
@@ -41,6 +40,6 @@ class FileParser {
     }
 };
 
-}
+} // namespace MIMIR_NS
 
 #endif

@@ -43,81 +43,75 @@ namespace MIMIR_NS {
 //enum OUTPUT_MODE {IMPLICIT_OUTPUT, EXPLICIT_OUTPUT};
 //#define MIMIR_COPY (MapCallback)0x01
 
-template <typename KeyType, typename ValType,
-         typename InKeyType = KeyType, typename InValType = ValType,
-         typename OutKeyType = KeyType, typename OutValType = ValType>
-class MimirContext {
+template <typename KeyType, typename ValType, typename InKeyType = KeyType,
+          typename InValType = ValType, typename OutKeyType = KeyType,
+          typename OutValType = ValType>
+class MimirContext
+{
   public:
-
     // Initialize Mimir Context
-    MimirContext(std::vector<std::string> input_files = std::vector<std::string>(),
-                 std::string output_files = std::string(),
-                 MPI_Comm mimir_comm = MPI_COMM_WORLD,
-                 void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                    KeyType* key,
-                                    ValType* val1, ValType* val2, ValType* val3,
-                                    void *ptr) = NULL,
-                 int (*partition_fn)(KeyType* key, ValType *val,
-                                     int npartition) = NULL,
-                 int (*padding_fn)(const char* buf, int buflen,
-                                   bool islast) = NULL,
-                 int keycount = 1, int valcount = 1,
-                 int inkeycount = 1, int invalcount = 1,
-                 int outkeycount = 1, int outvalcount = 1) {
-        _init(input_files, output_files,
-              mimir_comm,
-              combine_fn, partition_fn, padding_fn,
-              keycount, valcount,
-              inkeycount, invalcount,
+    MimirContext(
+        std::vector<std::string> input_files = std::vector<std::string>(),
+        std::string output_files = std::string(),
+        MPI_Comm mimir_comm = MPI_COMM_WORLD,
+        void (*combine_fn)(Combinable<KeyType, ValType> *output, KeyType *key,
+                           ValType *val1, ValType *val2, ValType *val3,
+                           void *ptr)
+        = NULL,
+        int (*partition_fn)(KeyType *key, ValType *val, int npartition) = NULL,
+        int (*padding_fn)(const char *buf, int buflen, bool islast) = NULL,
+        int keycount = 1, int valcount = 1, int inkeycount = 1,
+        int invalcount = 1, int outkeycount = 1, int outvalcount = 1)
+    {
+        _init(input_files, output_files, mimir_comm, combine_fn, partition_fn,
+              padding_fn, keycount, valcount, inkeycount, invalcount,
               outkeycount, outvalcount);
     }
 
     // Destory Mimir Context
-    ~MimirContext() {
-        _uinit();
-    }
+    ~MimirContext() { _uinit(); }
 
     // Set customized database
-    void set_user_database(BaseObject *database) {
+    void set_user_database(BaseObject *database)
+    {
         this->user_database = database;
-        if (this->user_database == NULL) LOG_ERROR("Cannot convert user database\n");
+        if (this->user_database == NULL)
+            LOG_ERROR("Cannot convert user database\n");
     }
 
     // Get data handle
-    BaseObject *get_data_handle() {
-        return database;
-    }
+    BaseObject *get_data_handle() { return database; }
 
     // Insert data handle
-    void insert_data_handle(BaseObject *handle) {
-        BaseObject *ptr = dynamic_cast<BaseObject*>(handle);
+    void insert_data_handle(BaseObject *handle)
+    {
+        BaseObject *ptr = dynamic_cast<BaseObject *>(handle);
         if (ptr == NULL) LOG_ERROR("The handle inserted is not valid!\n");
         BaseObject::addRef(ptr);
         in_databases.push_back(ptr);
     }
 
     // Map
-    uint64_t map(void (*user_map)(Readable<InKeyType,InValType> *input, 
-                                  Writable<KeyType,ValType> *output, void *ptr),
-                 void *ptr = NULL,
-                 bool do_shuffle = true,
+    uint64_t map(void (*user_map)(Readable<InKeyType, InValType> *input,
+                                  Writable<KeyType, ValType> *output,
+                                  void *ptr),
+                 void *ptr = NULL, bool do_shuffle = true,
                  bool output_file = false,
-                 std::string outfile_format = "binary",
-                 bool split_hint = false)
+                 std::string outfile_format = "binary", bool split_hint = false)
     {
-        BaseShuffler<KeyType,ValType> *c = NULL;
-        BaseDatabase<KeyType,ValType> *kv = NULL;
-        std::vector<Readable<InKeyType,InValType>*> inputs;
-        UnitedDataset<InKeyType,InValType> *united_input = NULL;
-        Writable<KeyType,ValType> *output = NULL;
-        FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType> *reader = NULL;
-        FileWriter<KeyType,ValType> *writer = NULL;
-        ChunkManager<KeyType,ValType> *chunk_mgr = NULL;
+        BaseShuffler<KeyType, ValType> *c = NULL;
+        BaseDatabase<KeyType, ValType> *kv = NULL;
+        std::vector<Readable<InKeyType, InValType> *> inputs;
+        UnitedDataset<InKeyType, InValType> *united_input = NULL;
+        Writable<KeyType, ValType> *output = NULL;
+        FileReader<TextFileFormat, KeyType, ValType, InKeyType, InValType>
+            *reader = NULL;
+        FileWriter<KeyType, ValType> *writer = NULL;
+        ChunkManager<KeyType, ValType> *chunk_mgr = NULL;
 
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_APP);
 
-        if (user_map == NULL)
-            LOG_ERROR("Please set map callback\n");
+        if (user_map == NULL) LOG_ERROR("Please set map callback\n");
 
         LOG_PRINT(DBG_GEN, "MapReduce: map start\n");
 
@@ -125,7 +119,8 @@ class MimirContext {
         // Input from outside
         if (in_databases.size() != 0) {
             for (auto iter : in_databases) {
-                Readable<InKeyType,InValType> *input = dynamic_cast<Readable<InKeyType,InValType>*>(iter);
+                Readable<InKeyType, InValType> *input
+                    = dynamic_cast<Readable<InKeyType, InValType> *>(iter);
                 if (input == NULL) LOG_ERROR("Object convert error!\n");
                 inputs.push_back(input);
             }
@@ -133,33 +128,41 @@ class MimirContext {
         // Input from this context
         if (database != NULL) {
             //reinterpret_cast<BaseDatabase<KeyType,ValType>*>
-            Readable<InKeyType,InValType>* input = dynamic_cast<Readable<InKeyType,InValType>*>(database);
-            if (input == NULL) LOG_ERROR("Cannot convert database into input format!\n");
+            Readable<InKeyType, InValType> *input
+                = dynamic_cast<Readable<InKeyType, InValType> *>(database);
+            if (input == NULL)
+                LOG_ERROR("Cannot convert database into input format!\n");
             inputs.push_back(input);
         }
         // Input from files
         if (input_dir.size() > 0) {
             if (user_padding != NULL) {
                 if (WORK_STEAL) {
-                    chunk_mgr = new StealChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYSIZE);
-                } else {
-                    chunk_mgr = new ChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYSIZE);
+                    chunk_mgr = new StealChunkManager<KeyType, ValType>(
+                        mimir_ctx_comm, input_dir, BYSIZE);
+                }
+                else {
+                    chunk_mgr = new ChunkManager<KeyType, ValType>(
+                        mimir_ctx_comm, input_dir, BYSIZE);
                 }
             }
             else
-                chunk_mgr = new ChunkManager<KeyType,ValType>(mimir_ctx_comm, input_dir, BYNAME);
-            reader = FileReader<TextFileFormat,KeyType,ValType,InKeyType,InValType>::getReader(mimir_ctx_comm,
-                                                                                               chunk_mgr, user_padding,
-                                                                                               keycount, valcount,
-                                                                                               inkeycount, invalcount);
-            Readable<InKeyType,InValType>* input = dynamic_cast<Readable<InKeyType,InValType>*>(reader);
+                chunk_mgr = new ChunkManager<KeyType, ValType>(
+                    mimir_ctx_comm, input_dir, BYNAME);
+            reader = FileReader<TextFileFormat, KeyType, ValType, InKeyType,
+                                InValType>::getReader(mimir_ctx_comm, chunk_mgr,
+                                                      user_padding, keycount,
+                                                      valcount, inkeycount,
+                                                      invalcount);
+            Readable<InKeyType, InValType> *input
+                = dynamic_cast<Readable<InKeyType, InValType> *>(reader);
             inputs.push_back(input);
         }
 
         ///////////////////// get output objects ////////////////////////
         // Output to customized database
         if (user_database != NULL) {
-            output = dynamic_cast<Writable<KeyType,ValType>*>(user_database);
+            output = dynamic_cast<Writable<KeyType, ValType> *>(user_database);
             if (output == NULL) LOG_ERROR("Convert user database error!\n");
         }
         // Output to this context
@@ -167,12 +170,19 @@ class MimirContext {
             if (BALANCE_LOAD) {
                 //if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
                 //else kv = new CombineBinContainer<KeyType,ValType>(user_combine, ptr, bincount, keycount, valcount);
-                if (!user_combine) kv = new KVContainer<KeyType,ValType>(keycount, valcount);
-                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, keycount, valcount, mimir_ctx_size);
-            } else {
+                if (!user_combine)
+                    kv = new KVContainer<KeyType, ValType>(keycount, valcount);
+                else
+                    kv = new CombineKVContainer<KeyType, ValType>(
+                        user_combine, ptr, keycount, valcount, mimir_ctx_size);
+            }
+            else {
                 //if (CONTAINER_TYPE == 0) {
-                if (!user_combine) kv = new KVContainer<KeyType,ValType>(keycount, valcount);
-                else kv = new CombineKVContainer<KeyType,ValType>(user_combine, ptr, keycount, valcount, mimir_ctx_size);
+                if (!user_combine)
+                    kv = new KVContainer<KeyType, ValType>(keycount, valcount);
+                else
+                    kv = new CombineKVContainer<KeyType, ValType>(
+                        user_combine, ptr, keycount, valcount, mimir_ctx_size);
                 //}
                 //else if (CONTAINER_TYPE == 1) {
                 //    if (!user_combine) kv = new BinContainer<KeyType,ValType>(bincount, keycount, valcount);
@@ -183,7 +193,8 @@ class MimirContext {
         }
         // Output to files
         else {
-            writer = FileWriter<KeyType,ValType>::getWriter(mimir_ctx_comm, output_dir.c_str(), keycount, valcount);
+            writer = FileWriter<KeyType, ValType>::getWriter(
+                mimir_ctx_comm, output_dir.c_str(), keycount, valcount);
             writer->set_file_format(outfile_format.c_str());
             output = writer;
         }
@@ -198,48 +209,31 @@ class MimirContext {
                 }
                 // MPI_Alltoallv shuffler
                 if (SHUFFLE_TYPE == 0)
-                    c = new CollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
-                                                                output,
-                                                                user_partition,
-                                                                keycount,
-                                                                valcount,
-                                                                split_hint,
-                                                                h);
+                    c = new CollectiveShuffler<KeyType, ValType>(
+                        mimir_ctx_comm, output, user_partition, keycount,
+                        valcount, split_hint, h);
                 // MPI_Ialltoallv shuffler
                 else if (SHUFFLE_TYPE == 1)
-                    c = new NBCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
-                                                                  output,
-                                                                  user_partition,
-                                                                  keycount,
-                                                                  valcount,
-                                                                  split_hint,
-                                                                  h);
-                else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
-            // Map without combiner
-            } else {
+                    c = new NBCollectiveShuffler<KeyType, ValType>(
+                        mimir_ctx_comm, output, user_partition, keycount,
+                        valcount, split_hint, h);
+                else
+                    LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
+                // Map without combiner
+            }
+            else {
                 // MPI_Alltoallv shuffler
                 if (SHUFFLE_TYPE == 0)
-                    c = new CombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
-                                                                       user_combine,
-                                                                       ptr,
-                                                                       output,
-                                                                       user_partition,
-                                                                       keycount,
-                                                                       valcount,
-                                                                       split_hint,
-                                                                       h);
+                    c = new CombineCollectiveShuffler<KeyType, ValType>(
+                        mimir_ctx_comm, user_combine, ptr, output,
+                        user_partition, keycount, valcount, split_hint, h);
                 // MPI_Ialltoallv shuffler
                 else if (SHUFFLE_TYPE == 1)
-                    c = new NBCombineCollectiveShuffler<KeyType,ValType>(mimir_ctx_comm,
-                                                                         user_combine,
-                                                                         ptr,
-                                                                         output,
-                                                                         user_partition,
-                                                                         keycount,
-                                                                         valcount,
-                                                                         split_hint,
-                                                                         h);
-                else LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
+                    c = new NBCombineCollectiveShuffler<KeyType, ValType>(
+                        mimir_ctx_comm, user_combine, ptr, output,
+                        user_partition, keycount, valcount, split_hint, h);
+                else
+                    LOG_ERROR("Shuffle type %d error!\n", SHUFFLE_TYPE);
             }
             if (output) {
                 if (writer != NULL) {
@@ -252,7 +246,7 @@ class MimirContext {
                 reader->set_shuffler(c);
             }
             if (inputs.size() != 0) {
-                united_input = new UnitedDataset<InKeyType,InValType>(inputs);
+                united_input = new UnitedDataset<InKeyType, InValType>(inputs);
                 united_input->open();
             }
             //if (input) input->open();
@@ -282,13 +276,13 @@ class MimirContext {
             if (output) output->open();
             //if (input) input->open();
             if (inputs.size() != 0) {
-                united_input = new UnitedDataset<InKeyType,InValType>(inputs);
+                united_input = new UnitedDataset<InKeyType, InValType>(inputs);
                 united_input->open();
             }
             //if (user_map == (MapCallback)MIMIR_COPY) {
             //  ::mimir_copy(input, output, NULL);
             //} else {
-                user_map(united_input, output, ptr);
+            user_map(united_input, output, ptr);
             //}
             //if (input) {
             //    input->close();
@@ -311,7 +305,7 @@ class MimirContext {
                 BaseObject::subRef(iter);
             }
             in_databases.clear();
-	}
+        }
         if (database != NULL) {
             BaseObject::subRef(database);
             database = NULL;
@@ -325,11 +319,13 @@ class MimirContext {
             database = user_database;
             BaseObject::addRef(database);
             user_database = NULL;
-        } else if (!output_file) {
+        }
+        else if (!output_file) {
             database = kv;
             //isoutkv = false;
             BaseObject::addRef(database);
-        } else {
+        }
+        else {
             database = NULL;
             delete writer;
         }
@@ -340,28 +336,30 @@ class MimirContext {
 
         uint64_t total_records = 0;
         PROFILER_RECORD_TIME_START;
-        MPI_Allreduce(&kv_records, &total_records, 1,
-                      MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
+        MPI_Allreduce(&kv_records, &total_records, 1, MPI_INT64_T, MPI_SUM,
+                      mimir_ctx_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         PROFILER_RECORD_COUNT(COUNTER_MAX_KVS, kv_records, OPMAX);
 
-        LOG_PRINT(DBG_GEN, "MapReduce: map done (KVs=%ld, peakmem=%ld)\n", kv_records, peakmem);
+        LOG_PRINT(DBG_GEN, "MapReduce: map done (KVs=%ld, peakmem=%ld)\n",
+                  kv_records, peakmem);
 
         return total_records;
     }
 
-    uint64_t reduce(void (*user_reduce)(Readable<KeyType,ValType> *input,
-                                        Writable<OutKeyType,OutValType> *output, void *ptr) = NULL,
-                    void *ptr = NULL,
-                    bool output_file = false,
-                    std::string outfile_format = "binary") {
-
-        KVContainer<OutKeyType,OutValType> *kv = NULL;
-        KMVContainer<KeyType,ValType> *kmv = NULL;
-        FileWriter<OutKeyType,OutValType> *writer = NULL;
-        Readable<KeyType,ValType> *input = NULL;
-        Writable<OutKeyType,OutValType> *output = NULL;
+    uint64_t reduce(
+        void (*user_reduce)(Readable<KeyType, ValType> *input,
+                            Writable<OutKeyType, OutValType> *output, void *ptr)
+        = NULL,
+        void *ptr = NULL, bool output_file = false,
+        std::string outfile_format = "binary")
+    {
+        KVContainer<OutKeyType, OutValType> *kv = NULL;
+        KMVContainer<KeyType, ValType> *kmv = NULL;
+        FileWriter<OutKeyType, OutValType> *writer = NULL;
+        Readable<KeyType, ValType> *input = NULL;
+        Writable<OutKeyType, OutValType> *output = NULL;
 
         if (user_reduce == NULL) {
             LOG_ERROR("Please set reduce callback!\n");
@@ -370,26 +368,33 @@ class MimirContext {
             LOG_ERROR("No data to reduce!\n");
         }
 
-        LOG_PRINT(DBG_GEN, "MapReduce: reduce start, %ld\n", Container::mem_bytes);
+        LOG_PRINT(DBG_GEN, "MapReduce: reduce start, %ld\n",
+                  Container::mem_bytes);
 
-        input = dynamic_cast<Readable<KeyType,ValType>*>(database);
+        input = dynamic_cast<Readable<KeyType, ValType> *>(database);
         if (input == NULL) LOG_ERROR("Error to convert database to input!\n");
         // output to user database
         if (user_database != NULL) {
-            output = dynamic_cast<Writable<OutKeyType,OutValType>*>(user_database);
-            if (output == NULL) LOG_ERROR("Error to convert database to output!\n");
-        // output to stage area
-        } else if (!output_file) {
-            kv = new KVContainer<OutKeyType,OutValType>(keycount, valcount);
+            output = dynamic_cast<Writable<OutKeyType, OutValType> *>(
+                user_database);
+            if (output == NULL)
+                LOG_ERROR("Error to convert database to output!\n");
+            // output to stage area
+        }
+        else if (!output_file) {
+            kv = new KVContainer<OutKeyType, OutValType>(keycount, valcount);
             output = kv;
-        // output to disk files
-        } else {
-            writer = FileWriter<OutKeyType,OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str(), outkeycount, outvalcount);
+            // output to disk files
+        }
+        else {
+            writer = FileWriter<OutKeyType, OutValType>::getWriter(
+                mimir_ctx_comm, output_dir.c_str(), outkeycount, outvalcount);
             writer->set_file_format(outfile_format.c_str());
             output = writer;
         }
 
-        kmv = new KMVContainer<KeyType,ValType>(keycount, valcount, mimir_ctx_size);
+        kmv = new KMVContainer<KeyType, ValType>(keycount, valcount,
+                                                 mimir_ctx_size);
         kmv->convert(input);
         BaseObject::subRef(database);
         database = NULL;
@@ -400,7 +405,7 @@ class MimirContext {
 
         kmv->open();
         output->open();
-        KMVItem<KeyType,ValType>* item = NULL;
+        KMVItem<KeyType, ValType> *item = NULL;
         while ((item = kmv->read()) != NULL) {
             item->open();
             user_reduce(item, output, ptr);
@@ -418,11 +423,13 @@ class MimirContext {
             database = user_database;
             BaseObject::addRef(database);
             user_database = NULL;
-        } else if (!output_file) {
+        }
+        else if (!output_file) {
             BaseObject::addRef(kv);
-            database = dynamic_cast<BaseObject*>(kv);
-        // output to disk files
-        } else {
+            database = dynamic_cast<BaseObject *>(kv);
+            // output to disk files
+        }
+        else {
             delete writer;
             database = NULL;
         }
@@ -430,9 +437,9 @@ class MimirContext {
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_RDC);
 
         uint64_t total_records = 0;
-	PROFILER_RECORD_TIME_START;
-        MPI_Allreduce(&output_records, &total_records, 1,
-                      MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
+        PROFILER_RECORD_TIME_START;
+        MPI_Allreduce(&output_records, &total_records, 1, MPI_INT64_T, MPI_SUM,
+                      mimir_ctx_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         LOG_PRINT(DBG_GEN, "MapReduce: reduce done\n");
@@ -440,22 +447,21 @@ class MimirContext {
         return total_records;
     }
 
-    uint64_t output(std::string outfile_format = "binary") {
-
+    uint64_t output(std::string outfile_format = "binary")
+    {
         typename SafeType<OutKeyType>::type key[keycount];
         typename SafeType<OutValType>::type val[valcount];
-        Readable<OutKeyType,OutValType> *output = NULL;
+        Readable<OutKeyType, OutValType> *output = NULL;
 
-        if (database == NULL)
-            LOG_ERROR("No data to output!\n");
+        if (database == NULL) LOG_ERROR("No data to output!\n");
 
         LOG_PRINT(DBG_GEN, "MapReduce: output start\n");
 
-        FileWriter<OutKeyType, OutValType> *writer 
-            = FileWriter<OutKeyType, OutValType>::getWriter(mimir_ctx_comm, output_dir.c_str(),
-                                                            outkeycount, outvalcount);
+        FileWriter<OutKeyType, OutValType> *writer
+            = FileWriter<OutKeyType, OutValType>::getWriter(
+                mimir_ctx_comm, output_dir.c_str(), outkeycount, outvalcount);
         writer->set_file_format(outfile_format.c_str());
-        output = dynamic_cast<Readable<OutKeyType,OutValType>*>(database);
+        output = dynamic_cast<Readable<OutKeyType, OutValType> *>(database);
         if (output == NULL) LOG_ERROR("Error to convert database!\n");
         output->open();
         writer->open();
@@ -471,9 +477,9 @@ class MimirContext {
         database = NULL;
 
         uint64_t total_records = 0;
-	PROFILER_RECORD_TIME_START;
-        MPI_Allreduce(&output_records, &total_records, 1,
-                      MPI_INT64_T, MPI_SUM, mimir_ctx_comm);
+        PROFILER_RECORD_TIME_START;
+        MPI_Allreduce(&output_records, &total_records, 1, MPI_INT64_T, MPI_SUM,
+                      mimir_ctx_comm);
         PROFILER_RECORD_TIME_END(TIMER_COMM_RDC);
 
         LOG_PRINT(DBG_GEN, "MapReduce: output done\n");
@@ -482,7 +488,8 @@ class MimirContext {
     }
 
     uint64_t scan_split_keys(void (*scan_fn)(KeyType *key, void *ptr),
-                             void *ptr = NULL) {
+                             void *ptr = NULL)
+    {
         typename SafeType<KeyType>::type key[keycount];
 
         if (h == NULL) return 0;
@@ -494,7 +501,7 @@ class MimirContext {
         while ((entry = h->next()) != NULL) {
             ser->key_from_bytes(key, entry->key, entry->keysize);
             scan_fn(key, ptr);
-            count ++;
+            count++;
         }
         h->close();
 
@@ -502,16 +509,15 @@ class MimirContext {
     }
 
     uint64_t scan(void (*scan_fn)(KeyType *key, ValType *val, void *ptr),
-                  void *ptr = NULL) {
-
+                  void *ptr = NULL)
+    {
         typename SafeType<KeyType>::type key[keycount];
         typename SafeType<ValType>::type val[valcount];
-        Readable<KeyType,ValType> *db = NULL;
+        Readable<KeyType, ValType> *db = NULL;
 
-        if (database == NULL)
-            LOG_ERROR("No data to scan!\n");
+        if (database == NULL) LOG_ERROR("No data to scan!\n");
 
-        db = dynamic_cast<BaseDatabase<KeyType,ValType>*>(database);
+        db = dynamic_cast<BaseDatabase<KeyType, ValType> *>(database);
         if (db == NULL) LOG_ERROR("Error to convert database!\n");
 
         LOG_PRINT(DBG_GEN, "MapReduce: scan start\n");
@@ -527,17 +533,17 @@ class MimirContext {
         return 0;
     }
 
-    uint64_t scan_output(void (*scan_fn)(OutKeyType *key, OutValType *val, void *ptr),
-                         void *ptr = NULL) {
-
+    uint64_t scan_output(void (*scan_fn)(OutKeyType *key, OutValType *val,
+                                         void *ptr),
+                         void *ptr = NULL)
+    {
         typename SafeType<OutKeyType>::type key[keycount];
         typename SafeType<OutValType>::type val[valcount];
-        Readable<OutKeyType,OutValType> *db = NULL;
+        Readable<OutKeyType, OutValType> *db = NULL;
 
-        if (database == NULL)
-            LOG_ERROR("No data to scan!\n");
+        if (database == NULL) LOG_ERROR("No data to scan!\n");
 
-        db = dynamic_cast<BaseDatabase<OutKeyType,OutValType>*>(database);
+        db = dynamic_cast<BaseDatabase<OutKeyType, OutValType> *>(database);
         if (db == NULL) LOG_ERROR("Error to convert database!\n");
 
         LOG_PRINT(DBG_GEN, "MapReduce: scan start\n");
@@ -556,26 +562,24 @@ class MimirContext {
     uint64_t get_kv_record_count() { return kv_records; }
     uint64_t get_kmv_record_count() { return kmv_records; }
 
-    void print_record_count () {
+    void print_record_count()
+    {
         printf("%d[%d] input=%ld, kv=%ld, kmv=%ld, output=%ld\n",
-               mimir_ctx_rank, mimir_ctx_size, input_records,
-               kv_records, kmv_records, output_records);
+               mimir_ctx_rank, mimir_ctx_size, input_records, kv_records,
+               kmv_records, output_records);
     }
 
   private:
-    void _init(std::vector<std::string> &input_dir,
-               std::string &output_dir,
+    void _init(std::vector<std::string> &input_dir, std::string &output_dir,
                MPI_Comm ctx_comm,
-               void (*combine_fn)(Combinable<KeyType,ValType> *output,
-                                  KeyType* key,
-                                  ValType* val1, ValType* val2, ValType* val3,
-                                  void *ptr),
-               int (*partition_fn)(KeyType* key, ValType* val, int npartition),
-               int (*padding_fn)(const char* buf, int buflen, bool islast),
-               int keycount, int valcount,
-               int inkeycount, int invalcount,
-               int outkeycount, int outvalcount) {
-
+               void (*combine_fn)(Combinable<KeyType, ValType> *output,
+                                  KeyType *key, ValType *val1, ValType *val2,
+                                  ValType *val3, void *ptr),
+               int (*partition_fn)(KeyType *key, ValType *val, int npartition),
+               int (*padding_fn)(const char *buf, int buflen, bool islast),
+               int keycount, int valcount, int inkeycount, int invalcount,
+               int outkeycount, int outvalcount)
+    {
         this->keycount = keycount;
         this->valcount = valcount;
         this->inkeycount = inkeycount;
@@ -603,7 +607,7 @@ class MimirContext {
         if (mimir_ctx_count == 0) {
             ::mimir_init();
         }
-        mimir_ctx_count +=1;
+        mimir_ctx_count += 1;
 
         // BIN_COUNT may be changed by mimir_init function
         this->bincount = mimir_ctx_size * BIN_COUNT;
@@ -614,7 +618,8 @@ class MimirContext {
         //isoutkv = false;
     }
 
-    void _uinit() {
+    void _uinit()
+    {
         MPI_Comm_free(&mimir_ctx_comm);
         if (database != NULL) {
             //if (!isoutkv) BaseDatabase<KeyType,ValType>::subRef((BaseDatabase<KeyType,ValType>*)database);
@@ -622,59 +627,60 @@ class MimirContext {
             BaseObject::subRef(database);
             database = NULL;
         }
-	else if (in_databases.size() != 0) {
+        else if (in_databases.size() != 0) {
             for (auto iter : in_databases) {
                 BaseObject::subRef(iter);
             }
             in_databases.clear();
-	}
+        }
         if (h != NULL) {
             delete h;
         }
         delete ser;
-	mimir_ctx_count -= 1;
+        mimir_ctx_count -= 1;
         if (mimir_ctx_count == 0) {
             ::mimir_finalize();
         }
     }
 
     // Callbacks
-    void (*user_combine)(Combinable<KeyType,ValType> *output,
-                         KeyType* key, ValType* val1, ValType* val2, ValType *val3, void *ptr);
-    int (*user_partition)(KeyType* key, ValType *val, int npartition);
-    int (*user_padding)(const char* buf, int buflen, bool islast);
+    void (*user_combine)(Combinable<KeyType, ValType> *output, KeyType *key,
+                         ValType *val1, ValType *val2, ValType *val3,
+                         void *ptr);
+    int (*user_partition)(KeyType *key, ValType *val, int npartition);
+    int (*user_padding)(const char *buf, int buflen, bool islast);
 
     // Configurations
-    std::vector<std::string> input_dir;    // Input files
-    std::string              output_dir;   // Output files
+    std::vector<std::string> input_dir; // Input files
+    std::string output_dir;             // Output files
 
     // Count for <Key,Value>
-    int         keycount, valcount;
-    int         inkeycount, invalcount;
-    int         outkeycount, outvalcount;
+    int keycount, valcount;
+    int inkeycount, invalcount;
+    int outkeycount, outvalcount;
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Structure
-    BaseObject              *database;
-    BaseObject              *user_database;
-    std::vector<BaseObject*> in_databases;
+    BaseObject *database;
+    BaseObject *user_database;
+    std::vector<BaseObject *> in_databases;
 
     HashBucket<> *h;
 
-    uint64_t    input_records;
-    uint64_t    kv_records;
-    uint64_t    kmv_records;
-    uint64_t    output_records;
+    uint64_t input_records;
+    uint64_t kv_records;
+    uint64_t kmv_records;
+    uint64_t output_records;
 
-    MPI_Comm    mimir_ctx_comm;
-    int         mimir_ctx_rank;
-    int         mimir_ctx_size;
+    MPI_Comm mimir_ctx_comm;
+    int mimir_ctx_rank;
+    int mimir_ctx_size;
 
-    uint32_t    bincount;
+    uint32_t bincount;
 
     Serializer<KeyType, ValType> *ser;
 };
 
-}
+} // namespace MIMIR_NS
 
 #endif
