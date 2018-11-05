@@ -28,6 +28,10 @@
 #include "baseshuffler.h"
 #include "serializer.h"
 
+#ifndef HAVE_FTRUNCATE64
+#define ftruncate64 ftruncate
+#endif
+
 namespace MIMIR_NS {
 
 enum OUTPUT_FORMAT { BINARY_FORMAT, TEXT_FORMAT };
@@ -261,6 +265,7 @@ class DirectFileWriter : public FileWriter<KeyType, ValType>
 
         PROFILER_RECORD_TIME_START;
 
+#ifdef O_DIRECT
         this->union_fp.posix_fd = ::open(
             this->filename.c_str(), O_CREAT | O_WRONLY | O_DIRECT | O_LARGEFILE,
             S_IRUSR | S_IWUSR);
@@ -268,6 +273,27 @@ class DirectFileWriter : public FileWriter<KeyType, ValType>
             LOG_ERROR("Open file %s error %d!\n", this->filename.c_str(),
                       errno);
         }
+#else
+#ifdef F_NOCACHE
+        this->union_fp.posix_fd = ::open(
+            this->filename.c_str(), O_CREAT | O_WRONLY,
+            S_IRUSR | S_IWUSR);
+        ::fcntl(this->union_fp.posix_fd, F_NOCACHE, 1);
+        if (this->union_fp.posix_fd == -1) {
+            LOG_ERROR("Open file %s error %d!\n", this->filename.c_str(),
+                      errno);
+        }
+#else
+#warning "No direct IO support"
+        this->union_fp.posix_fd = ::open(
+            this->filename.c_str(), O_CREAT | O_WRONLY | O_LARGEFILE,
+            S_IRUSR | S_IWUSR);
+        if (this->union_fp.posix_fd == -1) {
+            LOG_ERROR("Open file %s error %d!\n", this->filename.c_str(),
+                      errno);
+        }
+#endif
+#endif
 
         filesize = 0;
 

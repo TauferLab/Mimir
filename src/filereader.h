@@ -26,6 +26,11 @@
 //#include "dataformat.h"
 #include "fileparser.h"
 
+#ifndef HAVE_LSEEK64
+#define lseek64 lseek
+#define off64_t off_t
+#endif
+
 namespace MIMIR_NS {
 
 class InputSplit;
@@ -398,9 +403,23 @@ class DirectFileReader
         TRACKER_RECORD_EVENT(EVENT_COMPUTE_MAP);
         PROFILER_RECORD_TIME_START;
 
+#ifdef O_DIRECT
         this->union_fp.posix_fd
             = ::open(filename, O_RDONLY | O_DIRECT | O_LARGEFILE);
         if (this->union_fp.posix_fd == -1) return false;
+#else
+#ifdef F_NOCACHE
+        this->union_fp.posix_fd
+            = ::open(filename, O_RDONLY);
+        ::fcntl(this->union_fp.posix_fd, F_NOCACHE, 1);
+        if (this->union_fp.posix_fd == -1) return false;
+#else
+#warning "No direct IO support"
+        this->union_fp.posix_fd
+            = ::open(filename, O_RDONLY | O_LARGEFILE);
+        if (this->union_fp.posix_fd == -1) return false;
+#endif
+#endif
 
         PROFILER_RECORD_TIME_END(TIMER_PFS_INPUT);
         TRACKER_RECORD_EVENT(EVENT_DISK_FOPEN);

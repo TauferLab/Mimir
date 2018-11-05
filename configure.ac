@@ -96,4 +96,11 @@ if test "x$with_papi" = "xyes"; then
     AC_DEFINE([HAVE_PAPI], [1], [define to enable PAPI support])
 fi
 
+AC_CHECK_FUNCS(lseek64)
+if test "$ac_cv_func_lseek64" = "yes" ; then
+    PAC_FUNC_NEEDS_DECL([#include<unistd.h>], lseek64)
+fi
+
+AC_CHECK_FUNCS(ftruncate64)
+
 AC_OUTPUT
