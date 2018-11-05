@@ -17,7 +17,7 @@ libmimir_a_HEADERS = mimir.h interface.h globals.h hashbucket.h 	       \
 		     combinekvcontainer.h kmvcontainer.h collectiveshuffler.h  \
 		     combinebincontainer.h bincontainer.h serializer.h	       \
 		     nbcollectiveshuffler.h combinecollectiveshuffler.h config.h \
-		     ac_config.h nbcombinecollectiveshuffler.h chunkmanager.h  \
+		     mimir_config.h nbcombinecollectiveshuffler.h chunkmanager.h  \
 		     uniteddataset.h getrss.h powerlimit.h
 libmimir_a_SOURCES = mimircontext.h                           		       \
 		     container.cpp container.h containeriter.h		       \

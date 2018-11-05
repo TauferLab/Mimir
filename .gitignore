@@ -17,3 +17,22 @@ examples/wordcount
 examples/octree
 !.clang-format
 */build/*
+
+# editor temp file
+*~
+
+Makefile
+Makefile.in
+aclocal.m4
+ar-lib
+autom4te.cache/
+compile
+config.status
+configure
+depcomp
+install-sh
+missing
+mimir_config.h
+mimir_config.h.in
+stamp-h1
+

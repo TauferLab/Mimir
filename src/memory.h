@@ -18,7 +18,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
+#endif
+
 #ifdef BGQ
 #include <spi/include/kernel/memory.h>
 #endif
@@ -45,7 +48,9 @@ inline int64_t get_max_mmap()
     stderr_save = dup(STDERR_FILENO);
     FILE *fp = freopen("/dev/null", "a", stderr);
     setvbuf(stderr, buffer, _IOFBF, BUFSIZE);
+#ifdef HAVE_MALLOC_H
     malloc_stats();
+#endif
     fp = freopen("/dev/null", "a", stderr);
     if (fp == NULL) LOG_ERROR("Error: open dev null\n");
     dup2(stderr_save, STDERR_FILENO);

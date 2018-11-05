@@ -16,7 +16,7 @@
 #include "stat.h"
 #include "memory.h"
 #include "globals.h"
-#include "ac_config.h"
+#include "mimir_config.h"
 
 #include <malloc.h>
 #ifdef BGQ

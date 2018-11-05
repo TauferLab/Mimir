@@ -10,7 +10,7 @@
 #include "stat.h"
 #include "powerlimit.h"
 #include "globals.h"
-#include "ac_config.h"
+#include "mimir_config.h"
 
 #define MAX_powercap_EVENTS 64
 
