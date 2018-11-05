@@ -36,3 +36,14 @@ mimir_config.h
 mimir_config.h.in
 stamp-h1
 
+examples/bfs_join
+examples/join
+examples/join_split
+examples/oc
+examples/oc_cb
+examples/wc
+examples/wc_cb
+generator/gen_3d_points
+generator/gen_keys
+generator/gen_words
+
