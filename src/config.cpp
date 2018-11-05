@@ -9,9 +9,9 @@
 #include "config.h"
 
 // Buffer settings
-int64_t COMM_BUF_SIZE = 64 * 1024 * 1024;
-int64_t DATA_PAGE_SIZE = 64 * 1024 * 1024;
-int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024;
+int64_t COMM_BUF_SIZE = 64 * 1024 * 1024LL;
+int64_t DATA_PAGE_SIZE = 64 * 1024 * 1024LL;
+int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024LL;
 int BUCKET_COUNT = 1024 * 1024;
 int MAX_RECORD_SIZE = 1024 * 1024;
 
