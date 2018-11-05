@@ -18,7 +18,10 @@
 #include "globals.h"
 #include "mimir_config.h"
 
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
+#endif
+
 #ifdef BGQ
 #include <spi/include/kernel/memory.h>
 #endif
