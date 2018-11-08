@@ -1,10 +1,11 @@
-/*
- * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #ifndef MIMIR_INTERFACE_H
 #define MIMIR_INTERFACE_H
 
@@ -14,11 +15,13 @@
 
 namespace MIMIR_NS {
 
-enum DB_POS {DB_START, DB_END};
+enum DB_POS { DB_START, DB_END };
 
-class BaseObject {
+class BaseObject
+{
   public:
-    BaseObject(bool inner = false) {
+    BaseObject(bool inner = false)
+    {
         ref = 0;
         this->inner = inner;
     }
@@ -28,81 +31,76 @@ class BaseObject {
     virtual int seek(DB_POS pos) = 0;
     virtual uint64_t get_record_count() = 0;
 
-    bool is_inner() {
-        return inner;
-    }
+    bool is_inner() { return inner; }
 
-    uint64_t getRef() {
-        return ref;
-    }
+    uint64_t getRef() { return ref; }
 
-    void addRef() {
-        ref ++;
-    }
+    void addRef() { ref++; }
 
-    void subRef() {
-        ref --;
-    }
+    void subRef() { ref--; }
 
-    static void addRef(BaseObject *d) {
+    static void addRef(BaseObject *d)
+    {
         if (d != NULL) {
             d->addRef();
         }
     }
 
-    static void subRef(BaseObject *d) {
-	 if (d != NULL && d->is_inner()) {
+    static void subRef(BaseObject *d)
+    {
+        if (d != NULL && d->is_inner()) {
             d->subRef();
-            if (d->getRef() == 0 ) {
+            if (d->getRef() == 0) {
                 delete d;
             }
         }
     }
 
   private:
-    uint64_t    ref;
-    bool        inner;
+    uint64_t ref;
+    bool inner;
 };
 
 template <typename KeyType, typename ValType>
-class Readable : virtual public BaseObject {
+class Readable : virtual public BaseObject
+{
   public:
     virtual ~Readable() {}
-    virtual int read(KeyType*, ValType*) = 0;
+    virtual int read(KeyType *, ValType *) = 0;
 };
 
 template <typename KeyType, typename ValType>
-class Removable : virtual public BaseObject {
+class Removable : virtual public BaseObject
+{
   public:
     virtual ~Removable() {}
     virtual int remove() = 0;
 };
 
 template <typename KeyType, typename ValType>
-class Writable : virtual public BaseObject {
+class Writable : virtual public BaseObject
+{
   public:
     virtual ~Writable() {}
-    virtual int write(KeyType*, ValType*) = 0;
+    virtual int write(KeyType *, ValType *) = 0;
 };
 
 template <typename KeyType, typename ValType>
-class Combinable {
+class Combinable
+{
   public:
     virtual ~Combinable() {}
 };
 
 template <typename KeyType, typename ValType>
-class BaseDatabase : 
-    virtual public Readable<KeyType, ValType>,
-    virtual public Writable<KeyType, ValType>,
-    virtual public Removable<KeyType, ValType>
+class BaseDatabase : virtual public Readable<KeyType, ValType>,
+                     virtual public Writable<KeyType, ValType>,
+                     virtual public Removable<KeyType, ValType>
 {
   public:
-    BaseDatabase() {
-    }
+    BaseDatabase() {}
 
-    virtual ~BaseDatabase() {
-    }
+    virtual ~BaseDatabase() {}
 
     virtual int open() = 0;
     virtual void close() = 0;
@@ -112,13 +110,12 @@ class BaseDatabase :
     virtual int remove() = 0;
 
   public:
-    static uint64_t    mem_bytes;
+    static uint64_t mem_bytes;
 };
 
 template <typename KeyType, typename ValType>
 uint64_t BaseDatabase<KeyType, ValType>::mem_bytes = 0;
 
-}
+} // namespace MIMIR_NS
 
 #endif
-

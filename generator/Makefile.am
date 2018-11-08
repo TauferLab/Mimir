@@ -1,3 +1,11 @@
+#
+# (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego
+#     Supercomputer Center, National University of Defense Technology,
+#     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+#
+#     See COPYRIGHT in top-level directory.
+#
+
 AM_LDFLAGS = -L../src
 AM_CPPFLAGS = -I../src -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
 AM_CXXFLAGS = -I../src -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG

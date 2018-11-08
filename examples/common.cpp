@@ -1,10 +1,11 @@
-/*
- * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,12 +22,14 @@ int bucketsize;
 
 void check_envars(int rank, int size)
 {
-    if (getenv("MIMIR_BUCKET_SIZE") == NULL ||
-        getenv("MIMIR_COMM_SIZE") == NULL ||
-        getenv("MIMIR_PAGE_SIZE") == NULL || getenv("MIMIR_IBUF_SIZE") == NULL) {
+    if (getenv("MIMIR_BUCKET_SIZE") == NULL || getenv("MIMIR_COMM_SIZE") == NULL
+        || getenv("MIMIR_PAGE_SIZE") == NULL
+        || getenv("MIMIR_IBUF_SIZE") == NULL) {
         if (rank == 0)
-            printf("Please set MIMIR_BUCKET_SIZE, MIMIR_COMM_SIZE, "
-                   "MIMIR_PAGE_SIZE " "and MIMIR_IBUF_SIZE environments!\n");
+            printf(
+                "Please set MIMIR_BUCKET_SIZE, MIMIR_COMM_SIZE, "
+                "MIMIR_PAGE_SIZE "
+                "and MIMIR_IBUF_SIZE environments!\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 }

@@ -1,3 +1,11 @@
+#
+# (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego
+#     Supercomputer Center, National University of Defense Technology,
+#     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+#
+#     See COPYRIGHT in top-level directory.
+#
+
 lib_LIBRARIES = libmimir.a
 libmimir_a_CXXFLAGS = -g -Wno-write-strings -Wall -Wconversion      		\
 		      -fpermissive -DENABLE_PROFILER -DENABLE_TRACKER -DNDEBUG
@@ -9,7 +17,7 @@ libmimir_a_HEADERS = mimir.h interface.h globals.h hashbucket.h 	       \
 		     combinekvcontainer.h kmvcontainer.h collectiveshuffler.h  \
 		     combinebincontainer.h bincontainer.h serializer.h	       \
 		     nbcollectiveshuffler.h combinecollectiveshuffler.h config.h \
-		     ac_config.h nbcombinecollectiveshuffler.h chunkmanager.h  \
+		     mimir_config.h nbcombinecollectiveshuffler.h chunkmanager.h  \
 		     uniteddataset.h getrss.h powerlimit.h
 libmimir_a_SOURCES = mimircontext.h                           		       \
 		     container.cpp container.h containeriter.h		       \

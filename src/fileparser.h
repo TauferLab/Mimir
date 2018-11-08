@@ -1,30 +1,30 @@
-/*
- * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #ifndef MIMIR_FILE_PARSER_H
 #define MIMIR_FILE_PARSER_H
 
 namespace MIMIR_NS {
 
-class FileParser {
+class FileParser
+{
   public:
-    FileParser() {
-    }
+    FileParser() {}
 
-    ~FileParser() {
-    }
+    ~FileParser() {}
 
-    int to_line (char *buffer, int len, bool islast) {
+    int to_line(char *buffer, int len, bool islast)
+    {
         if (len == 0) return -1;
 
         int i = 0;
         for (i = 0; i < len; i++) {
-            if(*(buffer + i) == '\n')
-                break;
+            if (*(buffer + i) == '\n') break;
         }
 
         if (i < len) {
@@ -41,6 +41,6 @@ class FileParser {
     }
 };
 
-}
+} // namespace MIMIR_NS
 
 #endif

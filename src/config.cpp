@@ -1,16 +1,17 @@
-/*
- * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #include "config.h"
 
 // Buffer settings
-int64_t COMM_BUF_SIZE = 64 * 1024 * 1024;
-int64_t DATA_PAGE_SIZE = 64 * 1024 * 1024;
-int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024;
+int64_t COMM_BUF_SIZE = 64 * 1024 * 1024LL;
+int64_t DATA_PAGE_SIZE = 64 * 1024 * 1024LL;
+int64_t INPUT_BUF_SIZE = 64 * 1024 * 1024LL;
 int BUCKET_COUNT = 1024 * 1024;
 int MAX_RECORD_SIZE = 1024 * 1024;
 

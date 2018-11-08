@@ -1,10 +1,11 @@
-/*
- * (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego 
- *     Supercomputer Center, National University of Defense Technology, 
- *     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
- *
- *     See COPYRIGHT in top-level directory.
- */
+//
+// (c) 2016 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #ifndef _MEMORY_H_
 #define _MEMORY_H_
 
@@ -17,7 +18,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
+#endif
+
 #ifdef BGQ
 #include <spi/include/kernel/memory.h>
 #endif
@@ -26,11 +30,11 @@
 
 #include "log.h"
 
-#define DRAM_ALLOCATE    0
-#define MCDRAM_ALLOCATE  1
+#define DRAM_ALLOCATE 0
+#define MCDRAM_ALLOCATE 1
 
 void *mem_aligned_malloc(size_t, size_t, int hint = 0);
-void *mem_aligned_free(void*);
+void *mem_aligned_free(void *);
 extern int64_t peakmem;
 
 #define BUFSIZE 1024
@@ -39,15 +43,16 @@ extern int64_t peakmem;
 inline int64_t get_max_mmap()
 {
     int stderr_save;
-    char buffer[BUFSIZE] = { '\0' };
+    char buffer[BUFSIZE] = {'\0'};
     fflush(stderr);
     stderr_save = dup(STDERR_FILENO);
     FILE *fp = freopen("/dev/null", "a", stderr);
     setvbuf(stderr, buffer, _IOFBF, BUFSIZE);
+#ifdef HAVE_MALLOC_H
     malloc_stats();
+#endif
     fp = freopen("/dev/null", "a", stderr);
-    if (fp == NULL)
-        LOG_ERROR("Error: open dev null\n");
+    if (fp == NULL) LOG_ERROR("Error: open dev null\n");
     dup2(stderr_save, STDERR_FILENO);
     setvbuf(stderr, NULL, _IONBF, BUFSIZE);
 
@@ -57,8 +62,7 @@ inline int64_t get_max_mmap()
     do {
         if (strncmp(p, "max mmap bytes   =", 18) == 0) {
             char *word = p + 18;
-            while (isspace(*word))
-                ++word;
+            while (isspace(*word)) ++word;
             maxmmap = strtoull(word, NULL, 0);
         }
         p = strtok_r(NULL, "\n", &temp);
@@ -80,8 +84,7 @@ inline int64_t get_vmsize()
     while (fgets(line, 100, fp)) {
         if (strncmp(line, "VmSize:", 7) == 0) {
             char *p = line + 7;
-            while (isspace(*p))
-                ++p;
+            while (isspace(*p)) ++p;
             vmsize = strtoull(p, NULL, 0);
         }
     }
@@ -93,7 +96,6 @@ inline int64_t get_vmsize()
 
 inline int64_t get_mem_usage()
 {
-
     int64_t memsize = 0;
 
 #ifdef BGQ

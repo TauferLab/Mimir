@@ -1,3 +1,11 @@
+//
+// (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #ifndef MIMIR_GENERATOR_COMMON_H
 #define MIMIR_GENERATOR_COMMON_H
 
@@ -32,10 +40,9 @@ std::string get_unique_word(uint64_t idx, int len);
 int get_word_length(int mean, double sd);
 int generate_unique_words(uint64_t n_unique, std::vector<std::string>& output,
                           int len_mean, double len_sd);
-void print_dist_map(uint64_t zipf_n, double zipf_alpha, double *dist_map);
-void gen_dist_map(uint64_t zipf_n, double zipf_alpha,
-                  double* dist_map, uint64_t* div_idx_map,
-                  double *div_dist_map);
+void print_dist_map(uint64_t zipf_n, double zipf_alpha, double* dist_map);
+void gen_dist_map(uint64_t zipf_n, double zipf_alpha, double* dist_map,
+                  uint64_t* div_idx_map, double* div_dist_map);
 void random_exchange(std::vector<std::string>& unique_words);
 void repartition_dist_map(uint64_t zipf_n, double* dist_map,
                           uint64_t* div_idx_map, double* dist_new_map);

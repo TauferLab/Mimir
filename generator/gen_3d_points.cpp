@@ -1,3 +1,11 @@
+//
+// (c) 2017 by University of Delaware, Argonne National Laboratory, San Diego
+//     Supercomputer Center, National University of Defense Technology,
+//     National Supercomputer Center in Guangzhou, and Sun Yat-sen University.
+//
+//     See COPYRIGHT in top-level directory.
+//
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -28,7 +36,7 @@ int main(int argc, char *argv[])
     int index = 7;
     int num_digit = 15, range_min = -4, range_max = 4;
 
-    vector<vector<double> > cluster_centers;
+    vector<vector<double>> cluster_centers;
     vector<int> points_num;
     vector<string> distr;
 
@@ -37,7 +45,9 @@ int main(int argc, char *argv[])
     char path[256];
 
     if (argc < 10) {
-        printf("Usage: %s prefix outdir start_idx num_nodes stdiv num_clsters \n", argv[0]);
+        printf(
+            "Usage: %s prefix outdir start_idx num_nodes stdiv num_clsters \n",
+            argv[0]);
         return 0;
     }
 
@@ -60,12 +70,12 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < num_clusters; i++) {
         vector<double> center;
-        center.push_back(atof(argv[index  ]));
-        center.push_back(atof(argv[index+1]));
-        center.push_back(atof(argv[index+2]));
+        center.push_back(atof(argv[index]));
+        center.push_back(atof(argv[index + 1]));
+        center.push_back(atof(argv[index + 2]));
         cluster_centers.push_back(center);
-        points_num.push_back(atoi(argv[index+3]));
-        distr.push_back(string(argv[index+4]));
+        points_num.push_back(atoi(argv[index + 3]));
+        distr.push_back(string(argv[index + 4]));
         index += 5;
     }
 
@@ -73,7 +83,7 @@ int main(int argc, char *argv[])
     // cout << "the points number: " <<points_num << endl;
     // cout << "the distribution: " << distr << endl;
 
-    for (vector<vector<double> >::iterator cluster = cluster_centers.begin();
+    for (vector<vector<double>>::iterator cluster = cluster_centers.begin();
          cluster != cluster_centers.end(); cluster++) {
         int num_point_incluster = points_num.front();
         string dist = distr.front();
@@ -87,16 +97,19 @@ int main(int argc, char *argv[])
             int point_count = 0;
             char filename[128];
             memset(filename, 0, 128);
-            sprintf(filename, "%s/%s.points.%d.txt", outdir.c_str(), key_file_prefix.c_str(), worldrank);
+            sprintf(filename, "%s/%s.points.%d.txt", outdir.c_str(),
+                    key_file_prefix.c_str(), worldrank);
             ofstream out_file(filename, ios::out);
             char points_coords[128];
-            for (int point_count = 0; point_count < num_point_incluster; point_count++) {
+            for (int point_count = 0; point_count < num_point_incluster;
+                 point_count++) {
                 memset(points_coords, 0, 128);
-                sprintf(points_coords, " %.17f %.17f %.17f\n", dx(gen), dy(gen), dz(gen));
+                sprintf(points_coords, " %.17f %.17f %.17f\n", dx(gen), dy(gen),
+                        dz(gen));
                 out_file << points_coords;
-
             }
-        } else if (dist == "uniform") {
+        }
+        else if (dist == "uniform") {
             // Assume uniform dist
             std::uniform_real_distribution<> dx(range_min, range_max);
             std::uniform_real_distribution<> dy(range_min, range_max);
@@ -105,17 +118,18 @@ int main(int argc, char *argv[])
             int point_count = 0;
             char filename[128];
             memset(filename, 0, 128);
-            sprintf(filename, "%s/%s.points.%d.txt", outdir.c_str(), key_file_prefix.c_str(), worldrank);
+            sprintf(filename, "%s/%s.points.%d.txt", outdir.c_str(),
+                    key_file_prefix.c_str(), worldrank);
             ofstream out_file(filename, ios::out);
             char points_coords[128];
-            for (int point_count = 0; point_count < num_point_incluster; point_count++) {
+            for (int point_count = 0; point_count < num_point_incluster;
+                 point_count++) {
                 memset(points_coords, 0, 128);
-                sprintf(points_coords, " %.17f %.17f %.17f\n", dx(gen), dy(gen), dz(gen));
+                sprintf(points_coords, " %.17f %.17f %.17f\n", dx(gen), dy(gen),
+                        dz(gen));
                 out_file << points_coords;
-
             }
         }
-
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
