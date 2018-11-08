@@ -15,10 +15,10 @@
 # changing this by playing with diversions, but then we would probably be
 # playing with autotools-fire.
 
-m4_define([MIMIR_VERSION_m4],[0.9])dnl
-m4_define([MIMIR_RELEASE_DATE_m4],[unreleased development copy])dnl
+m4_define([MIMIR_VERSION_m4],[1.0])dnl
+m4_define([MIMIR_RELEASE_DATE_m4],[2018-11-08])dnl
 
-m4_define([libmimir_so_version_m4],[0:0:0])dnl
+m4_define([libmimir_so_version_m4],[1:0:0])dnl
 
 [#] end of __file__
 
