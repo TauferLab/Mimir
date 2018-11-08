@@ -69,13 +69,20 @@ AC_CONFIG_FILES([Makefile src/Makefile examples/Makefile generator/Makefile])
 AM_PROG_AR
 AC_PROG_CXX([mpicxx])
 AX_CXX_COMPILE_STDCXX_11
+
+AC_LINK_IFELSE([
+                AC_LANG_SOURCE([#includ "mpi.h"
+                                int main() {
+                                MPI_Init(NULL, NULL);
+                                return 0; }])],
+                                [HAVE_MPICXX=yes], [HAVE_MPICXX=no])
+if test "x$HAVE_MPICXX" = "xno" ; then
+    AC_MSG_ERROR([Cannot find MPICXX])
+    exit -1
+fi
 AC_PROG_RANLIB
 
 AC_CHECK_HEADERS([malloc.h])
-
-# check for MPI library
-AC_CHECK_HEADERS([mpi.h], [], [AC_MSG_ERROR([Cannot found MPI library])])
-AC_CHECK_LIB(mpi, MPI_Init, [], [AC_MSG_ERROR([Compiler cannot link MPI library])], [])
 
 # check memkind library
 AC_CHECK_HEADERS([memkind.h])
