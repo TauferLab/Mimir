@@ -25,15 +25,15 @@ Systems (ICPADS) 2017.
 # Requirement
 * A C++ compiler: supports C++ 11
 * MPI implementation: supports MPI 3.0
-* Automake tools
 
 # Getting Started
-* git clone https://github.com/TauferLab/Mimir.git
-* cd Mimir
-* autoreconf -i
-* ./configure --perfix=/mimir/install/directory
-* make
-* make install
+Mimir can be build and install from release tarball as follow.
+
+```sh
+./configure
+make
+make install
+```
 
 # Programming with Mimir
 Mimir implements the MapReduce programming model. Here we use wordcount as an
@@ -179,3 +179,18 @@ progress pushing during nonblocking communication
 * MIMIR_OUTPUT_TRACE (default: off) --- output trace file
 * MIMIR_STAT_FILE (default: NULL) --- stat file name
 * MIMIR_DBG_ALL (default: off) --- enable/disable debug message
+
+# Notes for Developers
+
+For developers working on the project, please follow these steps to
+build the library.
+
+```sh
+git clone https://github.com/TauferLab/Mimir.git
+cd Mimir
+
+./autogen.sh
+./configure
+make
+make install
+```
