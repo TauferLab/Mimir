@@ -166,33 +166,6 @@ class CombineKVContainer : public KVContainer<KeyType, ValType>,
         return ret;
     }
 
-#if 0
-    void update(KeyType *key, ValType *val)
-    {
-        int kvsize = this->ser->get_kv_bytes(key, val);
-
-        if (this->ser->compare_key(key, u_key) != 0)
-            LOG_ERROR("Error: the result key of combiner is different!\n");
-
-        if (kvsize <= ukvsize) {
-            this->ser->kv_to_bytes(key, val, u->kv, kvsize);
-            if (kvsize < ukvsize) {
-                this->slices.insert(std::make_pair(u->kv + ukvsize - kvsize, ukvsize - kvsize));
-            }
-        }
-        else {
-            this->slices.insert(std::make_pair(u->kv, ukvsize));
-            if (kvsize + this->pages[this->pageid].datasize > this->pagesize)
-                this->pageid = this->add_page();
-            u->kv = this->pages[this->pageid].buffer + this->pages[this->pageid].datasize;
-            this->ser->kv_to_bytes(key, val, u->kv, kvsize);
-            this->pages[this->pageid].datasize += kvsize;
-        }
-
-        return;
-    }
-#endif
-
     virtual int remove()
     {
         typename SafeType<KeyType>::ptrtype key = NULL;

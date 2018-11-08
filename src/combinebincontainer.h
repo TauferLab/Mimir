@@ -190,64 +190,6 @@ class CombineBinContainer : public BinContainer<KeyType, ValType>,
         return ret;
     }
 
-#if 0
-    void update(KeyType *key, ValType *val)
-    {
-        typename SafeType<KeyType>::ptrtype u_key = NULL;
-        typename SafeType<ValType>::ptrtype u_val = NULL;
-
-        int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
-        int kvsize = this->ser->get_kv_bytes(key, val);
-
-        if (this->ser->compare_key(key, u_key) != 0)
-            LOG_ERROR("Error: the result key of combiner is different!\n");
-
-        // Find a bin to insert the KV
-        uint32_t bid = this->ser->get_hash_code(key) % (this->bincount);
-
-        if (kvsize <= ukvsize) {
-            this->ser->kv_to_bytes(key, val, u->kv, kvsize);
-            if (kvsize < ukvsize) {
-                this->slices.insert(std::make_pair(u->kv + ukvsize - kvsize,
-                                                   std::make_pair(ukvsize - kvsize, bid)));
-            }
-        }
-        else {
-            this->slices.insert(std::make_pair(u->kv, std::make_pair(ukvsize,bid)));
-
-            int bidx = 0;
-            auto iter = this->bin_insert_idx.find(bid);
-            if (iter == this->bin_insert_idx.end()) {
-                bidx = this->get_empty_bin();
-                this->bins[bidx].bintag = bid;
-                this->bin_insert_idx[bidx] = bid;
-            } else {
-                bidx = iter->second;
-                if (this->bin_unit_size - this->bins[bidx].datasize < kvsize) {
-                    bidx = this->get_empty_bin();
-                    this->bins[bidx].bintag = bid;
-                    this->bin_insert_idx[bidx] = bid;
-                }
-            }
-        }
-
-        return;
-    }
-#endif
-
-    //virtual int remove(KeyType *key, ValType *val, std::set<uint32_t>& remove_bins)
-    //{
-
-    //    int ret = BinContainer<KeyType, ValType>::remove(key, val, remove_bins);
-    //    if (ret != -1) {
-    //        int keysize = this->ser->get_key_bytes(key);
-    //        char *keyptr = this->ser->get_key_ptr(key);
-    //        bucket->removeEntry(keyptr, keysize);
-    //    }
-
-    //    return ret;
-    //}
-
     virtual int get_next_bin(char *&buffer, int &datasize, uint32_t &bintag,
                              int &kvcount)
     {

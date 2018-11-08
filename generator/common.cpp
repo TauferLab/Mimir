@@ -223,19 +223,6 @@ void gen_dist_map(uint64_t zipf_n, double zipf_alpha, double* dist_map,
         idxsep.push_back(zipf_n);
         distsep.push_back(1.0);
     }
-#if 0
-    else {
-        if (next_sum > mean_dist * (ntimes + 1)) {
-            //printf("%d[%d] mean_dist=%lf, ntimes=%ld, prev_sum=%lf, sep=%d\n",
-            //       proc_rank, proc_size, mean_dist, ntimes, prev_sum, div_off + div_size);
-            //fflush(stdout);
-            idxsep.push_back(div_off + div_size);
-            distsep.push_back(prev_sum);
-            ntimes += 1;
-        }
-    }
-#endif
-
     if (proc_rank != proc_size - 1) {
         MPI_Send(&ntimes, 1, MPI_UINT64_T, proc_rank + 1, 0x11, MPI_COMM_WORLD);
     }

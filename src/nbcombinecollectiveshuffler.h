@@ -173,64 +173,6 @@ class NBCombineCollectiveShuffler
         return 0;
     }
 
-#if 0
-    //virtual void update(BaseRecordFormat *);
-   virtual void update(KeyType *key, ValType *val)
-   {
-        int target = this->get_target_rank(key, val);
-
-       //int target = get_target_rank(((KVRecord*)record)->get_key(),
-       //                             ((KVRecord*)record)->get_key_size());
-
-       //int kvsize = record->get_record_size();
-       //int ukvsize = kv.get_record_size();
-       //int ksize = kv.get_key_size();
-
-        typename SafeType<KeyType>::ptrtype u_key = NULL;
-        typename SafeType<ValType>::ptrtype u_val = NULL;
-        int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
-        int kvsize = this->ser->get_kv_bytes(key, val);
-
-       if (kvsize > this->buf_size)
-           LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n",
-                     kvsize, this->buf_size);
-
-       //if (((KVRecord*)record)->get_key_size() != kv.get_key_size()
-       //    || memcmp(((KVRecord*)record)->get_key(), kv.get_key(), ksize) != 0)
-       //    LOG_ERROR("Error: the result key of combiner is different!\n"g);
-
-        if (this->ser->compare_key(key, u_key) != 0)
-            LOG_ERROR("Error: the result key of combiner is different!\n");
-
-       if (kvsize <= ukvsize) {
-           //kv.convert((KVRecord*)record);
-           this->ser->kv_to_bytes(key, val, u->kv, kvsize);
-           if (kvsize < ukvsize)
-               slices.insert(std::make_pair(u->kv + kvsize,
-                                            ukvsize - kvsize));
-       }
-       else {
-           slices.insert(std::make_pair(u->kv, ukvsize));
-           if ((int64_t)this->msg_buffers[this->cur_idx].send_offset[target] + (int64_t) kvsize > this->buf_size) {
-               //while (!done_kv_exchange()) {
-               //    push_kv_exchange();
-               //}
-               garbage_collection();
-               this->start_kv_exchange();
-               u = NULL;
-           }
-           char *gbuf = this->msg_buffers[this->cur_idx].send_buffer + target * (int64_t) this->buf_size
-               + this->msg_buffers[this->cur_idx].send_offset[target];
-           //kv.set_buffer(gbuf);
-           //kv.convert((KVRecord*)record);
-           this->ser->kv_to_bytes(key, val, gbuf, kvsize);
-           this->msg_buffers[this->cur_idx].send_offset[target] += kvsize;
-           if (u != NULL) u->kv=gbuf;
-       }
-       return;
-   }
-#endif
-
     virtual void make_progress(bool issue_new = false)
     {
         if (issue_new && this->pending_msg == 0) {

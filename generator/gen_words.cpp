@@ -280,19 +280,6 @@ int main(int argc, char **argv)
     if (statfile != NULL) {
         char filename[1024];
         sprintf(filename, "%s%d.%d", statfile, proc_size, proc_rank);
-#if 0
-        std::ofstream outfile;
-        outfile.open(filename);
-        for (uint64_t i = 0; i < div_idx_map[proc_rank + 1] - div_idx_map[proc_rank] ; i++) {
-            if (idxunique) {
-                std::string str = get_unique_word(div_idx_map[proc_rank] + i, len_mean);
-                outfile << str.c_str() << " " << word_counts[i] << std::endl;
-            } else {
-                outfile << unique_new_words[i] << " " << word_counts[i] << std::endl;
-            }
-        }
-        outfile.close();
-#endif
         MIMIR_NS::MimirContext<const char *, uint64_t> *stat_ctx
             = new MIMIR_NS::MimirContext<const char *, uint64_t>(
                 std::vector<std::string>(), std::string(filename),

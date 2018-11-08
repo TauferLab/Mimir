@@ -188,48 +188,6 @@ class CombineCollectiveShuffler : public CollectiveShuffler<KeyType, ValType>,
         return kv;
     }
 
-#if 0
-    virtual void update(KeyType *key, ValType *val)
-    {
-        typename SafeType<KeyType>::ptrtype u_key = NULL;
-        typename SafeType<ValType>::ptrtype u_val = NULL;
-        int ukvsize = this->ser->kv_from_bytes(&u_key, &u_val, u->kv, MAX_RECORD_SIZE);
-
-        int target = this->get_target_rank(key, val);
-
-        int kvsize = this->ser->get_kv_bytes(key, val);
-        if (kvsize > this->buf_size)
-            LOG_ERROR("Error: KV size (%d) is larger than buf_size (%ld)\n",
-                      kvsize, this->buf_size);
-
-        if (this->ser->compare_key(key, u_key) != 0)
-            LOG_ERROR("Error: the result key of combiner is different!\n");
-
-        if (kvsize <= ukvsize) {
-            this->ser->kv_to_bytes(key, val, u->kv, kvsize);
-            if (kvsize < ukvsize)
-                slices.insert(std::make_pair(u->kv + kvsize,
-                                             ukvsize - kvsize));
-        }
-        else {
-            slices.insert(std::make_pair(u->kv, ukvsize));
-            if ((int64_t)this->send_offset[target] + (int64_t) kvsize > this->buf_size) {
-                garbage_collection();
-                this->exchange_kv();
-                u = NULL;
-            }
-            char *gbuf = this->send_buffer
-                + target * (int64_t) this->buf_size
-                + this->send_offset[target];
-            this->ser->kv_to_bytes(key, val, gbuf, (int)this->buf_size - this->send_offset[target]);
-            this->send_offset[target] += kvsize;
-            if (u != NULL) u->kv=gbuf;
-        }
-
-        return;
-    }
-#endif
-
     virtual void make_progress(bool issue_new = false)
     {
         garbage_collection();

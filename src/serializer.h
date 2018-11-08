@@ -226,19 +226,6 @@ template <typename Type, typename dummy = Type>
 class txtstream
 {
   public:
-#if 0
-    static int size (Type *obj, int count) {
-        int bytesize = 0;
-        for (int i = 0; i < count; i++) {
-            std::stringstream ss;
-            ss << obj[i];
-            int strsize = (int)ss.str().size();
-            bytesize += strsize;
-        }
-        return bytesize;
-    }
-#endif
-
     static int to_txt(Type* obj, int count, char* buf, int bufsize)
     {
         int bytesize = 0;
@@ -444,32 +431,6 @@ class Serializer
                + bytestream<ValType>::size(val, valcount);
         ;
     }
-
-#if 0
-    int get_key_txt_len (KeyType *key) {
-        return txtstream<KeyType>::size(key, keycount);
-    }
-
-    int get_val_txt_len (ValType *val) {
-        return txtstream<ValType>::size(val, valcount);
-    }
-
-    int get_kv_txt_len (KeyType *key, ValType *val) {
-        return get_key_txt_len(key) + get_val_txt_len(val) + 1;
-    }
-
-    int key_to_txt (KeyType *key, char *buffer, int bufsize) {
-
-        return txtstream<KeyType>::to_txt(key, keycount, buffer, bufsize);
-
-    }
-
-    int val_to_txt (ValType *val, char *buffer, int bufsize) {
-
-        return txtstream<ValType>::to_txt(val, valcount, buffer, bufsize);
-
-    }
-#endif
 
     int kv_to_txt(KeyType* key, ValType* val, char* buffer, int bufsize)
     {
