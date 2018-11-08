@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
     }
 
     std::string output = argv[1];
-    std::vector<std::string> input;()
+    std::vector<std::string> input;
     for (int i = 2; i < argc; i++) {
         input.push_back(argv[i]);
     }
