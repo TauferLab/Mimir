@@ -9,8 +9,12 @@
 #ifndef MIMIR_POWER_LIMIT
 #define MIMIR_POWER_LIMIT
 
+#ifdef HAVE_PAPI
+
 void init_power_limit();
 void uinit_power_limit();
 void set_power_limit(double scale);
+
+#endif
 
 #endif

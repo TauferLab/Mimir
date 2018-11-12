@@ -36,18 +36,22 @@ void mimir_init()
     printf("%d[%d] set hbw policy\n", mimir_world_rank, mimir_world_size);
     hbw_set_policy(HBW_POLICY_BIND);
 #endif
+#ifdef HAVE_PAPI
     if (LIMIT_POWER) {
         init_power_limit();
         set_power_limit(LIMIT_SCALE);
     }
+#endif
 }
 
 void mimir_finalize()
 {
+#ifdef HAVE_PAPI
     if (LIMIT_POWER) {
         set_power_limit(1.0);
         uinit_power_limit();
     }
+#endif
     if (STAT_FILE) {
         mimir_stat(STAT_FILE);
     }

@@ -6,6 +6,8 @@
 //     See COPYRIGHT in top-level directory.
 //
 
+#if HAVE_PAPI
+
 #include "log.h"
 #include "stat.h"
 #include "powerlimit.h"
@@ -14,7 +16,6 @@
 
 #define MAX_powercap_EVENTS 64
 
-#if HAVE_LIBPAPI
 #include "papi.h"
 int EventSet = PAPI_NULL;
 long long oldvalues[MAX_powercap_EVENTS];
@@ -22,11 +23,9 @@ long long newvalues[MAX_powercap_EVENTS];
 int limit_map[MAX_powercap_EVENTS];
 int num_events = 0, num_limits = 0, retval = -1;
 char event_names[MAX_powercap_EVENTS][PAPI_MAX_STR_LEN];
-#endif
 
 void init_power_limit()
 {
-#if HAVE_LIBPAPI
     int cid, powercap_cid = -1, numcmp, r, code;
     const PAPI_component_info_t *cmpinfo = NULL;
 
@@ -86,14 +85,10 @@ void init_power_limit()
     if (retval != PAPI_OK) {
         LOG_ERROR("PAPI_read error!ret=%d\n", retval);
     }
-#else
-    LOG_ERROR("No PAPI library found!\n");
-#endif
 }
 
 void uinit_power_limit()
 {
-#if HAVE_LIBPAPI
     retval = PAPI_stop(EventSet, oldvalues);
     if (retval != PAPI_OK) LOG_ERROR("PAPI_stop error!\n");
 
@@ -102,12 +97,10 @@ void uinit_power_limit()
 
     retval = PAPI_destroy_eventset(&EventSet);
     if (retval != PAPI_OK) LOG_ERROR("PAPI_destroy_eventset error!\n");
-#endif
 }
 
 void set_power_limit(double scale)
 {
-#if HAVE_LIBPAPI
     for (int i = 0; i < num_events; i++) {
         newvalues[i] = oldvalues[i];
     }
@@ -118,12 +111,10 @@ void set_power_limit(double scale)
     if (retval != PAPI_OK) {
         LOG_ERROR("PAPI_write error!\n");
     }
-#endif
 }
 
 void print_power_limit()
 {
-#if HAVE_LIBPAPI
     retval = PAPI_read(EventSet, newvalues);
     if (retval != PAPI_OK) {
         LOG_ERROR("PAPI_read error!\n");
@@ -132,5 +123,6 @@ void print_power_limit()
         fprintf(stdout, "EVENT: %s\tVALUE: %.02lf\n", event_names[i],
                 (double) newvalues[i]);
     }
-#endif
 }
+
+#endif
