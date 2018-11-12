@@ -352,7 +352,7 @@ class DirectFileWriter : public FileWriter<KeyType, ValType>
             this->datasize = 0;
             LOG_PRINT(DBG_IO, "Set (POSIX) output file %s:%ld\n",
                       this->filename.c_str(), filesize);
-            int ret = ::ftruncate64(this->union_fp.posix_fd, filesize);
+            ::ftruncate64(this->union_fp.posix_fd, filesize);
         }
         else {
             filesize += this->datasize;

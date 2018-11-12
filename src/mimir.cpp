@@ -433,9 +433,9 @@ void get_default_values()
 Refer IPDPS17 paper \"Mimir: Memory-Efficient and Scalable MapReduce\n\
 for Large Supercomputing Systems\" for the design idea.\n\
 Library configuration:\n\
-\tcomm buffer size: %lld\n\
-\tpage buffer size: %lld\n\
-\tdisk buffer size: %lld\n\
+\tcomm buffer size: %ld\n\
+\tpage buffer size: %ld\n\
+\tdisk buffer size: %ld\n\
 \thash bucket size: %d\n\
 \tmax record size: %d\n\
 \tshuffle type: %d (0 - MPI_Alltoallv; 1 - MPI_Ialltoallv [%d,%d])\n\
