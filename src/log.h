@@ -28,7 +28,7 @@
 #define DBG_REPAR 64 // repartition
 #define DBG_VERBOSE 32
 
-#define MIMIR_MAX_LOG_LEN 256
+#define MIMIR_MAX_LOG_LEN 4096
 
 extern int mimir_world_rank;
 extern int mimir_world_size;
